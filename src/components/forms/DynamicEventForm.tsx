@@ -1,0 +1,268 @@
+import { useState, useEffect } from 'react'
+import { Modal, Btn } from '../ui'
+import type { FieldConfig, Event } from '../../data/types'
+import { SPORTS, COMPETITIONS, PHASES, CATEGORIES, COMPLEXES, CHANNELS, RADIO_CHANNELS } from '../../data'
+import { genId } from '../../utils'
+import { api } from '../../utils/api'
+import { DynamicForm } from './DynamicForm'
+
+type ApiFieldDef = {
+  id: string
+  label: string
+  fieldType: string
+  required: boolean
+  visible: boolean
+  options: string[]
+  defaultValue?: string
+}
+
+interface DynamicEventFormProps {
+  eventFields: FieldConfig[]
+  onClose: () => void
+  onSave: (event: Event) => void
+  editEvent?: Event | null
+}
+
+const CORE_FIELD_IDS = new Set([
+  'sport', 'competition',
+  'phase', 'category', 'participants', 'content',
+  'startDateBE', 'startTimeBE', 'startDateOrigin', 'startTimeOrigin',
+  'complex', 'livestreamDate', 'livestreamTime',
+  'linearChannel', 'radioChannel', 'linearStartTime',
+  'isLive', 'isDelayedLive',
+  'videoRef', 'winner', 'score', 'duration',
+])
+
+function isCustomField(fieldId: string, fieldConfig: FieldConfig[]): boolean {
+  if (CORE_FIELD_IDS.has(fieldId)) return false
+  const field = fieldConfig.find(f => f.id === fieldId)
+  return field?.isCustom === true || !CORE_FIELD_IDS.has(fieldId)
+}
+
+export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: DynamicEventFormProps) {
+  const initForm = (): Record<string, string | boolean> => {
+    const f: Record<string, string | boolean> = {}
+    const customFields = editEvent?.customFields as Record<string, unknown> | undefined
+    
+    eventFields.forEach(field => {
+      if (isCustomField(field.id, eventFields)) {
+        if (customFields && customFields[field.id] !== undefined) {
+          f[field.id] = customFields[field.id] as string | boolean
+        } else if (field.type === 'checkbox') {
+          f[field.id] = false
+        } else {
+          f[field.id] = ''
+        }
+      } else if (field.id === 'sport' || field.id === 'competition') {
+        const key = field.id === 'sport' ? 'sportId' : 'competitionId'
+        if (editEvent && editEvent[key as keyof Event] !== undefined) {
+          f[field.id] = String(editEvent[key as keyof Event])
+        } else {
+          f[field.id] = ''
+        }
+      } else if (editEvent && editEvent[field.id as keyof Event] !== undefined) {
+        f[field.id] = editEvent[field.id as keyof Event] as string | boolean
+      } else if (field.type === 'checkbox') {
+        f[field.id] = false
+      } else {
+        f[field.id] = ''
+      }
+    })
+    return f
+  }
+
+  const [form, setForm] = useState<Record<string, string | boolean>>(initForm)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [apiCustomFields, setApiCustomFields] = useState<ApiFieldDef[]>([])
+  const [customValues, setCustomValues] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    api.get<ApiFieldDef[]>('/fields?section=event')
+      .then(setApiCustomFields)
+      .catch(() => { /* API not available, skip */ })
+  }, [])
+
+  const handleCustomValueChange = (fieldId: string, value: string) => {
+    setCustomValues(prev => ({ ...prev, [fieldId]: value }))
+  }
+
+  const update = (k: string, v: string | boolean) => {
+    setForm(p => ({ ...p, [k]: v }))
+    setErrors(p => ({ ...p, [k]: '' }))
+  }
+
+  const optionsMap: Record<string, { value: string | number; label: string }[]> = {
+    sports: SPORTS.map(s => ({ value: s.id, label: `${s.icon} ${s.name}` })),
+    competitions: COMPETITIONS.filter(c => !form.sport || c.sportId === parseInt(form.sport as string)).map(c => ({ value: c.id, label: c.name })),
+    phases: PHASES.map(p => ({ value: p, label: p })),
+    categories: CATEGORIES.map(c => ({ value: c, label: c })),
+    complexes: COMPLEXES.map(c => ({ value: c, label: c })),
+    channels: CHANNELS.map(c => ({ value: c, label: c })),
+    radioChannels: RADIO_CHANNELS.map(c => ({ value: c, label: c })),
+  }
+
+  const visibleFields = eventFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {}
+    visibleFields.forEach(f => {
+      const val = form[f.id]
+      if (f.required && !val && val !== false) {
+        errs[f.id] = 'Required'
+      }
+    })
+    
+    const sportId = parseInt(form.sport as string)
+    const competitionId = parseInt(form.competition as string)
+    if (!sportId || sportId === 0) {
+      errs.sport = 'Valid sport required'
+    }
+    if (!competitionId || competitionId === 0) {
+      errs.competition = 'Valid competition required'
+    }
+    
+    setErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const handleSave = () => {
+    if (!validate()) return
+    
+    const customFields: Record<string, unknown> = { ...editEvent?.customFields as Record<string, unknown> }
+    
+    eventFields.forEach(field => {
+      if (isCustomField(field.id, eventFields)) {
+        customFields[field.id] = form[field.id]
+      }
+    })
+    
+    const event: Event = {
+      id: editEvent?.id || genId(),
+      sportId: parseInt(form.sport as string) || 0,
+      competitionId: parseInt(form.competition as string) || 0,
+      phase: form.phase as string,
+      category: form.category as string,
+      participants: form.participants as string,
+      content: form.content as string,
+      startDateBE: form.startDateBE as string,
+      startTimeBE: form.startTimeBE as string,
+      startDateOrigin: form.startDateOrigin as string,
+      startTimeOrigin: form.startTimeOrigin as string,
+      complex: form.complex as string,
+      livestreamDate: form.livestreamDate as string,
+      livestreamTime: form.livestreamTime as string,
+      linearChannel: form.linearChannel as string,
+      radioChannel: form.radioChannel as string,
+      linearStartTime: form.linearStartTime as string,
+      isLive: form.isLive as boolean,
+      isDelayedLive: form.isDelayedLive as boolean,
+      videoRef: form.videoRef as string,
+      customFields,
+      customValues: Object.entries(customValues).map(([fieldId, fieldValue]) => ({ fieldId, fieldValue })),
+    }
+    onSave(event)
+    onClose()
+  }
+
+  const inputCls = 'field-input'
+  const errCls = 'border-danger focus:border-danger focus:ring-danger/20'
+
+  const renderField = (field: FieldConfig) => {
+    const hasErr = errors[field.id]
+    const cls = `${inputCls} ${hasErr ? errCls : 'border-border'}`
+
+    if (field.type === 'dropdown' && field.options && optionsMap[field.options]) {
+      return (
+        <select
+          value={form[field.id] as string || ''}
+          onChange={e => update(field.id, e.target.value)}
+          className={cls}
+        >
+          <option value=''>Select...</option>
+          {optionsMap[field.options].map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      )
+    }
+    if (field.type === 'dropdown' && field.isCustom && field.options) {
+      const opts = (typeof field.options === 'string' ? field.options.split(',') : []).map(o => o.trim()).filter(Boolean)
+      return (
+        <select
+          value={form[field.id] as string || ''}
+          onChange={e => update(field.id, e.target.value)}
+          className={cls}
+        >
+          <option value=''>Select...</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )
+    }
+    if (field.type === 'checkbox') {
+      return (
+        <label className='flex items-center gap-2 py-1 cursor-pointer'>
+          <input
+            type='checkbox'
+            checked={!!form[field.id]}
+            onChange={e => update(field.id, e.target.checked)}
+            className='h-4 w-4 rounded border-border text-primary'
+          />
+          <span className='text-sm text-text-2'>{form[field.id] ? 'Yes' : 'No'}</span>
+        </label>
+      )
+    }
+    if (field.type === 'textarea') {
+      return (
+        <textarea
+          value={form[field.id] as string || ''}
+          onChange={e => update(field.id, e.target.value)}
+          rows={3}
+          className={cls}
+        />
+      )
+    }
+    return (
+      <input
+        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : 'text'}
+        value={form[field.id] as string || ''}
+        onChange={e => update(field.id, e.target.value)}
+        className={cls}
+      />
+    )
+  }
+
+  return (
+    <Modal onClose={onClose} title={editEvent ? 'Edit Event' : 'New Sports Event'}>
+      <div className='p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto'>
+        {visibleFields.map(field => (
+          <div key={field.id} className={field.type === 'textarea' ? 'sm:col-span-2' : ''}>
+            <label className='field-label flex items-center gap-1.5'>
+              {field.label}
+              {field.required && <span className='text-danger'>*</span>}
+              {field.isCustom && <span className='rounded-sm border border-border bg-surface-2 px-1 text-[10px] text-text-2'>custom</span>}
+            </label>
+            {renderField(field)}
+            {errors[field.id] && <p className='mt-1 text-xs text-danger'>{errors[field.id]}</p>}
+          </div>
+        ))}
+        {apiCustomFields.length > 0 && (
+          <div className='sm:col-span-2 border-t border-border pt-4'>
+            <p className='text-xs uppercase tracking-wide text-text-2 mb-3'>Custom Fields</p>
+            <DynamicForm
+              fields={apiCustomFields}
+              values={customValues}
+              onChange={handleCustomValueChange}
+            />
+          </div>
+        )}
+      </div>
+      <div className='flex items-center justify-between border-t border-border px-6 py-4'>
+        <span className='text-xs uppercase tracking-wide text-text-2'>{visibleFields.filter(f => f.required).length} required fields</span>
+        <div className='flex gap-2'>
+          <Btn onClick={onClose}>Cancel</Btn>
+          <Btn variant='primary' onClick={handleSave}>{editEvent ? 'Save Changes' : 'Create Event'}</Btn>
+        </div>
+      </div>
+    </Modal>
+  )
+}

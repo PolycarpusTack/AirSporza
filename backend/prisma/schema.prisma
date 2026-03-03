@@ -1,0 +1,651 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ContractStatus {
+  valid
+  expiring
+  draft
+  none
+}
+
+enum Role {
+  planner
+  sports
+  contracts
+  admin
+}
+
+enum SettingScopeKind {
+  global
+  role
+  user
+  user_role
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String?
+  avatar        String?
+  role          Role     @default(planner)
+  externalId    String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  events           Event[]
+  techPlans        TechPlan[]
+  appSettings      AppSetting[]
+  encoderLocks     EncoderLock[]
+  fieldDefinitions FieldDefinition[]
+  
+  @@index([email])
+  @@index([externalId])
+}
+
+model Sport {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  icon        String
+  federation  String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  competitions          Competition[]
+  events                Event[]
+  canonicalTeams        CanonicalTeam[]
+  canonicalCompetitions CanonicalCompetition[]
+  mandatoryFieldConfig  MandatoryFieldConfig?
+}
+
+model Competition {
+  id        Int       @id @default(autoincrement())
+  sportId   Int
+  name      String
+  matches   Int
+  season    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  sport      Sport        @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  events     Event[]
+  contracts  Contract[]
+  
+  @@unique([sportId, name, season])
+  @@index([sportId])
+}
+
+model Event {
+  id                Int       @id @default(autoincrement())
+  sportId           Int
+  competitionId     Int
+  createdById       String?
+  
+  phase             String?
+  category          String?
+  participants      String
+  content           String?
+  
+  startDateBE       DateTime
+  startTimeBE       String
+  startDateOrigin   DateTime?
+  startTimeOrigin   String?
+  
+  complex           String?
+  livestreamDate    DateTime?
+  livestreamTime    String?
+  
+  linearChannel     String?
+  radioChannel      String?
+  linearStartTime   String?
+  
+  isLive            Boolean   @default(false)
+  isDelayedLive     Boolean   @default(false)
+  
+  videoRef          String?
+  winner            String?
+  score             String?
+  duration          String?
+  
+  customFields      Json      @default("{}")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  sport             Sport         @relation(fields: [sportId], references: [id])
+  competition       Competition   @relation(fields: [competitionId], references: [id])
+  createdBy         User?         @relation(fields: [createdById], references: [id])
+  techPlans         TechPlan[]
+  
+  @@index([sportId])
+  @@index([competitionId])
+  @@index([startDateBE])
+  @@index([linearChannel])
+}
+
+model TechPlan {
+  id            Int       @id @default(autoincrement())
+  eventId       Int
+  planType      String
+  crew          Json      @default("{}")
+  isLivestream  Boolean   @default(false)
+  customFields  Json      @default("[]")
+  createdById   String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  event         Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy     User?     @relation(fields: [createdById], references: [id])
+  encoderLocks  EncoderLock[]
+
+  @@index([eventId])
+}
+
+model Contract {
+  id              Int             @id @default(autoincrement())
+  competitionId   Int
+  status          ContractStatus  @default(none)
+  
+  validFrom       DateTime?
+  validUntil      DateTime?
+  
+  linearRights    Boolean         @default(false)
+  maxRights       Boolean         @default(false)
+  radioRights     Boolean         @default(false)
+  sublicensing    Boolean         @default(false)
+  
+  geoRestriction  String?
+  fee             String?
+  notes           String?
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  competition     Competition     @relation(fields: [competitionId], references: [id])
+  
+  @@index([competitionId])
+  @@index([status])
+  @@index([validUntil])
+}
+
+model Encoder {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  location    String?
+  isActive    Boolean   @default(true)
+  notes       String?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model AppSetting {
+  id          String           @id @default(uuid())
+  key         String
+  scopeKind   SettingScopeKind
+  scopeId     String
+  userId      String?
+  value       Json
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([key, scopeKind, scopeId])
+  @@index([scopeKind, scopeId])
+  @@index([userId])
+}
+
+// =============================================================================
+// FIELD ENGINE
+// =============================================================================
+
+enum FieldType {
+  text
+  number
+  date
+  time
+  dropdown
+  checkbox
+  textarea
+}
+
+enum FieldSection {
+  event
+  crew
+  contract
+}
+
+model FieldDefinition {
+  id               String        @id
+  name             String        @unique
+  label            String
+  fieldType        FieldType
+  section          FieldSection
+  required         Boolean       @default(false)
+  sortOrder        Int           @default(0)
+  options          String[]
+  dropdownSourceId String?
+  defaultValue     String?
+  conditionalRules Json          @default("[]")
+  visibleByRoles   Role[]
+  isSystem         Boolean       @default(false)
+  isCustom         Boolean       @default(true)
+  visible          Boolean       @default(true)
+  createdById      String?
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  dropdownSource   DropdownList?          @relation(fields: [dropdownSourceId], references: [id])
+  createdBy        User?                  @relation(fields: [createdById], references: [id])
+  customValues     CustomFieldValue[]
+  mandatoryConfigs MandatoryFieldConfig[]
+
+  @@index([section, sortOrder])
+}
+
+model CustomFieldValue {
+  id          String   @id @default(uuid())
+  entityType  String
+  entityId    String
+  fieldId     String
+  fieldValue  String
+
+  field       FieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId, fieldId])
+  @@index([entityType, entityId])
+}
+
+model DropdownList {
+  id          String   @id
+  name        String
+  description String?
+  managedBy   Role     @default(admin)
+  createdAt   DateTime @default(now())
+
+  options     DropdownOption[]
+  fields      FieldDefinition[]
+}
+
+model DropdownOption {
+  id          String   @id @default(uuid())
+  listId      String
+  value       String
+  label       String
+  parentId    String?
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  list        DropdownList    @relation(fields: [listId], references: [id], onDelete: Cascade)
+  parent      DropdownOption? @relation("DropdownOptionChildren", fields: [parentId], references: [id])
+  children    DropdownOption[] @relation("DropdownOptionChildren")
+
+  @@unique([listId, value])
+  @@index([listId, sortOrder])
+}
+
+model MandatoryFieldConfig {
+  id                  String   @id @default(uuid())
+  sportId             Int      @unique
+  fieldIds            String[]
+  conditionalRequired Json     @default("[]")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  sport               Sport             @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  fields              FieldDefinition[]
+
+  @@index([sportId])
+}
+
+// =============================================================================
+// IMPORT SYSTEM
+// =============================================================================
+
+enum ImportSourceKind {
+  api
+  file
+}
+
+enum ImportJobStatus {
+  queued
+  running
+  completed
+  failed
+  partial
+}
+
+enum ImportJobMode {
+  full
+  incremental
+  backfill
+}
+
+enum ValidationStatus {
+  pending
+  valid
+  invalid
+  quarantined
+}
+
+enum MergeCandidateStatus {
+  pending
+  approved_merge
+  create_new
+  ignored
+}
+
+enum SyncStatus {
+  success
+  failed
+  partial
+}
+
+model ImportSource {
+  id                  String            @id @default(uuid())
+  code                String            @unique
+  name                String
+  kind                ImportSourceKind
+  priority            Int               @default(100)
+  isEnabled           Boolean           @default(true)
+  configJson          Json              @default("{}")
+  rateLimitPerMinute  Int?
+  rateLimitPerDay     Int?
+  lastFetchAt         DateTime?
+  createdAt           DateTime          @default(now())
+  
+  jobs                ImportJob[]
+  records             ImportRecord[]
+  sourceLinks         ImportSourceLink[]
+  deadLetters         ImportDeadLetter[]
+  rateLimits          ImportRateLimit?
+  teamAliases         TeamAlias[]
+  competitionAliases  CompetitionAlias[]
+  venueAliases        VenueAlias[]
+  canonicalTeams      CanonicalTeam[]   @relation("CanonicalTeamSource")
+  canonicalCompetitions CanonicalCompetition[] @relation("CanonicalCompetitionSource")
+  canonicalVenues     CanonicalVenue[]  @relation("CanonicalVenueSource")
+}
+
+model ImportJob {
+  id              String          @id @default(uuid())
+  sourceId        String
+  entityScope     String
+  mode            ImportJobMode
+  status          ImportJobStatus @default(queued)
+  idempotencyKey  String?         @unique
+  cursor          String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  statsJson       Json            @default("{}")
+  errorLog        String?
+  createdAt       DateTime        @default(now())
+  
+  source          ImportSource    @relation(fields: [sourceId], references: [id])
+  records         ImportRecord[]
+  deadLetters     ImportDeadLetter[]
+  
+  @@index([sourceId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ImportRecord {
+  id                String            @id @default(uuid())
+  jobId             String
+  sourceId          String
+  sourceRecordId    String
+  sourceUpdatedAt   DateTime?
+  entityType        String
+  payloadJson       Json
+  payloadHash       String
+  normalizedJson    Json?
+  normalizedHash    String?
+  validationStatus  ValidationStatus  @default(pending)
+  validationErrors  Json              @default("[]")
+  isSuperseded      Boolean           @default(false)
+  supersededByJobId String?
+  createdAt         DateTime          @default(now())
+  
+  job               ImportJob         @relation(fields: [jobId], references: [id])
+  source            ImportSource      @relation(fields: [sourceId], references: [id])
+  mergeCandidates   MergeCandidate[]
+  
+  @@unique([sourceId, sourceRecordId, entityType])
+  @@index([jobId])
+  @@index([validationStatus])
+  @@index([entityType])
+}
+
+model ImportSourceLink {
+  id              String    @id @default(uuid())
+  sourceId        String
+  sourceRecordId  String
+  entityType      String
+  entityId        String
+  confidence      Decimal   @db.Decimal(5, 2)
+  matchMethod     String
+  isManual        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  source          ImportSource @relation(fields: [sourceId], references: [id])
+  
+  @@unique([sourceId, sourceRecordId, entityType])
+  @@index([entityType, entityId])
+  @@index([entityType, entityId, confidence])
+}
+
+model MergeCandidate {
+  id                  String                @id @default(uuid())
+  importRecordId      String
+  entityType          String
+  suggestedEntityId  String?
+  confidence          Decimal               @db.Decimal(5, 2)
+  reasonCodes         Json                  @default("[]")
+  status              MergeCandidateStatus  @default(pending)
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  createdAt           DateTime              @default(now())
+  
+  importRecord        ImportRecord          @relation(fields: [importRecordId], references: [id])
+  
+  @@index([entityType, status])
+}
+
+model ImportDeadLetter {
+  id              String    @id @default(uuid())
+  jobId           String?
+  sourceId        String
+  sourceRecordId  String?
+  rawPayload      Json
+  errorMessage    String
+  errorType       String
+  retryCount      Int       @default(0)
+  lastRetryAt     DateTime?
+  nextRetryAt     DateTime?
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  
+  job             ImportJob? @relation(fields: [jobId], references: [id])
+  source          ImportSource @relation(fields: [sourceId], references: [id])
+  
+  @@index([nextRetryAt])
+  @@index([sourceId, errorType])
+}
+
+model ImportRateLimit {
+  sourceId            String    @id
+  requestsThisMinute  Int       @default(0)
+  requestsThisDay     Int       @default(0)
+  minuteWindowStart   DateTime  @default(now())
+  dayWindowStart      DateTime  @default(now())
+  lastRequestAt       DateTime?
+  
+  source              ImportSource @relation(fields: [sourceId], references: [id])
+}
+
+model FieldProvenance {
+  id              String    @id @default(uuid())
+  entityType      String
+  entityId        String
+  fieldName       String
+  sourceId        String
+  sourceRecordId  String
+  sourceUpdatedAt DateTime?
+  importedAt      DateTime  @default(now())
+  
+  @@unique([entityType, entityId, fieldName])
+  @@index([entityType, entityId])
+}
+
+model CanonicalTeam {
+  id              String    @id @default(uuid())
+  primaryName     String
+  countryCode     String?
+  sportId         Int
+  logoUrl         String?
+  primarySourceId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  sport           Sport     @relation(fields: [sportId], references: [id])
+  primarySource   ImportSource? @relation("CanonicalTeamSource", fields: [primarySourceId], references: [id])
+  aliases         TeamAlias[]
+  
+  @@unique([sportId, primaryName])
+}
+
+model CanonicalCompetition {
+  id              String    @id @default(uuid())
+  primaryName     String
+  sportId         Int
+  countryCode     String?
+  logoUrl         String?
+  primarySourceId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  sport           Sport     @relation(fields: [sportId], references: [id])
+  primarySource   ImportSource? @relation("CanonicalCompetitionSource", fields: [primarySourceId], references: [id])
+  aliases         CompetitionAlias[]
+  
+  @@unique([sportId, primaryName])
+}
+
+model CanonicalVenue {
+  id              String    @id @default(uuid())
+  primaryName     String
+  city            String?
+  countryCode     String?
+  capacity        Int?
+  primarySourceId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  primarySource   ImportSource? @relation("CanonicalVenueSource", fields: [primarySourceId], references: [id])
+  aliases         VenueAlias[]
+  
+  @@unique([primaryName, city])
+}
+
+model TeamAlias {
+  id                String        @id @default(uuid())
+  canonicalTeamId   String
+  sourceId          String?
+  alias             String
+  normalizedAlias   String
+  
+  canonicalTeam     CanonicalTeam @relation(fields: [canonicalTeamId], references: [id])
+  source            ImportSource? @relation(fields: [sourceId], references: [id])
+  
+  @@unique([sourceId, normalizedAlias])
+  @@index([normalizedAlias])
+}
+
+model CompetitionAlias {
+  id                      String              @id @default(uuid())
+  canonicalCompetitionId  String
+  sourceId                String?
+  alias                   String
+  normalizedAlias         String
+  
+  canonicalCompetition    CanonicalCompetition @relation(fields: [canonicalCompetitionId], references: [id])
+  source                  ImportSource?       @relation(fields: [sourceId], references: [id])
+  
+  @@unique([sourceId, normalizedAlias])
+  @@index([normalizedAlias])
+}
+
+model VenueAlias {
+  id                String        @id @default(uuid())
+  canonicalVenueId  String
+  sourceId          String?
+  alias             String
+  normalizedAlias   String
+  
+  canonicalVenue    CanonicalVenue @relation(fields: [canonicalVenueId], references: [id])
+  source            ImportSource? @relation(fields: [sourceId], references: [id])
+  
+  @@unique([sourceId, normalizedAlias])
+  @@index([normalizedAlias])
+}
+
+model SyncHistory {
+  id                String      @id @default(uuid())
+  entityType        String
+  entityId          String?
+  sourceCode        String
+  syncType          String
+  triggeredBy       String?
+  status            SyncStatus
+  recordsProcessed  Int         @default(0)
+  recordsCreated    Int         @default(0)
+  recordsUpdated    Int         @default(0)
+  recordsSkipped    Int         @default(0)
+  errorMessage      String?
+  createdAt         DateTime    @default(now())
+  
+  @@index([entityType, createdAt])
+  @@index([triggeredBy])
+}
+
+model EncoderLock {
+  encoderName String   @id
+  lockedById  String
+  planId      Int
+  expiresAt   DateTime
+
+  lockedBy    User     @relation(fields: [lockedById], references: [id], onDelete: Cascade)
+  plan        TechPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}

@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sporza-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sporza
+      POSTGRES_PASSWORD: sporza123
+      POSTGRES_DB: sporza_planner
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sporza -d sporza_planner"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sporza-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://sporza:sporza123@postgres:5432/sporza_planner?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      JWT_EXPIRES_IN: 7d
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+      OAUTH_AUTHORIZATION_URL: ${OAUTH_AUTHORIZATION_URL}
+      OAUTH_TOKEN_URL: ${OAUTH_TOKEN_URL}
+      OAUTH_USER_INFO_URL: ${OAUTH_USER_INFO_URL}
+      OAUTH_CALLBACK_URL: ${OAUTH_CALLBACK_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        node dist/index.js
+      "
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sporza-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: sporza-network

@@ -1,0 +1,106 @@
+import type { Config } from 'tailwindcss'
+
+export default {
+  darkMode: ['class'],
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        brand: 'var(--brand)',
+        'brand-fg': 'var(--brand-fg)',
+        primary: 'var(--primary)',
+        'primary-hover': 'var(--primary-hover)',
+        'primary-accent': 'var(--primary-accent)',
+        'primary-fg': 'var(--primary-fg)',
+        bg: 'var(--bg)',
+        fg: 'var(--fg)',
+        surface: 'var(--surface)',
+        'surface-2': 'var(--surface-2)',
+        'surface-3': 'var(--surface-3)',
+        text: 'var(--text)',
+        'text-2': 'var(--text-2)',
+        'text-3': 'var(--text-3)',
+        border: 'var(--border)',
+        'border-s': 'var(--border-s)',
+        success: 'var(--success)',
+        warning: 'var(--warning)',
+        danger: 'var(--danger)',
+        info: 'var(--info)',
+        ring: 'var(--ring)',
+        background: 'var(--bg)',
+        foreground: 'var(--text)',
+        muted: 'var(--text-2)',
+        'muted-2': 'var(--text-3)',
+      },
+      borderRadius: {
+        sm: 'var(--r-sm)',
+        md: 'var(--r-md)',
+        lg: 'var(--r-lg)',
+        full: 'var(--r-full)',
+      },
+      boxShadow: {
+        sm: 'var(--sh-sm)',
+        md: 'var(--sh-md)',
+        lg: 'var(--sh-lg)',
+      },
+      fontFamily: {
+        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
+      fontSize: {
+        xs: ['0.75rem', { lineHeight: '1rem' }],
+        sm: ['0.8125rem', { lineHeight: '1.25rem' }],
+        base: ['0.9375rem', { lineHeight: '1.5rem' }],
+        lg: ['1.125rem', { lineHeight: '1.75rem' }],
+        xl: ['1.375rem', { lineHeight: '1.75rem' }],
+        '2xl': ['1.75rem', { lineHeight: '2rem' }],
+        '3xl': ['2.25rem', { lineHeight: '2.5rem' }],
+        '4xl': ['3rem', { lineHeight: '1' }],
+      },
+      spacing: {
+        '1': 'var(--s1)',
+        '2': 'var(--s2)',
+        '3': 'var(--s3)',
+        '4': 'var(--s4)',
+        '6': 'var(--s6)',
+        '8': 'var(--s8)',
+        '10': 'var(--s10)',
+        '12': 'var(--s12)',
+        '16': 'var(--s16)',
+      },
+      transitionTimingFunction: {
+        ease: 'var(--ease)',
+      },
+      animation: {
+        'fade-in': 'fadeIn 0.2s ease-out',
+        'slide-in': 'slideIn 0.25s ease-out',
+        'scale-in': 'scaleIn 0.2s ease-out',
+        pulse: 'lp 1.5s ease-in-out infinite',
+        shimmer: 'shim 1.5s ease-in-out infinite',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideIn: {
+          '0%': { opacity: '0', transform: 'translateX(-12px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        lp: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.4' },
+        },
+        shim: {
+          '0%': { backgroundPosition: '200% 0' },
+          '100%': { backgroundPosition: '-200% 0' },
+        },
+      },
+    },
+  },
+  plugins: [],
+} satisfies Config
