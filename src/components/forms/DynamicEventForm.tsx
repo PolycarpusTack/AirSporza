@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Modal, Btn } from '../ui'
 import type { FieldConfig, Event } from '../../data/types'
-import { SPORTS, COMPETITIONS, PHASES, CATEGORIES, COMPLEXES, CHANNELS, RADIO_CHANNELS } from '../../data'
+import { SPORTS, COMPETITIONS } from '../../data'
 import { genId } from '../../utils'
 import { api } from '../../utils/api'
 import { DynamicForm } from './DynamicForm'
+import { useApp } from '../../context/AppProvider'
 
 type ApiFieldDef = {
   id: string
@@ -28,7 +29,7 @@ const CORE_FIELD_IDS = new Set([
   'phase', 'category', 'participants', 'content',
   'startDateBE', 'startTimeBE', 'startDateOrigin', 'startTimeOrigin',
   'complex', 'livestreamDate', 'livestreamTime',
-  'linearChannel', 'radioChannel', 'linearStartTime',
+  'linearChannel', 'radioChannel', 'linearStartTime', 'onDemandChannel',
   'isLive', 'isDelayedLive',
   'videoRef', 'winner', 'score', 'duration',
 ])
@@ -40,6 +41,8 @@ function isCustomField(fieldId: string, fieldConfig: FieldConfig[]): boolean {
 }
 
 export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: DynamicEventFormProps) {
+  const { orgConfig, sports: ctxSports, competitions: ctxComps } = useApp()
+
   const initForm = (): Record<string, string | boolean> => {
     const f: Record<string, string | boolean> = {}
     const customFields = editEvent?.customFields as Record<string, unknown> | undefined
@@ -77,6 +80,12 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    setForm(initForm())
+    setCustomValues({})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editEvent?.id])
+
+  useEffect(() => {
     api.get<ApiFieldDef[]>('/fields?section=event')
       .then(setApiCustomFields)
       .catch(() => { /* API not available, skip */ })
@@ -91,14 +100,18 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
     setErrors(p => ({ ...p, [k]: '' }))
   }
 
+  const sportsList = ctxSports.length ? ctxSports : SPORTS
+  const compsList  = ctxComps.length  ? ctxComps  : COMPETITIONS
+
   const optionsMap: Record<string, { value: string | number; label: string }[]> = {
-    sports: SPORTS.map(s => ({ value: s.id, label: `${s.icon} ${s.name}` })),
-    competitions: COMPETITIONS.filter(c => !form.sport || c.sportId === parseInt(form.sport as string)).map(c => ({ value: c.id, label: c.name })),
-    phases: PHASES.map(p => ({ value: p, label: p })),
-    categories: CATEGORIES.map(c => ({ value: c, label: c })),
-    complexes: COMPLEXES.map(c => ({ value: c, label: c })),
-    channels: CHANNELS.map(c => ({ value: c, label: c })),
-    radioChannels: RADIO_CHANNELS.map(c => ({ value: c, label: c })),
+    sports: sportsList.map(s => ({ value: s.id, label: `${s.icon} ${s.name}` })),
+    competitions: compsList.filter(c => !form.sport || c.sportId === parseInt(form.sport as string)).map(c => ({ value: c.id, label: c.name })),
+    phases: orgConfig.phases.map(p => ({ value: p, label: p })),
+    categories: orgConfig.categories.map(c => ({ value: c, label: c })),
+    complexes: orgConfig.complexes.map(c => ({ value: c, label: c })),
+    channels: orgConfig.channels.map(c => ({ value: c.name, label: c.name })),
+    onDemandChannels: orgConfig.onDemandChannels.map(c => ({ value: c.name, label: c.name })),
+    radioChannels: orgConfig.radioChannels.map(c => ({ value: c, label: c })),
   }
 
   const visibleFields = eventFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
@@ -121,6 +134,10 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
       errs.competition = 'Valid competition required'
     }
     
+    if (form.duration && !/^\d{2}:\d{2}:\d{2};\d{2}$/.test(form.duration as string)) {
+      errs.duration = 'Format: HH:MM:SS;FF (e.g. 01:45:22;12)'
+    }
+
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -154,9 +171,13 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
       linearChannel: form.linearChannel as string,
       radioChannel: form.radioChannel as string,
       linearStartTime: form.linearStartTime as string,
+      onDemandChannel: form.onDemandChannel as string,
       isLive: form.isLive as boolean,
       isDelayedLive: form.isDelayedLive as boolean,
       videoRef: form.videoRef as string,
+      winner: form.winner as string,
+      score: form.score as string,
+      duration: form.duration as string,
       customFields,
       customValues: Object.entries(customValues).map(([fieldId, fieldValue]) => ({ fieldId, fieldValue })),
     }
@@ -219,6 +240,22 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
           rows={3}
           className={cls}
         />
+      )
+    }
+    if (field.id === 'duration') {
+      return (
+        <>
+          <input
+            type='text'
+            value={form[field.id] as string || ''}
+            onChange={e => update(field.id, e.target.value)}
+            placeholder='HH:MM:SS;FF'
+            pattern='\d{2}:\d{2}:\d{2};\d{2}'
+            maxLength={11}
+            className={cls}
+          />
+          <p className='mt-0.5 text-[11px] text-text-3 font-mono'>SMPTE timecode — bijv. 01:45:22;25</p>
+        </>
       )
     }
     return (
