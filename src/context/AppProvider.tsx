@@ -5,6 +5,7 @@ import {
   useMemo,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -70,6 +71,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (location.pathname.startsWith('/sports')) return 'sports'
     if (location.pathname.startsWith('/contracts')) return 'contracts'
     if (location.pathname.startsWith('/admin')) return 'admin'
+    if (location.pathname.startsWith('/settings')) return 'admin'
     return 'planner'
   }, [location.pathname])
 
@@ -142,8 +144,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchData()
   }, [user])
 
+  const prevRoleRef = useRef<Role | null>(null)
+
   useEffect(() => {
     if (!user) return
+    if (prevRoleRef.current === activeRole) return
+    prevRoleRef.current = activeRole
     const fetchSettings = async () => {
       try {
         const settingsData = await settingsApi.getApp(activeRole)
