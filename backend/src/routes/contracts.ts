@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import Joi from 'joi'
 import { ContractStatus } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
@@ -22,6 +23,20 @@ export function filterContractForRole(
 
 const router = Router()
 const contractStatuses = new Set<string>(Object.values(ContractStatus))
+
+const contractSchema = Joi.object({
+  competitionId:  Joi.number().integer().min(1).required(),
+  status:         Joi.string().valid('draft', 'valid', 'expiring', 'expired').required(),
+  validFrom:      Joi.string().isoDate().optional().allow(null),
+  validUntil:     Joi.string().isoDate().optional().allow(null),
+  linearRights:   Joi.boolean().optional(),
+  maxRights:      Joi.boolean().optional(),
+  radioRights:    Joi.boolean().optional(),
+  sublicensing:   Joi.boolean().optional(),
+  geoRestriction: Joi.string().allow('').optional().allow(null),
+  fee:            Joi.string().allow('').optional().allow(null),
+  notes:          Joi.string().allow('').optional().allow(null),
+})
 
 router.get('/', authenticate, async (req, res, next) => {
   try {
@@ -101,8 +116,11 @@ router.get('/:id', authenticate, async (req, res, next) => {
 
 router.post('/', authenticate, authorize('contracts', 'admin'), async (req, res, next) => {
   try {
+    const { error, value } = contractSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+
     const contract = await prisma.contract.create({
-      data: req.body,
+      data: value,
       include: { competition: { include: { sport: true } } }
     })
 
@@ -128,9 +146,12 @@ router.put('/:id', authenticate, authorize('contracts', 'admin'), async (req, re
     const contractId = parseId(req.params.id)
     const existing = await prisma.contract.findUnique({ where: { id: contractId } })
 
+    const { error, value } = contractSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+
     const contract = await prisma.contract.update({
       where: { id: contractId },
-      data: req.body,
+      data: value,
       include: { competition: { include: { sport: true } } }
     })
 
