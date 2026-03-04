@@ -32,6 +32,7 @@ export type PublishEventType =
   | 'event.live.ended'
   | 'techPlan.created'
   | 'techPlan.updated'
+  | 'techPlan.deleted'
   | 'contract.expiring'
 
 const RETRY_DELAYS_MS = [1_000, 5_000, 30_000] // 3 attempts

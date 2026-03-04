@@ -210,6 +210,7 @@ router.delete('/:id', authenticate, authorize('sports', 'admin'), async (req, re
     await prisma.techPlan.delete({ where: { id: planId } })
 
     emit('techPlan:deleted', { id: planId })
+    void publishService.dispatch('techPlan.deleted', { id: planId })
     const user = req.user as { id: string }
     await writeAuditLog({
       userId: user.id,
