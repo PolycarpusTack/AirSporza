@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import jwt, { SignOptions } from 'jsonwebtoken'
 import passport from 'passport'
 import { Strategy as OAuth2Strategy } from 'passport-oauth2'
@@ -46,9 +46,18 @@ if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
   }))
 }
 
-router.get('/login', passport.authenticate('oauth2'))
 
-router.get('/callback', 
+const requireOAuth = (_req: Request, res: Response, next: NextFunction) => {
+  if (!process.env.OAUTH_CLIENT_ID || !process.env.OAUTH_CLIENT_SECRET) {
+    return res.status(503).json({ error: 'OAuth not configured' })
+  }
+  next()
+}
+
+router.get('/login', requireOAuth, passport.authenticate('oauth2'))
+
+router.get('/callback',
+  requireOAuth,
   passport.authenticate('oauth2', { session: false, failureRedirect: '/login' }),
   (req, res) => {
     const user = req.user as { id: string; email: string; role: string }
