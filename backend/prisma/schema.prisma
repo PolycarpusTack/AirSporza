@@ -409,6 +409,7 @@ model ImportSource {
   canonicalTeams      CanonicalTeam[]   @relation("CanonicalTeamSource")
   canonicalCompetitions CanonicalCompetition[] @relation("CanonicalCompetitionSource")
   canonicalVenues     CanonicalVenue[]  @relation("CanonicalVenueSource")
+  schedule            ImportSchedule?
 }
 
 model ImportJob {
@@ -728,4 +729,17 @@ model SavedView {
 
   @@unique([userId, name])
   @@index([userId, context])
+}
+
+model ImportSchedule {
+  id        String    @id @default(uuid())
+  sourceId  String    @unique
+  cronExpr  String
+  isEnabled Boolean   @default(true)
+  lastRunAt DateTime?
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  source    ImportSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 }
