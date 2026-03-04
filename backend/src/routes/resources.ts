@@ -1,10 +1,17 @@
 import { Router } from 'express'
 import Joi from 'joi'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 
 const router = Router()
+
+const assignSchema = Joi.object({
+  techPlanId: Joi.number().integer().positive().required(),
+  quantity:   Joi.number().integer().min(1).max(100).default(1),
+  notes:      Joi.string().allow('', null).optional(),
+})
 
 const resourceSchema = Joi.object({
   name: Joi.string().required(),
@@ -49,8 +56,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
 // GET /api/resources/:id/assignments — list assignments for a resource
 router.get('/:id/assignments', authenticate, async (req, res, next) => {
   try {
+    const resourceId = Number(req.params.id)
+    if (!Number.isFinite(resourceId)) return next(createError(400, 'Invalid resource ID'))
     const assignments = await prisma.resourceAssignment.findMany({
-      where: { resourceId: Number(req.params.id) },
+      where: { resourceId },
       include: { techPlan: { include: { event: true } } },
     })
     res.json(assignments)
@@ -60,15 +69,12 @@ router.get('/:id/assignments', authenticate, async (req, res, next) => {
 // POST /api/resources/:id/assign — assign resource to a tech plan
 router.post('/:id/assign', authenticate, authorize('sports', 'admin'), async (req, res, next) => {
   try {
-    const { techPlanId, quantity, notes } = req.body
-    if (!techPlanId) return next(createError(400, 'techPlanId required'))
+    const resourceId = Number(req.params.id)
+    if (!Number.isFinite(resourceId)) return next(createError(400, 'Invalid resource ID'))
+    const { error: valErr, value } = assignSchema.validate(req.body)
+    if (valErr) return next(createError(400, valErr.details[0].message))
     const assignment = await prisma.resourceAssignment.create({
-      data: {
-        resourceId: Number(req.params.id),
-        techPlanId: Number(techPlanId),
-        quantity: quantity ?? 1,
-        notes,
-      },
+      data: { resourceId, techPlanId: value.techPlanId, quantity: value.quantity, notes: value.notes },
     })
     res.status(201).json(assignment)
   } catch (error) { next(error) }
@@ -86,7 +92,12 @@ router.delete('/:id/assign/:techPlanId', authenticate, authorize('sports', 'admi
       },
     })
     res.json({ ok: true })
-  } catch (error) { next(error) }
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return next(createError(404, 'Assignment not found'))
+    }
+    next(error)
+  }
 })
 
 export default router

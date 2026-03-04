@@ -83,23 +83,26 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
       where: { techPlan: { eventId: draft.id } },
       include: { resource: true },
     })
-    for (const a of assignments) {
-      const overlapping = await prisma.resourceAssignment.findFirst({
+    if (assignments.length > 0) {
+      const resourceIds = assignments.map(a => a.resourceId)
+      const overlappingAll = await prisma.resourceAssignment.findMany({
         where: {
-          resourceId: a.resourceId,
+          resourceId: { in: resourceIds },
           techPlan: {
             eventId: { not: draft.id },
-            event: {
-              startDateBE: { gte: dayStart, lte: dayEnd },
-            },
+            event: { startDateBE: { gte: dayStart, lte: dayEnd } },
           },
         },
+        select: { resourceId: true },
       })
-      if (overlapping) {
-        warnings.push({
-          type: 'resource_conflict',
-          message: `Resource "${a.resource.name}" is also assigned to another event on this day`,
-        })
+      const conflictedIds = new Set(overlappingAll.map(o => o.resourceId))
+      for (const a of assignments) {
+        if (conflictedIds.has(a.resourceId)) {
+          warnings.push({
+            type: 'resource_conflict',
+            message: `Resource "${a.resource.name}" is also assigned to another event on this day`,
+          })
+        }
       }
     }
   }

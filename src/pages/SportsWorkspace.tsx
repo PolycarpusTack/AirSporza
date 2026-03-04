@@ -232,11 +232,16 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
 
   useEffect(() => {
     if (activeTab !== 'resources' || resources.length === 0) return
-    resources.forEach(r => {
-      resourcesApi.getAssignments(r.id)
-        .then(assignments => setResourceAssignments(prev => ({ ...prev, [r.id]: assignments })))
-        .catch(() => {})
-    })
+    let cancelled = false
+    Promise.all(resources.map(r => resourcesApi.getAssignments(r.id).then(a => ({ id: r.id, a }))))
+      .then(results => {
+        if (cancelled) return
+        const next: Record<number, ResourceAssignment[]> = {}
+        for (const { id, a } of results) next[id] = a
+        setResourceAssignments(next)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [activeTab, resources])
 
   const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
