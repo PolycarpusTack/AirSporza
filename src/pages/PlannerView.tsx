@@ -393,7 +393,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
                 <span className="ml-1.5 opacity-60">{weekEvents.length}</span>
               )}
             </button>
-            {orgConfig.channels.map(({ name: ch }) => {
+            {orgConfig.channels.map(({ name: ch }: { name: string; color: string }) => {
               const col = getChannelColor(ch)
               const isActive = channelFilter === ch
               const count = channelCounts[ch] ?? 0
