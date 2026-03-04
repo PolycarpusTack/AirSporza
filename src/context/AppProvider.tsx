@@ -145,11 +145,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [user])
 
   const prevRoleRef = useRef<Role | null>(null)
+  const prevUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!user) return
-    if (prevRoleRef.current === activeRole) return
+    // Skip only when BOTH role AND user are unchanged (e.g. same-role navigation after initial load)
+    if (prevRoleRef.current === activeRole && prevUserIdRef.current === user.id) return
     prevRoleRef.current = activeRole
+    prevUserIdRef.current = user.id
     const fetchSettings = async () => {
       try {
         const settingsData = await settingsApi.getApp(activeRole)
