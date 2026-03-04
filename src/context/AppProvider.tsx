@@ -170,10 +170,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const handleSaveEvent = useCallback(
     async (ev: Event) => {
-      try {
-        const existingIndex = events.findIndex((e) => e.id === ev.id)
+      const existingIndex = events.findIndex((e) => e.id === ev.id)
+      const isUpdate = existingIndex >= 0
+      const snapshot = isUpdate ? events[existingIndex] : null
 
-        if (existingIndex >= 0) {
+      try {
+        if (isUpdate) {
           const updated = await eventsApi.update(ev.id, ev)
           setEvents((prev) => prev.map((e) => (e.id === ev.id ? (updated as Event) : e)))
           toast.success('Event updated')
@@ -184,16 +186,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('Failed to save event:', error)
-        setEvents((prev) => {
-          const idx = prev.findIndex((e) => e.id === ev.id)
-          if (idx >= 0) {
-            const n = [...prev]
-            n[idx] = ev
-            return n
-          }
-          return [...prev, ev]
-        })
-        toast.error('Save failed — offline mode')
+        if (isUpdate && snapshot) {
+          setEvents((prev) => prev.map((e) => (e.id === ev.id ? snapshot : e)))
+        }
+        // On create failure: do nothing — don't add a ghost event
+        toast.error('Save failed — could not reach server')
       }
     },
     [events, toast]
