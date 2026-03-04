@@ -6,8 +6,15 @@ import { createError } from '../middleware/errorHandler.js'
 import { emit } from '../services/socketInstance.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { publishService } from '../services/publishService.js'
+import { canTransition } from '../services/eventTransitions.js'
+import type { EventStatus } from '@prisma/client'
 
 const router = Router()
+
+function parseId(param: string | string[] | undefined): number {
+  if (!param || Array.isArray(param)) return 0
+  return parseInt(param, 10)
+}
 
 const positiveId = Joi.number().integer().min(1).required()
 
@@ -39,6 +46,7 @@ const eventSchema = Joi.object({
   customValues: Joi.array().items(
     Joi.object({ fieldId: Joi.string().required(), fieldValue: Joi.string().required() })
   ).default([]),
+  status: Joi.string().valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled'),
 })
 
 router.get('/', async (req, res, next) => {
@@ -175,6 +183,56 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
     })
 
     res.status(201).json(event)
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+  try {
+    const id = parseId(req.params.id)
+    const { status } = req.body as { status: EventStatus }
+    if (!status) return next(createError(400, 'status is required'))
+
+    const event = await prisma.event.findUnique({ where: { id } })
+    if (!event) return next(createError(404, 'Event not found'))
+
+    const user = req.user as { id: string; role: string }
+    if (!canTransition(event.status, status, user.role as never)) {
+      return next(createError(422, `Transition ${event.status} → ${status} is not allowed for role ${user.role}`))
+    }
+
+    const updated = await prisma.event.update({ where: { id }, data: { status } })
+
+    await writeAuditLog({
+      userId: user.id,
+      action: 'event.statusTransition',
+      entityType: 'event',
+      entityId: String(id),
+      oldValue: { status: event.status },
+      newValue: { status },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    })
+
+    emit('event:statusChanged', updated, 'events')
+
+    if (status === 'approved' && event.createdById) {
+      // Notification hook — import notificationService if it exists, else skip
+      try {
+        const svcPath = '../services/notificationService.js'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const svc = await import(svcPath) as any
+        void svc.createNotification(
+          event.createdById,
+          'event_approved',
+          `Your event was approved`,
+          { entityType: 'event', entityId: String(id) }
+        )
+      } catch { /* notificationService not yet implemented — skip */ }
+    }
+
+    res.json(updated)
   } catch (error) {
     next(error)
   }

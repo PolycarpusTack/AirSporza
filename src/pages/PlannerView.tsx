@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Badge } from '../components/ui'
-import type { Event, DashboardWidget, Contract } from '../data/types'
+import type { Event, DashboardWidget, Contract, EventStatus, BadgeVariant } from '../data/types'
 import { CONTRACTS } from '../data'
 import { dayLabel } from '../utils'
 import { useSocket } from '../hooks'
@@ -74,6 +74,19 @@ function eventHeightPx(durationMin: number): number {
 }
 
 const FALLBACK_COLOR = { border: '#4B5563', bg: 'rgba(75,85,99,0.1)', text: '#9CA3AF' }
+
+function statusVariant(s: EventStatus): BadgeVariant {
+  const map: Record<EventStatus, BadgeVariant> = {
+    draft: 'draft',
+    ready: 'warning',
+    approved: 'success',
+    published: 'live',
+    live: 'live',
+    completed: 'default',
+    cancelled: 'danger',
+  }
+  return map[s] ?? 'default'
+}
 
 function hexToChannelColor(hex: string): { border: string; bg: string; text: string } {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
@@ -470,6 +483,9 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
                                       <span className="font-semibold">{ev.participants}</span>
                                       {ev.isLive && <Badge variant="live">LIVE</Badge>}
                                       {ev.isDelayedLive && <Badge variant="warning">DELAYED</Badge>}
+                                      {ev.status && ev.status !== 'draft' && (
+                                        <Badge variant={statusVariant(ev.status)}>{ev.status}</Badge>
+                                      )}
                                     </div>
                                     <div className="text-xs text-text-3 mt-0.5">
                                       {comp?.name} · {ev.phase} · {ev.complex}
@@ -679,6 +695,11 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                         <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
                         <span className="text-danger font-mono" style={{ fontSize: '9px' }}>LIVE</span>
                       </span>
+                    )}
+                    {ev.status && ev.status !== 'draft' && height > 40 && (
+                      <Badge variant={statusVariant(ev.status)} className="mt-0.5" style={{ fontSize: '9px' }}>
+                        {ev.status}
+                      </Badge>
                     )}
                   </div>
                 </div>

@@ -59,6 +59,7 @@ export interface Event {
   winner?: string
   score?: string
   duration?: string
+  status?: EventStatus
   customFields: Record<string, unknown>
   customValues?: { fieldId: string; fieldValue: string }[]
   createdAt?: Date
@@ -79,6 +80,8 @@ export interface TechPlan {
   createdAt?: Date
   updatedAt?: Date
 }
+
+export type EventStatus = 'draft' | 'ready' | 'approved' | 'published' | 'live' | 'completed' | 'cancelled'
 
 export type ContractStatus = 'valid' | 'expiring' | 'draft' | 'none'
 
