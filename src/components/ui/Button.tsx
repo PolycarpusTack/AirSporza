@@ -11,24 +11,24 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-sm font-semibold transition ' +
-  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ' +
+  'inline-flex items-center justify-center gap-2 font-semibold transition-all ' +
+  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg ' +
   'disabled:pointer-events-none disabled:opacity-50'
 
 const variants: Record<Variant, string> = {
-  primary: 'border border-transparent bg-primary text-primary-foreground hover:bg-primary-hover',
-  accent: 'border border-transparent bg-primary text-primary-foreground hover:bg-primary-hover',
-  secondary: 'border border-border bg-surface text-foreground hover:border-primary hover:text-primary',
-  default: 'border border-border bg-surface text-foreground hover:border-primary hover:text-primary',
-  ghost: 'border border-transparent bg-transparent text-foreground hover:bg-surface-2',
-  danger: 'border border-danger/25 bg-danger/5 text-danger hover:bg-danger/10',
+  primary:   'border border-transparent bg-primary text-primary-fg hover:bg-primary-hover hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(245,158,11,0.35)]',
+  accent:    'border border-transparent bg-primary text-primary-fg hover:bg-primary-hover hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(245,158,11,0.35)]',
+  secondary: 'border border-border bg-surface text-text-2 hover:border-border-s hover:text-text',
+  default:   'border border-border bg-surface text-text-2 hover:border-border-s hover:text-text',
+  ghost:     'border border-transparent bg-transparent text-text-2 hover:bg-surface-2 hover:text-text hover:border-border',
+  danger:    'border border-danger-dim bg-danger-bg text-danger hover:bg-danger/10',
 }
 
 const sizes: Record<Size, string> = {
-  xs: 'h-8 px-2.5 text-xs',
-  sm: 'h-9 px-3 text-sm',
-  md: 'h-10 px-4 text-sm',
-  lg: 'h-12 px-5 text-base',
+  xs: 'h-7 px-2.5 text-[11px] rounded-[4px]',
+  sm: 'h-8 px-3 text-xs rounded-[4px]',
+  md: 'h-9 px-4 text-sm rounded-[6px]',
+  lg: 'h-11 px-5 text-sm rounded-[6px]',
 }
 
 export function Button({

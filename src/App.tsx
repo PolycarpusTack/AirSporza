@@ -1,22 +1,47 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { RefreshCw, LayoutGrid } from 'lucide-react'
 import { FieldConfigurator, DashboardCustomizer, DynamicEventForm } from './components/forms'
 import { SettingsModal } from './components/settings/SettingsModal'
-import { Header } from './components/Header'
-import { PlannerView, SportsWorkspace, ContractsView, AdminView } from './views'
+import { Header } from './components/layout/Header'
+import { Sidebar } from './components/layout/Sidebar'
+import { RequireRole } from './components/auth/RequireRole'
 import { DevLogin, OAuthLogin } from './components/Login'
 import { AuthCallback } from './components/AuthCallback'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './components/Toast'
-import { AppProvider, useApp } from './components/AppProvider'
+import { AppProvider, useApp } from './context/AppProvider'
 import { useAuth } from './hooks'
 import type { Event } from './data/types'
+
+const PlannerView = lazy(() =>
+  import('./pages/PlannerView').then((m) => ({ default: m.PlannerView }))
+)
+const SportsWorkspace = lazy(() =>
+  import('./pages/SportsWorkspace').then((m) => ({ default: m.SportsWorkspace }))
+)
+const ContractsView = lazy(() =>
+  import('./pages/ContractsView').then((m) => ({ default: m.ContractsView }))
+)
+const ImportView = lazy(() =>
+  import('./pages/ImportView').then((m) => ({ default: m.ImportView }))
+)
+const SettingsView = lazy(() =>
+  import('./pages/SettingsView').then((m) => ({ default: m.SettingsView }))
+)
+
+function PageSkeleton() {
+  return (
+    <div className="p-6 space-y-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="h-24 bg-surface-2 rounded-xl animate-pulse" />
+      ))}
+    </div>
+  )
+}
 
 function AppContent() {
   const {
     activeRole,
-    setActiveRole,
     filteredEvents,
     techPlans,
     setTechPlans,
@@ -31,6 +56,8 @@ function AppContent() {
     setCurrentWidgets,
     roleConfig,
     handleSaveEvent,
+    sports,
+    competitions,
   } = useApp()
 
   const [showEventForm, setShowEventForm] = useState(false)
@@ -39,7 +66,9 @@ function AppContent() {
   const [showDashConfig, setShowDashConfig] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'event' | 'crew' | 'dashboard' | 'integrations'>('event')
-  const [integrationScope, setIntegrationScope] = useState<'sports' | 'competitions' | 'teams' | 'events' | 'fixtures' | 'live'>('events')
+  const [integrationScope, setIntegrationScope] = useState<
+    'sports' | 'competitions' | 'teams' | 'events' | 'fixtures' | 'live'
+  >('events')
 
   const { user, logout } = useAuth()
 
@@ -53,75 +82,97 @@ function AppContent() {
   }
 
   return (
-    <div style={{ fontFamily: 'var(--font-display)', background: 'var(--bg)', minHeight: '100vh' }}>
-      <Header
-        activeRole={activeRole}
-        roleConfig={roleConfig}
-        user={user}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onRoleChange={setActiveRole}
-        onNewEvent={() => {
-          setEditEvent(null)
-          setShowEventForm(true)
-        }}
-        onOpenSettings={openSettings}
-        onLogout={logout}
-      />
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
+      <Sidebar roleConfig={roleConfig} user={user} onLogout={logout} />
 
-      <div className="h-0.5" style={{ background: roleConfig[activeRole].accent }} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header
+          activeRole={activeRole}
+          roleConfig={roleConfig}
+          user={user}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onNewEvent={() => {
+            setEditEvent(null)
+            setShowEventForm(true)
+          }}
+          onOpenSettings={openSettings}
+          onLogout={logout}
+        />
 
-      <div className="container-sport pt-5 pb-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold">
-              {activeRole === 'planner' && 'Network Planner Dashboard'}
-              {activeRole === 'sports' && 'Sports Department Workspace'}
-              {activeRole === 'contracts' && 'Contract Status Dashboard'}
-              {activeRole === 'admin' && 'Admin Dashboard'}
-            </h2>
-            <p className="text-sm text-text-2 mt-0.5">
-              {activeRole === 'planner' && 'Scheduled sports across linear channels'}
-              {activeRole === 'sports' && 'Technical planning & crew management'}
-              {activeRole === 'contracts' && 'Rights, contracts & publication conditions'}
-              {activeRole === 'admin' && 'System administration & configuration'}
-            </p>
-          </div>
-          <div className="hidden sm:flex items-center gap-2">
-            {(activeRole === 'planner' || activeRole === 'sports') && (
-              <button
-                onClick={() => openSettings('integrations', activeRole === 'sports' ? 'live' : 'events')}
-                className="btn btn-s btn-sm"
-              >
-                <RefreshCw className="w-4 h-4" /> Sync Data
-              </button>
-            )}
-            <button
-              onClick={() => openSettings('dashboard')}
-              className="btn btn-g btn-sm text-text-3"
-            >
-              <LayoutGrid className="w-4 h-4" /> Customize View
-            </button>
-          </div>
-        </div>
+        <main className="flex-1 overflow-auto">
+          <Suspense fallback={<PageSkeleton />}>
+            <Routes>
+              <Route
+                path="/planner"
+                element={
+                  <div className="p-4 sm:p-5">
+                    <PlannerView
+                      events={filteredEvents}
+                      widgets={currentWidgets}
+                      loading={loading}
+                      onEventClick={(ev) => { setEditEvent(ev); setShowEventForm(true) }}
+                    />
+                  </div>
+                }
+              />
+              <Route
+                path="/sports"
+                element={
+                  <div className="p-4 sm:p-5">
+                    <SportsWorkspace
+                      events={filteredEvents}
+                      techPlans={techPlans}
+                      setTechPlans={setTechPlans}
+                      crewFields={crewFields}
+                      widgets={currentWidgets}
+                      sports={sports}
+                      competitions={competitions}
+                    />
+                  </div>
+                }
+              />
+              <Route
+                path="/contracts"
+                element={
+                  <RequireRole roles={['admin', 'contracts', 'planner']}>
+                    <div className="p-4 sm:p-5">
+                      <ContractsView widgets={currentWidgets} />
+                    </div>
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/import"
+                element={
+                  <RequireRole roles={['admin', 'planner']}>
+                    <div className="p-4 sm:p-5">
+                      <ImportView />
+                    </div>
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/settings/*"
+                element={
+                  <RequireRole roles={['admin']}>
+                    <SettingsView widgets={currentWidgets} />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/admin/*"
+                element={
+                  <RequireRole roles={['admin']}>
+                    <SettingsView widgets={currentWidgets} />
+                  </RequireRole>
+                }
+              />
+              <Route path="*" element={<Navigate to="/planner" replace />} />
+            </Routes>
+          </Suspense>
+        </main>
       </div>
-
-      <main className="container-sport py-4">
-        {activeRole === 'planner' && (
-          <PlannerView events={filteredEvents} widgets={currentWidgets} loading={loading} />
-        )}
-        {activeRole === 'sports' && (
-          <SportsWorkspace
-            events={filteredEvents}
-            techPlans={techPlans}
-            setTechPlans={setTechPlans}
-            crewFields={crewFields}
-            widgets={currentWidgets}
-          />
-        )}
-        {activeRole === 'contracts' && <ContractsView widgets={currentWidgets} />}
-        {activeRole === 'admin' && <AdminView widgets={currentWidgets} />}
-      </main>
 
       {showEventForm && (
         <DynamicEventForm
@@ -196,9 +247,11 @@ function AppRoutes() {
         path="/login"
         element={
           user ? (
-            <Navigate to="/" replace />
+            <Navigate to="/planner" replace />
+          ) : import.meta.env.PROD ? (
+            <OAuthLogin />
           ) : (
-            import.meta.env.PROD ? <OAuthLogin /> : <DevLogin />
+            <DevLogin />
           )
         }
       />

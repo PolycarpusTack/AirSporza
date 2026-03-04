@@ -1,19 +1,22 @@
 import { api } from '../utils/api'
-import type { DashboardWidget, FieldConfig, Role } from '../data/types'
+import type { DashboardWidget, FieldConfig, OrgConfig, Role } from '../data/types'
 
 export interface AppSettingsResponse {
   scopeRules: {
     eventFields: 'global'
     crewFields: 'global'
     dashboardWidgets: 'user_role_with_role_fallback'
+    orgConfig: 'global'
   }
   eventFields: FieldConfig[] | null
   crewFields: FieldConfig[] | null
   dashboardWidgets: DashboardWidget[] | null
+  orgConfig: OrgConfig | null
   meta: {
     eventFieldsScope: 'global' | null
     crewFieldsScope: 'global' | null
     dashboardWidgetsScope: 'role' | 'user_role' | null
+    orgConfigScope: 'global' | null
   }
 }
 
@@ -32,4 +35,7 @@ export const settingsApi = {
       `/settings/app/dashboard/${role}?scope=${scope === 'role' ? 'role' : 'user_role'}`,
       { widgets }
     ),
+
+  updateOrgConfig: (config: OrgConfig) =>
+    api.put<{ config: OrgConfig }>('/settings/app/org', config),
 }

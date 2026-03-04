@@ -6,6 +6,7 @@ export { encodersApi } from './encoders'
 export { authApi } from './auth'
 export { importsApi } from './imports'
 export { settingsApi } from './settings'
+export { fieldsApi } from './fields'
 export type { Encoder } from './encoders'
 export type { User } from './auth'
 export type {
@@ -18,5 +19,6 @@ export type {
   FieldProvenanceRecord,
 } from './imports'
 export type { AppSettingsResponse } from './settings'
-export { fieldsApi } from './fields'
 export type { FieldSection } from './fields'
+export { publishApi } from './publish'
+export type { WebhookEndpoint, WebhookDelivery, PublishedEvent, PublishEventType } from './publish'

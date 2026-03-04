@@ -15,13 +15,13 @@ const REQUIRED_IMPORT_TABLES = [
 export async function ensureImportSchemaReady() {
   const [row] = await prisma.$queryRawUnsafe<Array<Record<string, string | null>>>(`
     SELECT
-      to_regclass('public."ImportSource"') AS "ImportSource",
-      to_regclass('public."ImportJob"') AS "ImportJob",
-      to_regclass('public."ImportRecord"') AS "ImportRecord",
-      to_regclass('public."ImportSourceLink"') AS "ImportSourceLink",
-      to_regclass('public."MergeCandidate"') AS "MergeCandidate",
-      to_regclass('public."ImportDeadLetter"') AS "ImportDeadLetter",
-      to_regclass('public."SyncHistory"') AS "SyncHistory"
+      to_regclass('public."ImportSource"')::text AS "ImportSource",
+      to_regclass('public."ImportJob"')::text AS "ImportJob",
+      to_regclass('public."ImportRecord"')::text AS "ImportRecord",
+      to_regclass('public."ImportSourceLink"')::text AS "ImportSourceLink",
+      to_regclass('public."MergeCandidate"')::text AS "MergeCandidate",
+      to_regclass('public."ImportDeadLetter"')::text AS "ImportDeadLetter",
+      to_regclass('public."SyncHistory"')::text AS "SyncHistory"
   `)
 
   const missing = REQUIRED_IMPORT_TABLES.filter(tableName => !row?.[tableName])

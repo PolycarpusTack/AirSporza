@@ -17,6 +17,8 @@
     font-family: var(--font-display);
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
+    background: var(--bg);
+    color-scheme: dark;
   }
 
   body {
@@ -375,7 +377,7 @@
 
   .inp:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(225, 6, 0, 0.1);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
   }
 
   .sel {
@@ -439,7 +441,7 @@
 
   .field-input:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(225, 6, 0, 0.1);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
   }
 
   .field-label {

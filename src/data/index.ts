@@ -1,4 +1,4 @@
-import type { Sport, Competition, Contract, FieldConfig, DashboardWidget, Event, TechPlan } from './types'
+import type { Sport, Competition, Contract, FieldConfig, DashboardWidget, Event, TechPlan, OrgConfig } from './types'
 
 export const SPORTS: Sport[] = [
   { id: 1, name: "Football", icon: "⚽", federation: "FIFA" },
@@ -26,6 +26,21 @@ export const CATEGORIES = ["Men", "Women", "Mixed", "Youth"]
 export const PHASES = ["Group Stage", "Round of 16", "Quarter-final", "Semi-final", "Final", "Regular Season", "Stage"]
 export const ENCODERS = ["ENC-01", "ENC-02", "ENC-03", "ENC-04", "ENC-05", "ENC-06", "ENC-07", "ENC-08"]
 
+export const DEFAULT_ORG_CONFIG: OrgConfig = {
+  channels: [
+    { name: 'VRT 1',      color: '#F59E0B' },
+    { name: 'VRT Canvas', color: '#A78BFA' },
+    { name: 'Ketnet',     color: '#FBBF24' },
+  ],
+  onDemandChannels: [
+    { name: 'VRT MAX', color: '#EC4899' },
+  ],
+  radioChannels: ['Radio 1', 'MNM', 'Klara', 'Studio Brussel'],
+  phases: ['Group Stage', 'Round of 16', 'Quarter-final', 'Semi-final', 'Final', 'Regular Season', 'Stage'],
+  categories: ['Men', 'Women', 'Mixed', 'Youth'],
+  complexes: ['Lotto Arena', 'Koning Boudewijnstadion', 'Jan Breydel', 'Bosuil', 'Roland Garros', 'Spa-Francorchamps', 'Stade de France', 'Arthur Ashe Stadium', 'Col du Tourmalet', 'Ghelamco Arena'],
+}
+
 export const DEFAULT_EVENT_FIELDS: FieldConfig[] = [
   { id: "sport", label: "Sport", type: "dropdown", options: "sports", required: true, visible: true, order: 0 },
   { id: "competition", label: "Competition", type: "dropdown", options: "competitions", required: true, visible: true, order: 1 },
@@ -38,17 +53,18 @@ export const DEFAULT_EVENT_FIELDS: FieldConfig[] = [
   { id: "startDateOrigin", label: "Start Date (Origin)", type: "date", required: false, visible: true, order: 8 },
   { id: "startTimeOrigin", label: "Start Time (Origin)", type: "time", required: false, visible: true, order: 9 },
   { id: "complex", label: "Sports Complex", type: "dropdown", options: "complexes", required: false, visible: true, order: 10 },
-  { id: "livestreamDate", label: "Livestream Date", type: "date", required: false, visible: true, order: 11 },
-  { id: "livestreamTime", label: "Livestream Time", type: "time", required: false, visible: true, order: 12 },
-  { id: "linearChannel", label: "Linear Channel", type: "dropdown", options: "channels", required: false, visible: true, order: 13 },
-  { id: "radioChannel", label: "Radio Channel", type: "dropdown", options: "radioChannels", required: false, visible: true, order: 14 },
-  { id: "linearStartTime", label: "Linear Start Time", type: "time", required: false, visible: true, order: 15 },
-  { id: "isLive", label: "Live", type: "checkbox", required: false, visible: true, order: 16 },
-  { id: "isDelayedLive", label: "Delayed Live", type: "checkbox", required: false, visible: true, order: 17 },
-  { id: "videoRef", label: "Video File Reference", type: "text", required: false, visible: true, order: 18 },
-  { id: "winner", label: "Winner", type: "text", required: false, visible: true, order: 19 },
-  { id: "score", label: "Score", type: "text", required: false, visible: true, order: 20 },
-  { id: "duration", label: "Actual Match Duration", type: "text", required: false, visible: true, order: 21 },
+  { id: "linearChannel", label: "Linear Channel", type: "dropdown", options: "channels", required: false, visible: true, order: 11 },
+  { id: "linearStartTime", label: "Linear Start Time", type: "time", required: false, visible: true, order: 12 },
+  { id: "onDemandChannel", label: "On-demand Platform", type: "dropdown", options: "onDemandChannels", required: false, visible: true, order: 13 },
+  { id: "livestreamDate", label: "On-demand Available From (date)", type: "date", required: false, visible: true, order: 14 },
+  { id: "livestreamTime", label: "On-demand Available From (time)", type: "time", required: false, visible: true, order: 15 },
+  { id: "radioChannel", label: "Radio Channel", type: "dropdown", options: "radioChannels", required: false, visible: true, order: 16 },
+  { id: "isLive", label: "Live", type: "checkbox", required: false, visible: true, order: 17 },
+  { id: "isDelayedLive", label: "Delayed Live", type: "checkbox", required: false, visible: true, order: 18 },
+  { id: "videoRef", label: "Video File (WP/AIM nr.)", type: "text", required: false, visible: true, order: 19 },
+  { id: "winner", label: "Winner", type: "text", required: false, visible: true, order: 20 },
+  { id: "score", label: "Score", type: "text", required: false, visible: true, order: 21 },
+  { id: "duration", label: "Actual Duration (SMPTE)", type: "text", required: false, visible: true, order: 22 },
 ]
 
 export const DEFAULT_CREW_FIELDS: FieldConfig[] = [

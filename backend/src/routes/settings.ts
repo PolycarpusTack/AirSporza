@@ -47,9 +47,9 @@ async function getSetting(key: string, scopeKind: 'global' | 'role' | 'user' | '
     createdAt: Date
     updatedAt: Date
   }>>(Prisma.sql`
-    SELECT "id", "key", "scopeKind", "scopeId", "userId", "value", "createdAt", "updatedAt"
+    SELECT "id", "key", "scopeKind"::text, "scopeId", "userId", "value", "createdAt", "updatedAt"
     FROM "AppSetting"
-    WHERE "key" = ${key} AND "scopeKind" = ${scopeKind} AND "scopeId" = ${scopeId}
+    WHERE "key" = ${key} AND "scopeKind"::text = ${scopeKind} AND "scopeId" = ${scopeId}
     LIMIT 1
   `)
 
@@ -90,11 +90,12 @@ router.get('/app', authenticate, async (req, res, next) => {
     }
 
     const user = getCurrentUser(req)
-    const [eventFields, crewFields, roleDashboard, userDashboard] = await Promise.all([
+    const [eventFields, crewFields, roleDashboard, userDashboard, orgConfig] = await Promise.all([
       getSetting('event_fields', 'global', 'global'),
       getSetting('crew_fields', 'global', 'global'),
       getSetting('dashboard_widgets', 'role', role),
       getSetting('dashboard_widgets', 'user_role', `${user.id}:${role}`),
+      getSetting('org_config', 'global', 'global'),
     ])
 
     res.json({
@@ -102,16 +103,67 @@ router.get('/app', authenticate, async (req, res, next) => {
         eventFields: 'global',
         crewFields: 'global',
         dashboardWidgets: 'user_role_with_role_fallback',
+        orgConfig: 'global',
       },
       eventFields: eventFields?.value ?? null,
       crewFields: crewFields?.value ?? null,
       dashboardWidgets: userDashboard?.value ?? roleDashboard?.value ?? null,
+      orgConfig: orgConfig?.value ?? null,
       meta: {
         eventFieldsScope: eventFields ? 'global' : null,
         crewFieldsScope: crewFields ? 'global' : null,
         dashboardWidgetsScope: userDashboard ? 'user_role' : roleDashboard ? 'role' : null,
+        orgConfigScope: orgConfig ? 'global' : null,
       }
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+const channelConfigItem = Joi.object({
+  name: Joi.string().required(),
+  color: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).required(),
+})
+
+const orgConfigSchema = Joi.object({
+  channels: Joi.array().items(channelConfigItem).required(),
+  onDemandChannels: Joi.array().items(channelConfigItem).required(),
+  radioChannels: Joi.array().items(Joi.string()).required(),
+  phases: Joi.array().items(Joi.string()).required(),
+  categories: Joi.array().items(Joi.string()).required(),
+  complexes: Joi.array().items(Joi.string()).required(),
+}).required()
+
+router.put('/app/org', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const { error, value } = orgConfigSchema.validate(req.body)
+    if (error) {
+      return next(createError(400, error.details[0].message))
+    }
+
+    const user = getCurrentUser(req)
+    const existing = await getSetting('org_config', 'global', 'global')
+    const setting = await upsertSetting({
+      key: 'org_config',
+      scopeKind: 'global',
+      scopeId: 'global',
+      userId: user.id,
+      value,
+    })
+
+    await writeAuditLog({
+      userId: user.id,
+      action: 'settings.org_config.update',
+      entityType: 'app_setting',
+      entityId: setting.id,
+      oldValue: existing?.value,
+      newValue: value,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || null,
+    })
+
+    res.json({ config: setting.value })
   } catch (error) {
     next(error)
   }

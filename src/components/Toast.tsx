@@ -37,10 +37,10 @@ const icons: Record<ToastType, ReactNode> = {
 }
 
 const styles: Record<ToastType, string> = {
-  success: 'bg-success text-white',
-  error: 'bg-danger text-white',
-  warning: 'bg-warning text-black',
-  info: 'bg-info text-white',
+  success: 'bg-success-bg border border-success-dim text-success',
+  error:   'bg-danger-bg  border border-danger-dim  text-danger',
+  warning: 'bg-warning-bg border border-warning-dim text-warning',
+  info:    'bg-info-bg    border border-info-dim    text-info',
 }
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) {
@@ -52,7 +52,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
       <span className="text-sm font-medium flex-1">{toast.message}</span>
       <button
         onClick={onRemove}
-        className="p-1 hover:opacity-70 transition-opacity"
+        className="p-1 opacity-60 hover:opacity-100 transition-opacity"
         aria-label="Dismiss"
       >
         <X className="w-4 h-4" />

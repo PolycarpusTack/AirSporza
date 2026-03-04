@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { NavLink } from 'react-router-dom'
 import {
   Menu,
   X,
@@ -10,9 +11,8 @@ import {
   FileText,
   LayoutGrid,
 } from 'lucide-react'
-import { Btn } from './ui'
-import { NotificationBell } from './ui/NotificationBell'
-import type { Role, RoleConfig, User } from '../data/types'
+import { Btn } from '../ui'
+import type { Role, RoleConfig, User } from '../../data/types'
 
 interface HeaderProps {
   activeRole: Role
@@ -20,7 +20,6 @@ interface HeaderProps {
   user: User | null
   searchQuery: string
   onSearchChange: (q: string) => void
-  onRoleChange: (r: Role) => void
   onNewEvent: () => void
   onOpenSettings: (
     tab: 'event' | 'crew' | 'dashboard' | 'integrations',
@@ -36,28 +35,30 @@ const roleIcons: Record<Role, React.ReactNode> = {
   admin: <LayoutGrid className="w-4 h-4" />,
 }
 
+const rolePaths: Record<Role, string> = {
+  planner: '/planner',
+  sports: '/sports',
+  contracts: '/contracts',
+  admin: '/admin',
+}
+
 export function Header({
   activeRole,
   roleConfig,
   user,
   searchQuery,
   onSearchChange,
-  onRoleChange,
   onNewEvent,
   onOpenSettings,
   onLogout,
 }: HeaderProps) {
   const [mobileMenu, setMobileMenu] = useState(false)
 
-  const switchRole = (r: Role) => {
-    onRoleChange(r)
-    setMobileMenu(false)
-  }
-
   return (
-    <header className="bg-white border-b border-border sticky top-0 z-30 shadow-sm">
+    <header className="bg-surface border-b border-border sticky top-0 z-30 shadow-sm">
       <div className="container-sport">
         <div className="flex items-center justify-between h-14">
+          {/* Mobile: hamburger + logo */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenu(!mobileMenu)}
@@ -65,38 +66,19 @@ export function Header({
             >
               {mobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <div className="flex items-center gap-2.5">
+            {/* Logo shown on mobile only (sidebar has it on desktop) */}
+            <div className="flex items-center gap-2.5 sm:hidden">
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center shadow-md"
-                style={{
-                  background: `linear-gradient(135deg, ${roleConfig[activeRole].accent}, ${roleConfig[activeRole].accent}dd)`,
-                }}
+                style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)' }}
               >
-                <span className="text-white text-sm font-bold">S</span>
+                <span className="text-black text-sm font-bold">S</span>
               </div>
-              <span className="font-bold text-base tracking-tight">
-                Sporza
-                <span style={{ color: roleConfig[activeRole].accent }}>Planner</span>
+              <span className="font-bold text-base tracking-tight font-head">
+                Sporza<span className="text-primary">Planner</span>
               </span>
             </div>
           </div>
-
-          <nav className="hidden sm:flex items-center gap-1 bg-surface-2 rounded-lg p-0.5">
-            {(Object.entries(roleConfig) as [Role, RoleConfig][]).map(([k, v]) => (
-              <button
-                key={k}
-                onClick={() => switchRole(k)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  activeRole === k
-                    ? 'bg-white shadow-sm text-text'
-                    : 'text-text-2 hover:text-text'
-                }`}
-              >
-                {roleIcons[k]}
-                <span className="hidden md:inline">{v.label}</span>
-              </button>
-            ))}
-          </nav>
 
           <div className="flex items-center gap-2">
             <div className="relative hidden sm:block">
@@ -147,8 +129,6 @@ export function Header({
               </div>
             </div>
 
-            <NotificationBell />
-
             <Btn variant="accent" size="sm" onClick={onNewEvent}>
               <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Event</span>
             </Btn>
@@ -165,20 +145,24 @@ export function Header({
         </div>
       </div>
 
+      {/* Mobile menu — shown on sm: and below */}
       {mobileMenu && (
         <div className="sm:hidden border-t border-border bg-surface px-4 py-2 space-y-1">
           {(Object.entries(roleConfig) as [Role, RoleConfig][]).map(([k, v]) => (
-            <button
+            <NavLink
               key={k}
-              onClick={() => switchRole(k)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
-                activeRole === k
-                  ? 'bg-text text-white'
-                  : 'text-text-2 hover:bg-surface-2'
-              }`}
+              to={rolePaths[k]}
+              onClick={() => setMobileMenu(false)}
+              className={({ isActive }) =>
+                `w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                  isActive
+                    ? 'bg-surface-3 text-primary'
+                    : 'text-text-2 hover:bg-surface-2'
+                }`
+              }
             >
               {roleIcons[k]} {v.label}
-            </button>
+            </NavLink>
           ))}
           <div className="relative mt-2">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-3 w-4 h-4" />

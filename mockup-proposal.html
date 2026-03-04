@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planza — UI/UX Redesign Proposal</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0B0F19;
+  --surface: #111827;
+  --surface-2: #1A2234;
+  --surface-3: #243049;
+  --border: rgba(255,255,255,0.07);
+  --border-m: rgba(255,255,255,0.12);
+  --border-s: rgba(245,158,11,0.3);
+  --primary: #F59E0B;
+  --primary-dim: rgba(245,158,11,0.10);
+  --text: #E2E8F0;
+  --text-2: #7A8BA6;
+  --text-3: #3D4F66;
+  --success: #10B981;
+  --success-dim: rgba(16,185,129,0.12);
+  --danger: #EF4444;
+  --danger-dim: rgba(239,68,68,0.12);
+  --warning: #F59E0B;
+  --warning-dim: rgba(245,158,11,0.12);
+  --info: #3B82F6;
+  --info-dim: rgba(59,130,246,0.12);
+  --ch-vrt1: #F59E0B;
+  --ch-vrt2: #3B82F6;
+  --ch-canvas: #A78BFA;
+  --ch-sport: #10B981;
+  --sidebar-w: 216px;
+  --topbar-h: 48px;
+  --banner-h: 38px;
+  --r: 6px;
+  --font: 'IBM Plex Sans', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  --head: 'Space Grotesk', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.5; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+/* ── PROPOSAL BANNER ─────────────────────────────── */
+#banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: var(--banner-h);
+  background: rgba(10,13,22,0.96);
+  border-bottom: 1px solid var(--primary);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  font-size: 12px;
+}
+.p-badge {
+  background: var(--primary); color: #000;
+  font-family: var(--mono); font-weight: 600; font-size: 10px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 3px; flex-shrink: 0;
+}
+#banner p { color: var(--text-2); flex: 1; }
+#banner strong { color: var(--text); }
+.ann-btn {
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-2); font-family: var(--mono); font-size: 11px;
+  padding: 4px 10px; border-radius: 4px; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+}
+.ann-btn:hover, .ann-btn.on { border-color: var(--border-s); color: var(--primary); background: var(--primary-dim); }
+
+/* ── APP SHELL ───────────────────────────────────── */
+#app { display: flex; padding-top: var(--banner-h); min-height: 100vh; }
+
+/* ── SIDEBAR ─────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w); background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: fixed; top: var(--banner-h); bottom: 0; left: 0; z-index: 20;
+}
+.s-logo {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.logo-m {
+  width: 30px; height: 30px; border-radius: 7px;
+  background: linear-gradient(135deg, #D97706, #F59E0B);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--head); font-weight: 700; font-size: 15px; color: #000; flex-shrink: 0;
+}
+.logo-t { font-family: var(--head); font-weight: 600; font-size: 14px; color: var(--text); }
+.logo-t span { color: var(--primary); }
+.s-nav { flex: 1; padding: 6px 0; overflow-y: auto; }
+.s-sep { font-size: 10px; font-family: var(--mono); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); padding: 10px 16px 4px; }
+.s-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 16px; color: var(--text-2); font-size: 13px; font-weight: 500;
+  cursor: pointer; border-left: 2px solid transparent; transition: all 0.12s; user-select: none;
+}
+.s-item:hover { background: var(--surface-2); color: var(--text); }
+.s-item.active { background: var(--primary-dim); color: var(--primary); border-left-color: var(--primary); }
+.s-icon { width: 16px; text-align: center; font-size: 13px; flex-shrink: 0; }
+.s-badge {
+  margin-left: auto; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  padding: 1px 5px; border-radius: 10px; line-height: 1.6;
+}
+.sb-danger { background: var(--danger); color: #fff; }
+.sb-warn { background: var(--warning); color: #000; }
+.sb-info { background: var(--info); color: #fff; }
+.s-live {
+  padding: 8px 16px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2);
+}
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--danger);
+  animation: pulse 1.5s ease infinite; flex-shrink: 0;
+}
+.live-n { font-family: var(--mono); font-weight: 600; color: var(--danger); }
+.s-user { padding: 12px 16px; border-top: 1px solid var(--border); }
+.u-info { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.u-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, #374151, #1F2937);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--text-2); flex-shrink: 0;
+}
+.u-name { font-size: 12px; font-weight: 500; line-height: 1.2; }
+.u-role { font-size: 10px; color: var(--text-3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; }
+.logout {
+  width: 100%; padding: 5px 8px; background: none;
+  border: 1px solid var(--border); border-radius: var(--r);
+  color: var(--text-3); font-size: 11px; cursor: pointer; text-align: left; transition: all 0.12s;
+}
+.logout:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ── MAIN ────────────────────────────────────────── */
+#main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* ── TOPBAR ──────────────────────────────────────── */
+#topbar {
+  height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; padding: 0 20px;
+  position: sticky; top: var(--banner-h); z-index: 10;
+}
+.tb-title { font-family: var(--head); font-weight: 600; font-size: 14px; color: var(--text); white-space: nowrap; }
+.tb-sub { font-size: 12px; color: var(--text-2); margin-left: 4px; }
+.tb-sp { flex: 1; }
+.s-wrap { position: relative; }
+.s-wrap::before { content: '⌕'; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 14px; pointer-events: none; }
+.s-inp {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r);
+  color: var(--text); font-family: var(--font); font-size: 12px;
+  padding: 6px 10px 6px 26px; width: 170px; outline: none; transition: all 0.15s;
+}
+.s-inp:focus { border-color: var(--primary); width: 210px; }
+.s-inp::placeholder { color: var(--text-3); }
+.tb-btn {
+  background: var(--primary); color: #000; border: none; border-radius: var(--r);
+  padding: 7px 14px; font-family: var(--font); font-size: 12px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; gap: 5px; transition: background 0.15s; white-space: nowrap;
+}
+.tb-btn:hover { background: #d97706; }
+.tb-btn-g {
+  background: none; border: 1px solid var(--border); border-radius: var(--r);
+  color: var(--text-2); font-family: var(--font); font-size: 12px;
+  padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 5px;
+  transition: all 0.15s; white-space: nowrap;
+}
+.tb-btn-g:hover { border-color: var(--text-2); color: var(--text); }
+
+/* ── CONTENT ─────────────────────────────────────── */
+#content { flex: 1; overflow-y: auto; }
+.view { display: none; padding: 20px; }
+.view.active { display: block; animation: fadeIn 0.18s ease; }
+
+/* ── SHARED ATOMS ────────────────────────────────── */
+/* Card */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+/* Badge */
+.bdg {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 4px;
+  font-family: var(--mono); font-size: 11px; font-weight: 500; white-space: nowrap;
+}
+.bdg-live { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(239,68,68,.2); }
+.bdg-valid { background: var(--success-dim); color: var(--success); border: 1px solid rgba(16,185,129,.2); }
+.bdg-exp { background: var(--warning-dim); color: var(--warning); border: 1px solid rgba(245,158,11,.2); }
+.bdg-draft { background: rgba(99,102,241,.1); color: #A5B4FC; border: 1px solid rgba(99,102,241,.2); }
+.bdg-none { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(239,68,68,.2); }
+.bdg-ok { background: var(--success-dim); color: var(--success); border: 1px solid rgba(16,185,129,.2); }
+.bdg-warn { background: var(--warning-dim); color: var(--warning); border: 1px solid rgba(245,158,11,.2); }
+.bdg-info { background: var(--info-dim); color: var(--info); border: 1px solid rgba(59,130,246,.2); }
+.bdg-n { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-family: var(--font); font-size: 12px; font-weight: 500; border-radius: var(--r); padding: 6px 12px; border: none; transition: all 0.15s; white-space: nowrap; }
+.btn-p { background: var(--primary); color: #000; }
+.btn-p:hover { background: #d97706; }
+.btn-s { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.btn-s:hover { border-color: var(--text-3); }
+.btn-g { background: none; color: var(--text-2); border: 1px solid var(--border); }
+.btn-g:hover { color: var(--text); border-color: var(--text-3); }
+.btn-d { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(239,68,68,.2); }
+.btn-d:hover { background: rgba(239,68,68,.2); }
+.btn-xs { padding: 3px 8px; font-size: 11px; }
+/* Table */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { text-align: left; padding: 8px 16px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tbl td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tbody tr:hover td { background: var(--surface-2); cursor: pointer; }
+/* Toggle */
+.tog { position: relative; display: inline-block; width: 30px; height: 17px; flex-shrink: 0; }
+.tog input { opacity: 0; width: 0; height: 0; }
+.tog-s { position: absolute; inset: 0; background: var(--surface-3); border-radius: 8.5px; cursor: pointer; transition: .15s; }
+.tog-s::before { content: ''; position: absolute; width: 11px; height: 11px; left: 3px; top: 3px; border-radius: 50%; background: var(--text-3); transition: .15s; }
+.tog input:checked + .tog-s { background: var(--primary); }
+.tog input:checked + .tog-s::before { transform: translateX(13px); background: #000; }
+/* Tabs */
+.tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab { padding: 9px 16px; font-size: 13px; font-weight: 500; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; margin-bottom: -1px; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+/* Input */
+.inp { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); font-family: var(--font); font-size: 13px; padding: 7px 10px; outline: none; width: 100%; transition: border-color .15s; }
+.inp:focus { border-color: var(--primary); }
+.inp::placeholder { color: var(--text-3); }
+/* Note annotation */
+.note {
+  display: none; background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 5px; padding: 8px 12px; font-size: 11.5px; color: var(--text-2);
+  margin-top: 8px; line-height: 1.5;
+}
+.note::before { content: '📌 '; }
+.note strong { color: var(--primary); }
+body.ann .note { display: block; }
+/* Misc */
+.mono { font-family: var(--mono); }
+.muted { color: var(--text-2); }
+.dim { color: var(--text-3); }
+.row { display: flex; align-items: center; gap: 8px; }
+.col { display: flex; flex-direction: column; gap: 4px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.label { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse { 0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(239,68,68,.4); } 50% { opacity:.7; box-shadow: 0 0 0 5px rgba(239,68,68,0); } }
+
+/* ══ PLANNER CALENDAR ════════════════════════════════════ */
+.week-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.wn-lbl { font-family: var(--mono); font-size: 12px; color: var(--text); min-width: 11rem; text-align: center; }
+.wn-btn { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); color: var(--text-2); font-size: 13px; padding: 5px 10px; cursor: pointer; transition: all .15s; font-family: var(--font); }
+.wn-btn:hover { border-color: var(--text-2); color: var(--text); }
+.ch-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.ch-chip { padding: 4px 11px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); transition: all .15s; }
+.ch-chip:hover { border-color: var(--text-2); color: var(--text); }
+.ch-chip.on { background: var(--primary-dim); border-color: var(--border-s); color: var(--primary); }
+
+/* Calendar grid */
+.cal { display: grid; grid-template-columns: 42px repeat(7, 1fr); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+.cal-head-blank { background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.cal-day-h { background: var(--surface-2); border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); padding: 8px 6px; text-align: center; }
+.cal-dn { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); display: block; }
+.cal-dd { font-family: var(--head); font-size: 17px; font-weight: 700; color: var(--text-2); line-height: 1.2; }
+.cal-day-h.today .cal-dd { color: var(--primary); }
+.cal-day-h.today .cal-dn { color: var(--primary); }
+/* time+day body */
+.cal-body { display: contents; }
+.cal-times { position: relative; height: 780px; }
+.cal-hr { position: absolute; right: 6px; font-family: var(--mono); font-size: 10px; color: var(--text-3); line-height: 1; }
+.cal-col {
+  position: relative; border-left: 1px solid var(--border); height: 780px;
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 59px, rgba(255,255,255,.025) 59px, rgba(255,255,255,.025) 60px);
+}
+.cal-col.today { background-color: rgba(245,158,11,.02); }
+/* Events */
+.ce { position: absolute; left: 3px; right: 3px; border-radius: 4px; padding: 3px 6px; font-size: 11px; font-weight: 500; overflow: hidden; cursor: pointer; transition: opacity .15s; border-left: 3px solid; }
+.ce:hover { opacity: .8; }
+.ce-t { font-family: var(--mono); font-size: 9px; opacity: .75; display: block; margin-bottom: 1px; }
+.ce-ttl { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ce-ch { font-size: 9px; font-family: var(--mono); opacity: .6; display: block; text-transform: uppercase; letter-spacing: .04em; }
+.ev-a { background: rgba(245,158,11,.1); border-color: #F59E0B; color: #FCD34D; } /* VRT1 */
+.ev-b { background: rgba(59,130,246,.1); border-color: #3B82F6; color: #93C5FD; } /* VRT2 */
+.ev-c { background: rgba(167,139,250,.1); border-color: #A78BFA; color: #C4B5FD; } /* Canvas */
+.ev-d { background: rgba(16,185,129,.1); border-color: #10B981; color: #6EE7B7; } /* VRT Sport */
+
+/* ══ CONTRACTS PIPELINE ════════════════════════════════════ */
+.pipeline { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 20px; }
+.pip { background: var(--surface); padding: 14px 16px; cursor: pointer; transition: background .12s; display: flex; align-items: center; gap: 12px; }
+.pip:hover { background: var(--surface-2); }
+.pip.on { background: var(--primary-dim); }
+.pip-n { font-family: var(--head); font-size: 24px; font-weight: 700; line-height: 1; }
+.pip-ico { font-size: 20px; }
+.pip-l { font-size: 11px; color: var(--text-2); font-family: var(--mono); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+
+/* ══ IMPORT DASHBOARD ════════════════════════════════════ */
+.src-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 12px; }
+.src-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 16px; }
+.src-icon { font-size: 24px; margin-bottom: 8px; }
+.src-name { font-family: var(--head); font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+.src-meta { font-size: 12px; color: var(--text-2); margin-bottom: 12px; line-height: 1.5; }
+.src-foot { display: flex; align-items: center; justify-content: space-between; }
+.j-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.j-run { background: var(--primary); animation: pulse 1.5s ease infinite; }
+.j-ok { background: var(--success); }
+.j-err { background: var(--danger); }
+.j-q { background: var(--text-3); }
+.merge-card { background: var(--surface); border: 1px solid var(--border-s); border-radius: var(--r); padding: 16px; margin-bottom: 10px; }
+.merge-head { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--primary); margin-bottom: 10px; }
+.merge-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.merge-side { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; }
+.merge-lbl { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin-bottom: 5px; }
+.merge-f { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); margin-top: 3px; }
+.merge-f strong { color: var(--text); }
+.merge-actions { display: flex; gap: 8px; }
+
+/* ══ SETTINGS ════════════════════════════════════════════ */
+.set-lay { display: grid; grid-template-columns: 192px 1fr; gap: 20px; }
+.set-nav { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 0; height: fit-content; position: sticky; top: calc(var(--banner-h) + var(--topbar-h) + 20px); }
+.sn-item { padding: 8px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-left: 2px solid transparent; transition: all .12s; display: flex; align-items: center; gap: 8px; }
+.sn-item:hover { background: var(--surface-2); color: var(--text); }
+.sn-item.active { color: var(--primary); border-left-color: var(--primary); background: var(--primary-dim); }
+.sn-sep { height: 1px; background: var(--border); margin: 6px 0; }
+.set-h { font-family: var(--head); font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.set-d { font-size: 13px; color: var(--text-2); margin-bottom: 18px; }
+.field-r { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); }
+.field-r:last-child { border-bottom: none; }
+.field-r:hover { background: var(--surface-2); }
+.drag-h { color: var(--text-3); font-size: 12px; cursor: grab; flex-shrink: 0; }
+.field-lbl { flex: 1; font-size: 13px; font-weight: 500; }
+.field-tp { font-family: var(--mono); font-size: 11px; color: var(--text-2); padding: 2px 6px; background: var(--surface-2); border-radius: 3px; }
+.field-sys { font-size: 11px; color: var(--text-3); margin-left: 4px; }
+.enc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px,1fr)); gap: 10px; }
+.enc-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 14px; cursor: pointer; transition: all .15s; }
+.enc-card:hover { border-color: var(--primary); }
+.enc-card.busy { border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.04); }
+.enc-card.free { border-color: rgba(16,185,129,.35); background: rgba(16,185,129,.04); }
+.enc-n { font-family: var(--mono); font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+.enc-loc { font-size: 11px; color: var(--text-2); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ── PROPOSAL BANNER ─────────────────────────────────── -->
+<div id="banner">
+  <span class="p-badge">PROPOSAL</span>
+  <p><strong>Planza UI/UX Redesign</strong> — coherent shell, true week calendar, import dashboard, settings route. Addresses 4-layer nav chrome, dual component systems, hidden backend features.</p>
+  <button class="ann-btn" id="annBtn" onclick="toggleAnn()">Show annotations</button>
+</div>
+
+<!-- ── APP SHELL ──────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="s-logo">
+      <div class="logo-m">S</div>
+      <div class="logo-t">Sporza<span>Planner</span></div>
+    </div>
+    <nav class="s-nav">
+      <div class="s-sep">Workspace</div>
+      <div class="s-item active" onclick="showView('planner',this)">
+        <span class="s-icon">📅</span> Planner
+      </div>
+      <div class="s-item" onclick="showView('sports',this)">
+        <span class="s-icon">⚽</span> Sports
+      </div>
+      <div class="s-item" onclick="showView('contracts',this)">
+        <span class="s-icon">📄</span> Contracts
+        <span class="s-badge sb-warn">2</span>
+      </div>
+      <div class="s-sep">Data</div>
+      <div class="s-item" onclick="showView('import',this)">
+        <span class="s-icon">⬆</span> Import
+        <span class="s-badge sb-info">3</span>
+      </div>
+      <div class="s-sep">Admin</div>
+      <div class="s-item" onclick="showView('settings',this)">
+        <span class="s-icon">⚙</span> Settings
+      </div>
+    </nav>
+    <div class="s-live">
+      <div class="live-dot"></div>
+      <span><span class="live-n">2</span> live now</span>
+    </div>
+    <div class="s-user">
+      <div class="u-info">
+        <div class="u-avatar">JV</div>
+        <div>
+          <div class="u-name">Jan Vermeer</div>
+          <div class="u-role">Admin</div>
+        </div>
+      </div>
+      <button class="logout">↩ Log out</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- TOPBAR -->
+    <header id="topbar">
+      <span class="tb-title" id="tb-title">Planner</span>
+      <span class="tb-sub" id="tb-sub">Week 10, 2026</span>
+      <div class="tb-sp"></div>
+      <div class="s-wrap" id="tb-search">
+        <input class="s-inp" placeholder="Search events…" type="text">
+      </div>
+      <button class="tb-btn" id="tb-action">＋ New Event</button>
+    </header>
+
+    <!-- CONTENT AREA -->
+    <main id="content">
+
+      <!-- ════════════════════════════════════════
+           VIEW: PLANNER
+      ════════════════════════════════════════ -->
+      <div id="view-planner" class="view active">
+
+        <div class="note">
+          <strong>Key improvement:</strong> Replaced channel-grouped list with a true 7-column week calendar. Events are visually positioned by broadcast time (top = start time), making scheduling conflicts and gaps immediately visible. The current implementation groups by channel label with no time positioning.
+        </div>
+
+        <!-- Week nav -->
+        <div class="week-nav" style="margin-top:8px">
+          <button class="wn-btn" onclick="">‹</button>
+          <button class="wn-btn" onclick="">Today</button>
+          <button class="wn-btn" onclick="">›</button>
+          <span class="wn-lbl">2 Mar – 8 Mar 2026</span>
+          <div style="flex:1"></div>
+          <!-- Quick stats inline -->
+          <span class="bdg bdg-n"><span class="mono">12</span> events</span>
+          <span class="bdg bdg-live"><span class="live-dot" style="width:6px;height:6px;margin-right:2px"></span>2 live</span>
+        </div>
+
+        <!-- Channel chips -->
+        <div class="ch-chips">
+          <span class="ch-chip on" onclick="chipToggle(this)">All channels</span>
+          <span class="ch-chip" onclick="chipToggle(this)" style="border-color:rgba(245,158,11,.25);color:#FCD34D">● VRT 1</span>
+          <span class="ch-chip" onclick="chipToggle(this)" style="border-color:rgba(59,130,246,.25);color:#93C5FD">● VRT 2</span>
+          <span class="ch-chip" onclick="chipToggle(this)" style="border-color:rgba(167,139,250,.25);color:#C4B5FD">● Canvas</span>
+          <span class="ch-chip" onclick="chipToggle(this)" style="border-color:rgba(16,185,129,.25);color:#6EE7B7">● VRT Sport</span>
+        </div>
+
+        <!-- Calendar grid -->
+        <div class="cal">
+          <!-- Header row -->
+          <div class="cal-head-blank"></div>
+          <div class="cal-day-h"><span class="cal-dn">Mon</span><span class="cal-dd">2</span></div>
+          <div class="cal-day-h"><span class="cal-dn">Tue</span><span class="cal-dd">3</span></div>
+          <div class="cal-day-h today"><span class="cal-dn">Wed</span><span class="cal-dd">4</span></div>
+          <div class="cal-day-h"><span class="cal-dn">Thu</span><span class="cal-dd">5</span></div>
+          <div class="cal-day-h"><span class="cal-dn">Fri</span><span class="cal-dd">6</span></div>
+          <div class="cal-day-h"><span class="cal-dn">Sat</span><span class="cal-dd">7</span></div>
+          <div class="cal-day-h"><span class="cal-dn">Sun</span><span class="cal-dd">8</span></div>
+
+          <!-- Time column: 10:00–22:00 = 13 slots × 60px = 780px -->
+          <div class="cal-times" style="position:relative;background:var(--surface-2);height:780px">
+            <span class="cal-hr" style="top:2px">10</span>
+            <span class="cal-hr" style="top:62px">11</span>
+            <span class="cal-hr" style="top:122px">12</span>
+            <span class="cal-hr" style="top:182px">13</span>
+            <span class="cal-hr" style="top:242px">14</span>
+            <span class="cal-hr" style="top:302px">15</span>
+            <span class="cal-hr" style="top:362px">16</span>
+            <span class="cal-hr" style="top:422px">17</span>
+            <span class="cal-hr" style="top:482px">18</span>
+            <span class="cal-hr" style="top:542px">19</span>
+            <span class="cal-hr" style="top:602px">20</span>
+            <span class="cal-hr" style="top:662px">21</span>
+            <span class="cal-hr" style="top:722px">22</span>
+          </div>
+
+          <!-- MON: Man City vs Arsenal 14:00 105min VRT1, Strade Bianche 15:30 240min VRT2 -->
+          <div class="cal-col" style="height:780px">
+            <!-- 14:00 = (840-600)=240px top, 105min height -->
+            <div class="ce ev-a" style="top:240px;height:103px">
+              <span class="ce-t">14:00</span>
+              <span class="ce-ttl">⚽ Man City vs Arsenal</span>
+              <span class="ce-ch">VRT 1</span>
+            </div>
+            <!-- 15:30 = (930-600)=330px top, 180min=180px -->
+            <div class="ce ev-b" style="top:330px;height:178px">
+              <span class="ce-t">15:30</span>
+              <span class="ce-ttl">🚴 Strade Bianche</span>
+              <span class="ce-ch">VRT 2</span>
+            </div>
+          </div>
+
+          <!-- TUE: ATP Dubai 17:00 120min Canvas -->
+          <div class="cal-col" style="height:780px">
+            <!-- 17:00 = (1020-600)=420px top, 120min -->
+            <div class="ce ev-c" style="top:420px;height:118px">
+              <span class="ce-t">17:00</span>
+              <span class="ce-ttl">🎾 Dubai WTA Open</span>
+              <span class="ce-ch">Canvas</span>
+            </div>
+          </div>
+
+          <!-- WED (today): EuroLeague 20:00 90min VRT Sport, UCL 21:00 120min VRT1 -->
+          <div class="cal-col today" style="height:780px">
+            <!-- 20:00 = (1200-600)=600px top, 90min -->
+            <div class="ce ev-d" style="top:600px;height:88px">
+              <span class="ce-t">20:00</span>
+              <span class="ce-ttl">🏀 EuroLeague</span>
+              <span class="ce-ch">VRT Sport</span>
+            </div>
+            <!-- 21:00 = (1260-600)=660px top, 120min -->
+            <div class="ce ev-a" style="top:660px;height:118px">
+              <span class="ce-t">21:00 <span class="bdg bdg-live" style="font-size:9px;padding:1px 4px">LIVE</span></span>
+              <span class="ce-ttl">⚽ UCL: Liverpool–PSG</span>
+              <span class="ce-ch">VRT 1</span>
+            </div>
+          </div>
+
+          <!-- THU: empty -->
+          <div class="cal-col" style="height:780px">
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+              <span style="font-size:11px;color:var(--text-3)">No events</span>
+            </div>
+          </div>
+
+          <!-- FRI: Milan-San Remo 11:00 360min VRT2 -->
+          <div class="cal-col" style="height:780px">
+            <!-- 11:00 = (660-600)=60px top, 360min -->
+            <div class="ce ev-b" style="top:60px;height:358px">
+              <span class="ce-t">11:00</span>
+              <span class="ce-ttl">🚴 Milan–San Remo</span>
+              <span class="ce-ch">VRT 2 · 6h coverage</span>
+            </div>
+          </div>
+
+          <!-- SAT: Pro League 16:00 + 18:30 VRT Sport -->
+          <div class="cal-col" style="height:780px">
+            <!-- 16:00 = 360px top, 120min -->
+            <div class="ce ev-d" style="top:360px;height:118px">
+              <span class="ce-t">16:00</span>
+              <span class="ce-ttl">⚽ Gent vs Club Brugge</span>
+              <span class="ce-ch">VRT Sport</span>
+            </div>
+            <!-- 18:30 = (1110-600)=510px top, 120min -->
+            <div class="ce ev-d" style="top:510px;height:118px">
+              <span class="ce-t">18:30</span>
+              <span class="ce-ttl">⚽ Anderlecht vs Genk</span>
+              <span class="ce-ch">VRT Sport</span>
+            </div>
+          </div>
+
+          <!-- SUN: Super Sunday 14:30 VRT1, GP Preview 21:00 Canvas -->
+          <div class="cal-col" style="height:780px">
+            <!-- 14:30 = (870-600)=270px top, 120min -->
+            <div class="ce ev-a" style="top:270px;height:118px">
+              <span class="ce-t">14:30</span>
+              <span class="ce-ttl">⚽ Super Sunday</span>
+              <span class="ce-ch">VRT 1</span>
+            </div>
+            <!-- 21:00 = 660px top, 60min -->
+            <div class="ce ev-c" style="top:660px;height:58px">
+              <span class="ce-t">21:00</span>
+              <span class="ce-ttl">🏎 F1 Preview</span>
+              <span class="ce-ch">Canvas</span>
+            </div>
+          </div>
+        </div><!-- /cal -->
+
+      </div><!-- /view-planner -->
+
+
+      <!-- ════════════════════════════════════════
+           VIEW: SPORTS WORKSPACE
+      ════════════════════════════════════════ -->
+      <div id="view-sports" class="view">
+
+        <div class="note" style="margin-bottom:14px">
+          <strong>Key improvement:</strong> Sports workspace now has 3 sub-tabs (Events, Tech Plans, Crew) instead of one dense layout. The sport filter chips stay persistent across all tabs. Encoder swap is moved to the Plans tab where it logically belongs.
+        </div>
+
+        <!-- Sport filter chips -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+          <div style="padding:6px 12px;background:var(--primary-dim);border:1px solid var(--border-s);border-radius:var(--r);font-size:13px;color:var(--primary);cursor:pointer">All Sports</div>
+          <div style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--text-2);cursor:pointer">⚽ Football</div>
+          <div style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--text-2);cursor:pointer">🚴 Cycling</div>
+          <div style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--text-2);cursor:pointer">🎾 Tennis</div>
+          <div style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--text-2);cursor:pointer">🏀 Basketball</div>
+        </div>
+
+        <!-- Sub-tabs -->
+        <div class="tab-bar">
+          <div class="tab active" onclick="subTab(this,'sp-events')">Events</div>
+          <div class="tab" onclick="subTab(this,'sp-plans')">Tech Plans</div>
+          <div class="tab" onclick="subTab(this,'sp-crew')">Crew</div>
+        </div>
+
+        <!-- Events sub-tab -->
+        <div id="sp-events" class="sub-tab">
+          <div class="card" style="overflow:hidden">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Time</th><th>Competition</th><th>Participants</th><th>Channel</th><th>Phase</th><th>Status</th><th>Plan</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono" style="color:var(--text-2)">Wed 21:00</td>
+                  <td>⚽ UEFA Champions League</td>
+                  <td style="font-weight:500">Liverpool vs PSG</td>
+                  <td><span style="color:#FCD34D;font-size:12px;font-family:var(--mono)">VRT 1</span></td>
+                  <td style="color:var(--text-2);font-size:12px">Group Stage R3</td>
+                  <td><span class="bdg bdg-live"><span style="width:5px;height:5px;border-radius:50%;background:var(--danger);display:inline-block;margin-right:3px;animation:pulse 1.5s ease infinite"></span>LIVE</span></td>
+                  <td><span class="bdg bdg-ok">✓ Planned</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="color:var(--text-2)">Wed 20:00</td>
+                  <td>🏀 EuroLeague</td>
+                  <td style="font-weight:500">Anadolu Efes vs CSKA</td>
+                  <td><span style="color:#6EE7B7;font-size:12px;font-family:var(--mono)">VRT Sport</span></td>
+                  <td style="color:var(--text-2);font-size:12px">Regular Season</td>
+                  <td><span class="bdg bdg-live"><span style="width:5px;height:5px;border-radius:50%;background:var(--danger);display:inline-block;margin-right:3px;animation:pulse 1.5s ease infinite"></span>LIVE</span></td>
+                  <td><span class="bdg bdg-warn">⚡ Partial</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="color:var(--text-2)">Fri 11:00</td>
+                  <td>🚴 UCI WorldTour</td>
+                  <td style="font-weight:500">Milan – San Remo</td>
+                  <td><span style="color:#93C5FD;font-size:12px;font-family:var(--mono)">VRT 2</span></td>
+                  <td style="color:var(--text-2);font-size:12px">Classic</td>
+                  <td><span class="bdg bdg-n">Scheduled</span></td>
+                  <td><span class="bdg bdg-ok">✓ Planned</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="color:var(--text-2)">Sat 16:00</td>
+                  <td>⚽ Jupiler Pro League</td>
+                  <td style="font-weight:500">Gent vs Club Brugge</td>
+                  <td><span style="color:#6EE7B7;font-size:12px;font-family:var(--mono)">VRT Sport</span></td>
+                  <td style="color:var(--text-2);font-size:12px">Matchday 28</td>
+                  <td><span class="bdg bdg-n">Scheduled</span></td>
+                  <td><span class="bdg bdg-warn">⚠ No plan</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Plans sub-tab -->
+        <div id="sp-plans" class="sub-tab" style="display:none">
+          <div class="note" style="margin-bottom:12px">
+            <strong>Encoder swap</strong> lives here in the Plans tab, not scattered across the main view. Each plan shows its encoder assignment with status.
+          </div>
+
+          <!-- Encoder grid summary -->
+          <div class="label" style="margin-bottom:8px">Encoders</div>
+          <div class="enc-grid" style="margin-bottom:20px">
+            <div class="enc-card busy">
+              <div class="enc-n">ENC-01</div>
+              <div class="enc-loc">Studio A — Brussels</div>
+              <span class="bdg bdg-live" style="font-size:11px">In Use: UCL Liverpool</span>
+            </div>
+            <div class="enc-card busy">
+              <div class="enc-n">ENC-02</div>
+              <div class="enc-loc">Mobile Unit 2 — Ghent</div>
+              <span class="bdg bdg-warn" style="font-size:11px">Reserved: Gent vs Brugge</span>
+            </div>
+            <div class="enc-card free">
+              <div class="enc-n">ENC-03</div>
+              <div class="enc-loc">Studio B — Brussels</div>
+              <span class="bdg bdg-ok" style="font-size:11px">Available</span>
+            </div>
+            <div class="enc-card free">
+              <div class="enc-n">ENC-04</div>
+              <div class="enc-loc">OB Van — Antwerp</div>
+              <span class="bdg bdg-ok" style="font-size:11px">Available</span>
+            </div>
+          </div>
+
+          <div class="label" style="margin-bottom:8px">Tech Plans</div>
+          <div class="card" style="overflow:hidden">
+            <table class="tbl">
+              <thead><tr><th>Event</th><th>Date</th><th>Encoder</th><th>Director</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight:500">UCL: Liverpool vs PSG</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">Wed 21:00</td>
+                  <td><span class="bdg bdg-n">ENC-01</span></td>
+                  <td style="color:var(--text-2)">P. Dubois</td>
+                  <td><span class="bdg bdg-live">Active</span></td>
+                  <td><button class="btn btn-g btn-xs">Swap encoder</button></td>
+                </tr>
+                <tr>
+                  <td style="font-weight:500">Milan – San Remo</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">Fri 11:00</td>
+                  <td><span class="bdg bdg-n">ENC-03</span></td>
+                  <td style="color:var(--text-2)">K. Maertens</td>
+                  <td><span class="bdg bdg-ok">Confirmed</span></td>
+                  <td><button class="btn btn-g btn-xs">Swap encoder</button></td>
+                </tr>
+                <tr>
+                  <td style="font-weight:500">Anderlecht vs Genk</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">Sat 18:30</td>
+                  <td><span style="color:var(--text-3);font-size:12px">— unassigned</span></td>
+                  <td style="color:var(--text-2)">—</td>
+                  <td><span class="bdg bdg-warn">Incomplete</span></td>
+                  <td><button class="btn btn-p btn-xs">Assign encoder</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Crew sub-tab -->
+        <div id="sp-crew" class="sub-tab" style="display:none">
+          <div class="card" style="overflow:hidden">
+            <table class="tbl">
+              <thead><tr><th>Name</th><th>Role</th><th>Event</th><th>Date</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight:500">Thomas Claes</td>
+                  <td style="color:var(--text-2)">Camera Operator</td>
+                  <td>UCL: Liverpool vs PSG</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">Wed 21:00</td>
+                  <td><span class="bdg bdg-ok">Confirmed</span></td>
+                </tr>
+                <tr>
+                  <td style="font-weight:500">Liesbeth De Smet</td>
+                  <td style="color:var(--text-2)">Director</td>
+                  <td>UCL: Liverpool vs PSG</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">Wed 21:00</td>
+                  <td><span class="bdg bdg-ok">Confirmed</span></td>
+                </tr>
+                <tr>
+                  <td style="font-weight:500">Wim Janssens</td>
+                  <td style="color:var(--text-2)">Audio</td>
+                  <td>Milan – San Remo</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">Fri 11:00</td>
+                  <td><span class="bdg bdg-warn">Pending</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /view-sports -->
+
+
+      <!-- ════════════════════════════════════════
+           VIEW: CONTRACTS
+      ════════════════════════════════════════ -->
+      <div id="view-contracts" class="view">
+
+        <div class="note" style="margin-bottom:16px">
+          <strong>Key improvement:</strong> Status pipeline replaces scattered filter buttons — one glance shows health of entire contract portfolio. Clicking a stage filters the table below.
+        </div>
+
+        <!-- Pipeline bar -->
+        <div class="pipeline">
+          <div class="pip">
+            <span class="pip-ico">🟢</span>
+            <div><div class="pip-n" style="color:var(--success)">8</div><div class="pip-l">Valid</div></div>
+          </div>
+          <div class="pip on">
+            <span class="pip-ico">🟡</span>
+            <div><div class="pip-n" style="color:var(--warning)">2</div><div class="pip-l">Expiring soon</div></div>
+          </div>
+          <div class="pip">
+            <span class="pip-ico">🟠</span>
+            <div><div class="pip-n" style="color:#FB923C">3</div><div class="pip-l">Negotiation</div></div>
+          </div>
+          <div class="pip">
+            <span class="pip-ico">🔴</span>
+            <div><div class="pip-n" style="color:var(--danger)">1</div><div class="pip-l">No contract</div></div>
+          </div>
+        </div>
+
+        <!-- Filter tabs -->
+        <div class="tab-bar">
+          <div class="tab active" onclick="subTab(this,'ct-all')">All (14)</div>
+          <div class="tab" onclick="subTab(this,'ct-exp')">⚡ Expiring (2)</div>
+          <div class="tab" onclick="subTab(this,'ct-draft')">Draft (3)</div>
+        </div>
+
+        <div id="ct-all" class="sub-tab">
+          <div class="card" style="overflow:hidden">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Competition</th><th>Sport</th><th>Status</th><th>Expires</th><th>Linear</th><th>MAX</th><th>Radio</th><th>Fee</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr onclick="toggleExpand(this)">
+                  <td style="font-weight:500">UEFA Champions League</td>
+                  <td style="color:var(--text-2)">⚽ Football</td>
+                  <td><span class="bdg bdg-valid">Valid</span></td>
+                  <td class="mono" style="font-size:12px">2026-05-31</td>
+                  <td>✅</td><td>✅</td><td>✅</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">€1.2M</td>
+                  <td><span style="color:var(--text-3);font-size:12px;display:inline-block;transition:transform .15s" class="exp-arrow">▶</span></td>
+                </tr>
+                <tr class="exp-detail" style="display:none"><td colspan="9" style="padding:0;border-bottom:1px solid var(--border)">
+                  <div style="padding:14px 16px;background:var(--surface-2);display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:12px">
+                    <div><div class="label" style="margin-bottom:3px">Validity</div><div class="mono">2024-06-01 – 2026-05-31</div></div>
+                    <div><div class="label" style="margin-bottom:3px">Geo restriction</div><div style="color:var(--text-2)">Belgium only</div></div>
+                    <div><div class="label" style="margin-bottom:3px">Sublicensing</div><div style="color:var(--text-2)">Not allowed</div></div>
+                    <div style="display:flex;align-items:flex-start;gap:8px;padding-top:14px"><button class="btn btn-s btn-xs">Edit</button></div>
+                  </div>
+                </td></tr>
+
+                <tr onclick="toggleExpand(this)">
+                  <td style="font-weight:500">ATP Tour</td>
+                  <td style="color:var(--text-2)">🎾 Tennis</td>
+                  <td><span class="bdg bdg-exp">Expiring</span></td>
+                  <td class="mono" style="font-size:12px;color:var(--warning)">2026-04-18 <span style="font-size:10px">(45d)</span></td>
+                  <td>✅</td><td>❌</td><td>✅</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">€280K</td>
+                  <td><span style="color:var(--text-3);font-size:12px;display:inline-block;transition:transform .15s" class="exp-arrow">▶</span></td>
+                </tr>
+                <tr class="exp-detail" style="display:none"><td colspan="9" style="padding:0;border-bottom:1px solid var(--border)">
+                  <div style="padding:14px 16px;background:var(--surface-2);display:grid;grid-template-columns:repeat(4,1fr);gap:14px;font-size:12px">
+                    <div><div class="label" style="margin-bottom:3px">Validity</div><div class="mono">2024-01-01 – 2026-04-18</div></div>
+                    <div><div class="label" style="margin-bottom:3px">Notes</div><div style="color:var(--warning)">⚠ Renewal meeting scheduled</div></div>
+                    <div></div>
+                    <div style="display:flex;align-items:flex-start;gap:8px;padding-top:14px"><button class="btn btn-p btn-xs">Renew now</button><button class="btn btn-s btn-xs">Edit</button></div>
+                  </div>
+                </td></tr>
+
+                <tr onclick="toggleExpand(this)">
+                  <td style="font-weight:500">Jupiler Pro League</td>
+                  <td style="color:var(--text-2)">⚽ Football</td>
+                  <td><span class="bdg bdg-valid">Valid</span></td>
+                  <td class="mono" style="font-size:12px">2027-06-30</td>
+                  <td>✅</td><td>✅</td><td>❌</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">€3.1M</td>
+                  <td><span style="color:var(--text-3);font-size:12px;display:inline-block;transition:transform .15s" class="exp-arrow">▶</span></td>
+                </tr>
+                <tr class="exp-detail" style="display:none"><td colspan="9" style="padding:0"><div style="padding:14px 16px;background:var(--surface-2);font-size:12px;color:var(--text-2)">Validity: 2024-07-01 – 2027-06-30 · Belgium only · Sublicensing allowed for highlights</div></td></tr>
+
+                <tr>
+                  <td style="font-weight:500">Tour de France</td>
+                  <td style="color:var(--text-2)">🚴 Cycling</td>
+                  <td><span class="bdg bdg-draft">Draft</span></td>
+                  <td class="mono" style="font-size:12px;color:var(--text-3)">In negotiation</td>
+                  <td>—</td><td>—</td><td>—</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-3)">TBD</td>
+                  <td><span style="color:var(--text-3);font-size:12px">▶</span></td>
+                </tr>
+                <tr>
+                  <td style="font-weight:500">NBA League Pass</td>
+                  <td style="color:var(--text-2)">🏀 Basketball</td>
+                  <td><span class="bdg bdg-none">No contract</span></td>
+                  <td class="mono" style="font-size:12px;color:var(--text-3)">—</td>
+                  <td>—</td><td>—</td><td>—</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-3)">—</td>
+                  <td><span style="color:var(--text-3);font-size:12px">▶</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="ct-exp" class="sub-tab" style="display:none">
+          <p style="color:var(--text-2);font-size:13px;padding:20px 0">Showing 2 contracts expiring within 90 days…</p>
+        </div>
+        <div id="ct-draft" class="sub-tab" style="display:none">
+          <p style="color:var(--text-2);font-size:13px;padding:20px 0">Showing 3 contracts in negotiation/draft state…</p>
+        </div>
+
+      </div><!-- /view-contracts -->
+
+
+      <!-- ════════════════════════════════════════
+           VIEW: IMPORT DASHBOARD
+      ════════════════════════════════════════ -->
+      <div id="view-import" class="view">
+
+        <div class="note" style="margin-bottom:16px">
+          <strong>New section</strong> — The backend has a rich import pipeline (ImportSource, ImportJob, MergeCandidate, DeadLetter, Aliases) that is completely hidden in the current UI (only a basic CSV upload exists). This view exposes all of it.
+        </div>
+
+        <div class="tab-bar">
+          <div class="tab active" onclick="subTab(this,'imp-src')">Sources</div>
+          <div class="tab" onclick="subTab(this,'imp-jobs')">Jobs <span class="bdg bdg-info" style="margin-left:4px">1 running</span></div>
+          <div class="tab" onclick="subTab(this,'imp-review')">Review <span class="bdg bdg-warn" style="margin-left:4px">3 pending</span></div>
+          <div class="tab" onclick="subTab(this,'imp-dead')">Dead Letters <span class="bdg bdg-danger" style="margin-left:4px">2</span></div>
+        </div>
+
+        <!-- Sources -->
+        <div id="imp-src" class="sub-tab">
+          <div class="src-grid">
+            <div class="src-card">
+              <div class="src-icon">📡</div>
+              <div class="src-name">SportRadar</div>
+              <div class="src-meta">Live event feed · 34,291 events synced<br><span style="color:var(--success)">Last sync: 2 min ago</span></div>
+              <div class="src-foot">
+                <span class="bdg bdg-ok">Enabled</span>
+                <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+              </div>
+            </div>
+            <div class="src-card">
+              <div class="src-icon">📊</div>
+              <div class="src-name">Opta</div>
+              <div class="src-meta">Stats &amp; lineups · 12,445 events synced<br><span style="color:var(--success)">Last sync: 15 min ago</span></div>
+              <div class="src-foot">
+                <span class="bdg bdg-ok">Enabled</span>
+                <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+              </div>
+            </div>
+            <div class="src-card">
+              <div class="src-icon">📁</div>
+              <div class="src-name">Manual CSV</div>
+              <div class="src-meta">File upload · Last upload: 2026-03-01<br><span style="color:var(--text-3)">On demand</span></div>
+              <div class="src-foot">
+                <span class="bdg bdg-n">Manual</span>
+                <button class="btn btn-s btn-xs">Upload CSV</button>
+              </div>
+            </div>
+            <div class="src-card" style="opacity:.6">
+              <div class="src-icon">⚡</div>
+              <div class="src-name">FlashScore</div>
+              <div class="src-meta">Live scores · Never synced<br><span style="color:var(--text-3)">Disabled</span></div>
+              <div class="src-foot">
+                <span class="bdg bdg-n">Disabled</span>
+                <label class="tog"><input type="checkbox"><span class="tog-s"></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Jobs -->
+        <div id="imp-jobs" class="sub-tab" style="display:none">
+          <div class="card" style="overflow:hidden">
+            <table class="tbl">
+              <thead><tr><th>#</th><th>Source</th><th>Started</th><th>Duration</th><th>Status</th><th>Inserted</th><th>Skipped</th><th>Errors</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="mono" style="color:var(--text-3);font-size:12px">#JOB-041</td>
+                  <td>SportRadar</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">14:32:01</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">running…</td>
+                  <td><span class="j-dot j-run"></span><span class="bdg bdg-info">Running</span></td>
+                  <td class="mono" style="color:var(--success)">247</td>
+                  <td class="mono" style="color:var(--text-2)">12</td>
+                  <td class="mono" style="color:var(--text-3)">0</td>
+                  <td><button class="btn btn-d btn-xs">Cancel</button></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="color:var(--text-3);font-size:12px">#JOB-040</td>
+                  <td>Opta</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">13:15:00</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">4m 12s</td>
+                  <td><span class="bdg bdg-ok">Complete</span></td>
+                  <td class="mono" style="color:var(--success)">89</td>
+                  <td class="mono" style="color:var(--text-2)">3</td>
+                  <td class="mono" style="color:var(--text-3)">0</td>
+                  <td><button class="btn btn-g btn-xs">View log</button></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="color:var(--text-3);font-size:12px">#JOB-039</td>
+                  <td>Manual CSV</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">2026-03-01</td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">0m 43s</td>
+                  <td><span class="bdg bdg-warn">Errors</span></td>
+                  <td class="mono" style="color:var(--success)">156</td>
+                  <td class="mono" style="color:var(--text-2)">8</td>
+                  <td class="mono" style="color:var(--danger)">2</td>
+                  <td><button class="btn btn-g btn-xs">View errors</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Review (merge candidates) -->
+        <div id="imp-review" class="sub-tab" style="display:none">
+          <div class="note" style="margin-bottom:16px">
+            <strong>Merge candidates</strong> are auto-detected duplicates from import sources. Review here prevents duplicate events from proliferating in the planner.
+          </div>
+
+          <div class="merge-card">
+            <div class="merge-head">⚡ Merge Candidate — SportRadar detected possible duplicate</div>
+            <div class="merge-body">
+              <div class="merge-side">
+                <div class="merge-lbl">Incoming (SportRadar)</div>
+                <div class="merge-f"><span>Name</span><strong>Liverpool FC vs Paris Saint-Germain</strong></div>
+                <div class="merge-f"><span>Date</span><strong class="mono">2026-03-04 21:00</strong></div>
+                <div class="merge-f"><span>Competition</span><strong>UEFA CL</strong></div>
+                <div class="merge-f"><span>Source ID</span><strong class="mono">SR-EV-8821334</strong></div>
+              </div>
+              <div class="merge-side">
+                <div class="merge-lbl">Existing (database)</div>
+                <div class="merge-f"><span>Name</span><strong>Liverpool vs PSG</strong></div>
+                <div class="merge-f"><span>Date</span><strong class="mono">2026-03-04 21:00</strong></div>
+                <div class="merge-f"><span>Competition</span><strong>Champions League</strong></div>
+                <div class="merge-f"><span>Event ID</span><strong class="mono">#EVT-2041</strong></div>
+              </div>
+            </div>
+            <div class="merge-actions">
+              <button class="btn btn-p">✓ Merge (update existing)</button>
+              <button class="btn btn-s">Create new record</button>
+              <button class="btn btn-g">Ignore</button>
+            </div>
+          </div>
+
+          <div class="merge-card">
+            <div class="merge-head">⚡ Merge Candidate — Opta detected possible duplicate</div>
+            <div class="merge-body">
+              <div class="merge-side">
+                <div class="merge-lbl">Incoming (Opta)</div>
+                <div class="merge-f"><span>Name</span><strong>Gent - Club Brugge</strong></div>
+                <div class="merge-f"><span>Date</span><strong class="mono">2026-03-07 16:00</strong></div>
+                <div class="merge-f"><span>Competition</span><strong>JPL</strong></div>
+                <div class="merge-f"><span>Source ID</span><strong class="mono">OP-34991</strong></div>
+              </div>
+              <div class="merge-side">
+                <div class="merge-lbl">Existing (database)</div>
+                <div class="merge-f"><span>Name</span><strong>KAA Gent vs Club Brugge</strong></div>
+                <div class="merge-f"><span>Date</span><strong class="mono">2026-03-07 16:00</strong></div>
+                <div class="merge-f"><span>Competition</span><strong>Jupiler Pro League</strong></div>
+                <div class="merge-f"><span>Event ID</span><strong class="mono">#EVT-2044</strong></div>
+              </div>
+            </div>
+            <div class="merge-actions">
+              <button class="btn btn-p">✓ Merge (update existing)</button>
+              <button class="btn btn-s">Create new record</button>
+              <button class="btn btn-g">Ignore</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dead Letters -->
+        <div id="imp-dead" class="sub-tab" style="display:none">
+          <div class="card" style="overflow:hidden;margin-bottom:16px">
+            <div style="padding:12px 16px;background:var(--danger-dim);border-bottom:1px solid rgba(239,68,68,.15);font-size:12px;color:var(--danger)">
+              ⚠ 2 records could not be auto-processed and require manual action.
+            </div>
+            <table class="tbl">
+              <thead><tr><th>ID</th><th>Source</th><th>Reason</th><th>Raw data</th><th>Created</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="mono" style="font-size:12px;color:var(--text-3)">#DL-012</td>
+                  <td>SportRadar</td>
+                  <td><span class="bdg bdg-danger">Unknown competition ID</span></td>
+                  <td style="font-size:12px;color:var(--text-2)"><code style="font-family:var(--mono);font-size:11px">competitionId: "UCL_QUAL_2026"</code></td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">2026-03-03</td>
+                  <td><button class="btn btn-s btn-xs">Process manually</button></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-size:12px;color:var(--text-3)">#DL-011</td>
+                  <td>CSV Upload</td>
+                  <td><span class="bdg bdg-danger">Missing required field</span></td>
+                  <td style="font-size:12px;color:var(--text-2)"><code style="font-family:var(--mono);font-size:11px">startDateBE: null</code></td>
+                  <td class="mono" style="font-size:12px;color:var(--text-2)">2026-03-01</td>
+                  <td><button class="btn btn-s btn-xs">Process manually</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /view-import -->
+
+
+      <!-- ════════════════════════════════════════
+           VIEW: SETTINGS
+      ════════════════════════════════════════ -->
+      <div id="view-settings" class="view">
+
+        <div class="note" style="margin-bottom:16px">
+          <strong>Key improvement:</strong> Settings is now a proper route (<code style="font-family:var(--mono);font-size:11px">/settings</code>) with persistent sidebar navigation — not a modal opened from a dropdown. The old modal required 3 clicks to reach deep settings. Fields, Sports, Encoders all accessible from here. The fake "User Management" and "Audit Log" (hardcoded data) are replaced with a clear placeholder state.
+        </div>
+
+        <div class="set-lay">
+          <!-- Settings sidebar nav -->
+          <div class="set-nav">
+            <div class="sn-item active" onclick="setNav(this,'sn-fields')"><span>📋</span> Field Definitions</div>
+            <div class="sn-item" onclick="setNav(this,'sn-sports')"><span>🏅</span> Sports</div>
+            <div class="sn-item" onclick="setNav(this,'sn-comps')"><span>🏆</span> Competitions</div>
+            <div class="sn-item" onclick="setNav(this,'sn-encoders')"><span>📹</span> Encoders</div>
+            <div class="sn-sep"></div>
+            <div class="sn-item" onclick="setNav(this,'sn-import-src')"><span>⬆</span> Import Sources</div>
+            <div class="sn-sep"></div>
+            <div class="sn-item" onclick="setNav(this,'sn-users')"><span>👥</span> Users</div>
+          </div>
+
+          <!-- Settings content -->
+          <div>
+
+            <!-- Fields panel -->
+            <div id="sn-fields" class="sn-panel">
+              <div class="set-h">Field Definitions</div>
+              <div class="set-d">Configure which fields appear on event, crew, and contract forms. Drag to reorder. Toggle visibility without deleting.</div>
+              <div style="display:flex;gap:8px;margin-bottom:16px">
+                <div class="tab active" onclick="subTab(this,'fd-event')" style="margin-bottom:0;border-bottom:none;padding:6px 12px;background:var(--primary-dim);border-radius:var(--r);color:var(--primary);font-size:12px;cursor:pointer">Event fields</div>
+                <div onclick="subTab(this,'fd-crew')" style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--text-2);font-size:12px;cursor:pointer">Crew fields</div>
+                <div onclick="subTab(this,'fd-contract')" style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--text-2);font-size:12px;cursor:pointer">Contract fields</div>
+                <div style="flex:1"></div>
+                <button class="btn btn-p btn-xs">+ Add field</button>
+              </div>
+              <div class="card" style="overflow:hidden">
+                <div class="field-r">
+                  <span class="drag-h">⠿</span>
+                  <span class="field-lbl">Participants</span>
+                  <span class="field-tp">text</span>
+                  <span class="field-sys">system</span>
+                  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+                    <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+                    <button class="btn btn-g btn-xs">Edit</button>
+                  </div>
+                </div>
+                <div class="field-r">
+                  <span class="drag-h">⠿</span>
+                  <span class="field-lbl">Linear Channel</span>
+                  <span class="field-tp">dropdown</span>
+                  <span class="field-sys">system</span>
+                  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+                    <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+                    <button class="btn btn-g btn-xs">Edit</button>
+                  </div>
+                </div>
+                <div class="field-r">
+                  <span class="drag-h">⠿</span>
+                  <span class="field-lbl">Phase / Round</span>
+                  <span class="field-tp">text</span>
+                  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+                    <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+                    <button class="btn btn-g btn-xs">Edit</button>
+                    <button class="btn btn-d btn-xs">✕</button>
+                  </div>
+                </div>
+                <div class="field-r" style="opacity:.5">
+                  <span class="drag-h">⠿</span>
+                  <span class="field-lbl">Venue / Complex</span>
+                  <span class="field-tp">text</span>
+                  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+                    <label class="tog"><input type="checkbox"><span class="tog-s"></span></label>
+                    <button class="btn btn-g btn-xs">Edit</button>
+                    <button class="btn btn-d btn-xs">✕</button>
+                  </div>
+                </div>
+                <div class="field-r">
+                  <span class="drag-h">⠿</span>
+                  <span class="field-lbl">Director Name</span>
+                  <span class="field-tp">text</span>
+                  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+                    <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+                    <button class="btn btn-g btn-xs">Edit</button>
+                    <button class="btn btn-d btn-xs">✕</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sports panel -->
+            <div id="sn-sports" class="sn-panel" style="display:none">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+                <div><div class="set-h">Sports</div><div class="set-d">Manage sports. Each sport groups competitions and events.</div></div>
+                <button class="btn btn-p">+ Add sport</button>
+              </div>
+              <div class="card" style="overflow:hidden">
+                <table class="tbl">
+                  <thead><tr><th>Icon</th><th>Name</th><th>Federation</th><th>Competitions</th><th>Events</th><th></th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td style="font-size:20px">⚽</td>
+                      <td style="font-weight:500">Football</td>
+                      <td style="color:var(--text-2)">UEFA / FIFA</td>
+                      <td class="mono" style="color:var(--text-2)">4</td>
+                      <td class="mono" style="color:var(--text-2)">128</td>
+                      <td><button class="btn btn-g btn-xs">Edit</button></td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:20px">🚴</td>
+                      <td style="font-weight:500">Cycling</td>
+                      <td style="color:var(--text-2)">UCI</td>
+                      <td class="mono" style="color:var(--text-2)">6</td>
+                      <td class="mono" style="color:var(--text-2)">84</td>
+                      <td><button class="btn btn-g btn-xs">Edit</button></td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:20px">🎾</td>
+                      <td style="font-weight:500">Tennis</td>
+                      <td style="color:var(--text-2)">ATP / WTA</td>
+                      <td class="mono" style="color:var(--text-2)">3</td>
+                      <td class="mono" style="color:var(--text-2)">47</td>
+                      <td><button class="btn btn-g btn-xs">Edit</button></td>
+                    </tr>
+                    <tr>
+                      <td style="font-size:20px">🏀</td>
+                      <td style="font-weight:500">Basketball</td>
+                      <td style="color:var(--text-2)">FIBA / EuroLeague</td>
+                      <td class="mono" style="color:var(--text-2)">2</td>
+                      <td class="mono" style="color:var(--text-2)">31</td>
+                      <td><button class="btn btn-g btn-xs">Edit</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Competitions panel -->
+            <div id="sn-comps" class="sn-panel" style="display:none">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+                <div><div class="set-h">Competitions</div><div class="set-d">Add competitions under each sport. Competitions group events and contracts.</div></div>
+                <button class="btn btn-p">+ Add competition</button>
+              </div>
+              <div class="card" style="overflow:hidden">
+                <table class="tbl">
+                  <thead><tr><th>Sport</th><th>Competition</th><th>Season</th><th>Matches</th><th>Contract</th></tr></thead>
+                  <tbody>
+                    <tr><td>⚽</td><td style="font-weight:500">UEFA Champions League</td><td class="mono" style="font-size:12px;color:var(--text-2)">2025/26</td><td class="mono" style="color:var(--text-2)">125</td><td><span class="bdg bdg-valid">Valid</span></td></tr>
+                    <tr><td>⚽</td><td style="font-weight:500">Jupiler Pro League</td><td class="mono" style="font-size:12px;color:var(--text-2)">2025/26</td><td class="mono" style="color:var(--text-2)">240</td><td><span class="bdg bdg-valid">Valid</span></td></tr>
+                    <tr><td>🚴</td><td style="font-weight:500">UCI WorldTour</td><td class="mono" style="font-size:12px;color:var(--text-2)">2026</td><td class="mono" style="color:var(--text-2)">34</td><td><span class="bdg bdg-valid">Valid</span></td></tr>
+                    <tr><td>🎾</td><td style="font-weight:500">ATP Tour</td><td class="mono" style="font-size:12px;color:var(--text-2)">2026</td><td class="mono" style="color:var(--text-2)">67</td><td><span class="bdg bdg-exp">Expiring</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Encoders panel -->
+            <div id="sn-encoders" class="sn-panel" style="display:none">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+                <div><div class="set-h">Encoders</div><div class="set-d">Manage broadcast encoders. Live status shows current assignment from tech plans.</div></div>
+                <button class="btn btn-p">+ Add encoder</button>
+              </div>
+              <div class="enc-grid">
+                <div class="enc-card busy">
+                  <div class="enc-n">ENC-01</div>
+                  <div class="enc-loc">Studio A — Brussels</div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+                    <span class="bdg bdg-live" style="font-size:10px">In Use</span>
+                    <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-2);margin-top:6px">UCL: Liverpool vs PSG</div>
+                </div>
+                <div class="enc-card busy">
+                  <div class="enc-n">ENC-02</div>
+                  <div class="enc-loc">Mobile Unit 2 — Ghent</div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+                    <span class="bdg bdg-warn" style="font-size:10px">Reserved</span>
+                    <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-2);margin-top:6px">Gent vs Club Brugge</div>
+                </div>
+                <div class="enc-card free">
+                  <div class="enc-n">ENC-03</div>
+                  <div class="enc-loc">Studio B — Brussels</div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+                    <span class="bdg bdg-ok" style="font-size:10px">Available</span>
+                    <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+                  </div>
+                </div>
+                <div class="enc-card free">
+                  <div class="enc-n">ENC-04</div>
+                  <div class="enc-loc">OB Van — Antwerp</div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+                    <span class="bdg bdg-ok" style="font-size:10px">Available</span>
+                    <label class="tog"><input type="checkbox" checked><span class="tog-s"></span></label>
+                  </div>
+                </div>
+                <div class="enc-card" style="opacity:.5">
+                  <div class="enc-n">ENC-05</div>
+                  <div class="enc-loc">Storage — Brussels</div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+                    <span class="bdg bdg-n" style="font-size:10px">Inactive</span>
+                    <label class="tog"><input type="checkbox"><span class="tog-s"></span></label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Import sources (in settings) -->
+            <div id="sn-import-src" class="sn-panel" style="display:none">
+              <div class="set-h">Import Sources</div>
+              <div class="set-d">Configure external data sources, their sync frequency, priority, and rate limits. Also accessible from the Import section.</div>
+              <div style="padding:40px;text-align:center;border:1px dashed var(--border);border-radius:var(--r);color:var(--text-3)">
+                → Navigate to <strong style="color:var(--text-2)">Import → Sources</strong> to manage sources
+              </div>
+            </div>
+
+            <!-- Users -->
+            <div id="sn-users" class="sn-panel" style="display:none">
+              <div class="set-h">Users</div>
+              <div class="set-d">User accounts and role assignments. Managed through your identity provider.</div>
+              <div style="padding:40px;text-align:center;border:1px dashed var(--border);border-radius:var(--r)">
+                <div style="font-size:32px;margin-bottom:12px">🔒</div>
+                <div style="color:var(--text-2);margin-bottom:4px;font-weight:500">User management via Identity Provider</div>
+                <div style="color:var(--text-3);font-size:12px;margin-bottom:16px">Connect Okta, Azure AD, or manage local accounts</div>
+                <button class="btn btn-s">Configure IdP</button>
+              </div>
+            </div>
+
+          </div><!-- /settings content -->
+        </div><!-- /set-lay -->
+
+      </div><!-- /view-settings -->
+
+    </main>
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── View switching ───────────────────────────────────
+const topbarMeta = {
+  planner:  { title: 'Planner',   sub: 'Week 10, 2026', search: true,  btn: '＋ New Event' },
+  sports:   { title: 'Sports',    sub: 'All sports',    search: false, btn: '＋ New Tech Plan' },
+  contracts:{ title: 'Contracts', sub: '14 total',      search: false, btn: '＋ Add Contract' },
+  import:   { title: 'Import',    sub: 'Data pipeline', search: false, btn: '↺ Sync now' },
+  settings: { title: 'Settings',  sub: 'Admin',         search: false, btn: null },
+};
+
+function showView(name, el) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.s-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  el.classList.add('active');
+  const m = topbarMeta[name];
+  document.getElementById('tb-title').textContent = m.title;
+  document.getElementById('tb-sub').textContent = m.sub;
+  document.getElementById('tb-search').style.display = m.search ? '' : 'none';
+  const btn = document.getElementById('tb-action');
+  if (m.btn) { btn.textContent = m.btn; btn.style.display = ''; }
+  else { btn.style.display = 'none'; }
+}
+
+// ── Sub-tab switching ────────────────────────────────
+function subTab(el, targetId) {
+  const parent = el.closest('.view') || el.closest('.set-lay') || document;
+  // Find sibling tabs: look for elements with same parent tab-bar or same row
+  const tabBar = el.parentElement;
+  tabBar.querySelectorAll('.tab, div[onclick]').forEach(t => {
+    if (t.parentElement === tabBar) {
+      t.classList.remove('active');
+      t.style.background = '';
+      t.style.borderColor = '';
+      t.style.color = 'var(--text-2)';
+    }
+  });
+  el.classList.add('active');
+  el.style.color = 'var(--primary)';
+  // Hide sibling sub-tabs
+  const pane = document.getElementById(targetId);
+  if (!pane) return;
+  const allPanes = pane.parentElement.querySelectorAll('.sub-tab');
+  allPanes.forEach(p => p.style.display = 'none');
+  pane.style.display = 'block';
+}
+
+// ── Settings nav ─────────────────────────────────────
+function setNav(el, targetId) {
+  document.querySelectorAll('.sn-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.sn-panel').forEach(p => p.style.display = 'none');
+  const target = document.getElementById(targetId);
+  if (target) target.style.display = '';
+}
+
+// ── Channel chip toggle ──────────────────────────────
+function chipToggle(el) {
+  el.closest('.ch-chips').querySelectorAll('.ch-chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+}
+
+// ── Contract row expand ──────────────────────────────
+function toggleExpand(tr) {
+  const detail = tr.nextElementSibling;
+  if (!detail || !detail.classList.contains('exp-detail')) return;
+  const arrow = tr.querySelector('.exp-arrow');
+  const isOpen = detail.style.display !== 'none';
+  document.querySelectorAll('.exp-detail').forEach(d => d.style.display = 'none');
+  document.querySelectorAll('.exp-arrow').forEach(a => a.style.transform = '');
+  if (!isOpen) {
+    detail.style.display = '';
+    if (arrow) arrow.style.transform = 'rotate(90deg)';
+  }
+}
+
+// ── Annotations ──────────────────────────────────────
+function toggleAnn() {
+  const on = document.body.classList.toggle('ann');
+  const btn = document.getElementById('annBtn');
+  btn.textContent = on ? 'Hide annotations' : 'Show annotations';
+  btn.classList.toggle('on', on);
+}
+
+// ── Init ──────────────────────────────────────────────
+document.getElementById('tb-search').style.display = '';
+</script>
+
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle, LivePill, cn } from '../components/ui'
+import { Card, CardContent, CardHeader, CardTitle, LivePill, cn } from '../ui'
 
 export type ScoreTileProps = {
   home: string

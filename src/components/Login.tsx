@@ -19,7 +19,7 @@ export function DevLogin() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    
+
     try {
       await devLogin(email, role)
     } catch (err) {
@@ -30,34 +30,37 @@ export function DevLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="bg-surface rounded-xl border border-border shadow-lg p-8 w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-white text-2xl font-bold">S</span>
+          <div
+            className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-md"
+            style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)' }}
+          >
+            <span className="text-black text-2xl font-bold">S</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">SporzaPlanner</h1>
-          <p className="text-gray-500 mt-1">Development Login</p>
+          <h1 className="text-xl font-bold text-text font-head tracking-tight">SporzaPlanner</h1>
+          <p className="text-text-3 mt-1 text-sm">Development Login</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-xs font-medium text-text-2 mb-1 uppercase tracking-wider font-mono">Email</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              className="w-full px-3 py-2 bg-surface-2 border border-border rounded-md text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-colors"
               placeholder="Enter email"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <label className="block text-xs font-medium text-text-2 mb-1 uppercase tracking-wider font-mono">Role</label>
             <select
               value={role}
               onChange={e => setRole(e.target.value as Role)}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white"
+              className="w-full px-3 py-2 bg-surface-2 border border-border rounded-md text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-colors"
             >
               <option value="admin">Admin</option>
               <option value="planner">Network Planner</option>
@@ -67,7 +70,7 @@ export function DevLogin() {
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+            <div className="p-3 bg-danger-bg border border-danger-dim rounded-md text-sm text-danger">
               {error}
             </div>
           )}
@@ -77,8 +80,8 @@ export function DevLogin() {
           </Btn>
         </form>
 
-        <div className="mt-6 pt-6 border-t border-gray-100">
-          <p className="text-xs text-gray-400 text-center">
+        <div className="mt-6 pt-6 border-t border-border">
+          <p className="text-xs text-text-3 text-center">
             This login is only available in development mode.
             <br />
             In production, configure OAuth/SSO authentication.
@@ -95,14 +98,17 @@ export function OAuthLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="bg-surface rounded-xl border border-border shadow-lg p-8 w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-white text-2xl font-bold">S</span>
+          <div
+            className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-md"
+            style={{ background: 'linear-gradient(135deg, #D97706, #F59E0B)' }}
+          >
+            <span className="text-black text-2xl font-bold">S</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">SporzaPlanner</h1>
-          <p className="text-gray-500 mt-1">VRT Sports Planning Tool</p>
+          <h1 className="text-xl font-bold text-text font-head tracking-tight">SporzaPlanner</h1>
+          <p className="text-text-3 mt-1 text-sm">VRT Sports Planning Tool</p>
         </div>
 
         <Btn variant="primary" size="md" className="w-full" onClick={handleOAuthLogin}>

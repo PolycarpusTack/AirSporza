@@ -33,16 +33,6 @@ interface ImportJob {
   _count: { records: number; deadLetters: number }
 }
 
-interface ImportSchedule {
-  id: string
-  sourceId: string
-  cronExpr: string
-  isEnabled: boolean
-  lastRunAt: string | null
-  nextRunAt: string | null
-  source: { code: string; name: string }
-}
-
 interface Metrics {
   totals: {
     sources: number
@@ -72,10 +62,7 @@ export function IntegrationSettings() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
-  const [schedules, setSchedules] = useState<ImportSchedule[]>([])
-  const [newSchedule, setNewSchedule] = useState({ sourceId: '', cronExpr: '' })
-  const [scheduleSaving, setScheduleSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'sources' | 'jobs' | 'metrics' | 'schedules'>('sources')
+  const [activeTab, setActiveTab] = useState<'sources' | 'jobs' | 'metrics'>('sources')
 
   useEffect(() => {
     fetchData()
@@ -84,16 +71,14 @@ export function IntegrationSettings() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [sourcesData, jobsData, metricsData, schedulesData] = await Promise.all([
+      const [sourcesData, jobsData, metricsData] = await Promise.all([
         api.get<ImportSource[]>('/import/sources'),
         api.get<ImportJob[]>('/import/jobs?limit=20'),
         api.get<Metrics>('/import/metrics'),
-        api.get<ImportSchedule[]>('/import/schedules').catch(() => [] as ImportSchedule[]),
       ])
       setSources(sourcesData)
       setJobs(jobsData)
       setMetrics(metricsData)
-      setSchedules(schedulesData)
     } catch (error) {
       console.error('Failed to fetch import data:', error)
     } finally {
@@ -119,34 +104,6 @@ export function IntegrationSettings() {
       console.error('Failed to trigger sync:', error)
     } finally {
       setSyncing(null)
-    }
-  }
-
-  const toggleSchedule = async (id: string, isEnabled: boolean) => {
-    try {
-      await api.patch(`/import/schedules/${id}`, { isEnabled })
-      setSchedules(prev => prev.map(s => s.id === id ? { ...s, isEnabled } : s))
-    } catch (error) {
-      console.error('Failed to toggle schedule:', error)
-    }
-  }
-
-  const createSchedule = async () => {
-    if (!newSchedule.sourceId || !newSchedule.cronExpr) return
-    setScheduleSaving(true)
-    try {
-      const created = await api.post<ImportSchedule>('/import/schedules', {
-        sourceId: newSchedule.sourceId,
-        cronExpr: newSchedule.cronExpr,
-        isEnabled: true,
-      })
-      setSchedules(prev => [...prev, created])
-      setNewSchedule({ sourceId: '', cronExpr: '' })
-    } catch (error) {
-      console.error('Failed to create schedule:', error)
-      alert('Failed to create schedule. Check that the cron expression is valid.')
-    } finally {
-      setScheduleSaving(false)
     }
   }
 
@@ -203,7 +160,7 @@ export function IntegrationSettings() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
-        {(['sources', 'jobs', 'metrics', 'schedules'] as const).map(tab => (
+        {(['sources', 'jobs', 'metrics'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -344,93 +301,6 @@ export function IntegrationSettings() {
               )}
             </Card>
           ))}
-        </div>
-      )}
-
-      {/* Schedules Tab */}
-      {activeTab === 'schedules' && (
-        <div className="space-y-6">
-          {/* Add Schedule Form */}
-          <Card className="p-4">
-            <h3 className="font-bold mb-3">Add Import Schedule</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs text-muted mb-1">Source</label>
-                <select
-                  className="inp w-full"
-                  value={newSchedule.sourceId}
-                  onChange={e => setNewSchedule(prev => ({ ...prev, sourceId: e.target.value }))}
-                >
-                  <option value="">Select source...</option>
-                  {sources.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-muted mb-1">Cron Expression</label>
-                <input
-                  type="text"
-                  className="inp w-full"
-                  placeholder="0 6 * * * (daily at 06:00)"
-                  value={newSchedule.cronExpr}
-                  onChange={e => setNewSchedule(prev => ({ ...prev, cronExpr: e.target.value }))}
-                />
-              </div>
-              <div className="flex items-end">
-                <Btn
-                  variant="primary"
-                  size="sm"
-                  onClick={createSchedule}
-                  disabled={scheduleSaving || !newSchedule.sourceId || !newSchedule.cronExpr}
-                >
-                  {scheduleSaving ? 'Saving...' : 'Add Schedule'}
-                </Btn>
-              </div>
-            </div>
-            <p className="text-xs text-muted mt-2">
-              Examples: <code>0 6 * * *</code> (daily 06:00) • <code>0 */4 * * *</code> (every 4h) • <code>30 8,20 * * *</code> (8:30 and 20:30)
-            </p>
-          </Card>
-
-          {/* Schedule List */}
-          {schedules.length === 0 ? (
-            <div className="text-center py-8 text-muted">No schedules configured yet.</div>
-          ) : (
-            <Card className="overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-surface-2">
-                    <th className="px-4 py-2 text-left text-xs font-bold text-muted uppercase">Source</th>
-                    <th className="px-4 py-2 text-left text-xs font-bold text-muted uppercase">Cron</th>
-                    <th className="px-4 py-2 text-left text-xs font-bold text-muted uppercase">Last Run</th>
-                    <th className="px-4 py-2 text-left text-xs font-bold text-muted uppercase">Enabled</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {schedules.map(schedule => (
-                    <tr key={schedule.id} className="hover:bg-surface-2/50">
-                      <td className="px-4 py-3 font-medium">{schedule.source.name}</td>
-                      <td className="px-4 py-3">
-                        <code className="text-xs bg-surface-2 px-2 py-1 rounded">{schedule.cronExpr}</code>
-                      </td>
-                      <td className="px-4 py-3 text-muted">
-                        {schedule.lastRunAt ? new Date(schedule.lastRunAt).toLocaleString() : 'Never'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => toggleSchedule(schedule.id, !schedule.isEnabled)}
-                          className={`toggle-track ${schedule.isEnabled ? 'active' : ''}`}
-                        >
-                          <div className="toggle-thumb" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          )}
         </div>
       )}
     </div>

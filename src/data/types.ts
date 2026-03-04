@@ -52,6 +52,7 @@ export interface Event {
   livestreamTime?: string
   linearChannel?: string
   radioChannel?: string
+  onDemandChannel?: string
   linearStartTime?: string
   isLive: boolean
   isDelayedLive: boolean
@@ -108,6 +109,7 @@ export interface Encoder {
   location?: string
   isActive: boolean
   notes?: string
+  inUse?: { planId: number; planType: string; eventId: number } | null
   createdAt?: Date
   updatedAt?: Date
 }
@@ -136,4 +138,18 @@ export interface RoleConfig {
   label: string
   accent: string
   icon: string
+}
+
+export interface ChannelConfig {
+  name: string
+  color: string  // hex, e.g. "#F59E0B"
+}
+
+export interface OrgConfig {
+  channels: ChannelConfig[]
+  onDemandChannels: ChannelConfig[]
+  radioChannels: string[]
+  phases: string[]
+  categories: string[]
+  complexes: string[]
 }

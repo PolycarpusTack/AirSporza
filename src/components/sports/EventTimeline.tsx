@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle, LivePill } from '../components/ui'
+import { Card, CardContent, CardHeader, CardTitle, LivePill } from '../ui'
 
 export type TimelineItem = {
   minute: number

@@ -1,4 +1,9 @@
-import { api } from '../utils/api'
+import { api, API_URL, getStoredToken, ApiError } from '../utils/api'
+
+function getAuthHeader(): Record<string, string> {
+  const token = getStoredToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 export interface ImportSource {
   id: string
@@ -283,4 +288,20 @@ export const importsApi = {
 
   metrics: () =>
     api.get<ImportMetrics>('/import/metrics'),
+
+  uploadCsv: (file: File, sportId: number, competitionId: number): Promise<{ inserted: number; skipped: number; errors?: { row: number; message: string }[] }> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('sportId', String(sportId))
+    form.append('competitionId', String(competitionId))
+    return fetch(`${API_URL}/import/csv`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: form,
+    }).then(r =>
+      r.ok
+        ? r.json()
+        : r.json().then((e: { message?: string }) => Promise.reject(new ApiError(r.status, e.message ?? `HTTP ${r.status}`)))
+    )
+  },
 }

@@ -1,4 +1,4 @@
-import { Badge, cn } from '../components/ui'
+import { Badge, cn } from '../ui'
 
 export type MatchRowProps = {
   home: string
