@@ -205,6 +205,8 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
         id: editEvent?.id,
         competitionId: Number(form.competition),
         linearChannel: form.linearChannel as string | undefined,
+        onDemandChannel: form.onDemandChannel as string | undefined,
+        radioChannel: form.radioChannel as string | undefined,
         startDateBE: form.startDateBE as string,
         startTimeBE: form.startTimeBE as string,
         status: editEvent?.status,

@@ -85,4 +85,22 @@ describe('detectConflicts', () => {
     const result = await detectConflicts({ ...base, linearChannel: 'VRT MAX' })
     expect(result.errors).toHaveLength(0)
   })
+
+  it('returns rights_violation error when maxRights is false for onDemandChannel', async () => {
+    mockPrisma.event.findMany.mockResolvedValue([])
+    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1, linearRights: true, maxRights: false, radioRights: true })
+    mockPrisma.techPlan.findFirst.mockResolvedValue({ id: 1 })
+
+    const result = await detectConflicts({ ...base, onDemandChannel: 'VRT MAX +1' })
+    expect(result.errors.some(e => e.type === 'rights_violation')).toBe(true)
+  })
+
+  it('returns rights_violation error when radioRights is false for radioChannel', async () => {
+    mockPrisma.event.findMany.mockResolvedValue([])
+    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1, linearRights: true, maxRights: true, radioRights: false })
+    mockPrisma.techPlan.findFirst.mockResolvedValue({ id: 1 })
+
+    const result = await detectConflicts({ ...base, radioChannel: 'Radio 1' })
+    expect(result.errors.some(e => e.type === 'rights_violation')).toBe(true)
+  })
 })
