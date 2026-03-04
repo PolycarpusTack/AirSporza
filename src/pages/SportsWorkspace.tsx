@@ -143,19 +143,17 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     }
   }, [setTechPlans])
 
-  const handleCrewEdit = useCallback((planId: number, field: string, value: string) => {
-    const updated = realtimePlans.map(p => p.id === planId ? { ...p, crew: { ...p.crew, [field]: value } } : p)
+  const handleCrewEdit = useCallback(async (planId: number, field: string, value: string) => {
+    const updated = realtimePlans.map(p => p.id === planId ? { ...p, crew: { ...p.crew as Record<string, unknown>, [field]: value } } : p)
     setRealtimePlans(updated)
     setTechPlans(updated)
     const plan = updated.find(p => p.id === planId)
     if (plan) {
-      techPlansApi.update(planId, {
-        crew: plan.crew,
-        eventId: plan.eventId,
-        planType: plan.planType,
-        isLivestream: plan.isLivestream ?? false,
-        customFields: plan.customFields ?? [],
-      }).catch(err => console.error('Failed to persist plan update:', err))
+      try {
+        await techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields })
+      } catch {
+        // non-blocking — local state already updated
+      }
     }
   }, [realtimePlans, setTechPlans])
 
