@@ -38,11 +38,9 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
 
     const schedule = await prisma.importSchedule.create({ data: value })
     if (value.isEnabled !== false) {
-      const src = await prisma.importSource.findUnique({
-        where: { id: value.sourceId },
-        select: { code: true },
-      })
-      if (src) registerJob(schedule.id, schedule.cronExpr, src.code)
+      const src = await prisma.importSource.findUnique({ where: { id: value.sourceId }, select: { code: true } })
+      if (!src) return next(createError(500, 'Import source not found after creation'))
+      registerJob(schedule.id, schedule.cronExpr, src.code)
     }
     res.status(201).json(schedule)
   } catch (error) {
@@ -79,6 +77,17 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res, next) =>
   } catch (error) {
     next(error)
   }
+})
+
+router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const id = String(req.params.id)
+    const schedule = await prisma.importSchedule.findUnique({ where: { id } })
+    if (!schedule) return next(createError(404, 'Schedule not found'))
+    stopJob(schedule.id)
+    await prisma.importSchedule.delete({ where: { id: schedule.id } })
+    res.json({ ok: true })
+  } catch (error) { next(error) }
 })
 
 export default router
