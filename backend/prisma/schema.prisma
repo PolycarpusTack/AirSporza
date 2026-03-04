@@ -159,6 +159,7 @@ model TechPlan {
   event         Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   createdBy     User?     @relation(fields: [createdById], references: [id])
   encoderLocks  EncoderLock[]
+  assignments   ResourceAssignment[]
 
   @@index([eventId])
 }
@@ -742,4 +743,37 @@ model ImportSchedule {
   updatedAt DateTime  @updatedAt
 
   source    ImportSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+}
+
+// =============================================================================
+// RESOURCE PLANNING
+// =============================================================================
+
+model Resource {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  type        String
+  capacity    Int      @default(1)
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments ResourceAssignment[]
+}
+
+model ResourceAssignment {
+  id          Int      @id @default(autoincrement())
+  resourceId  Int
+  techPlanId  Int
+  quantity    Int      @default(1)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  resource    Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  techPlan    TechPlan @relation(fields: [techPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, techPlanId])
+  @@index([techPlanId])
+  @@index([resourceId])
 }
