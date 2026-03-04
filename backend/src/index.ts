@@ -129,6 +129,12 @@ if (process.env.NODE_ENV !== 'test') {
   }, MS_PER_DAY)
 }
 
+if (process.env.NODE_ENV !== 'test') {
+  publishService.resumeFailedDeliveries().catch(err =>
+    logger.error('Failed to resume webhook deliveries on startup', { err })
+  )
+}
+
 const gracefulShutdown = async () => {
   logger.info('Received shutdown signal, closing connections...')
   await prisma.$disconnect()
