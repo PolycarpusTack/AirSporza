@@ -1,7 +1,7 @@
 import { prisma } from '../db/prisma.js'
 import type { EventStatus } from '@prisma/client'
 
-export type ConflictWarning = { type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan'; message: string }
+export type ConflictWarning = { type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan' | 'resource_conflict'; message: string }
 export type ConflictError   = { type: 'encoder_locked' | 'rights_violation'; message: string }
 
 type EventDraft = {
@@ -74,6 +74,33 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
     const plan = await prisma.techPlan.findFirst({ where: { eventId: draft.id } })
     if (!plan) {
       warnings.push({ type: 'missing_tech_plan', message: 'No tech plan assigned for this event' })
+    }
+  }
+
+  // 5. Resource double-booking
+  if (draft.id) {
+    const assignments = await prisma.resourceAssignment.findMany({
+      where: { techPlan: { eventId: draft.id } },
+      include: { resource: true },
+    })
+    for (const a of assignments) {
+      const overlapping = await prisma.resourceAssignment.findFirst({
+        where: {
+          resourceId: a.resourceId,
+          techPlan: {
+            eventId: { not: draft.id },
+            event: {
+              startDateBE: { gte: dayStart, lte: dayEnd },
+            },
+          },
+        },
+      })
+      if (overlapping) {
+        warnings.push({
+          type: 'resource_conflict',
+          message: `Resource "${a.resource.name}" is also assigned to another event on this day`,
+        })
+      }
     }
   }
 

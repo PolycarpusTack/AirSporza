@@ -3,6 +3,8 @@ import { Menu, X, Plus } from 'lucide-react'
 import { Badge, Btn, EmptyState } from '../components/ui'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, Sport, Competition, Encoder } from '../data/types'
 import { encodersApi, techPlansApi } from '../services'
+import { resourcesApi, RESOURCE_TYPE_LABELS } from '../services/resources'
+import type { Resource } from '../services/resources'
 import { ApiError } from '../utils/api'
 import { fmtDate } from '../utils'
 import { useSocket } from '../hooks'
@@ -47,11 +49,13 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [mobileSidebar, setMobileSidebar] = useState(false)
   const [realtimePlans, setRealtimePlans] = useState<TechPlan[]>(techPlans)
   const [encoders, setEncoders] = useState<Encoder[]>([])
+  const [resources, setResources] = useState<Resource[]>([])
 
   const { on } = useSocket()
 
   useEffect(() => {
     encodersApi.list().then(setEncoders).catch(() => {})
+    resourcesApi.list().then(setResources).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -223,7 +227,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     }
   }
 
-  const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew' | 'resources'>('events')
 
   const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
 
@@ -298,9 +302,10 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       {/* ── Tab bar ── */}
       <div className="flex border-b border-border mb-5">
         {([
-          { id: 'events', label: 'Events' },
-          { id: 'plans',  label: `Tech Plans${realtimePlans.length ? ` (${realtimePlans.length})` : ''}` },
-          { id: 'crew',   label: 'Crew' },
+          { id: 'events',    label: 'Events' },
+          { id: 'plans',     label: `Tech Plans${realtimePlans.length ? ` (${realtimePlans.length})` : ''}` },
+          { id: 'crew',      label: 'Crew' },
+          { id: 'resources', label: `Resources${resources.length ? ` (${resources.length})` : ''}` },
         ] as const).map(tab => (
           <button
             key={tab.id}
@@ -623,6 +628,47 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                       </tr>
                     )
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── RESOURCES TAB ── */}
+      {activeTab === 'resources' && (
+        <div className="animate-fade-in space-y-4">
+          {resources.length === 0 ? (
+            <div className="card p-8 text-center text-text-3 text-sm">No resources configured yet</div>
+          ) : (
+            <div className="card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-2">
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Capacity</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {resources.map(r => (
+                    <tr key={r.id} className="hover:bg-surface-2 transition">
+                      <td className="px-4 py-3 font-semibold">{r.name}</td>
+                      <td className="px-4 py-3 text-text-2 text-xs font-mono uppercase">
+                        {RESOURCE_TYPE_LABELS[r.type] ?? r.type}
+                      </td>
+                      <td className="px-4 py-3 text-text-2">{r.capacity}</td>
+                      <td className="px-4 py-3">
+                        {r.isActive
+                          ? <Badge variant="success">Active</Badge>
+                          : <Badge variant="none">Inactive</Badge>
+                        }
+                      </td>
+                      <td className="px-4 py-3 text-text-3 text-xs">{r.notes ?? '—'}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
