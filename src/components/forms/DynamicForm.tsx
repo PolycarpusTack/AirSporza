@@ -14,9 +14,10 @@ type Props = {
   fields: FieldDef[]
   values: Record<string, string>
   onChange: (fieldId: string, value: string) => void
+  mandatoryErrors?: string[]
 }
 
-export function DynamicForm({ fields, values, onChange }: Props) {
+export function DynamicForm({ fields, values, onChange, mandatoryErrors = [] }: Props) {
   const visibleFields = fields.filter(f => f.visible)
 
   return (
@@ -99,6 +100,9 @@ export function DynamicForm({ fields, values, onChange }: Props) {
                 <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
+          )}
+          {mandatoryErrors.includes(field.id) && (
+            <p className="mt-1 text-xs text-danger">Required</p>
           )}
         </div>
       ))}

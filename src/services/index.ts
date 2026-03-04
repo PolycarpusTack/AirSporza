@@ -18,3 +18,5 @@ export type {
   FieldProvenanceRecord,
 } from './imports'
 export type { AppSettingsResponse } from './settings'
+export { fieldsApi } from './fields'
+export type { FieldSection } from './fields'

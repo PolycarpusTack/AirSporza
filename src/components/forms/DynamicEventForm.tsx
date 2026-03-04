@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Modal, Btn } from '../ui'
-import type { FieldConfig, Event } from '../../data/types'
+import type { FieldConfig, Event, MandatoryFieldConfig } from '../../data/types'
 import { SPORTS, COMPETITIONS } from '../../data'
 import { genId } from '../../utils'
 import { api } from '../../utils/api'
 import { DynamicForm } from './DynamicForm'
 import { useApp } from '../../context/AppProvider'
 import { conflictsApi, type ConflictResult } from '../../services/conflicts'
+import { fieldsApi } from '../../services'
 
 type ApiFieldDef = {
   id: string
@@ -80,6 +81,8 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
   const [apiCustomFields, setApiCustomFields] = useState<ApiFieldDef[]>([])
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [conflicts, setConflicts] = useState<ConflictResult | null>(null)
+  const [mandatoryFieldIds, setMandatoryFieldIds] = useState<string[]>([])
+  const [mandatoryErrors, setMandatoryErrors] = useState<string[]>([])
 
   useEffect(() => {
     setForm(initForm())
@@ -93,6 +96,16 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
       .then(setApiCustomFields)
       .catch(() => { /* API not available, skip */ })
   }, [])
+
+  useEffect(() => {
+    setMandatoryErrors([])
+    const id = Number(form.sport)
+    if (!id) { setMandatoryFieldIds([]); return }
+    fieldsApi.getMandatory(id)
+      .then((cfg: MandatoryFieldConfig) => setMandatoryFieldIds(cfg.fieldIds))
+      .catch(() => setMandatoryFieldIds([]))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.sport])
 
   const handleCustomValueChange = (fieldId: string, value: string) => {
     setCustomValues(prev => ({ ...prev, [fieldId]: value }))
@@ -207,6 +220,17 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
       if (result?.warnings && result.warnings.length > 0 && !conflicts) return
     }
 
+    // Mandatory field enforcement
+    const missingMandatory = mandatoryFieldIds.filter(fieldId => {
+      const val = customValues[fieldId]
+      return !val || (typeof val === 'string' && val.trim() === '')
+    })
+    if (missingMandatory.length > 0) {
+      setMandatoryErrors(missingMandatory)
+      return
+    }
+    setMandatoryErrors([])
+
     onSave(event)
     onClose()
   }
@@ -315,6 +339,7 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
               fields={apiCustomFields}
               values={customValues}
               onChange={handleCustomValueChange}
+              mandatoryErrors={mandatoryErrors}
             />
           </div>
         )}
