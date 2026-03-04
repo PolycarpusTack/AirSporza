@@ -55,6 +55,7 @@ model User {
   fieldDefinitions  FieldDefinition[]
   webhookEndpoints  WebhookEndpoint[]
   notifications     Notification[]
+  savedViews        SavedView[]
 
   @@index([email])
   @@index([externalId])
@@ -713,4 +714,18 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+model SavedView {
+  id           String   @id @default(uuid())
+  userId       String
+  name         String
+  context      String
+  filterState  Json     @default("{}")
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId, context])
 }
