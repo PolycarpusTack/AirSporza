@@ -18,6 +18,7 @@ import techPlansRoutes from './routes/techPlans.js'
 import contractsRoutes from './routes/contracts.js'
 import encodersRoutes from './routes/encoders.js'
 import importRoutes from './routes/import.js'
+import importSchedulesRoutes from './routes/importSchedules.js'
 import csvImportRoutes from './routes/csvImport.js'
 import fieldConfigRoutes from './routes/fieldConfig.js'
 import settingsRoutes from './routes/settings.js'
@@ -30,6 +31,7 @@ import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { authenticate, authorize } from './middleware/auth.js'
 import { publishService } from './services/publishService.js'
+import { startScheduledImports } from './services/importScheduler.js'
 
 const corsOrigins = getCorsOrigins()
 
@@ -112,6 +114,7 @@ app.use('/api/competitions', competitionsRoutes)
 app.use('/api/tech-plans', techPlansRoutes)
 app.use('/api/contracts', contractsRoutes)
 app.use('/api/encoders', encodersRoutes)
+app.use('/api/import/schedules', importSchedulesRoutes)
 app.use('/api/import', importRoutes)
 app.use('/api/import', csvImportRoutes)
 app.use('/api/fields', fieldConfigRoutes)
@@ -138,6 +141,10 @@ if (process.env.NODE_ENV !== 'test') {
 if (process.env.NODE_ENV !== 'test') {
   publishService.resumeFailedDeliveries().catch(err =>
     logger.error('Failed to resume webhook deliveries on startup', { err })
+  )
+
+  startScheduledImports().catch(err =>
+    logger.error('Failed to start import scheduler', { err })
   )
 }
 
