@@ -161,7 +161,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
       )
     }
 
-    emit('event:created', event)
+    emit('event:created', event, 'events')
     void publishService.dispatch('event.created', event)
 
     await writeAuditLog({
@@ -224,7 +224,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
       )
     }
 
-    emit('event:updated', event)
+    emit('event:updated', event, 'events')
     void publishService.dispatch('event.updated', event)
 
     const user = req.user as { id: string }
@@ -264,7 +264,7 @@ router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, r
       }),
     ])
     
-    emit('event:deleted', { id: Number(req.params.id) })
+    emit('event:deleted', { id: Number(req.params.id) }, 'events')
     void publishService.dispatch('event.deleted', { id: Number(req.params.id) })
 
     const user = req.user as { id: string }

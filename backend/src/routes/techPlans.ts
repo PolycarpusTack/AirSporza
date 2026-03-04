@@ -87,7 +87,7 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
       }
     })
     
-    emit('techPlan:created', plan)
+    emit('techPlan:created', plan, 'techPlans')
     void publishService.dispatch('techPlan.created', plan)
     await writeAuditLog({
       userId: user.id,
@@ -128,7 +128,7 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
       }
     })
     
-    emit('techPlan:updated', plan)
+    emit('techPlan:updated', plan, 'techPlans')
     void publishService.dispatch('techPlan.updated', plan)
     const user = req.user as { id: string }
     await writeAuditLog({
@@ -181,7 +181,7 @@ router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), async (
       include: { event: { include: { sport: true, competition: true } } },
     })
 
-    emit('encoder:swapped', { planId: plan.id, encoder, plan })
+    emit('encoder:swapped', { planId: plan.id, encoder, plan }, 'techPlans')
     await writeAuditLog({
       userId: user.id,
       action: 'encoder.swap',
@@ -209,7 +209,7 @@ router.delete('/:id', authenticate, authorize('sports', 'admin'), async (req, re
 
     await prisma.techPlan.delete({ where: { id: planId } })
 
-    emit('techPlan:deleted', { id: planId })
+    emit('techPlan:deleted', { id: planId }, 'techPlans')
     void publishService.dispatch('techPlan.deleted', { id: planId })
     const user = req.user as { id: string }
     await writeAuditLog({
