@@ -26,6 +26,7 @@ import publishRoutes from './routes/publish.js'
 import auditRoutes from './routes/audit.js'
 import notificationsRoutes from './routes/notifications.js'
 import savedViewsRoutes from './routes/savedViews.js'
+import resourcesRoutes from './routes/resources.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -123,6 +124,7 @@ app.use('/api/publish', publishRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/saved-views', savedViewsRoutes)
+app.use('/api/resources', resourcesRoutes)
 
 app.use(errorHandler)
 

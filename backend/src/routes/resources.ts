@@ -1,0 +1,92 @@
+import { Router } from 'express'
+import Joi from 'joi'
+import { prisma } from '../db/prisma.js'
+import { authenticate, authorize } from '../middleware/auth.js'
+import { createError } from '../middleware/errorHandler.js'
+
+const router = Router()
+
+const resourceSchema = Joi.object({
+  name: Joi.string().required(),
+  type: Joi.string().valid('ob_van', 'camera_unit', 'commentary_team', 'production_staff', 'other').required(),
+  capacity: Joi.number().integer().min(1).default(1),
+  isActive: Joi.boolean(),
+  notes: Joi.string().allow('').optional().allow(null),
+})
+
+// GET /api/resources — list all resources
+router.get('/', authenticate, async (_req, res, next) => {
+  try {
+    const resources = await prisma.resource.findMany({ orderBy: { name: 'asc' } })
+    res.json(resources)
+  } catch (error) { next(error) }
+})
+
+// POST /api/resources — create resource (admin only)
+router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const { error, value } = resourceSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+    const resource = await prisma.resource.create({ data: value })
+    res.status(201).json(resource)
+  } catch (error) { next(error) }
+})
+
+// PUT /api/resources/:id — update resource (admin only)
+router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const id = Number(req.params.id)
+    if (!Number.isFinite(id)) return next(createError(400, 'Invalid id'))
+    const existing = await prisma.resource.findUnique({ where: { id } })
+    if (!existing) return next(createError(404, 'Resource not found'))
+    const { error, value } = resourceSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+    const resource = await prisma.resource.update({ where: { id }, data: value })
+    res.json(resource)
+  } catch (error) { next(error) }
+})
+
+// GET /api/resources/:id/assignments — list assignments for a resource
+router.get('/:id/assignments', authenticate, async (req, res, next) => {
+  try {
+    const assignments = await prisma.resourceAssignment.findMany({
+      where: { resourceId: Number(req.params.id) },
+      include: { techPlan: { include: { event: true } } },
+    })
+    res.json(assignments)
+  } catch (error) { next(error) }
+})
+
+// POST /api/resources/:id/assign — assign resource to a tech plan
+router.post('/:id/assign', authenticate, authorize('sports', 'admin'), async (req, res, next) => {
+  try {
+    const { techPlanId, quantity, notes } = req.body
+    if (!techPlanId) return next(createError(400, 'techPlanId required'))
+    const assignment = await prisma.resourceAssignment.create({
+      data: {
+        resourceId: Number(req.params.id),
+        techPlanId: Number(techPlanId),
+        quantity: quantity ?? 1,
+        notes,
+      },
+    })
+    res.status(201).json(assignment)
+  } catch (error) { next(error) }
+})
+
+// DELETE /api/resources/:id/assign/:techPlanId — remove assignment
+router.delete('/:id/assign/:techPlanId', authenticate, authorize('sports', 'admin'), async (req, res, next) => {
+  try {
+    await prisma.resourceAssignment.delete({
+      where: {
+        resourceId_techPlanId: {
+          resourceId: Number(req.params.id),
+          techPlanId: Number(req.params.techPlanId),
+        },
+      },
+    })
+    res.json({ ok: true })
+  } catch (error) { next(error) }
+})
+
+export default router

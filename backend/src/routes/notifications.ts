@@ -31,7 +31,7 @@ router.patch('/read-all', authenticate, async (req, res, next) => {
 router.patch('/:id/read', authenticate, async (req, res, next) => {
   try {
     const user = req.user as { id: string }
-    const note = await prisma.notification.findUnique({ where: { id: req.params.id } })
+    const note = await prisma.notification.findUnique({ where: { id: String(req.params.id) } })
     if (!note) return next(createError(404, 'Notification not found'))
     if (note.userId !== user.id) return next(createError(403, 'Forbidden'))
     await prisma.notification.update({ where: { id: note.id }, data: { isRead: true } })
