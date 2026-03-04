@@ -1,5 +1,7 @@
 import { Server as SocketServer } from 'socket.io'
+import jwt from 'jsonwebtoken'
 import { logger } from '../utils/logger.js'
+import { getJwtSecret } from '../config/index.js'
 
 interface AuthenticatedSocket {
   id: string
@@ -9,13 +11,18 @@ interface AuthenticatedSocket {
 
 export function setupSocket(io: SocketServer) {
   io.use((socket, next) => {
-    const token = socket.handshake.auth.token
-    
+    const token = socket.handshake.auth?.token
+
     if (!token) {
-      logger.debug('Socket connection without token')
+      return next(new Error('Unauthorized'))
     }
-    
-    next()
+
+    try {
+      jwt.verify(token, getJwtSecret())
+      next()
+    } catch {
+      next(new Error('Unauthorized'))
+    }
   })
   
   io.on('connection', (socket) => {
