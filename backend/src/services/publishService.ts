@@ -188,10 +188,16 @@ async function checkExpiringContracts(): Promise<void> {
   for (const days of thresholds) {
     const targetDate = new Date()
     targetDate.setDate(targetDate.getDate() + days)
-    const dateStr = targetDate.toISOString().slice(0, 10)
+    const dayStart = new Date(targetDate)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(targetDate)
+    dayEnd.setHours(23, 59, 59, 999)
 
     const contracts = await prisma.contract.findMany({
-      where: { validUntil: dateStr, status: { in: ['valid', 'expiring'] } },
+      where: {
+        validUntil: { gte: dayStart, lte: dayEnd },
+        status: { in: ['valid', 'expiring'] }
+      },
       include: { competition: { include: { sport: true } } },
     })
 
