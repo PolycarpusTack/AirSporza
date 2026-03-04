@@ -6,6 +6,7 @@ import { dayLabel } from '../utils'
 import { useSocket } from '../hooks'
 import { useApp } from '../context/AppProvider'
 import { contractsApi } from '../services/contracts'
+import { savedViewsApi, type SavedView } from '../services/savedViews'
 
 interface PlannerViewProps {
   events: Event[]
@@ -131,8 +132,42 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   const [calendarMode, setCalendarMode] = useState(true)
   const [contracts, setContracts] = useState<Contract[]>(CONTRACTS)
 
+  const [savedViews, setSavedViews] = useState<SavedView[]>([])
+  const [saveViewName, setSaveViewName] = useState('')
+  const [showSaveInput, setShowSaveInput] = useState(false)
+
   const { sports, competitions, orgConfig } = useApp()
   const { on } = useSocket()
+
+  useEffect(() => {
+    savedViewsApi.list('planner').then(setSavedViews).catch(() => {})
+  }, [])
+
+  const handleSaveView = async () => {
+    if (!saveViewName.trim()) return
+    try {
+      const view = await savedViewsApi.create(saveViewName.trim(), 'planner', { channelFilter })
+      setSavedViews(prev => [...prev, view])
+      setSaveViewName('')
+      setShowSaveInput(false)
+    } catch {
+      // silently fail
+    }
+  }
+
+  const handleLoadView = (view: SavedView) => {
+    const fs = view.filterState as { channelFilter?: string }
+    if (fs.channelFilter) setChannelFilter(fs.channelFilter)
+  }
+
+  const handleDeleteView = async (id: string) => {
+    try {
+      await savedViewsApi.delete(id)
+      setSavedViews(prev => prev.filter(v => v.id !== id))
+    } catch {
+      // silently fail
+    }
+  }
 
   const channelColorMap = useMemo(() => buildColorMap(orgConfig.channels), [orgConfig.channels])
   const getChannelColor = useCallback(
@@ -376,6 +411,32 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
                 List
               </button>
             </div>
+          </div>
+
+          {/* Saved views chip bar */}
+          <div className="flex gap-1 flex-wrap items-center mb-2">
+            {savedViews.map(v => (
+              <div key={v.id} className="flex items-center gap-1 bg-surface-2 rounded px-2 py-0.5 text-xs">
+                <button onClick={() => handleLoadView(v)}>{v.name}</button>
+                <button onClick={() => handleDeleteView(v.id)} className="text-muted hover:text-danger">×</button>
+              </div>
+            ))}
+            {showSaveInput ? (
+              <div className="flex gap-1">
+                <input
+                  className="inp text-xs px-2 py-0.5 w-32"
+                  value={saveViewName}
+                  onChange={e => setSaveViewName(e.target.value)}
+                  placeholder="View name…"
+                  onKeyDown={e => e.key === 'Enter' && handleSaveView()}
+                  autoFocus
+                />
+                <button className="btn btn-sm btn-p" onClick={handleSaveView}>Save</button>
+                <button className="btn btn-sm btn-g" onClick={() => setShowSaveInput(false)}>Cancel</button>
+              </div>
+            ) : (
+              <button className="btn btn-sm btn-g" onClick={() => setShowSaveInput(true)}>+ Save view</button>
+            )}
           </div>
 
           {/* Channel chips */}
