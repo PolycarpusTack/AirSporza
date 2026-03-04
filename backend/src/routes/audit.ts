@@ -6,7 +6,7 @@ import { writeAuditLog } from '../utils/audit.js'
 
 const router = Router()
 
-router.get('/:entityType/:entityId', authenticate, async (req, res, next) => {
+router.get('/:entityType/:entityId', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const entityType = String(req.params.entityType)
     const entityId = String(req.params.entityId)
