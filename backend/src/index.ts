@@ -21,9 +21,12 @@ import importRoutes from './routes/import.js'
 import csvImportRoutes from './routes/csvImport.js'
 import fieldConfigRoutes from './routes/fieldConfig.js'
 import settingsRoutes from './routes/settings.js'
+import publishRoutes from './routes/publish.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
+import { authenticate, authorize } from './middleware/auth.js'
+import { publishService } from './services/publishService.js'
 
 const corsOrigins = getCorsOrigins()
 
@@ -90,7 +93,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-app.get('/api/debug/db', (_req, res) => {
+app.get('/api/debug/db', authenticate, authorize('admin'), (_req, res) => {
   const db = getDatabaseInfo()
   res.json({
     status: 'ok',
@@ -110,10 +113,21 @@ app.use('/api/import', importRoutes)
 app.use('/api/import', csvImportRoutes)
 app.use('/api/fields', fieldConfigRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/publish', publishRoutes)
 
 app.use(errorHandler)
 
 setupSocket(io)
+
+// Daily cron: check for expiring contracts and dispatch webhook events
+if (process.env.NODE_ENV !== 'test') {
+  const MS_PER_DAY = 24 * 60 * 60 * 1000
+  setInterval(() => {
+    publishService.checkExpiringContracts().catch(err =>
+      logger.error('Contract expiry check failed', { err })
+    )
+  }, MS_PER_DAY)
+}
 
 const gracefulShutdown = async () => {
   logger.info('Received shutdown signal, closing connections...')
