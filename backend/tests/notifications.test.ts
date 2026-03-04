@@ -11,6 +11,7 @@ vi.mock('../src/db/prisma.js', () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    $disconnect: vi.fn(),
   },
 }))
 

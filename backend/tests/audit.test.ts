@@ -13,6 +13,7 @@ vi.mock('../src/db/prisma.js', () => ({
     event: { update: vi.fn() },
     techPlan: { update: vi.fn() },
     contract: { update: vi.fn() },
+    $disconnect: vi.fn(),
   },
 }))
 

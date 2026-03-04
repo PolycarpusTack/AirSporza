@@ -4,7 +4,7 @@ import { app } from '../src/index.js'
 import { prisma } from '../src/db/prisma.js'
 
 vi.mock('../src/db/prisma.js', () => ({
-  prisma: { savedView: { findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn(), delete: vi.fn() } }
+  prisma: { savedView: { findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn(), delete: vi.fn() }, $disconnect: vi.fn() }
 }))
 vi.mock('../src/middleware/auth.js', () => ({
   authenticate: (req: { user?: unknown }, _: unknown, next: () => void) => { req.user = { id: 'u1' }; next() },

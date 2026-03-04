@@ -7,6 +7,7 @@ vi.mock('../src/db/prisma.js', () => ({
   prisma: {
     event: { findUnique: vi.fn(), update: vi.fn() },
     auditLog: { create: vi.fn() },
+    $disconnect: vi.fn(),
   },
 }))
 
