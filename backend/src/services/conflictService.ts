@@ -2,12 +2,14 @@ import { prisma } from '../db/prisma.js'
 import type { EventStatus } from '@prisma/client'
 
 export type ConflictWarning = { type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan'; message: string }
-export type ConflictError   = { type: 'encoder_locked'; message: string }
+export type ConflictError   = { type: 'encoder_locked' | 'rights_violation'; message: string }
 
 type EventDraft = {
   id?: number
   competitionId: number
   linearChannel?: string
+  onDemandChannel?: string
+  radioChannel?: string
   startDateBE: string
   startTimeBE: string
   status?: EventStatus
@@ -58,6 +60,7 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
       validFrom: { lte: dayEnd },
       validUntil: { gte: dayStart },
     },
+    select: { id: true, linearRights: true, maxRights: true, radioRights: true },
   })
   if (!contract) {
     warnings.push({
@@ -74,6 +77,18 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
     }
   }
 
-  // errors: encoder_locked check reserved for Item 5 (Rights-aware Scheduling) when encoderLock model is available
+  // 4. Rights violations (hard errors per channel type)
+  if (contract) {
+    if (draft.linearChannel && !contract.linearRights) {
+      errors.push({ type: 'rights_violation', message: `Contract does not grant linear rights for ${draft.linearChannel}` })
+    }
+    if (draft.onDemandChannel && !contract.maxRights) {
+      errors.push({ type: 'rights_violation', message: `Contract does not grant on-demand rights for ${draft.onDemandChannel}` })
+    }
+    if (draft.radioChannel && !contract.radioRights) {
+      errors.push({ type: 'rights_violation', message: `Contract does not grant radio rights for ${draft.radioChannel}` })
+    }
+  }
+
   return { warnings, errors }
 }

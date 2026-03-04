@@ -32,7 +32,7 @@ describe('detectConflicts', () => {
     mockPrisma.event.findMany.mockResolvedValue([
       { id: 99, linearChannel: 'VRT MAX', startTimeBE: '20:15', participants: 'X vs Y' }
     ])
-    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1 })
+    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1, linearRights: true, maxRights: true, radioRights: true })
     mockPrisma.techPlan.findFirst.mockResolvedValue({ id: 1 })
 
     const result = await detectConflicts(base)
@@ -51,7 +51,7 @@ describe('detectConflicts', () => {
 
   it('returns missing_tech_plan warning for approved event with no plan', async () => {
     mockPrisma.event.findMany.mockResolvedValue([])
-    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1 })
+    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1, linearRights: true, maxRights: true, radioRights: true })
     mockPrisma.techPlan.findFirst.mockResolvedValue(null)
 
     const result = await detectConflicts({ ...base, id: 5, status: 'approved' })
@@ -60,11 +60,29 @@ describe('detectConflicts', () => {
 
   it('returns no warnings for a clean event', async () => {
     mockPrisma.event.findMany.mockResolvedValue([])
-    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1 })
+    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1, linearRights: true, maxRights: true, radioRights: true })
     mockPrisma.techPlan.findFirst.mockResolvedValue({ id: 1 })
 
     const result = await detectConflicts(base)
     expect(result.warnings).toHaveLength(0)
+    expect(result.errors).toHaveLength(0)
+  })
+
+  it('returns rights_violation error when linearRights is false', async () => {
+    mockPrisma.event.findMany.mockResolvedValue([])
+    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1, linearRights: false, maxRights: true, radioRights: true })
+    mockPrisma.techPlan.findFirst.mockResolvedValue({ id: 1 })
+
+    const result = await detectConflicts({ ...base, linearChannel: 'VRT MAX' })
+    expect(result.errors.some(e => e.type === 'rights_violation')).toBe(true)
+  })
+
+  it('no rights_violation error when contract grants all rights', async () => {
+    mockPrisma.event.findMany.mockResolvedValue([])
+    mockPrisma.contract.findFirst.mockResolvedValue({ id: 1, linearRights: true, maxRights: true, radioRights: true })
+    mockPrisma.techPlan.findFirst.mockResolvedValue({ id: 1 })
+
+    const result = await detectConflicts({ ...base, linearChannel: 'VRT MAX' })
     expect(result.errors).toHaveLength(0)
   })
 })

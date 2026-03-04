@@ -26,12 +26,14 @@ const statusUpdateSchema = Joi.object({
 })
 
 const conflictCheckSchema = Joi.object({
-  id:             Joi.number().integer().min(1).optional(),
-  competitionId:  Joi.number().integer().min(1).optional(),
-  linearChannel:  Joi.string().allow('').optional(),
-  startDateBE:    Joi.string().isoDate().optional(),
-  startTimeBE:    Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
-  status:         Joi.string().valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled').optional(),
+  id:              Joi.number().integer().min(1).optional(),
+  competitionId:   Joi.number().integer().min(1).optional(),
+  linearChannel:   Joi.string().allow('').optional(),
+  onDemandChannel: Joi.string().allow('').optional(),
+  radioChannel:    Joi.string().allow('').optional(),
+  startDateBE:     Joi.string().isoDate().optional(),
+  startTimeBE:     Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
+  status:          Joi.string().valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled').optional(),
 })
 
 const eventSchema = Joi.object({
