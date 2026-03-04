@@ -5,6 +5,7 @@ import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { emit } from '../services/socketInstance.js'
 import { writeAuditLog } from '../utils/audit.js'
+import { publishService } from '../services/publishService.js'
 
 const router = Router()
 
@@ -26,6 +27,7 @@ const eventSchema = Joi.object({
   livestreamTime: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(''),
   linearChannel: Joi.string().allow(''),
   radioChannel: Joi.string().allow(''),
+  onDemandChannel: Joi.string().allow(''),
   linearStartTime: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(''),
   isLive: Joi.boolean(),
   isDelayedLive: Joi.boolean(),
@@ -160,6 +162,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
     }
 
     emit('event:created', event)
+    void publishService.dispatch('event.created', event)
 
     await writeAuditLog({
       userId: user.id,
@@ -222,6 +225,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
     }
 
     emit('event:updated', event)
+    void publishService.dispatch('event.updated', event)
 
     const user = req.user as { id: string }
     await writeAuditLog({
@@ -251,11 +255,17 @@ router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, r
       return next(createError(404, 'Event not found'))
     }
     
-    await prisma.event.delete({
-      where: { id: Number(req.params.id) }
-    })
+    await prisma.$transaction([
+      prisma.customFieldValue.deleteMany({
+        where: { entityType: 'event', entityId: String(req.params.id) }
+      }),
+      prisma.event.delete({
+        where: { id: Number(req.params.id) }
+      }),
+    ])
     
     emit('event:deleted', { id: Number(req.params.id) })
+    void publishService.dispatch('event.deleted', { id: Number(req.params.id) })
 
     const user = req.user as { id: string }
     await writeAuditLog({
