@@ -208,4 +208,3 @@ OAUTH_CALLBACK_URL=
 ## License
 
 Proprietary - VRT (Vlaamse Radio- en Televisieomroep)
-# AirSporza
