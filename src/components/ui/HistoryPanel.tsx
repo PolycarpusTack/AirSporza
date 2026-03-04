@@ -13,6 +13,8 @@ export function HistoryPanel({ entityType, entityId, onRestored }: HistoryPanelP
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -23,8 +25,16 @@ export function HistoryPanel({ entityType, entityId, onRestored }: HistoryPanelP
   }, [entityType, entityId])
 
   const handleRestore = async (entry: AuditEntry) => {
-    await auditApi.restore(entry.id)
-    onRestored?.()
+    setRestoring(entry.id)
+    setRestoreError(null)
+    try {
+      await auditApi.restore(entry.id)
+      onRestored?.()
+    } catch {
+      setRestoreError('Restore failed — please try again')
+    } finally {
+      setRestoring(null)
+    }
   }
 
   if (loading) return <div className="text-xs text-muted animate-pulse">Loading history…</div>
@@ -32,6 +42,9 @@ export function HistoryPanel({ entityType, entityId, onRestored }: HistoryPanelP
 
   return (
     <div className="space-y-2">
+      {restoreError && (
+        <div className="text-xs text-danger mb-2">{restoreError}</div>
+      )}
       {entries.map(e => (
         <div key={e.id} className="text-xs border border-surface-2 rounded p-2">
           <div className="flex justify-between items-center">
@@ -53,8 +66,9 @@ export function HistoryPanel({ entityType, entityId, onRestored }: HistoryPanelP
             <button
               className="btn btn-sm btn-g mt-1"
               onClick={() => handleRestore(e)}
+              disabled={restoring === e.id}
             >
-              Restore to this
+              {restoring === e.id ? 'Restoring…' : 'Restore to this'}
             </button>
           )}
         </div>

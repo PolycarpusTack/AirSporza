@@ -21,10 +21,15 @@ router.get('/:entityType/:entityId', authenticate, async (req, res, next) => {
   }
 })
 
+function stripImmutable(data: object): object {
+  const { id: _id, createdAt: _ca, updatedAt: _ua, ...rest } = data as Record<string, unknown>
+  return rest
+}
+
 const RESTORABLE: Record<string, (id: number, data: object) => Promise<unknown>> = {
-  event:    (id, data) => prisma.event.update({ where: { id }, data }),
-  techPlan: (id, data) => prisma.techPlan.update({ where: { id }, data }),
-  contract: (id, data) => prisma.contract.update({ where: { id }, data }),
+  event:    (id, data) => prisma.event.update({ where: { id }, data: stripImmutable(data) }),
+  techPlan: (id, data) => prisma.techPlan.update({ where: { id }, data: stripImmutable(data) }),
+  contract: (id, data) => prisma.contract.update({ where: { id }, data: stripImmutable(data) }),
 }
 
 router.post('/:logId/restore', authenticate, authorize('admin'), async (req, res, next) => {
