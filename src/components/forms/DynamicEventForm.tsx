@@ -185,10 +185,10 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
     }
 
     // Only run check if we have the required fields
-    if (form.competitionId && form.startDateBE && form.startTimeBE) {
+    if (form.competition && form.startDateBE && form.startTimeBE) {
       const result = await conflictsApi.check({
         id: editEvent?.id,
-        competitionId: Number(form.competitionId),
+        competitionId: Number(form.competition),
         linearChannel: form.linearChannel as string | undefined,
         startDateBE: form.startDateBE as string,
         startTimeBE: form.startTimeBE as string,

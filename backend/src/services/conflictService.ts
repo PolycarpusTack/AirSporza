@@ -72,5 +72,6 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
     }
   }
 
+  // errors: encoder_locked check reserved for Item 5 (Rights-aware Scheduling) when encoderLock model is available
   return { warnings, errors }
 }
