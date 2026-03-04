@@ -26,7 +26,7 @@ const contractStatuses = new Set<string>(Object.values(ContractStatus))
 
 const contractSchema = Joi.object({
   competitionId:  Joi.number().integer().min(1).required(),
-  status:         Joi.string().valid('draft', 'valid', 'expiring', 'expired').required(),
+  status:         Joi.string().valid(...Object.values(ContractStatus)).required(),
   validFrom:      Joi.string().isoDate().optional().allow(null),
   validUntil:     Joi.string().isoDate().optional().allow(null),
   linearRights:   Joi.boolean().optional(),
