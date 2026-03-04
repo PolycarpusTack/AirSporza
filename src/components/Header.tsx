@@ -11,6 +11,7 @@ import {
   LayoutGrid,
 } from 'lucide-react'
 import { Btn } from './ui'
+import { NotificationBell } from './ui/NotificationBell'
 import type { Role, RoleConfig, User } from '../data/types'
 
 interface HeaderProps {
@@ -145,6 +146,8 @@ export function Header({
                 </button>
               </div>
             </div>
+
+            <NotificationBell />
 
             <Btn variant="accent" size="sm" onClick={onNewEvent}>
               <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Event</span>
