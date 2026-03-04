@@ -25,6 +25,15 @@ const statusUpdateSchema = Joi.object({
     .required()
 })
 
+const conflictCheckSchema = Joi.object({
+  id:             Joi.number().integer().min(1).optional(),
+  competitionId:  Joi.number().integer().min(1).optional(),
+  linearChannel:  Joi.string().allow('').optional(),
+  startDateBE:    Joi.string().isoDate().optional(),
+  startTimeBE:    Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
+  status:         Joi.string().valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled').optional(),
+})
+
 const eventSchema = Joi.object({
   sportId: positiveId,
   competitionId: positiveId,
@@ -111,7 +120,9 @@ router.get('/', async (req, res, next) => {
 
 router.post('/conflicts', authenticate, async (req, res, next) => {
   try {
-    const result = await detectConflicts(req.body)
+    const { error, value } = conflictCheckSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+    const result = await detectConflicts(value)
     res.json(result)
   } catch (error) {
     next(error)

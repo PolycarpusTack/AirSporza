@@ -84,6 +84,7 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
   useEffect(() => {
     setForm(initForm())
     setCustomValues({})
+    setConflicts(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editEvent?.id])
 
@@ -100,6 +101,7 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
   const update = (k: string, v: string | boolean) => {
     setForm(p => ({ ...p, [k]: v }))
     setErrors(p => ({ ...p, [k]: '' }))
+    setConflicts(null)
   }
 
   const sportsList = ctxSports.length ? ctxSports : SPORTS
@@ -194,8 +196,15 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
         startTimeBE: form.startTimeBE as string,
         status: editEvent?.status,
       }).catch(() => null)
+
       setConflicts(result)
-      if (result?.errors && result.errors.length > 0) return // block on hard errors
+
+      // Hard errors always block
+      if (result?.errors && result.errors.length > 0) return
+
+      // First time we detect warnings, stop and let user review.
+      // If conflicts is already set the user already saw them and is confirming.
+      if (result?.warnings && result.warnings.length > 0 && !conflicts) return
     }
 
     onSave(event)
@@ -316,6 +325,9 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
             {conflicts.errors.map((e, i) => (
               <div key={i} className="text-xs text-danger bg-danger/10 rounded px-2 py-1">{e.message}</div>
             ))}
+            {conflicts.warnings.length > 0 && (
+              <div className="text-xs text-text-2 mb-1">Warnings found — click Save again to proceed anyway.</div>
+            )}
             {conflicts.warnings.map((w, i) => (
               <div key={i} className="text-xs text-warning bg-warning/10 rounded px-2 py-1">{w.message}</div>
             ))}

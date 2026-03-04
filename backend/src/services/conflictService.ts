@@ -14,17 +14,19 @@ type EventDraft = {
 }
 
 function timeToMin(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return (h ?? 0) * 60 + (m ?? 0)
+  const parts = t.split(':').map(Number)
+  const h = Number.isFinite(parts[0]) ? parts[0] : 0
+  const m = Number.isFinite(parts[1]) ? parts[1] : 0
+  return h * 60 + m
 }
 
 export async function detectConflicts(draft: EventDraft): Promise<{ warnings: ConflictWarning[]; errors: ConflictError[] }> {
   const warnings: ConflictWarning[] = []
   const errors: ConflictError[]     = []
 
-  const dayStart = new Date(draft.startDateBE)
+  const dayStart = new Date(draft.startDateBE.slice(0, 10))
   dayStart.setUTCHours(0, 0, 0, 0)
-  const dayEnd = new Date(draft.startDateBE)
+  const dayEnd = new Date(draft.startDateBE.slice(0, 10))
   dayEnd.setUTCHours(23, 59, 59, 999)
 
   // 1. Channel overlap
@@ -42,7 +44,7 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
       if (Math.abs(timeToMin(ev.startTimeBE) - draftMin) < 30) {
         warnings.push({
           type: 'channel_overlap',
-          message: `Channel ${draft.linearChannel} already has "${ev.participants}" within 30 min`,
+          message: `Channel ${draft.linearChannel} already has "${ev.participants ?? 'an event'}" within 30 min`,
         })
       }
     }
