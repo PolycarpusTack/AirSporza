@@ -296,19 +296,25 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   }, [filteredWeekEvents])
 
   const handleDragEnd = useCallback(async ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return
+    if (!over) return
     const eventId = Number(active.id)
     const newDate = over.id as string
     const event = realtimeEvents.find(e => e.id === eventId)
     if (!event) return
+    const currentDateStr = typeof event.startDateBE === 'string'
+      ? event.startDateBE.slice(0, 10)
+      : (event.startDateBE as Date).toISOString().slice(0, 10)
+    if (newDate === currentDateStr) return  // same day, no-op
     const snapshot = event.startDateBE
+    // Optimistic: update local display only
     setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
-    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
     try {
       await eventsApi.update(eventId, { ...event, startDateBE: newDate })
+      // Confirm: update global context after API success
+      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
     } catch {
+      // Revert local only
       setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: snapshot } : e))
-      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: snapshot } : e))
       toast.error('Failed to reschedule event')
     }
   }, [realtimeEvents, setEvents, toast])
