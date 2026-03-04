@@ -23,7 +23,7 @@ export function filterContractForRole(
 const router = Router()
 const contractStatuses = new Set<string>(Object.values(ContractStatus))
 
-router.get('/', async (req, res, next) => {
+router.get('/', authenticate, async (req, res, next) => {
   try {
     const { status } = req.query
     const normalizedStatus = typeof status === 'string' && contractStatuses.has(status) ? status as ContractStatus : undefined
@@ -40,14 +40,14 @@ router.get('/', async (req, res, next) => {
       orderBy: { validUntil: 'asc' }
     })
     
-    const role = (req.user as { role: string } | undefined)?.role ?? 'planner'
+    const role = (req.user as { role: string }).role
     res.json(contracts.map(c => filterContractForRole(c as Record<string, unknown>, role)))
   } catch (error) {
     next(error)
   }
 })
 
-router.get('/expiring', async (req, res, next) => {
+router.get('/expiring', authenticate, async (req, res, next) => {
   try {
     const days = parseInt(req.query.days as string) || 90
     
@@ -70,14 +70,14 @@ router.get('/expiring', async (req, res, next) => {
       orderBy: { validUntil: 'asc' }
     })
     
-    const role = (req.user as { role: string } | undefined)?.role ?? 'planner'
+    const role = (req.user as { role: string }).role
     res.json(contracts.map(c => filterContractForRole(c as Record<string, unknown>, role)))
   } catch (error) {
     next(error)
   }
 })
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const contract = await prisma.contract.findUnique({
       where: { id: parseId(req.params.id) },
@@ -92,7 +92,7 @@ router.get('/:id', async (req, res, next) => {
       return next(createError(404, 'Contract not found'))
     }
     
-    const role = (req.user as { role: string } | undefined)?.role ?? 'planner'
+    const role = (req.user as { role: string }).role
     res.json(filterContractForRole(contract as Record<string, unknown>, role))
   } catch (error) {
     next(error)
