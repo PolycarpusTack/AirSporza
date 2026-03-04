@@ -7,6 +7,7 @@ import { emit } from '../services/socketInstance.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { publishService } from '../services/publishService.js'
 import { canTransition } from '../services/eventTransitions.js'
+import { detectConflicts } from '../services/conflictService.js'
 import type { EventStatus, Role } from '@prisma/client'
 
 const router = Router()
@@ -103,6 +104,15 @@ router.get('/', async (req, res, next) => {
     }
 
     res.json(events.map(e => ({ ...e, customValues: valuesByEvent.get(String(e.id)) ?? [] })))
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/conflicts', authenticate, async (req, res, next) => {
+  try {
+    const result = await detectConflicts(req.body)
+    res.json(result)
   } catch (error) {
     next(error)
   }

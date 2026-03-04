@@ -6,6 +6,7 @@ import { genId } from '../../utils'
 import { api } from '../../utils/api'
 import { DynamicForm } from './DynamicForm'
 import { useApp } from '../../context/AppProvider'
+import { conflictsApi, type ConflictResult } from '../../services/conflicts'
 
 type ApiFieldDef = {
   id: string
@@ -78,6 +79,7 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [apiCustomFields, setApiCustomFields] = useState<ApiFieldDef[]>([])
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
+  const [conflicts, setConflicts] = useState<ConflictResult | null>(null)
 
   useEffect(() => {
     setForm(initForm())
@@ -142,17 +144,17 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
     return Object.keys(errs).length === 0
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validate()) return
-    
+
     const customFields: Record<string, unknown> = { ...editEvent?.customFields as Record<string, unknown> }
-    
+
     eventFields.forEach(field => {
       if (isCustomField(field.id, eventFields)) {
         customFields[field.id] = form[field.id]
       }
     })
-    
+
     const event: Event = {
       id: editEvent?.id || genId(),
       sportId: parseInt(form.sport as string) || 0,
@@ -181,6 +183,21 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
       customFields,
       customValues: Object.entries(customValues).map(([fieldId, fieldValue]) => ({ fieldId, fieldValue })),
     }
+
+    // Only run check if we have the required fields
+    if (form.competitionId && form.startDateBE && form.startTimeBE) {
+      const result = await conflictsApi.check({
+        id: editEvent?.id,
+        competitionId: Number(form.competitionId),
+        linearChannel: form.linearChannel as string | undefined,
+        startDateBE: form.startDateBE as string,
+        startTimeBE: form.startTimeBE as string,
+        status: editEvent?.status,
+      }).catch(() => null)
+      setConflicts(result)
+      if (result?.errors && result.errors.length > 0) return // block on hard errors
+    }
+
     onSave(event)
     onClose()
   }
@@ -293,11 +310,23 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
           </div>
         )}
       </div>
-      <div className='flex items-center justify-between border-t border-border px-6 py-4'>
-        <span className='text-xs uppercase tracking-wide text-text-2'>{visibleFields.filter(f => f.required).length} required fields</span>
-        <div className='flex gap-2'>
-          <Btn onClick={onClose}>Cancel</Btn>
-          <Btn variant='primary' onClick={handleSave}>{editEvent ? 'Save Changes' : 'Create Event'}</Btn>
+      <div className='border-t border-border px-6 pt-4 pb-4 space-y-3'>
+        {conflicts && (conflicts.errors.length > 0 || conflicts.warnings.length > 0) && (
+          <div className="space-y-1">
+            {conflicts.errors.map((e, i) => (
+              <div key={i} className="text-xs text-danger bg-danger/10 rounded px-2 py-1">{e.message}</div>
+            ))}
+            {conflicts.warnings.map((w, i) => (
+              <div key={i} className="text-xs text-warning bg-warning/10 rounded px-2 py-1">{w.message}</div>
+            ))}
+          </div>
+        )}
+        <div className='flex items-center justify-between'>
+          <span className='text-xs uppercase tracking-wide text-text-2'>{visibleFields.filter(f => f.required).length} required fields</span>
+          <div className='flex gap-2'>
+            <Btn onClick={onClose}>Cancel</Btn>
+            <Btn variant='primary' onClick={handleSave}>{editEvent ? 'Save Changes' : 'Create Event'}</Btn>
+          </div>
         </div>
       </div>
     </Modal>
