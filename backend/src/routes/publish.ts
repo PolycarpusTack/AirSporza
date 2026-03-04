@@ -59,7 +59,12 @@ function buildIcal(events: ReturnType<typeof formatEventForPublish>[], baseUrl: 
     String(s ?? '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
 
   const toDateTime = (date: unknown, time: unknown): string => {
-    const d = String(date ?? '').replace(/-/g, '')
+    let d: string
+    if (date instanceof Date) {
+      d = date.toISOString().slice(0, 10).replace(/-/g, '')
+    } else {
+      d = String(date ?? '').replace(/-/g, '')
+    }
     const t = String(time ?? '00:00').replace(':', '') + '00'
     return `${d}T${t}00`
   }
