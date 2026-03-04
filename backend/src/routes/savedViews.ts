@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
 import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate } from '../middleware/auth.js'
@@ -31,7 +32,12 @@ router.post('/', authenticate, async (req, res, next) => {
     const user = req.user as { id: string }
     const view = await prisma.savedView.create({ data: { userId: user.id, ...value } })
     res.status(201).json(view)
-  } catch (error) { next(error) }
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return next(createError(409, 'A saved view with that name already exists'))
+    }
+    next(error)
+  }
 })
 
 router.delete('/:id', authenticate, async (req, res, next) => {

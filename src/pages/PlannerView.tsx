@@ -7,6 +7,7 @@ import { useSocket } from '../hooks'
 import { useApp } from '../context/AppProvider'
 import { contractsApi } from '../services/contracts'
 import { savedViewsApi, type SavedView } from '../services/savedViews'
+import { useToast } from '../components/Toast'
 
 interface PlannerViewProps {
   events: Event[]
@@ -137,6 +138,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   const [showSaveInput, setShowSaveInput] = useState(false)
 
   const { sports, competitions, orgConfig } = useApp()
+  const toast = useToast()
   const { on } = useSocket()
 
   useEffect(() => {
@@ -151,7 +153,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
       setSaveViewName('')
       setShowSaveInput(false)
     } catch {
-      // silently fail
+      toast.error('Failed to save view')
     }
   }
 
@@ -165,7 +167,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
       await savedViewsApi.delete(id)
       setSavedViews(prev => prev.filter(v => v.id !== id))
     } catch {
-      // silently fail
+      toast.error('Failed to delete view')
     }
   }
 
