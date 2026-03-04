@@ -21,8 +21,12 @@ export function NotificationBell() {
   const unread = items.filter(n => !n.isRead).length
 
   const handleMarkAllRead = async () => {
-    await notificationsApi.markAllRead()
-    setItems(prev => prev.map(n => ({ ...n, isRead: true })))
+    try {
+      await notificationsApi.markAllRead()
+      setItems(prev => prev.map(n => ({ ...n, isRead: true })))
+    } catch {
+      // silently fail — non-critical UX action
+    }
   }
 
   return (
