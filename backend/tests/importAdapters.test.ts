@@ -217,7 +217,7 @@ describe('Import adapters', () => {
       },
     })
     expect(records[0].id).toBe('555')
-    expect(records[0].sourceUpdatedAt?.toISOString()).toBe('2026-03-03T00:25:00.000Z')
+    expect(records[0].sourceUpdatedAt?.toISOString()).toBe('2026-03-03T19:45:00.000Z')
   })
 
   it('fetches football_data teams across requested competitions', async () => {

@@ -7,6 +7,7 @@ vi.mock('../src/db/prisma.js', () => ({
     event: { findMany: vi.fn() },
     contract: { findFirst: vi.fn() },
     techPlan: { findFirst: vi.fn() },
+    resourceAssignment: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }))
 
