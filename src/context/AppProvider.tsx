@@ -72,6 +72,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (location.pathname.startsWith('/contracts')) return 'contracts'
     if (location.pathname.startsWith('/admin')) return 'admin'
     if (location.pathname.startsWith('/settings')) return 'admin'
+    if (location.pathname.startsWith('/import')) return 'planner'
     return 'planner'
   }, [location.pathname])
 
