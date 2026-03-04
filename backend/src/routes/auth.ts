@@ -102,6 +102,11 @@ router.post('/dev-login', async (req, res, next) => {
           role: role || 'planner'
         }
       })
+    } else if (role && user.role !== role) {
+      user = await prisma.user.update({
+        where: { email },
+        data: { role }
+      })
     }
     
     const token = jwt.sign(
