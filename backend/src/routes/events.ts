@@ -7,6 +7,7 @@ import { emit } from '../services/socketInstance.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { publishService } from '../services/publishService.js'
 import { canTransition } from '../services/eventTransitions.js'
+import { createNotification } from '../services/notificationService.js'
 import { detectConflicts } from '../services/conflictService.js'
 import type { EventStatus, Role } from '@prisma/client'
 
@@ -244,6 +245,15 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
     })
+
+    if (status === 'approved' && event.createdById) {
+      void createNotification(
+        event.createdById,
+        'event_approved',
+        `Your event "${event.participants ?? 'Event'}" was approved`,
+        { entityType: 'event', entityId: String(id) }
+      )
+    }
 
     emit('event:statusChanged', updated, 'events')
 

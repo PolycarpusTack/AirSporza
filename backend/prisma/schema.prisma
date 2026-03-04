@@ -54,6 +54,7 @@ model User {
   encoderLocks      EncoderLock[]
   fieldDefinitions  FieldDefinition[]
   webhookEndpoints  WebhookEndpoint[]
+  notifications     Notification[]
 
   @@index([email])
   @@index([externalId])
@@ -695,4 +696,21 @@ model WebhookDelivery {
   @@index([webhookId, createdAt])
   @@index([eventType])
   @@index([deliveredAt])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String
+  title       String
+  body        String?
+  entityType  String?
+  entityId    String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
 }

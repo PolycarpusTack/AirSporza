@@ -23,6 +23,7 @@ import fieldConfigRoutes from './routes/fieldConfig.js'
 import settingsRoutes from './routes/settings.js'
 import publishRoutes from './routes/publish.js'
 import auditRoutes from './routes/audit.js'
+import notificationsRoutes from './routes/notifications.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -116,6 +117,7 @@ app.use('/api/fields', fieldConfigRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/publish', publishRoutes)
 app.use('/api/audit', auditRoutes)
+app.use('/api/notifications', notificationsRoutes)
 
 app.use(errorHandler)
 
