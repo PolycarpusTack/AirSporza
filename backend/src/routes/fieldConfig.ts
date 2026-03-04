@@ -75,6 +75,27 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
   }
 })
 
+// PUT /api/fields/order — batch reorder
+router.put('/order', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const schema = Joi.array().items(
+      Joi.object({ id: Joi.string().required(), sortOrder: Joi.number().integer().required() })
+    )
+    const { error, value } = schema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+
+    await prisma.$transaction(
+      (value as { id: string; sortOrder: number }[]).map(({ id, sortOrder }) =>
+        prisma.fieldDefinition.update({ where: { id }, data: { sortOrder } })
+      )
+    )
+
+    res.json({ message: 'Order updated' })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // PUT /api/fields/:id — admin only
 router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
@@ -140,26 +161,6 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) =
   }
 })
 
-// PUT /api/fields/order — batch reorder
-router.put('/order', authenticate, authorize('admin'), async (req, res, next) => {
-  try {
-    const schema = Joi.array().items(
-      Joi.object({ id: Joi.string().required(), sortOrder: Joi.number().integer().required() })
-    )
-    const { error, value } = schema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    await prisma.$transaction(
-      (value as { id: string; sortOrder: number }[]).map(({ id, sortOrder }) =>
-        prisma.fieldDefinition.update({ where: { id }, data: { sortOrder } })
-      )
-    )
-
-    res.json({ message: 'Order updated' })
-  } catch (error) {
-    next(error)
-  }
-})
 
 // ── Dropdown Lists ──────────────────────────────────────────────────────────
 
