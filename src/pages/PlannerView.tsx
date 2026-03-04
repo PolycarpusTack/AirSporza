@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, type ReactNode } from 'react'
+import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '../components/ui'
 import type { Event, DashboardWidget, Contract, EventStatus, BadgeVariant } from '../data/types'
 import { CONTRACTS } from '../data'
@@ -6,6 +8,7 @@ import { dayLabel } from '../utils'
 import { useSocket } from '../hooks'
 import { useApp } from '../context/AppProvider'
 import { contractsApi } from '../services/contracts'
+import { eventsApi } from '../services'
 import { savedViewsApi, type SavedView } from '../services/savedViews'
 import { useToast } from '../components/Toast'
 
@@ -124,6 +127,36 @@ function SkeletonCard() {
   )
 }
 
+// ── Drag-and-drop wrappers ────────────────────────────────────────────────────
+
+function DraggableEventCard({ event, children }: { event: Event; children: ReactNode }) {
+  const disabled = event.status === 'completed' || event.status === 'cancelled'
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: String(event.id),
+    disabled,
+    data: { event },
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.4 : 1 }}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  )
+}
+
+function DroppableDayColumn({ date, children }: { date: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: date })
+  return (
+    <div ref={setNodeRef} className={isOver ? 'ring-2 ring-blue-400 rounded' : ''}>
+      {children}
+    </div>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function PlannerView({ events, widgets, loading, onEventClick }: PlannerViewProps) {
@@ -137,7 +170,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   const [saveViewName, setSaveViewName] = useState('')
   const [showSaveInput, setShowSaveInput] = useState(false)
 
-  const { sports, competitions, orgConfig } = useApp()
+  const { sports, competitions, orgConfig, setEvents } = useApp()
   const toast = useToast()
   const { on } = useSocket()
 
@@ -261,6 +294,24 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
     Object.values(byDate).forEach(a => a.sort((a, b) => a.startTimeBE.localeCompare(b.startTimeBE)))
     return Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b))
   }, [filteredWeekEvents])
+
+  const handleDragEnd = useCallback(async ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return
+    const eventId = Number(active.id)
+    const newDate = over.id as string
+    const event = realtimeEvents.find(e => e.id === eventId)
+    if (!event) return
+    const snapshot = event.startDateBE
+    setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
+    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
+    try {
+      await eventsApi.update(eventId, { ...event, startDateBE: newDate })
+    } catch {
+      setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: snapshot } : e))
+      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: snapshot } : e))
+      toast.error('Failed to reschedule event')
+    }
+  }, [realtimeEvents, setEvents, toast])
 
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
   const showSidePanels = visWidgets.filter(w => w.id !== 'channelTimeline')
@@ -488,13 +539,15 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
               <SkeletonCard />
             </>
           ) : calendarMode ? (
-            <CalendarGrid
-              weekDays={weekDays}
-              todayStr={todayStr}
-              events={filteredWeekEvents}
-              onEventClick={onEventClick}
-              getChannelColor={getChannelColor}
-            />
+            <DndContext onDragEnd={handleDragEnd}>
+              <CalendarGrid
+                weekDays={weekDays}
+                todayStr={todayStr}
+                events={filteredWeekEvents}
+                onEventClick={onEventClick}
+                getChannelColor={getChannelColor}
+              />
+            </DndContext>
           ) : (
             /* List mode — fallback */
             grouped.length === 0 ? (
@@ -684,91 +737,93 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
           : -1
 
         return (
-          <div
-            key={ds}
-            className="relative border-l border-border"
-            style={{
-              height: CAL_HEIGHT,
-              background: isToday ? 'rgba(245,158,11,0.02)' : undefined,
-              backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR}px)`,
-            }}
-          >
-            {/* Current time indicator */}
-            {isToday && nowTopPx >= 0 && nowTopPx <= CAL_HEIGHT && (
-              <div
-                className="absolute left-0 right-0 z-10 pointer-events-none flex items-center"
-                style={{ top: nowTopPx }}
-              >
-                <div className="w-2 h-2 rounded-full bg-danger flex-shrink-0 -ml-1" />
-                <div className="flex-1 border-t border-danger" />
-              </div>
-            )}
-
-            {dayEvs.map(ev => {
-              const time = ev.linearStartTime || ev.startTimeBE
-              const top = eventTopPx(time)
-              const height = eventHeightPx(parseDurationMin(ev.duration))
-              const col = getChannelColor(ev.linearChannel)
-              const sp = sportsMap.get(ev.sportId)
-
-              // Skip events outside the visible range
-              if (top >= CAL_HEIGHT) return null
-
-              return (
+          <DroppableDayColumn key={ds} date={ds}>
+            <div
+              className="relative border-l border-border"
+              style={{
+                height: CAL_HEIGHT,
+                background: isToday ? 'rgba(245,158,11,0.02)' : undefined,
+                backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR}px)`,
+              }}
+            >
+              {/* Current time indicator */}
+              {isToday && nowTopPx >= 0 && nowTopPx <= CAL_HEIGHT && (
                 <div
-                  key={ev.id}
-                  className="absolute left-1 right-1 rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                  style={{
-                    top,
-                    height: Math.min(height, CAL_HEIGHT - top),
-                    background: col.bg,
-                    borderLeft: `3px solid ${col.border}`,
-                  }}
-                  title={`${time} · ${ev.participants}`}
-                  onClick={() => onEventClick?.(ev)}
+                  className="absolute left-0 right-0 z-10 pointer-events-none flex items-center"
+                  style={{ top: nowTopPx }}
                 >
-                  <div className="px-1.5 py-0.5">
-                    <span
-                      className="block text-xs font-mono leading-none mb-0.5"
-                      style={{ color: col.text, opacity: 0.8 }}
-                    >
-                      {time}
-                    </span>
-                    <span
-                      className="block text-xs font-semibold leading-tight overflow-hidden"
-                      style={{
-                        color: col.text,
-                        display: '-webkit-box',
-                        WebkitLineClamp: height > 40 ? 2 : 1,
-                        WebkitBoxOrient: 'vertical',
-                      }}
-                    >
-                      {sp?.icon} {ev.participants}
-                    </span>
-                    {height > 50 && ev.linearChannel && (
-                      <span
-                        className="block text-xs font-mono uppercase tracking-wide leading-none mt-0.5"
-                        style={{ color: col.text, opacity: 0.65, fontSize: '10px' }}
-                      >
-                        {ev.linearChannel}
-                      </span>
-                    )}
-                    {ev.isLive && (
-                      <span className="inline-flex items-center gap-1 mt-0.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
-                        <span className="text-danger font-mono" style={{ fontSize: '9px' }}>LIVE</span>
-                      </span>
-                    )}
-                    {ev.status && ev.status !== 'draft' && height > 40 && (
-                      <Badge variant={statusVariant(ev.status)} className="mt-0.5" style={{ fontSize: '9px' }}>
-                        {ev.status}
-                      </Badge>
-                    )}
-                  </div>
+                  <div className="w-2 h-2 rounded-full bg-danger flex-shrink-0 -ml-1" />
+                  <div className="flex-1 border-t border-danger" />
                 </div>
-              )
-            })}
-          </div>
+              )}
+
+              {dayEvs.map(ev => {
+                const time = ev.linearStartTime || ev.startTimeBE
+                const top = eventTopPx(time)
+                const height = eventHeightPx(parseDurationMin(ev.duration))
+                const col = getChannelColor(ev.linearChannel)
+                const sp = sportsMap.get(ev.sportId)
+
+                // Skip events outside the visible range
+                if (top >= CAL_HEIGHT) return null
+
+                return (
+                  <DraggableEventCard key={ev.id} event={ev}>
+                    <div
+                      className="absolute left-1 right-1 rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{
+                        top,
+                        height: Math.min(height, CAL_HEIGHT - top),
+                        background: col.bg,
+                        borderLeft: `3px solid ${col.border}`,
+                      }}
+                      title={`${time} · ${ev.participants}`}
+                      onClick={() => onEventClick?.(ev)}
+                    >
+                      <div className="px-1.5 py-0.5">
+                        <span
+                          className="block text-xs font-mono leading-none mb-0.5"
+                          style={{ color: col.text, opacity: 0.8 }}
+                        >
+                          {time}
+                        </span>
+                        <span
+                          className="block text-xs font-semibold leading-tight overflow-hidden"
+                          style={{
+                            color: col.text,
+                            display: '-webkit-box',
+                            WebkitLineClamp: height > 40 ? 2 : 1,
+                            WebkitBoxOrient: 'vertical',
+                          }}
+                        >
+                          {sp?.icon} {ev.participants}
+                        </span>
+                        {height > 50 && ev.linearChannel && (
+                          <span
+                            className="block text-xs font-mono uppercase tracking-wide leading-none mt-0.5"
+                            style={{ color: col.text, opacity: 0.65, fontSize: '10px' }}
+                          >
+                            {ev.linearChannel}
+                          </span>
+                        )}
+                        {ev.isLive && (
+                          <span className="inline-flex items-center gap-1 mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
+                            <span className="text-danger font-mono" style={{ fontSize: '9px' }}>LIVE</span>
+                          </span>
+                        )}
+                        {ev.status && ev.status !== 'draft' && height > 40 && (
+                          <Badge variant={statusVariant(ev.status)} className="mt-0.5" style={{ fontSize: '9px' }}>
+                            {ev.status}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </DraggableEventCard>
+                )
+              })}
+            </div>
+          </DroppableDayColumn>
         )
       })}
     </div>
