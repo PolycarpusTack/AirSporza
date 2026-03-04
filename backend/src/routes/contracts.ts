@@ -145,6 +145,7 @@ router.put('/:id', authenticate, authorize('contracts', 'admin'), async (req, re
   try {
     const contractId = parseId(req.params.id)
     const existing = await prisma.contract.findUnique({ where: { id: contractId } })
+    if (!existing) return next(createError(404, 'Contract not found'))
 
     const { error, value } = contractSchema.validate(req.body)
     if (error) return next(createError(400, error.details[0].message))

@@ -77,7 +77,7 @@ const FALLBACK_COLOR = { border: '#4B5563', bg: 'rgba(75,85,99,0.1)', text: '#9C
 
 function hexToChannelColor(hex: string): { border: string; bg: string; text: string } {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
-    return { bg: 'rgba(100,100,100,0.15)', border: 'rgba(100,100,100,0.4)', text: '#555' }
+    return FALLBACK_COLOR
   }
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)

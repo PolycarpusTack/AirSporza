@@ -1,4 +1,5 @@
 import { createHmac } from 'crypto'
+import { ContractStatus } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
 
@@ -186,28 +187,32 @@ async function checkExpiringContracts(): Promise<void> {
   const thresholds = [30, 7, 1]
 
   for (const days of thresholds) {
-    const targetDate = new Date()
-    targetDate.setDate(targetDate.getDate() + days)
-    const dayStart = new Date(targetDate)
-    dayStart.setHours(0, 0, 0, 0)
-    const dayEnd = new Date(targetDate)
-    dayEnd.setHours(23, 59, 59, 999)
+    try {
+      const targetDate = new Date()
+      targetDate.setDate(targetDate.getDate() + days)
+      const dayStart = new Date(targetDate)
+      dayStart.setUTCHours(0, 0, 0, 0)
+      const dayEnd = new Date(targetDate)
+      dayEnd.setUTCHours(23, 59, 59, 999)
 
-    const contracts = await prisma.contract.findMany({
-      where: {
-        validUntil: { gte: dayStart, lte: dayEnd },
-        status: { in: ['valid', 'expiring'] }
-      },
-      include: { competition: { include: { sport: true } } },
-    })
-
-    for (const contract of contracts) {
-      await dispatch('contract.expiring', {
-        contractId: contract.id,
-        competition: contract.competition,
-        validUntil: contract.validUntil,
-        daysRemaining: days,
+      const contracts = await prisma.contract.findMany({
+        where: {
+          validUntil: { gte: dayStart, lte: dayEnd },
+          status: { in: [ContractStatus.valid, ContractStatus.expiring] }
+        },
+        include: { competition: { include: { sport: true } } },
       })
+
+      for (const contract of contracts) {
+        await dispatch('contract.expiring', {
+          contractId: contract.id,
+          competition: contract.competition,
+          validUntil: contract.validUntil,
+          daysRemaining: days,
+        })
+      }
+    } catch (err) {
+      logger.error('Contract expiry check failed for threshold', { days, err })
     }
   }
 }

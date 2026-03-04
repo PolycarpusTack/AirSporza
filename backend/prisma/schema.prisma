@@ -38,12 +38,13 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   
-  events           Event[]
-  techPlans        TechPlan[]
-  appSettings      AppSetting[]
-  encoderLocks     EncoderLock[]
-  fieldDefinitions FieldDefinition[]
-  
+  events            Event[]
+  techPlans         TechPlan[]
+  appSettings       AppSetting[]
+  encoderLocks      EncoderLock[]
+  fieldDefinitions  FieldDefinition[]
+  webhookEndpoints  WebhookEndpoint[]
+
   @@index([email])
   @@index([externalId])
 }
@@ -103,6 +104,7 @@ model Event {
   linearChannel     String?
   radioChannel      String?
   linearStartTime   String?
+  onDemandChannel   String?
   
   isLive            Boolean   @default(false)
   isDelayedLive     Boolean   @default(false)
@@ -648,4 +650,37 @@ model EncoderLock {
   plan        TechPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
+}
+
+model WebhookEndpoint {
+  id          String            @id @default(uuid())
+  url         String
+  secret      String
+  events      String[]
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  createdById String?
+
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries  WebhookDelivery[]
+
+  @@index([isActive])
+}
+
+model WebhookDelivery {
+  id          String    @id @default(uuid())
+  webhookId   String
+  eventType   String
+  payload     Json
+  statusCode  Int?
+  attempts    Int       @default(0)
+  deliveredAt DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+
+  webhook     WebhookEndpoint @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+  @@index([eventType])
+  @@index([deliveredAt])
 }
