@@ -3,22 +3,18 @@ import jwt from 'jsonwebtoken'
 import { logger } from '../utils/logger.js'
 import { getJwtSecret } from '../config/index.js'
 
-interface AuthenticatedSocket {
-  id: string
-  userId?: string
-  role?: string
-}
-
 export function setupSocket(io: SocketServer) {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token
 
-    if (!token) {
+    if (!token || typeof token !== 'string') {
       return next(new Error('Unauthorized'))
     }
 
     try {
-      jwt.verify(token, getJwtSecret())
+      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
+      socket.data.userId = payload.sub ?? payload.id ?? undefined
+      socket.data.role = payload.role
       next()
     } catch {
       next(new Error('Unauthorized'))
@@ -26,8 +22,7 @@ export function setupSocket(io: SocketServer) {
   })
   
   io.on('connection', (socket) => {
-    const auth = socket.handshake.auth as AuthenticatedSocket
-    logger.info(`Client connected: ${socket.id}`, { userId: auth.userId })
+    logger.info(`Client connected: ${socket.id}`, { userId: socket.data.userId, role: socket.data.role })
     
     socket.on('subscribe:events', () => {
       socket.join('events')
