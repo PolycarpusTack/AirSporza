@@ -4,7 +4,7 @@ import { Badge, Btn, EmptyState } from '../components/ui'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, Sport, Competition, Encoder } from '../data/types'
 import { encodersApi, techPlansApi } from '../services'
 import { resourcesApi, RESOURCE_TYPE_LABELS } from '../services/resources'
-import type { Resource } from '../services/resources'
+import type { Resource, ResourceAssignment } from '../services/resources'
 import { ApiError } from '../utils/api'
 import { fmtDate } from '../utils'
 import { useSocket } from '../hooks'
@@ -50,6 +50,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [realtimePlans, setRealtimePlans] = useState<TechPlan[]>(techPlans)
   const [encoders, setEncoders] = useState<Encoder[]>([])
   const [resources, setResources] = useState<Resource[]>([])
+  const [resourceAssignments, setResourceAssignments] = useState<Record<number, ResourceAssignment[]>>({})
 
   const { on } = useSocket()
 
@@ -228,6 +229,15 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   }
 
   const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew' | 'resources'>('events')
+
+  useEffect(() => {
+    if (activeTab !== 'resources' || resources.length === 0) return
+    resources.forEach(r => {
+      resourcesApi.getAssignments(r.id)
+        .then(assignments => setResourceAssignments(prev => ({ ...prev, [r.id]: assignments })))
+        .catch(() => {})
+    })
+  }, [activeTab, resources])
 
   const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
 
@@ -649,26 +659,58 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Type</th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Capacity</th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Current Assignments</th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {resources.map(r => (
-                    <tr key={r.id} className="hover:bg-surface-2 transition">
-                      <td className="px-4 py-3 font-semibold">{r.name}</td>
-                      <td className="px-4 py-3 text-text-2 text-xs font-mono uppercase">
-                        {RESOURCE_TYPE_LABELS[r.type] ?? r.type}
-                      </td>
-                      <td className="px-4 py-3 text-text-2">{r.capacity}</td>
-                      <td className="px-4 py-3">
-                        {r.isActive
-                          ? <Badge variant="success">Active</Badge>
-                          : <Badge variant="none">Inactive</Badge>
-                        }
-                      </td>
-                      <td className="px-4 py-3 text-text-3 text-xs">{r.notes ?? '—'}</td>
-                    </tr>
-                  ))}
+                  {resources.map(r => {
+                    const assignments = resourceAssignments[r.id]
+                    return (
+                      <tr key={r.id} className="hover:bg-surface-2 transition align-top">
+                        <td className="px-4 py-3 font-semibold">{r.name}</td>
+                        <td className="px-4 py-3 text-text-2 text-xs font-mono uppercase">
+                          {RESOURCE_TYPE_LABELS[r.type] ?? r.type}
+                        </td>
+                        <td className="px-4 py-3 text-text-2">{r.capacity}</td>
+                        <td className="px-4 py-3">
+                          {r.isActive
+                            ? <Badge variant="success">Active</Badge>
+                            : <Badge variant="none">Inactive</Badge>
+                          }
+                        </td>
+                        <td className="px-4 py-3">
+                          {assignments === undefined ? (
+                            <span className="text-text-3 text-xs">Loading…</span>
+                          ) : assignments.length === 0 ? (
+                            <span className="text-text-3 text-xs">No assignments</span>
+                          ) : (
+                            <div className="space-y-1">
+                              <span className="text-xs font-medium text-text-2">
+                                {assignments.length} assignment{assignments.length !== 1 ? 's' : ''}
+                              </span>
+                              <ul className="space-y-0.5">
+                                {assignments.map(a => (
+                                  <li key={a.id} className="text-xs text-text-2 flex items-center gap-1">
+                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/50 flex-shrink-0" />
+                                    <span className="font-mono text-text-3 mr-1">{a.techPlan?.planType ?? `Plan #${a.techPlanId}`}</span>
+                                    {a.techPlan?.event
+                                      ? <span className="truncate max-w-[160px]">{a.techPlan.event.participants}</span>
+                                      : <span className="text-text-3">Event #{a.techPlan?.eventId}</span>
+                                    }
+                                    {a.quantity > 1 && (
+                                      <span className="ml-1 text-text-3">(×{a.quantity})</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-text-3 text-xs">{r.notes ?? '—'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
