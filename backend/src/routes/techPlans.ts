@@ -5,6 +5,7 @@ import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { emit } from '../services/socketInstance.js'
 import { writeAuditLog } from '../utils/audit.js'
+import { publishService } from '../services/publishService.js'
 
 export const LOCK_TTL_MS = 30_000
 
@@ -87,6 +88,7 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
     })
     
     emit('techPlan:created', plan)
+    void publishService.dispatch('techPlan.created', plan)
     await writeAuditLog({
       userId: user.id,
       action: 'techPlan.create',
@@ -127,6 +129,7 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
     })
     
     emit('techPlan:updated', plan)
+    void publishService.dispatch('techPlan.updated', plan)
     const user = req.user as { id: string }
     await writeAuditLog({
       userId: user.id,
@@ -200,6 +203,9 @@ router.delete('/:id', authenticate, authorize('sports', 'admin'), async (req, re
   try {
     const planId = Number(req.params.id)
     const existing = await prisma.techPlan.findUnique({ where: { id: planId } })
+    if (!existing) {
+      return next(createError(404, 'Tech plan not found'))
+    }
 
     await prisma.techPlan.delete({ where: { id: planId } })
 
