@@ -173,6 +173,7 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
   const [undoBar, setUndoBar] = useState<{ message: string } | null>(null)
 
   const [detailEvent, setDetailEvent] = useState<Event | null>(null)
+  const [localSearch, setLocalSearch] = useState('')
 
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
   const [saveViewName, setSaveViewName] = useState('')
@@ -291,10 +292,19 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
       .catch(() => {})
   }, [weekFromStr, weekToStr, weekEvents.length])
 
-  const filteredWeekEvents = useMemo(
-    () => channelFilter === 'all' ? weekEvents : weekEvents.filter(e => e.linearChannel === channelFilter),
-    [weekEvents, channelFilter]
-  )
+  const filteredWeekEvents = useMemo(() => {
+    let result = channelFilter === 'all' ? weekEvents : weekEvents.filter(e => e.linearChannel === channelFilter)
+    if (localSearch) {
+      const q = localSearch.toLowerCase()
+      result = result.filter(ev =>
+        ev.participants?.toLowerCase().includes(q) ||
+        ev.linearChannel?.toLowerCase().includes(q) ||
+        sportsMap.get(ev.sportId)?.name?.toLowerCase().includes(q) ||
+        compsMap.get(ev.competitionId)?.name?.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [weekEvents, channelFilter, localSearch, sportsMap, compsMap])
 
   // Only show live events happening today
   const liveNow = contextEvents.filter(e => e.isLive && getDateKey(e.startDateBE) === todayStr)
@@ -573,13 +583,13 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
             {/* Week nav */}
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setWeekOffset(0)}
+                onClick={() => { setWeekOffset(0); setLocalSearch('') }}
                 className="px-3 py-1.5 text-xs border border-border text-text-2 rounded-lg hover:bg-surface-2 transition font-sans"
               >
                 This week
               </button>
               <button
-                onClick={() => setWeekOffset(o => o - 1)}
+                onClick={() => { setWeekOffset(o => o - 1); setLocalSearch('') }}
                 className="px-2.5 py-1.5 text-sm border border-border text-text-2 rounded-lg hover:bg-surface-2 transition"
                 aria-label="Previous week (←)"
                 title="Previous week (←)"
@@ -590,7 +600,7 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
                 {weekLabel}
               </span>
               <button
-                onClick={() => setWeekOffset(o => o + 1)}
+                onClick={() => { setWeekOffset(o => o + 1); setLocalSearch('') }}
                 className="px-2.5 py-1.5 text-sm border border-border text-text-2 rounded-lg hover:bg-surface-2 transition"
                 aria-label="Next week (→)"
                 title="Next week (→)"
@@ -621,12 +631,21 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
                   targetMonday.setHours(0, 0, 0, 0)
                   const diffMs = targetMonday.getTime() - todayMonday.getTime()
                   const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000))
+                  setLocalSearch('')
                   setWeekOffset(diffWeeks)
                 }}
               />
             </div>
 
             <div className="flex-1" />
+
+            <input
+              type="search"
+              placeholder="Search events..."
+              className="inp text-sm px-2 py-1 w-48"
+              value={localSearch}
+              onChange={e => setLocalSearch(e.target.value)}
+            />
 
             {/* Stats inline */}
             <span className="text-xs text-text-2 font-mono bg-surface border border-border px-2 py-1 rounded">
