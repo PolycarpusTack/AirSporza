@@ -1,5 +1,5 @@
-import { api } from '../utils/api'
-import type { Event } from '../data/types'
+import { api, API_URL, getStoredToken } from '../utils/api'
+import type { Event, EventStatus } from '../data/types'
 
 export interface ConflictWarning {
   type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan' | 'resource_conflict'
@@ -43,4 +43,27 @@ export const eventsApi = {
 
   checkBulkConflicts: (ids: number[]): Promise<Record<number, ConflictWarning[]>> =>
     api.post<Record<number, ConflictWarning[]>>('/events/conflicts/bulk', { eventIds: ids }),
+
+  bulkDelete: async (ids: number[]): Promise<{ deleted: number }> => {
+    // api.delete doesn't accept a body, so use fetch directly
+    const res = await fetch(`${API_URL}/events/bulk`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getStoredToken()}` },
+      body: JSON.stringify({ ids }),
+    })
+    return res.json()
+  },
+
+  bulkStatus: (ids: number[], status: EventStatus): Promise<{ updated: number }> =>
+    api.patch<{ updated: number }>('/events/bulk/status', { ids, status }),
+
+  bulkReschedule: (ids: number[], shiftDays: number): Promise<{ updated: number }> =>
+    api.patch<{ updated: number }>('/events/bulk/reschedule', { ids, shiftDays }),
+
+  bulkAssign: (
+    ids: number[],
+    field: 'linearChannel' | 'sportId' | 'competitionId',
+    value: string | number
+  ): Promise<{ updated: number }> =>
+    api.patch<{ updated: number }>('/events/bulk/assign', { ids, field, value }),
 }

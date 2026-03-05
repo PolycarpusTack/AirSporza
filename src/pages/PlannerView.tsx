@@ -11,6 +11,7 @@ import { contractsApi } from '../services/contracts'
 import { eventsApi, type ConflictWarning } from '../services'
 import { savedViewsApi, type SavedView } from '../services/savedViews'
 import { useToast } from '../components/Toast'
+import { BulkActionBar } from '../components/planner/BulkActionBar'
 
 interface PlannerViewProps {
   events: Event[]
@@ -166,6 +167,9 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   const [calendarMode, setCalendarMode] = useState(true)
   const [contracts, setContracts] = useState<Contract[]>(CONTRACTS)
   const [conflictMap, setConflictMap] = useState<Record<number, ConflictWarning[]>>({})
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
   const [saveViewName, setSaveViewName] = useState('')
@@ -332,6 +336,112 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
     }
   }, [realtimeEvents, setEvents, toast])
 
+  // ── Selection mode ──────────────────────────────────────────────────────────
+
+  const toggleSelectionMode = useCallback(() => {
+    setSelectionMode(prev => {
+      if (prev) setSelectedIds(new Set())
+      return !prev
+    })
+  }, [])
+
+  const toggleSelectId = useCallback((id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  // ── Bulk operation handlers ────────────────────────────────────────────────
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds)
+    setBulkLoading(true)
+    try {
+      await eventsApi.bulkDelete(ids)
+      setEvents(prev => prev.filter(e => !selectedIds.has(e.id)))
+      setSelectedIds(new Set())
+      toast.success(`Deleted ${ids.length} event(s)`)
+    } catch {
+      toast.error('Bulk delete failed')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [selectedIds, setEvents, toast])
+
+  const handleBulkStatus = useCallback(async (status: EventStatus) => {
+    const ids = Array.from(selectedIds)
+    setBulkLoading(true)
+    try {
+      await eventsApi.bulkStatus(ids, status)
+      setEvents(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, status } : e))
+      toast.success(`Updated status for ${ids.length} event(s)`)
+    } catch {
+      toast.error('Bulk status update failed')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [selectedIds, setEvents, toast])
+
+  const handleBulkReschedule = useCallback(async (shiftDays: number) => {
+    const ids = Array.from(selectedIds)
+    setBulkLoading(true)
+    try {
+      await eventsApi.bulkReschedule(ids, shiftDays)
+      const updated = await eventsApi.list()
+      setEvents(updated as Event[])
+      toast.success(`Rescheduled ${ids.length} event(s) by ${shiftDays} day(s)`)
+    } catch {
+      toast.error('Bulk reschedule failed')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [selectedIds, setEvents, toast])
+
+  const handleBulkAssignChannel = useCallback(async (channel: string) => {
+    const ids = Array.from(selectedIds)
+    setBulkLoading(true)
+    try {
+      await eventsApi.bulkAssign(ids, 'linearChannel', channel)
+      setEvents(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, linearChannel: channel } : e))
+      toast.success(`Assigned channel to ${ids.length} event(s)`)
+    } catch {
+      toast.error('Bulk assign failed')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [selectedIds, setEvents, toast])
+
+  const handleBulkAssignSport = useCallback(async (sportId: number) => {
+    const ids = Array.from(selectedIds)
+    setBulkLoading(true)
+    try {
+      await eventsApi.bulkAssign(ids, 'sportId', sportId)
+      setEvents(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, sportId } : e))
+      toast.success(`Assigned sport to ${ids.length} event(s)`)
+    } catch {
+      toast.error('Bulk assign failed')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [selectedIds, setEvents, toast])
+
+  const handleBulkAssignCompetition = useCallback(async (competitionId: number) => {
+    const ids = Array.from(selectedIds)
+    setBulkLoading(true)
+    try {
+      await eventsApi.bulkAssign(ids, 'competitionId', competitionId)
+      setEvents(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, competitionId } : e))
+      toast.success(`Assigned competition to ${ids.length} event(s)`)
+    } catch {
+      toast.error('Bulk assign failed')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [selectedIds, setEvents, toast])
+
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
   const showSidePanels = visWidgets.filter(w => w.id !== 'channelTimeline')
   const showTimeline = visWidgets.find(w => w.id === 'channelTimeline')
@@ -468,6 +578,14 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
               </span>
             )}
 
+            {/* Selection mode toggle */}
+            <button
+              className={`btn ${selectionMode ? 'btn-s' : 'btn-g'} btn-sm`}
+              onClick={toggleSelectionMode}
+            >
+              {selectionMode ? 'Cancel' : 'Select'}
+            </button>
+
             {/* View toggle */}
             <div className="flex border border-border rounded-lg overflow-hidden">
               <button
@@ -566,6 +684,9 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
                 onEventClick={onEventClick}
                 getChannelColor={getChannelColor}
                 conflictMap={conflictMap}
+                selectionMode={selectionMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelectId}
               />
             </DndContext>
           ) : (
@@ -606,10 +727,19 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
                             return (
                               <div
                                 key={ev.id}
-                                className="px-4 py-3 hover:bg-surface-2/50 transition-colors cursor-pointer"
-                                onClick={() => onEventClick?.(ev)}
+                                className={`px-4 py-3 hover:bg-surface-2/50 transition-colors cursor-pointer ${selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
+                                onClick={() => selectionMode ? toggleSelectId(ev.id) : onEventClick?.(ev)}
                               >
                                 <div className="flex items-start gap-3">
+                                  {selectionMode && (
+                                    <input
+                                      type="checkbox"
+                                      className="mt-1 cursor-pointer"
+                                      checked={selectedIds.has(ev.id)}
+                                      onChange={() => toggleSelectId(ev.id)}
+                                      onClick={e => e.stopPropagation()}
+                                    />
+                                  )}
                                   <div className="text-right pt-0.5 w-12 flex-shrink-0 font-mono font-semibold text-sm">
                                     {ev.linearStartTime || ev.startTimeBE}
                                   </div>
@@ -661,6 +791,22 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
           )}
         </div>
       )}
+
+      {selectionMode && (
+        <BulkActionBar
+          count={selectedIds.size}
+          onDelete={handleBulkDelete}
+          onStatusChange={handleBulkStatus}
+          onReschedule={handleBulkReschedule}
+          onAssignChannel={handleBulkAssignChannel}
+          onAssignSport={handleBulkAssignSport}
+          onAssignCompetition={handleBulkAssignCompetition}
+          channels={orgConfig.channels.map((c: { name: string }) => c.name)}
+          sports={sports}
+          competitions={competitions}
+          loading={bulkLoading}
+        />
+      )}
     </div>
   )
 }
@@ -674,6 +820,9 @@ interface CalendarGridProps {
   onEventClick?: (event: Event) => void
   getChannelColor: (channel?: string | null) => { border: string; bg: string; text: string }
   conflictMap: Record<number, ConflictWarning[]>
+  selectionMode: boolean
+  selectedIds: Set<number>
+  onToggleSelect: (id: number) => void
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -682,7 +831,7 @@ const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
   return `${String(h).padStart(2, '0')}:00`
 })
 
-function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap }: CalendarGridProps) {
+function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect }: CalendarGridProps) {
   const { sports } = useApp()
   const sportsMap = useMemo(() => new Map(sports.map(s => [s.id, s])), [sports])
 
@@ -797,67 +946,82 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 // Skip events outside the visible range
                 if (top >= CAL_HEIGHT) return null
 
-                return (
-                  <DraggableEventCard key={ev.id} event={ev}>
-                    <div
-                      className="absolute left-1 right-1 rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                      style={{
-                        top,
-                        height: Math.min(height, CAL_HEIGHT - top),
-                        background: col.bg,
-                        borderLeft: `3px solid ${col.border}`,
-                      }}
-                      title={`${time} · ${ev.participants}`}
-                      onClick={() => onEventClick?.(ev)}
-                    >
-                      <div className="px-1.5 py-0.5">
-                        <span
-                          className="block text-xs font-mono leading-none mb-0.5"
-                          style={{ color: col.text, opacity: 0.8 }}
-                        >
-                          {time}
-                        </span>
-                        <span
-                          className="block text-xs font-semibold leading-tight overflow-hidden"
-                          style={{
-                            color: col.text,
-                            display: '-webkit-box',
-                            WebkitLineClamp: height > 40 ? 2 : 1,
-                            WebkitBoxOrient: 'vertical',
-                          }}
-                        >
-                          {sp?.icon} {ev.participants}
-                          {(conflictMap[ev.id]?.length ?? 0) > 0 && (
-                            <span
-                              className="inline-flex items-center ml-1"
-                              title={conflictMap[ev.id].map(w => w.message).join('\n')}
-                              aria-label={`${conflictMap[ev.id].length} conflict warning(s)`}
-                            >
-                              ⚠️
-                            </span>
-                          )}
-                        </span>
-                        {height > 50 && ev.linearChannel && (
+                const cardContent = (
+                  <div
+                    className={`absolute left-1 right-1 rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity ${selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400' : ''}`}
+                    style={{
+                      top,
+                      height: Math.min(height, CAL_HEIGHT - top),
+                      background: col.bg,
+                      borderLeft: `3px solid ${col.border}`,
+                    }}
+                    title={`${time} · ${ev.participants}`}
+                    onClick={() => selectionMode ? onToggleSelect(ev.id) : onEventClick?.(ev)}
+                  >
+                    {selectionMode && (
+                      <input
+                        type="checkbox"
+                        className="absolute top-1 left-1 z-10 cursor-pointer"
+                        checked={selectedIds.has(ev.id)}
+                        onChange={() => onToggleSelect(ev.id)}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    )}
+                    <div className="px-1.5 py-0.5">
+                      <span
+                        className="block text-xs font-mono leading-none mb-0.5"
+                        style={{ color: col.text, opacity: 0.8 }}
+                      >
+                        {time}
+                      </span>
+                      <span
+                        className="block text-xs font-semibold leading-tight overflow-hidden"
+                        style={{
+                          color: col.text,
+                          display: '-webkit-box',
+                          WebkitLineClamp: height > 40 ? 2 : 1,
+                          WebkitBoxOrient: 'vertical',
+                        }}
+                      >
+                        {sp?.icon} {ev.participants}
+                        {(conflictMap[ev.id]?.length ?? 0) > 0 && (
                           <span
-                            className="block text-xs font-mono uppercase tracking-wide leading-none mt-0.5"
-                            style={{ color: col.text, opacity: 0.65, fontSize: '10px' }}
+                            className="inline-flex items-center ml-1"
+                            title={conflictMap[ev.id].map(w => w.message).join('\n')}
+                            aria-label={`${conflictMap[ev.id].length} conflict warning(s)`}
                           >
-                            {ev.linearChannel}
+                            ⚠️
                           </span>
                         )}
-                        {ev.isLive && (
-                          <span className="inline-flex items-center gap-1 mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
-                            <span className="text-danger font-mono" style={{ fontSize: '9px' }}>LIVE</span>
-                          </span>
-                        )}
-                        {ev.status && ev.status !== 'draft' && height > 40 && (
-                          <Badge variant={statusVariant(ev.status)} className="mt-0.5" style={{ fontSize: '9px' }}>
-                            {ev.status}
-                          </Badge>
-                        )}
-                      </div>
+                      </span>
+                      {height > 50 && ev.linearChannel && (
+                        <span
+                          className="block text-xs font-mono uppercase tracking-wide leading-none mt-0.5"
+                          style={{ color: col.text, opacity: 0.65, fontSize: '10px' }}
+                        >
+                          {ev.linearChannel}
+                        </span>
+                      )}
+                      {ev.isLive && (
+                        <span className="inline-flex items-center gap-1 mt-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
+                          <span className="text-danger font-mono" style={{ fontSize: '9px' }}>LIVE</span>
+                        </span>
+                      )}
+                      {ev.status && ev.status !== 'draft' && height > 40 && (
+                        <Badge variant={statusVariant(ev.status)} className="mt-0.5" style={{ fontSize: '9px' }}>
+                          {ev.status}
+                        </Badge>
+                      )}
                     </div>
+                  </div>
+                )
+
+                return selectionMode ? (
+                  <div key={ev.id}>{cardContent}</div>
+                ) : (
+                  <DraggableEventCard key={ev.id} event={ev}>
+                    {cardContent}
                   </DraggableEventCard>
                 )
               })}
