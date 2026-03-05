@@ -57,6 +57,7 @@ model User {
   webhookEndpoints  WebhookEndpoint[]
   notifications     Notification[]
   savedViews        SavedView[]
+  crewTemplates     CrewTemplate[] @relation("UserCrewTemplates")
 
   @@index([email])
   @@index([externalId])
@@ -779,4 +780,37 @@ model ResourceAssignment {
   @@unique([resourceId, techPlanId])
   @@index([techPlanId])
   @@index([resourceId])
+}
+
+// =============================================================================
+// CREW ROSTER & TEMPLATES
+// =============================================================================
+
+model CrewMember {
+  id        Int      @id @default(autoincrement())
+  name      String
+  roles     Json     @default("[]")
+  email     String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name])
+  @@map("crew_members")
+}
+
+model CrewTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String
+  planType    String?
+  crewData    Json
+  createdById String?  @db.VarChar(36)
+  isShared    Boolean  @default(false)
+  createdBy   User?    @relation("UserCrewTemplates", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([planType, createdById])
+  @@map("crew_templates")
 }
