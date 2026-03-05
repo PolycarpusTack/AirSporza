@@ -15,7 +15,6 @@ import { BulkActionBar } from '../components/planner/BulkActionBar'
 import { UndoBar } from '../components/planner/UndoBar'
 
 interface PlannerViewProps {
-  events: Event[]
   widgets: DashboardWidget[]
   loading?: boolean
   onEventClick?: (event: Event) => void
@@ -161,10 +160,9 @@ function DroppableDayColumn({ date, children }: { date: string; children: ReactN
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function PlannerView({ events, widgets, loading, onEventClick }: PlannerViewProps) {
+export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps) {
   const [channelFilter, setChannelFilter] = useState('all')
   const [weekOffset, setWeekOffset] = useState(0)
-  const [realtimeEvents, setRealtimeEvents] = useState<Event[]>(events)
   const [calendarMode, setCalendarMode] = useState(true)
   const [contracts, setContracts] = useState<Contract[]>(CONTRACTS)
   const [conflictMap, setConflictMap] = useState<Record<number, ConflictWarning[]>>({})
@@ -178,7 +176,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   const [saveViewName, setSaveViewName] = useState('')
   const [showSaveInput, setShowSaveInput] = useState(false)
 
-  const { sports, competitions, orgConfig, setEvents } = useApp()
+  const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent } = useApp()
   const toast = useToast()
   const { on } = useSocket()
 
@@ -223,20 +221,18 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
     contractsApi.list().then(data => setContracts(data as Contract[])).catch(() => {})
   }, [])
 
-  useEffect(() => { setRealtimeEvents(events) }, [events])
-
   useEffect(() => {
     const unsubCreated = on('event:created', (event: Event) => {
-      setRealtimeEvents(prev => [...prev, event])
+      setEvents(prev => [...prev, event])
     })
     const unsubUpdated = on('event:updated', (event: Event) => {
-      setRealtimeEvents(prev => prev.map(e => e.id === event.id ? event : e))
+      setEvents(prev => prev.map(e => e.id === event.id ? event : e))
     })
     const unsubDeleted = on('event:deleted', ({ id }: { id: number }) => {
-      setRealtimeEvents(prev => prev.filter(e => e.id !== id))
+      setEvents(prev => prev.filter(e => e.id !== id))
     })
     return () => { unsubCreated(); unsubUpdated(); unsubDeleted() }
-  }, [on])
+  }, [on, setEvents])
 
   // Keyboard navigation for week
   useEffect(() => {
@@ -271,11 +267,11 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   )
 
   const weekEvents = useMemo(
-    () => realtimeEvents.filter(e => {
+    () => contextEvents.filter(e => {
       const k = getDateKey(e.startDateBE)
       return k >= weekFromStr && k <= weekToStr
     }),
-    [realtimeEvents, weekFromStr, weekToStr]
+    [contextEvents, weekFromStr, weekToStr]
   )
 
   // Fetch conflicts for visible week events
@@ -296,7 +292,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   )
 
   // Only show live events happening today
-  const liveNow = realtimeEvents.filter(e => e.isLive && getDateKey(e.startDateBE) === todayStr)
+  const liveNow = contextEvents.filter(e => e.isLive && getDateKey(e.startDateBE) === todayStr)
 
   const getContract = useCallback(
     (e: Event) => contractsByCompId.get(e.competitionId),
@@ -319,19 +315,19 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
     if (!over) return
     const eventId = Number(active.id)
     const newDate = over.id as string
-    const event = realtimeEvents.find(e => e.id === eventId)
+    const event = contextEvents.find(e => e.id === eventId)
     if (!event) return
     const currentDateStr = typeof event.startDateBE === 'string'
       ? event.startDateBE.slice(0, 10)
       : (event.startDateBE as Date).toISOString().slice(0, 10)
     if (newDate === currentDateStr) return  // same day, no-op
-    const snapshot = event.startDateBE
-    // Optimistic: update local display only
-    setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
+    // Optimistic: apply patch immediately
+    applyOptimisticEvent({ id: eventId, startDateBE: newDate })
     try {
       await eventsApi.update(eventId, { ...event, startDateBE: newDate })
-      // Confirm: update global context after API success
+      // Confirm: update base state, then remove optimistic patch
       setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
+      revertOptimisticEvent(eventId)
       // Store undo info and show undo bar
       lastDragRef.current = { eventId, previousDate: currentDateStr }
       const label = new Date(newDate + 'T00:00:00').toLocaleDateString('en-GB', {
@@ -339,11 +335,11 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
       })
       setUndoBar({ message: `Moved to ${label}` })
     } catch {
-      // Revert local only
-      setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: snapshot } : e))
+      // Revert optimistic patch
+      revertOptimisticEvent(eventId)
       toast.error('Failed to reschedule event')
     }
-  }, [realtimeEvents, setEvents, toast])
+  }, [contextEvents, setEvents, toast, applyOptimisticEvent, revertOptimisticEvent])
 
   // ── Undo drag ──────────────────────────────────────────────────────────────
 
@@ -351,17 +347,18 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
     if (!lastDragRef.current) return
     const { eventId, previousDate } = lastDragRef.current
     lastDragRef.current = null
-    const ev = realtimeEvents.find(e => e.id === eventId)
+    const ev = contextEvents.find(e => e.id === eventId)
     if (!ev) return
-    setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: previousDate } : e))
+    applyOptimisticEvent({ id: eventId, startDateBE: previousDate })
     try {
       await eventsApi.update(eventId, { ...ev, startDateBE: previousDate })
       setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: previousDate } : e))
+      revertOptimisticEvent(eventId)
     } catch {
-      setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: ev.startDateBE } : e))
+      revertOptimisticEvent(eventId)
       toast.error('Undo failed')
     }
-  }, [realtimeEvents, setEvents, toast])
+  }, [contextEvents, setEvents, toast, applyOptimisticEvent, revertOptimisticEvent])
 
   const dismissUndoBar = useCallback(() => {
     setUndoBar(null)
@@ -514,7 +511,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
           <div key={widget.id} className="card p-4 animate-fade-in">
             <h4 className="text-xs font-bold text-text-3 uppercase tracking-wider mb-3">VRT MAX Rights</h4>
             <div className="space-y-2">
-              {realtimeEvents.slice(0, 5).map(e => {
+              {contextEvents.slice(0, 5).map(e => {
                 const contract = getContract(e)
                 const comp = compsMap.get(e.competitionId)
                 return (
@@ -542,7 +539,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
                 <div className="text-xs text-primary">Live</div>
               </div>
               <div className="text-center p-3 rounded-lg" style={{ background: 'rgba(234,140,0,0.1)' }}>
-                <div className="text-2xl font-bold text-warning">{realtimeEvents.filter(e => e.isDelayedLive).length}</div>
+                <div className="text-2xl font-bold text-warning">{contextEvents.filter(e => e.isDelayedLive).length}</div>
                 <div className="text-xs text-warning">Delayed</div>
               </div>
             </div>

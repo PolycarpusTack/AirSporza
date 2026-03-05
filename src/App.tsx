@@ -108,7 +108,6 @@ function AppContent() {
                 element={
                   <div className="p-4 sm:p-5">
                     <PlannerView
-                      events={filteredEvents}
                       widgets={currentWidgets}
                       loading={loading}
                       onEventClick={(ev) => { setEditEvent(ev); setShowEventForm(true) }}
