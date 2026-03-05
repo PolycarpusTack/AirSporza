@@ -8,7 +8,7 @@ import { writeAuditLog } from '../utils/audit.js'
 import { publishService } from '../services/publishService.js'
 import { canTransition } from '../services/eventTransitions.js'
 import { createNotification } from '../services/notificationService.js'
-import { detectConflicts } from '../services/conflictService.js'
+import { detectConflicts, type ConflictWarning } from '../services/conflictService.js'
 import type { EventStatus, Role } from '@prisma/client'
 
 const router = Router()
@@ -127,6 +127,65 @@ router.post('/conflicts', authenticate, async (req, res, next) => {
     if (error) return next(createError(400, error.details[0].message))
     const result = await detectConflicts(value)
     res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+const bulkConflictSchema = Joi.object({
+  eventIds: Joi.array()
+    .items(Joi.number().integer().min(1))
+    .min(1)
+    .max(50)
+    .required(),
+})
+
+router.post('/conflicts/bulk', authenticate, async (req, res, next) => {
+  try {
+    const { error, value } = bulkConflictSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+
+    const { eventIds } = value as { eventIds: number[] }
+
+    const events = await prisma.event.findMany({
+      where: { id: { in: eventIds } },
+      select: {
+        id: true,
+        competitionId: true,
+        linearChannel: true,
+        onDemandChannel: true,
+        radioChannel: true,
+        startDateBE: true,
+        startTimeBE: true,
+        status: true,
+      },
+    })
+
+    const results = await Promise.all(
+      events.map(async ev => {
+        const { warnings } = await detectConflicts({
+          id: ev.id,
+          competitionId: ev.competitionId,
+          linearChannel: ev.linearChannel ?? undefined,
+          onDemandChannel: ev.onDemandChannel ?? undefined,
+          radioChannel: ev.radioChannel ?? undefined,
+          startDateBE: ev.startDateBE.toISOString().slice(0, 10),
+          startTimeBE: ev.startTimeBE,
+          status: ev.status ?? undefined,
+        })
+        return { id: ev.id, warnings }
+      })
+    )
+
+    const conflictMap: Record<number, ConflictWarning[]> = {}
+    for (const id of eventIds) {
+      conflictMap[id] = []
+    }
+    for (const { id, warnings } of results) {
+      conflictMap[id] = warnings
+    }
+
+    res.json(conflictMap)
   } catch (error) {
     next(error)
   }

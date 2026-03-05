@@ -106,3 +106,43 @@ describe('detectConflicts', () => {
     expect(result.errors.some(e => e.type === 'rights_violation')).toBe(true)
   })
 })
+
+describe('bulk conflict check (multiple detectConflicts calls)', () => {
+  it('maps event ids to their warning arrays', async () => {
+    // First call: event 1 has channel overlap
+    mockPrisma.event.findMany
+      .mockResolvedValueOnce([
+        { id: 99, linearChannel: 'VRT MAX', startTimeBE: '20:15', participants: 'X vs Y' },
+      ])
+    mockPrisma.contract.findFirst
+      .mockResolvedValueOnce({ id: 1, linearRights: true, maxRights: true, radioRights: true })
+    mockPrisma.techPlan.findFirst
+      .mockResolvedValueOnce({ id: 1 })
+
+    const r1 = await detectConflicts({
+      id: 1,
+      competitionId: 10,
+      linearChannel: 'VRT MAX',
+      startDateBE: '2026-04-01',
+      startTimeBE: '20:00',
+    })
+
+    // Second call: event 2 is clean
+    mockPrisma.event.findMany.mockResolvedValueOnce([])
+    mockPrisma.contract.findFirst
+      .mockResolvedValueOnce({ id: 1, linearRights: true, maxRights: true, radioRights: true })
+    mockPrisma.techPlan.findFirst
+      .mockResolvedValueOnce({ id: 1 })
+
+    const r2 = await detectConflicts({
+      id: 2,
+      competitionId: 10,
+      linearChannel: 'VRT MAX',
+      startDateBE: '2026-04-01',
+      startTimeBE: '14:00',
+    })
+
+    expect(r1.warnings.some(w => w.type === 'channel_overlap')).toBe(true)
+    expect(r2.warnings).toHaveLength(0)
+  })
+})
