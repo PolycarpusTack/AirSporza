@@ -48,6 +48,8 @@ export function useDrawToCreate({ calStartHour, pxPerHour, enabled }: UseDrawToC
 
   // Ref keeps the anchor minute so we don't depend on stale state during moves
   const anchorRef = useRef<{ date: string; min: number } | null>(null);
+  // Mirror draw state in a ref so onPointerUp can read it synchronously
+  const drawRef = useRef<DrawState | null>(null);
 
   /** Convert a pixel offset from the top of the day column to minutes (snapped). */
   const pxToMin = useCallback(
@@ -74,7 +76,9 @@ export function useDrawToCreate({ calStartHour, pxPerHour, enabled }: UseDrawToC
       const min = pxToMin(offsetY);
 
       anchorRef.current = { date, min };
-      setDraw({ date, startMin: min, endMin: min, active: true });
+      const state: DrawState = { date, startMin: min, endMin: min, active: true };
+      drawRef.current = state;
+      setDraw(state);
     },
     [enabled, pxToMin],
   );
@@ -89,43 +93,42 @@ export function useDrawToCreate({ calStartHour, pxPerHour, enabled }: UseDrawToC
       const current = pxToMin(offsetY);
       const anchor = anchorRef.current.min;
 
-      setDraw({
+      const state: DrawState = {
         date: anchorRef.current.date,
         startMin: Math.min(anchor, current),
         endMin: Math.max(anchor, current),
         active: true,
-      });
+      };
+      drawRef.current = state;
+      setDraw(state);
     },
     [pxToMin],
   );
 
   /* ---- pointer up ---- */
   const onPointerUp = useCallback((): DrawResult | null => {
-    const state = anchorRef.current;
-    if (!state) return null;
-
-    // Read the latest draw state synchronously via a small trick:
-    // we need startMin/endMin, so we'll compute from the last setDraw call.
-    let result: DrawResult | null = null;
-
-    setDraw((prev) => {
-      if (prev && prev.endMin - prev.startMin >= 15) {
-        result = {
-          date: prev.date,
-          startTime: minutesToTime(prev.startMin),
-          durationMinutes: prev.endMin - prev.startMin,
-        };
-      }
-      return null; // always clear
-    });
-
+    const anchor = anchorRef.current;
+    const prev = drawRef.current;
     anchorRef.current = null;
-    return result;
+    drawRef.current = null;
+    setDraw(null);
+
+    if (!anchor || !prev) return null;
+
+    if (prev.endMin - prev.startMin >= 15) {
+      return {
+        date: prev.date,
+        startTime: minutesToTime(prev.startMin),
+        durationMinutes: prev.endMin - prev.startMin,
+      };
+    }
+    return null;
   }, []);
 
   /* ---- cancel ---- */
   const cancel = useCallback(() => {
     anchorRef.current = null;
+    drawRef.current = null;
     setDraw(null);
   }, []);
 

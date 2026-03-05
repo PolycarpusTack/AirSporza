@@ -24,9 +24,15 @@ export function useHeaderDrag(
   dateStr: (d: Date) => string,
 ) {
   const [headerState, setHeaderState] = useState<HeaderDragState | null>(null);
+  const stateRef = useRef<HeaderDragState | null>(null);
 
   // Anchor index (the column where the drag started)
   const anchorRef = useRef<number | null>(null);
+
+  const updateState = useCallback((s: HeaderDragState | null) => {
+    stateRef.current = s;
+    setHeaderState(s);
+  }, []);
 
   /* ---- helpers ---- */
 
@@ -52,63 +58,53 @@ export function useHeaderDrag(
       (e.target as Element).setPointerCapture(e.pointerId);
 
       anchorRef.current = dayIdx;
-      setHeaderState({
+      updateState({
         selectedIndices: [dayIdx],
         selectedDates: [dateStr(weekDays[dayIdx])],
         active: true,
       });
     },
-    [weekDays, dateStr],
+    [weekDays, dateStr, updateState],
   );
 
   /* ---- pointer move over a header ---- */
   const onHeaderPointerMove = useCallback(
     (dayIdx: number) => {
       if (anchorRef.current === null) return;
-      setHeaderState(buildState(anchorRef.current, dayIdx, true));
+      updateState(buildState(anchorRef.current, dayIdx, true));
     },
-    [buildState],
+    [buildState, updateState],
   );
 
   /* ---- pointer up ---- */
   const onHeaderPointerUp = useCallback((): string[] | null => {
-    const anchor = anchorRef.current;
-    if (anchor === null) return null;
-
-    let result: string[] | null = null;
-
-    setHeaderState((prev) => {
-      if (!prev || prev.selectedIndices.length < 2) {
-        // Single header click — cancel
-        return null;
-      }
-      // 2+ headers selected — enter time-pick mode (active=false)
-      result = prev.selectedDates;
-      return { ...prev, active: false };
-    });
-
+    if (anchorRef.current === null) return null;
     anchorRef.current = null;
-    return result;
-  }, []);
+
+    const prev = stateRef.current;
+    if (!prev || prev.selectedIndices.length < 2) {
+      updateState(null);
+      return null;
+    }
+    // 2+ headers selected — enter time-pick mode (active=false)
+    updateState({ ...prev, active: false });
+    return prev.selectedDates;
+  }, [updateState]);
 
   /* ---- cancel ---- */
   const cancel = useCallback(() => {
     anchorRef.current = null;
-    setHeaderState(null);
-  }, []);
+    updateState(null);
+  }, [updateState]);
 
   /* ---- confirm (called after time draw completes) ---- */
   const confirm = useCallback((): string[] => {
-    let dates: string[] = [];
-
-    setHeaderState((prev) => {
-      if (prev) dates = prev.selectedDates;
-      return null;
-    });
-
+    const prev = stateRef.current;
+    const dates = prev?.selectedDates ?? [];
     anchorRef.current = null;
+    updateState(null);
     return dates;
-  }, []);
+  }, [updateState]);
 
   return { headerState, onHeaderPointerDown, onHeaderPointerMove, onHeaderPointerUp, cancel, confirm } as const;
 }
