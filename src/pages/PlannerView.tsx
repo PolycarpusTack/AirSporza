@@ -12,6 +12,7 @@ import { savedViewsApi, type SavedView } from '../services/savedViews'
 import { useToast } from '../components/Toast'
 import { BulkActionBar } from '../components/planner/BulkActionBar'
 import { UndoBar } from '../components/planner/UndoBar'
+import { EventDetailPanel } from '../components/planner/EventDetailPanel'
 
 interface PlannerViewProps {
   widgets: DashboardWidget[]
@@ -170,6 +171,8 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
   const [bulkLoading, setBulkLoading] = useState(false)
   const lastDragRef = useRef<{ eventId: number; previousDate: string } | null>(null)
   const [undoBar, setUndoBar] = useState<{ message: string } | null>(null)
+
+  const [detailEvent, setDetailEvent] = useState<Event | null>(null)
 
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
   const [saveViewName, setSaveViewName] = useState('')
@@ -695,7 +698,7 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
                 weekDays={weekDays}
                 todayStr={todayStr}
                 events={filteredWeekEvents}
-                onEventClick={onEventClick}
+                onEventClick={ev => setDetailEvent(ev)}
                 getChannelColor={getChannelColor}
                 conflictMap={conflictMap}
                 selectionMode={selectionMode}
@@ -742,7 +745,7 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
                               <div
                                 key={ev.id}
                                 className={`px-4 py-3 hover:bg-surface-2/50 transition-colors cursor-pointer ${selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
-                                onClick={() => selectionMode ? toggleSelectId(ev.id) : onEventClick?.(ev)}
+                                onClick={() => selectionMode ? toggleSelectId(ev.id) : setDetailEvent(ev)}
                               >
                                 <div className="flex items-start gap-3">
                                   {selectionMode && (
@@ -829,6 +832,14 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
           loading={bulkLoading}
         />
       )}
+
+      <EventDetailPanel
+        event={detailEvent}
+        onClose={() => setDetailEvent(null)}
+        onEdit={(ev) => { setDetailEvent(null); onEventClick?.(ev) }}
+        sports={sports}
+        competitions={competitions}
+      />
     </div>
   )
 }
