@@ -197,6 +197,11 @@ export interface ImportMetrics {
 }
 
 export const importsApi = {
+  searchUnlinked(search?: string): Promise<any[]> {
+    const params = search ? `?search=${encodeURIComponent(search)}&entityType=event` : '?entityType=event'
+    return api.get(`/import/records/unlinked${params}`)
+  },
+
   listSources: () =>
     api.get<ImportSource[]>('/import/sources'),
 

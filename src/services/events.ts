@@ -70,4 +70,8 @@ export const eventsApi = {
     value: string | number
   ): Promise<{ updated: number }> =>
     api.patch<{ updated: number }>('/events/bulk/assign', { ids, field, value }),
+
+  fixturesByCompetition(competitionId: number): Promise<{ matchday: number; date: string; label: string; sample: string }[]> {
+    return api.get(`/events/fixtures/${competitionId}`)
+  },
 }

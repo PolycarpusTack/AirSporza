@@ -6,6 +6,7 @@ import { genId } from '../../utils'
 import { api } from '../../utils/api'
 import { DynamicForm } from './DynamicForm'
 import { RepeatSection } from './RepeatSection'
+import { LinkFromImport } from './LinkFromImport'
 import { useApp } from '../../context/AppProvider'
 import { conflictsApi, type ConflictResult } from '../../services/conflicts'
 import { fieldsApi } from '../../services'
@@ -125,6 +126,12 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
     setForm(p => ({ ...p, [k]: v }))
     setErrors(p => ({ ...p, [k]: '' }))
     setConflicts(null)
+  }
+
+  const handleLinkImport = (data: Record<string, string | undefined>) => {
+    Object.entries(data).forEach(([key, value]) => {
+      if (value) update(key, value)
+    })
   }
 
   const sportsList = ctxSports.length ? ctxSports : SPORTS
@@ -371,6 +378,11 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
           </span>
         </div>
       )}
+      {!editEvent && (
+        <div className="px-6 pt-4 pb-0">
+          <LinkFromImport onLink={handleLinkImport} />
+        </div>
+      )}
       <div className='p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto'>
         {visibleFields.map(field => (
           <div key={field.id} className={field.type === 'textarea' ? 'sm:col-span-2' : ''}>
@@ -400,6 +412,7 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
           <RepeatSection
             startDate={form.startDateBE as string}
             onDatesChange={setRepeatDates}
+            competitionId={Number(form.competition) || undefined}
           />
         </div>
       )}

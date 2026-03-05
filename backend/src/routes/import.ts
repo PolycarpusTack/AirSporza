@@ -261,6 +261,54 @@ router.use(async (_req, _res, next) => {
   }
 })
 
+// Search unlinked import records (for "Link from Import" in event form)
+router.get('/records/unlinked', authenticate, async (req, res, next) => {
+  try {
+    const { search, entityType, limit } = req.query
+    const take = Math.min(Number(limit) || 20, 50)
+
+    const where: any = {
+      entityType: entityType || 'event',
+      validationStatus: { in: ['valid', 'pending'] },
+      isSuperseded: false,
+      // Unlinked: no approved merge candidate
+      mergeCandidates: {
+        none: { status: 'approved' },
+      },
+    }
+
+    if (search) {
+      const q = String(search)
+      where.OR = [
+        { normalizedJson: { path: ['participantsText'], string_contains: q } },
+        { normalizedJson: { path: ['homeTeam'], string_contains: q } },
+        { normalizedJson: { path: ['awayTeam'], string_contains: q } },
+        { normalizedJson: { path: ['competitionName'], string_contains: q } },
+        { sourceRecordId: { contains: q } },
+      ]
+    }
+
+    const records = await prisma.importRecord.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take,
+      select: {
+        id: true,
+        sourceRecordId: true,
+        entityType: true,
+        normalizedJson: true,
+        validationStatus: true,
+        createdAt: true,
+        source: { select: { code: true, name: true } },
+      },
+    })
+
+    res.json(records)
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/sources', authenticate, authorize('planner', 'sports', 'admin'), async (_req, res, next) => {
   try {
     const sources = await prisma.importSource.findMany({

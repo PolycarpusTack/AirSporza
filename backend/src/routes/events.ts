@@ -218,6 +218,39 @@ router.post('/conflicts/bulk', authenticate, async (req, res, next) => {
   }
 })
 
+// Get fixture dates for a competition (for matchday repeat pattern)
+router.get('/fixtures/:competitionId', authenticate, async (req, res, next) => {
+  try {
+    const competitionId = Number(req.params.competitionId)
+    if (!competitionId || isNaN(competitionId)) {
+      return next(createError(400, 'Invalid competition ID'))
+    }
+
+    const events = await prisma.event.findMany({
+      where: { competitionId },
+      select: {
+        startDateBE: true,
+        phase: true,
+        participants: true,
+      },
+      orderBy: { startDateBE: 'asc' },
+      distinct: ['startDateBE'],
+    })
+
+    // Group by date, label as matchdays
+    const matchdays = events.map((e, i) => ({
+      matchday: i + 1,
+      date: e.startDateBE.toISOString().split('T')[0],
+      label: e.phase || `Matchday ${i + 1}`,
+      sample: e.participants,
+    }))
+
+    res.json(matchdays)
+  } catch (error) {
+    next(error)
+  }
+})
+
 // ── Bulk operations (must be before /:id routes) ────────────────────────────
 
 router.delete('/bulk', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
