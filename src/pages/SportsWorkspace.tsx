@@ -1,13 +1,18 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Menu, X, Plus } from 'lucide-react'
-import { Badge, Btn, EmptyState } from '../components/ui'
+import { Menu, X } from 'lucide-react'
+import { Badge, EmptyState } from '../components/ui'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, Sport, Competition, Encoder } from '../data/types'
 import { encodersApi, techPlansApi } from '../services'
-import { resourcesApi, RESOURCE_TYPE_LABELS } from '../services/resources'
-import type { Resource, ResourceAssignment } from '../services/resources'
-import { ApiError } from '../utils/api'
+import { resourcesApi } from '../services/resources'
+import type { Resource } from '../services/resources'
 import { fmtDate } from '../utils'
 import { useSocket } from '../hooks'
+import { EncoderSwapModal } from '../components/sports/EncoderSwapModal'
+import { EventDetailCard } from '../components/sports/EventDetailCard'
+import { TechPlanCard } from '../components/sports/TechPlanCard'
+import { SportTreePanel } from '../components/sports/SportTreePanel'
+import { CrewTab } from '../components/sports/CrewTab'
+import { ResourcesTab } from '../components/sports/ResourcesTab'
 
 interface SportsWorkspaceProps {
   events: Event[]
@@ -24,33 +29,15 @@ interface CustomField {
   value: string
 }
 
-function LockCountdown({ ttlMs, onExpire }: { ttlMs: number; onExpire: () => void }) {
-  const [remaining, setRemaining] = useState(Math.ceil(ttlMs / 1000))
-
-  useEffect(() => {
-    if (remaining <= 0) {
-      onExpire()
-      return
-    }
-    const t = setTimeout(() => setRemaining(r => r - 1), 1000)
-    return () => clearTimeout(t)
-  }, [remaining, onExpire])
-
-  return <span className="ml-1 font-mono">({remaining}s)</span>
-}
-
 export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, widgets, sports, competitions }: SportsWorkspaceProps) {
   const [selEvent, setSelEvent] = useState<Event | null>(null)
   const [expanded, setExpanded] = useState<Set<number>>(new Set([1]))
   const [swapModal, setSwapModal] = useState<number | null>(null)
-  const [swapError, setSwapError] = useState<string | null>(null)
-  const [swapLockTtl, setSwapLockTtl] = useState<number | null>(null)
   const [editingPlanCrew, setEditingPlanCrew] = useState<number | null>(null)
   const [mobileSidebar, setMobileSidebar] = useState(false)
   const [realtimePlans, setRealtimePlans] = useState<TechPlan[]>(techPlans)
   const [encoders, setEncoders] = useState<Encoder[]>([])
   const [resources, setResources] = useState<Resource[]>([])
-  const [resourceAssignments, setResourceAssignments] = useState<Record<number, ResourceAssignment[]>>({})
 
   const { on } = useSocket()
 
@@ -85,6 +72,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   }, [on])
 
   const [selectedSport, setSelectedSport] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew' | 'resources'>('events')
 
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
   const showTree = visWidgets.some(w => w.id === "sportTree")
@@ -95,11 +83,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const toggle = (id: number) => {
     setExpanded(p => {
       const n = new Set(p)
-      if (n.has(id)) {
-        n.delete(id)
-      } else {
-        n.add(id)
-      }
+      if (n.has(id)) { n.delete(id) } else { n.add(id) }
       return n
     })
   }
@@ -120,28 +104,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   )
 
   const eventPlans = useMemo(() => selEvent ? realtimePlans.filter(p => p.eventId === selEvent.id) : [], [selEvent, realtimePlans])
-
-  const handleSwap = useCallback(async (planId: number, encoderName: string) => {
-    setSwapError(null)
-    setSwapLockTtl(null)
-    try {
-      const updated = await techPlansApi.swapEncoder(planId, encoderName)
-      setRealtimePlans(prev => prev.map(p => p.id === planId ? updated : p))
-      setTechPlans(prev => {
-        const arr = Array.isArray(prev) ? prev : []
-        return arr.map(p => p.id === planId ? updated : p)
-      })
-      setSwapModal(null)
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        setSwapError(e.message)
-        // Show a 30s countdown for lock expiry
-        setSwapLockTtl(30000)
-      } else {
-        setSwapError('Encoder swap failed')
-      }
-    }
-  }, [setTechPlans])
+  const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
 
   const handleCrewEdit = useCallback(async (planId: number, field: string, value: string) => {
     const updated = realtimePlans.map(p => p.id === planId ? { ...p, crew: { ...p.crew as Record<string, unknown>, [field]: value } } : p)
@@ -164,15 +127,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     return []
   }
 
-  const addCustomToPlan = (planId: number) => {
-    const updated = realtimePlans.map(p => {
-      if (p.id !== planId) return p
-      const cf = getCustomFields(p)
-      return { ...p, customFields: [...cf, { name: "", value: "" }] }
-    })
-    setRealtimePlans(updated)
-    setTechPlans(updated)
-    const plan = updated.find(p => p.id === planId)
+  const persistPlan = (planId: number, plans: TechPlan[]) => {
+    const plan = plans.find(p => p.id === planId)
     if (plan) {
       techPlansApi.update(planId, {
         crew: plan.crew,
@@ -182,6 +138,17 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
         customFields: plan.customFields ?? [],
       }).catch(err => console.error('Failed to persist plan update:', err))
     }
+  }
+
+  const addCustomToPlan = (planId: number) => {
+    const updated = realtimePlans.map(p => {
+      if (p.id !== planId) return p
+      const cf = getCustomFields(p)
+      return { ...p, customFields: [...cf, { name: "", value: "" }] }
+    })
+    setRealtimePlans(updated)
+    setTechPlans(updated)
+    persistPlan(planId, updated)
   }
 
   const updatePlanCustomField = (planId: number, idx: number, key: string, val: string) => {
@@ -193,16 +160,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     })
     setRealtimePlans(updated)
     setTechPlans(updated)
-    const plan = updated.find(p => p.id === planId)
-    if (plan) {
-      techPlansApi.update(planId, {
-        crew: plan.crew,
-        eventId: plan.eventId,
-        planType: plan.planType,
-        isLivestream: plan.isLivestream ?? false,
-        customFields: plan.customFields ?? [],
-      }).catch(err => console.error('Failed to persist plan update:', err))
-    }
+    persistPlan(planId, updated)
   }
 
   const removePlanCustomField = (planId: number, idx: number) => {
@@ -214,101 +172,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     })
     setRealtimePlans(updated)
     setTechPlans(updated)
-    const plan = updated.find(p => p.id === planId)
-    if (plan) {
-      techPlansApi.update(planId, {
-        crew: plan.crew,
-        eventId: plan.eventId,
-        planType: plan.planType,
-        isLivestream: plan.isLivestream ?? false,
-        customFields: plan.customFields ?? [],
-      }).catch(err => console.error('Failed to persist plan update:', err))
-    }
+    persistPlan(planId, updated)
   }
-
-  const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew' | 'resources'>('events')
-
-  useEffect(() => {
-    if (activeTab !== 'resources' || resources.length === 0) return
-    let cancelled = false
-    Promise.all(resources.map(r => resourcesApi.getAssignments(r.id).then(a => ({ id: r.id, a }))))
-      .then(results => {
-        if (cancelled) return
-        const next: Record<number, ResourceAssignment[]> = {}
-        for (const { id, a } of results) next[id] = a
-        setResourceAssignments(next)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [activeTab, resources])
-
-  const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
-
-  const TreePanel = () => (
-    <div className="space-y-1 p-2">
-      <div className="px-2 py-2 text-xs font-bold uppercase tracking-wider text-text-2">Sports & Events</div>
-      {/* Sport filter chips */}
-      {sportTree.length > 1 && (
-        <div className="flex flex-wrap gap-1.5 px-2 pb-2">
-          <button
-            onClick={() => setSelectedSport(null)}
-            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
-              !selectedSport
-                ? 'bg-primary text-white border-primary'
-                : 'text-text-2 border-border hover:bg-surface-2'
-            }`}
-          >
-            All
-          </button>
-          {sportTree.map(s => (
-            <button
-              key={s.id}
-              onClick={() => setSelectedSport(selectedSport === s.id ? null : s.id)}
-              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
-                selectedSport === s.id
-                  ? 'bg-primary text-white border-primary'
-                  : 'text-text-2 border-border hover:bg-surface-2'
-              }`}
-            >
-              {s.icon} {s.name}
-            </button>
-          ))}
-        </div>
-      )}
-      {filteredTree.map(sport => (
-        <div key={sport.id}>
-          <button
-            onClick={() => toggle(sport.id)}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left hover:bg-surface-2"
-          >
-            <span className={`transition-transform text-xs ${expanded.has(sport.id) ? "rotate-90" : ""}`}>▶</span>
-            <span className="text-base">{sport.icon}</span>
-            <span className="text-sm font-semibold flex-1">{sport.name}</span>
-            <span className="rounded-sm bg-surface-2 px-1.5 text-xs text-text-2">{sport.comps.reduce((s, c) => s + c.events.length, 0)}</span>
-          </button>
-          {expanded.has(sport.id) && sport.comps.map(comp => (
-            <div key={comp.id} className="ml-6">
-              <div className="px-2 py-1 text-xs font-medium text-text-2">{comp.name}</div>
-              {comp.events.map(ev => (
-                <button
-                  key={ev.id}
-                  onClick={() => { setSelEvent(ev); setMobileSidebar(false); setEditingPlanCrew(null); }}
-                  className={`mb-0.5 w-full rounded-sm border px-2 py-2 text-left text-sm transition ${
-                    selEvent?.id === ev.id
-                      ? 'border-primary bg-primary/10 text-text'
-                      : 'border-transparent text-text-2 hover:bg-surface-2 hover:text-text'
-                  }`}
-                >
-                  <div className="font-medium truncate">{ev.participants}</div>
-                  <div className="text-xs text-text-3">{fmtDate(ev.startDateBE)} - {ev.startTimeBE}</div>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
 
   return (
     <div>
@@ -376,7 +241,16 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                   <button onClick={() => setMobileSidebar(false)} className="rounded-sm p-2 transition hover:bg-surface-2"><X className="w-5 h-5" /></button>
                 </div>
               )}
-              <TreePanel />
+              <SportTreePanel
+                sportTree={sportTree}
+                filteredTree={filteredTree}
+                selectedSport={selectedSport}
+                onSelectSport={setSelectedSport}
+                expanded={expanded}
+                onToggle={toggle}
+                selectedEventId={selEvent?.id ?? null}
+                onSelectEvent={(ev) => { setSelEvent(ev); setMobileSidebar(false); setEditingPlanCrew(null) }}
+              />
             </div>
           )}
 
@@ -386,146 +260,49 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
             ) : (
               <div className="space-y-4 animate-fade-in">
                 {showDetail && (
-              <div className="card p-5">
-                <div className="flex items-start justify-between flex-wrap gap-3">
+                  <EventDetailCard
+                    event={selEvent}
+                    sport={sports.find(s => s.id === selEvent.sportId)}
+                    competition={competitions.find(c => c.id === selEvent.competitionId)}
+                  />
+                )}
+
+                {showPlans && (
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl">{sports.find(s => s.id === selEvent.sportId)?.icon}</span>
-                      <h3 className="font-bold text-xl">{selEvent.participants}</h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-bold">Technical Plans ({eventPlans.length})</h4>
                     </div>
-                    <div className="meta">{competitions.find(c => c.id === selEvent.competitionId)?.name} - {selEvent.phase} - {selEvent.complex}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    {selEvent.isLive && <Badge variant="live">LIVE</Badge>}
-                    {selEvent.isDelayedLive && <Badge variant="warning">DELAYED</Badge>}
-                    {selEvent.category && <Badge>{selEvent.category}</Badge>}
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
-                  <div><div className="text-xs uppercase tracking-wide text-text-2">Date (BE)</div><div className="text-sm font-medium">{fmtDate(selEvent.startDateBE)}</div></div>
-                  <div><div className="text-xs uppercase tracking-wide text-text-2">Time (BE)</div><div className="font-mono text-sm font-semibold">{selEvent.startTimeBE}</div></div>
-                  <div><div className="text-xs uppercase tracking-wide text-text-2">Channel</div><div className="text-sm font-medium">{selEvent.linearChannel || '—'}</div></div>
-                  <div><div className="text-xs uppercase tracking-wide text-text-2">Radio</div><div className="text-sm font-medium">{selEvent.radioChannel || '—'}</div></div>
-                </div>
-              </div>
-            )}
-
-            {showPlans && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold">Technical Plans ({eventPlans.length})</h4>
-                </div>
-                {eventPlans.map(plan => {
-                  const customFields = getCustomFields(plan)
-                  return (
-                    <div key={plan.id} className="card mb-3 overflow-hidden">
-                      <div className="flex items-center justify-between border-b border-border bg-surface-2 px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-primary" />
-                          <span className="font-bold">{plan.planType}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {plan.isLivestream && <Badge variant="live">Livestream</Badge>}
-                          <Btn variant="ghost" size="xs" onClick={() => setEditingPlanCrew(editingPlanCrew === plan.id ? null : plan.id)}>
-                            {editingPlanCrew === plan.id ? "Done Editing" : "Edit Crew"}
-                          </Btn>
-                        </div>
+                    {eventPlans.map(plan => (
+                      <TechPlanCard
+                        key={plan.id}
+                        plan={plan}
+                        crewFields={visibleCrewFields}
+                        isEditing={editingPlanCrew === plan.id}
+                        showCrew={showCrew}
+                        onToggleEdit={() => setEditingPlanCrew(editingPlanCrew === plan.id ? null : plan.id)}
+                        onCrewEdit={(field, value) => handleCrewEdit(plan.id, field, value)}
+                        onOpenSwap={() => setSwapModal(plan.id)}
+                        onAddCustomField={() => addCustomToPlan(plan.id)}
+                        onUpdateCustomField={(idx, key, val) => updatePlanCustomField(plan.id, idx, key, val)}
+                        onRemoveCustomField={(idx) => removePlanCustomField(plan.id, idx)}
+                      />
+                    ))}
+                    {eventPlans.length === 0 && (
+                      <div className="rounded-md border-2 border-dashed border-border bg-surface p-8 text-center text-sm text-text-2">
+                        No technical plans for this event yet
                       </div>
-                      <div className="p-4">
-                        {showCrew && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {visibleCrewFields.filter(f => f.type !== "checkbox").map(field => (
-                              <div key={field.id} className="rounded-md border border-border bg-surface-2 p-3">
-                                <div className="mb-1 flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-text-2">
-                                  {field.label}
-                                  {field.required && <span className="text-danger">*</span>}
-                                  {field.isCustom && <span className="rounded-sm border border-border bg-surface px-1 text-[9px] text-text-2">custom</span>}
-                                </div>
-                                {editingPlanCrew === plan.id ? (
-                                  <input
-                                    value={(plan.crew[field.id] as string) || ""}
-                                    onChange={e => handleCrewEdit(plan.id, field.id, e.target.value)}
-                                    className="field-input px-2 py-1"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-between">
-                                    <span className={`text-sm font-medium ${field.id === "encoder" ? "font-mono font-bold" : ""}`}>
-                                      {(plan.crew[field.id] as string) || "—"}
-                                    </span>
-                                    {field.id === "encoder" && (
-                                      <button
-                                        onClick={() => { setSwapModal(plan.id); setSwapError(null); setSwapLockTtl(null) }}
-                                        className="rounded-sm border border-border bg-surface px-2 py-1 text-xs font-semibold uppercase tracking-wide text-text transition hover:border-primary hover:text-primary"
-                                      >
-                                        Swap
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {customFields.length > 0 && (
-                          <div className="mt-3 border-t border-border pt-3">
-                            <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-2">Custom Fields</div>
-                            <div className="flex flex-wrap gap-2">
-                              {customFields.map((cf, i) => (
-                                <div key={i} className="flex items-center gap-1">
-                                  {editingPlanCrew === plan.id ? (
-                                    <div className="flex items-center gap-1 rounded-md border border-border bg-surface-2 p-1">
-                                      <input
-                                        value={cf.name}
-                                        onChange={e => updatePlanCustomField(plan.id, i, "name", e.target.value)}
-                                        placeholder="Name"
-                                        className="field-input w-24 px-2 py-0.5 text-xs"
-                                      />
-                                      <input
-                                        value={cf.value}
-                                        onChange={e => updatePlanCustomField(plan.id, i, "value", e.target.value)}
-                                        placeholder="Value"
-                                        className="field-input w-24 px-2 py-0.5 text-xs"
-                                      />
-                                      <button onClick={() => removePlanCustomField(plan.id, i)} className="px-1 text-xs text-danger">✕</button>
-                                    </div>
-                                  ) : (
-                                    <span className="rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs text-text">
-                                      {cf.name}: <strong>{cf.value}</strong>
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {editingPlanCrew === plan.id && (
-                          <div className="mt-2">
-                            <Btn variant="ghost" size="xs" onClick={() => addCustomToPlan(plan.id)}><Plus className="w-3 h-3" /> Add Custom Field</Btn>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-                {eventPlans.length === 0 && (
-                  <div className="rounded-md border-2 border-dashed border-border bg-surface p-8 text-center text-sm text-text-2">
-                    No technical plans for this event yet
+                    )}
                   </div>
                 )}
               </div>
             )}
           </div>
-        )}
-      </div>
-      {/* END events tab inner flex */}
-      </div>
+        </div>
       )}
 
       {/* ── PLANS TAB ── */}
       {activeTab === 'plans' && (
         <div className="space-y-5 animate-fade-in">
-          {/* Encoder status grid */}
           {encoders.length > 0 && (
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-text-2 mb-3">Encoders</h4>
@@ -552,7 +329,6 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
             </div>
           )}
 
-          {/* All tech plans */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-text-2 mb-3">
               Tech Plans ({realtimePlans.filter(p => !selectedSport || events.find(e => e.id === p.eventId && sports.find(s => s.id === e.sportId)?.id === selectedSport)).length})
@@ -592,7 +368,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                           </td>
                           <td className="px-4 py-3 text-right">
                             <button
-                              onClick={() => { setSwapModal(plan.id); setSwapError(null); setSwapLockTtl(null) }}
+                              onClick={() => setSwapModal(plan.id)}
                               className="btn btn-g btn-sm"
                             >
                               Swap encoder
@@ -612,165 +388,32 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       {/* ── CREW TAB ── */}
       {activeTab === 'crew' && (
         <div className="animate-fade-in">
-          {realtimePlans.length === 0 ? (
-            <div className="card p-8 text-center text-text-3 text-sm">No crew assignments yet</div>
-          ) : (
-            <div className="card overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-surface-2">
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Event</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Plan</th>
-                    {visibleCrewFields.slice(0, 4).map(f => (
-                      <th key={f.id} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">{f.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {realtimePlans.map(plan => {
-                    const ev = events.find(e => e.id === plan.eventId)
-                    return (
-                      <tr key={plan.id} className="hover:bg-surface-2 transition">
-                        <td className="px-4 py-3 font-medium">{ev?.participants ?? `Event #${plan.eventId}`}</td>
-                        <td className="px-4 py-3 text-muted text-xs font-mono uppercase">{plan.planType}</td>
-                        {visibleCrewFields.slice(0, 4).map(f => (
-                          <td key={f.id} className="px-4 py-3 text-text-2">
-                            {(plan.crew[f.id] as string) || <span className="text-text-3">—</span>}
-                          </td>
-                        ))}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <CrewTab plans={realtimePlans} events={events} crewFields={crewFields} />
         </div>
       )}
 
       {/* ── RESOURCES TAB ── */}
       {activeTab === 'resources' && (
-        <div className="animate-fade-in space-y-4">
-          {resources.length === 0 ? (
-            <div className="card p-8 text-center text-text-3 text-sm">No resources configured yet</div>
-          ) : (
-            <div className="card overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-surface-2">
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Capacity</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Current Assignments</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Notes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {resources.map(r => {
-                    const assignments = resourceAssignments[r.id]
-                    return (
-                      <tr key={r.id} className="hover:bg-surface-2 transition align-top">
-                        <td className="px-4 py-3 font-semibold">{r.name}</td>
-                        <td className="px-4 py-3 text-text-2 text-xs font-mono uppercase">
-                          {RESOURCE_TYPE_LABELS[r.type] ?? r.type}
-                        </td>
-                        <td className="px-4 py-3 text-text-2">{r.capacity}</td>
-                        <td className="px-4 py-3">
-                          {r.isActive
-                            ? <Badge variant="success">Active</Badge>
-                            : <Badge variant="none">Inactive</Badge>
-                          }
-                        </td>
-                        <td className="px-4 py-3">
-                          {assignments === undefined ? (
-                            <span className="text-text-3 text-xs">Loading…</span>
-                          ) : assignments.length === 0 ? (
-                            <span className="text-text-3 text-xs">No assignments</span>
-                          ) : (
-                            <div className="space-y-1">
-                              <span className="text-xs font-medium text-text-2">
-                                {assignments.length} assignment{assignments.length !== 1 ? 's' : ''}
-                              </span>
-                              <ul className="space-y-0.5">
-                                {assignments.map(a => (
-                                  <li key={a.id} className="text-xs text-text-2 flex items-center gap-1">
-                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/50 flex-shrink-0" />
-                                    <span className="font-mono text-text-3 mr-1">{a.techPlan?.planType ?? `Plan #${a.techPlanId}`}</span>
-                                    {a.techPlan?.event
-                                      ? <span className="truncate max-w-[160px]">{a.techPlan.event.participants}</span>
-                                      : <span className="text-text-3">Event #{a.techPlan?.eventId}</span>
-                                    }
-                                    {a.quantity > 1 && (
-                                      <span className="ml-1 text-text-3">(×{a.quantity})</span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-text-3 text-xs">{r.notes ?? '—'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+        <div className="animate-fade-in">
+          <ResourcesTab resources={resources} />
         </div>
       )}
 
       {swapModal !== null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.4)' }}
-          onClick={() => { setSwapModal(null); setSwapError(null); setSwapLockTtl(null) }}
-        >
-          <div className="card w-full max-w-sm animate-scale-in rounded-lg p-5 shadow-md" onClick={e => e.stopPropagation()}>
-            <h4 className="font-bold text-lg mb-1">Quick Encoder Swap</h4>
-            <p className="meta mb-4">Change propagates immediately via WebSocket.</p>
-
-            {swapError && (
-              <div className="mb-4 rounded-md bg-danger/10 border border-danger/25 px-4 py-2 text-sm text-danger">
-                {swapError}
-                {swapLockTtl && (
-                  <LockCountdown
-                    ttlMs={swapLockTtl}
-                    onExpire={() => { setSwapError(null); setSwapLockTtl(null) }}
-                  />
-                )}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-2">
-              {encoders.map(enc => {
-                const inUse = enc.inUse !== null && enc.inUse !== undefined
-                const cur = (realtimePlans.find(p => p.id === swapModal)?.crew.encoder as string) === enc.name
-                return (
-                  <button
-                    key={enc.id}
-                    onClick={() => !inUse && handleSwap(swapModal, enc.name)}
-                    disabled={inUse && !cur}
-                    className={`rounded-md border p-3 text-sm font-mono font-semibold transition ${
-                      cur
-                        ? 'border-primary bg-primary/10 text-text'
-                        : inUse
-                          ? 'cursor-not-allowed border-border bg-surface-2 text-text-3'
-                          : 'border-border bg-surface text-text hover:border-primary hover:text-primary'
-                    }`}
-                  >
-                    {enc.name}
-                    {cur && <span className="mt-0.5 block text-xs font-sans text-primary">Current</span>}
-                    {inUse && !cur && <span className="block text-xs font-sans mt-0.5">In use</span>}
-                    {!enc.isActive && <span className="block text-xs font-sans mt-0.5 text-warning">Offline</span>}
-                  </button>
-                )
-              })}
-            </div>
-            <Btn variant="default" className="w-full mt-4" onClick={() => { setSwapModal(null); setSwapError(null); setSwapLockTtl(null) }}>Cancel</Btn>
-          </div>
-        </div>
+        <EncoderSwapModal
+          planId={swapModal}
+          encoders={encoders}
+          currentEncoderName={realtimePlans.find(p => p.id === swapModal)?.crew.encoder as string | undefined}
+          onSwapComplete={(planId, updated) => {
+            setRealtimePlans(prev => prev.map(p => p.id === planId ? updated : p))
+            setTechPlans(prev => {
+              const arr = Array.isArray(prev) ? prev : []
+              return arr.map(p => p.id === planId ? updated : p)
+            })
+            setSwapModal(null)
+          }}
+          onClose={() => setSwapModal(null)}
+        />
       )}
     </div>
   )
