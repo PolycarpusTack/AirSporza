@@ -27,6 +27,8 @@ import auditRoutes from './routes/audit.js'
 import notificationsRoutes from './routes/notifications.js'
 import savedViewsRoutes from './routes/savedViews.js'
 import resourcesRoutes from './routes/resources.js'
+import crewMembersRoutes from './routes/crewMembers.js'
+import crewTemplatesRoutes from './routes/crewTemplates.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -125,6 +127,8 @@ app.use('/api/audit', auditRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/saved-views', savedViewsRoutes)
 app.use('/api/resources', resourcesRoutes)
+app.use('/api/crew-members', crewMembersRoutes)
+app.use('/api/crew-templates', crewTemplatesRoutes)
 
 app.use(errorHandler)
 

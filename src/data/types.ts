@@ -115,6 +115,28 @@ export interface Encoder {
   updatedAt?: Date
 }
 
+export interface CrewTemplate {
+  id: number
+  name: string
+  planType: string | null
+  crewData: Record<string, unknown>
+  createdById: string | null
+  isShared: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface CrewMember {
+  id: number
+  name: string
+  roles: string[]
+  email: string | null
+  phone: string | null
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
 export type Role = 'planner' | 'sports' | 'contracts' | 'admin'
 
 export interface User {

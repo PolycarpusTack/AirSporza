@@ -22,4 +22,6 @@ export type {
 export type { AppSettingsResponse } from './settings'
 export type { FieldSection } from './fields'
 export { publishApi } from './publish'
+export { crewMembersApi } from './crewMembers'
+export { crewTemplatesApi } from './crewTemplates'
 export type { WebhookEndpoint, WebhookDelivery, PublishedEvent, PublishEventType } from './publish'
