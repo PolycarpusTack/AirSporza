@@ -35,6 +35,10 @@ export const eventsApi = {
   create: (data: Partial<Event>) =>
     api.post<Event>('/events', data),
 
+  batchCreate(events: Partial<Event>[], seriesId?: string): Promise<Event[]> {
+    return api.post('/events/batch', { events, seriesId })
+  },
+
   update: (id: number, data: Partial<Event>) =>
     api.put<Event>(`/events/${id}`, data),
 

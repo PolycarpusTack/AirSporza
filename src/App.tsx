@@ -12,6 +12,8 @@ import { ToastProvider } from './components/Toast'
 import { AppProvider, useApp } from './context/AppProvider'
 import { useAuth } from './hooks'
 import type { Event } from './data/types'
+import { eventsApi } from './services'
+import { useToast } from './components/Toast'
 
 const PlannerView = lazy(() =>
   import('./pages/PlannerView').then((m) => ({ default: m.PlannerView }))
@@ -58,10 +60,14 @@ function AppContent() {
     handleSaveEvent,
     sports,
     competitions,
+    setEvents,
   } = useApp()
 
+  const toast = useToast()
   const [showEventForm, setShowEventForm] = useState(false)
   const [editEvent, setEditEvent] = useState<Event | null>(null)
+  const [eventPrefill, setEventPrefill] = useState<Partial<Record<string, string>> | null>(null)
+  const [multiDayPrefill, setMultiDayPrefill] = useState<{ dates: string[]; startTimeBE: string; duration: string } | null>(null)
   const [scrollToDate, setScrollToDate] = useState<string | null>(null)
   const [showFieldConfig, setShowFieldConfig] = useState<'event' | 'crew' | null>(null)
   const [showDashConfig, setShowDashConfig] = useState(false)
@@ -113,6 +119,17 @@ function AppContent() {
                       loading={loading}
                       onEventClick={(ev) => { setEditEvent(ev); setShowEventForm(true) }}
                       scrollToDate={scrollToDate}
+                      onDrawCreate={(prefill) => {
+                        setEditEvent(null)
+                        setEventPrefill(prefill)
+                        setShowEventForm(true)
+                      }}
+                      onMultiDayCreate={(prefill) => {
+                        setEditEvent(null)
+                        setMultiDayPrefill(prefill)
+                        setEventPrefill({ startTimeBE: prefill.startTimeBE, duration: prefill.duration })
+                        setShowEventForm(true)
+                      }}
                     />
                   </div>
                 }
@@ -181,7 +198,11 @@ function AppContent() {
           onClose={() => {
             setShowEventForm(false)
             setEditEvent(null)
+            setEventPrefill(null)
+            setMultiDayPrefill(null)
           }}
+          prefill={eventPrefill}
+          multiDayDates={multiDayPrefill?.dates}
           onSave={async (ev) => {
             const isCreate = !editEvent
             const saved = await handleSaveEvent(ev)
@@ -191,6 +212,21 @@ function AppContent() {
               setScrollToDate(dateStr)
               // Clear after a tick so re-creates still trigger
               setTimeout(() => setScrollToDate(null), 100)
+            }
+          }}
+          onBatchSave={async (events, seriesId) => {
+            try {
+              const created = await eventsApi.batchCreate(events, seriesId)
+              setEvents(prev => [...prev, ...(created as Event[])])
+              if (created.length > 0) {
+                const firstDate = typeof created[0].startDateBE === 'string'
+                  ? created[0].startDateBE.split('T')[0]
+                  : (created[0].startDateBE as Date).toISOString().split('T')[0]
+                setScrollToDate(firstDate)
+                setTimeout(() => setScrollToDate(null), 100)
+              }
+            } catch {
+              toast.error('Failed to create event series')
             }
           }}
           editEvent={editEvent}

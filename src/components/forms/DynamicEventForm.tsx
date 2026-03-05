@@ -5,6 +5,7 @@ import { SPORTS, COMPETITIONS } from '../../data'
 import { genId } from '../../utils'
 import { api } from '../../utils/api'
 import { DynamicForm } from './DynamicForm'
+import { RepeatSection } from './RepeatSection'
 import { useApp } from '../../context/AppProvider'
 import { conflictsApi, type ConflictResult } from '../../services/conflicts'
 import { fieldsApi } from '../../services'
@@ -23,7 +24,10 @@ interface DynamicEventFormProps {
   eventFields: FieldConfig[]
   onClose: () => void
   onSave: (event: Event) => void
+  onBatchSave?: (events: Partial<Event>[], seriesId: string) => void
   editEvent?: Event | null
+  prefill?: Partial<Record<string, string>> | null
+  multiDayDates?: string[] | null
 }
 
 const CORE_FIELD_IDS = new Set([
@@ -42,7 +46,7 @@ function isCustomField(fieldId: string, fieldConfig: FieldConfig[]): boolean {
   return field?.isCustom === true || !CORE_FIELD_IDS.has(fieldId)
 }
 
-export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: DynamicEventFormProps) {
+export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, editEvent, prefill, multiDayDates }: DynamicEventFormProps) {
   const { orgConfig, sports: ctxSports, competitions: ctxComps } = useApp()
 
   const initForm = (): Record<string, string | boolean> => {
@@ -73,6 +77,11 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
         f[field.id] = ''
       }
     })
+    if (prefill) {
+      Object.entries(prefill).forEach(([key, value]) => {
+        if (value !== undefined) f[key] = value
+      })
+    }
     return f
   }
 
@@ -83,13 +92,14 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
   const [conflicts, setConflicts] = useState<ConflictResult | null>(null)
   const [mandatoryFieldIds, setMandatoryFieldIds] = useState<string[]>([])
   const [mandatoryErrors, setMandatoryErrors] = useState<string[]>([])
+  const [repeatDates, setRepeatDates] = useState<string[]>([])
 
   useEffect(() => {
     setForm(initForm())
     setCustomValues({})
     setConflicts(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editEvent?.id])
+  }, [editEvent?.id, prefill])
 
   useEffect(() => {
     api.get<ApiFieldDef[]>('/fields?section=event')
@@ -233,6 +243,34 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
     }
     setMandatoryErrors([])
 
+    // Batch mode: create series of events
+    if (multiDayDates && multiDayDates.length > 1 && onBatchSave) {
+      const seriesId = crypto.randomUUID()
+      const events = multiDayDates.map(date => ({
+        ...event,
+        id: undefined,
+        startDateBE: date,
+        seriesId,
+      }))
+      onBatchSave(events as Partial<Event>[], seriesId)
+      onClose()
+      return
+    }
+
+    // Repeat pattern mode
+    if (repeatDates.length > 1 && onBatchSave) {
+      const seriesId = crypto.randomUUID()
+      const events = repeatDates.map(date => ({
+        ...event,
+        id: undefined,
+        startDateBE: date,
+        seriesId,
+      }))
+      onBatchSave(events as Partial<Event>[], seriesId)
+      onClose()
+      return
+    }
+
     onSave(event)
     onClose()
   }
@@ -322,6 +360,17 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
 
   return (
     <Modal onClose={onClose} title={editEvent ? 'Edit Event' : 'New Sports Event'}>
+      {multiDayDates && multiDayDates.length > 1 && (
+        <div className="bg-primary/10 border border-primary/30 rounded px-3 py-2 mx-6 mt-4 mb-0 text-sm">
+          <span className="font-bold text-primary">Series</span>
+          <span className="text-text-2 ml-2">
+            Creating events on{' '}
+            {multiDayDates.map(d =>
+              new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+            ).join(', ')}
+          </span>
+        </div>
+      )}
       <div className='p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto'>
         {visibleFields.map(field => (
           <div key={field.id} className={field.type === 'textarea' ? 'sm:col-span-2' : ''}>
@@ -346,6 +395,14 @@ export function DynamicEventForm({ eventFields, onClose, onSave, editEvent }: Dy
           </div>
         )}
       </div>
+      {!editEvent && !multiDayDates?.length && (
+        <div className="px-6 pb-2">
+          <RepeatSection
+            startDate={form.startDateBE as string}
+            onDatesChange={setRepeatDates}
+          />
+        </div>
+      )}
       <div className='border-t border-border px-6 pt-4 pb-4 space-y-3'>
         {conflicts && (conflicts.errors.length > 0 || conflicts.warnings.length > 0) && (
           <div className="space-y-1">

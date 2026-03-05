@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from 'react'
-import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '../components/ui'
 import type { Event, DashboardWidget, Contract, EventStatus, BadgeVariant } from '../data/types'
@@ -13,12 +13,16 @@ import { useToast } from '../components/Toast'
 import { BulkActionBar } from '../components/planner/BulkActionBar'
 import { UndoBar } from '../components/planner/UndoBar'
 import { EventDetailPanel } from '../components/planner/EventDetailPanel'
+import { useDrawToCreate, minutesToTime } from '../hooks/useDrawToCreate'
+import { useHeaderDrag } from '../hooks/useHeaderDrag'
 
 interface PlannerViewProps {
   widgets: DashboardWidget[]
   loading?: boolean
   onEventClick?: (event: Event) => void
   scrollToDate?: string | null
+  onDrawCreate?: (prefill: { startDateBE: string; startTimeBE: string; duration: string }) => void
+  onMultiDayCreate?: (prefill: { dates: string[]; startTimeBE: string; duration: string }) => void
 }
 
 // ── Week helpers ─────────────────────────────────────────────────────────────
@@ -161,7 +165,7 @@ function DroppableDayColumn({ date, children }: { date: string; children: ReactN
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function PlannerView({ widgets, loading, onEventClick, scrollToDate }: PlannerViewProps) {
+export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDrawCreate, onMultiDayCreate }: PlannerViewProps) {
   const [channelFilter, setChannelFilter] = useState('all')
   const [weekOffset, setWeekOffset] = useState(0)
   const [calendarMode, setCalendarMode] = useState(true)
@@ -182,6 +186,10 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate }: Pl
 
   const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent } = useApp()
   const toast = useToast()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
 
   useEffect(() => {
     savedViewsApi.list('planner').then(setSavedViews).catch(() => {})
@@ -776,7 +784,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate }: Pl
               <SkeletonCard />
             </>
           ) : calendarMode ? (
-            <DndContext onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <CalendarGrid
                 weekDays={weekDays}
                 todayStr={todayStr}
@@ -787,6 +795,20 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate }: Pl
                 selectionMode={selectionMode}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelectId}
+                onDrawCreate={(result) => {
+                  const durMin = result.durationMinutes
+                  const h = Math.floor(durMin / 60)
+                  const m = durMin % 60
+                  const smpte = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00;00`
+                  onDrawCreate?.({ startDateBE: result.date, startTimeBE: result.startTime, duration: smpte })
+                }}
+                onMultiDayCreate={(result) => {
+                  const durMin = result.durationMinutes
+                  const h = Math.floor(durMin / 60)
+                  const m = durMin % 60
+                  const smpte = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00;00`
+                  onMultiDayCreate?.({ dates: result.dates, startTimeBE: result.startTime, duration: smpte })
+                }}
               />
             </DndContext>
           ) : (
@@ -939,6 +961,8 @@ interface CalendarGridProps {
   selectionMode: boolean
   selectedIds: Set<number>
   onToggleSelect: (id: number) => void
+  onDrawCreate?: (result: { date: string; startTime: string; durationMinutes: number }) => void
+  onMultiDayCreate?: (result: { dates: string[]; startTime: string; durationMinutes: number }) => void
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -947,8 +971,26 @@ const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
   return `${String(h).padStart(2, '0')}:00`
 })
 
-function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect }: CalendarGridProps) {
+function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate }: CalendarGridProps) {
   const { sports } = useApp()
+
+  const headerDrag = useHeaderDrag(weekDays, dateStr)
+
+  const drawToCreate = useDrawToCreate({
+    calStartHour: CAL_START_HOUR,
+    pxPerHour: PX_PER_HOUR,
+    enabled: !selectionMode && !!onDrawCreate,
+  })
+  // Escape cancels header drag selection
+  useEffect(() => {
+    if (!headerDrag.headerState) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') headerDrag.cancel()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [headerDrag.headerState, headerDrag.cancel])
+
   const sportsMap = useMemo(() => new Map(sports.map(s => [s.id, s])), [sports])
 
   // Current time indicator
@@ -976,9 +1018,16 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
 
   return (
     <div
-      className="card overflow-hidden"
+      className="card overflow-hidden relative"
       style={{ display: 'grid', gridTemplateColumns: `42px repeat(7, 1fr)` }}
     >
+      {/* Multi-day selection badge */}
+      {headerDrag.headerState && !headerDrag.headerState.active && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 bg-primary text-black text-xs font-bold px-3 py-1.5 rounded-full shadow-lg animate-fade-in">
+          {headerDrag.headerState.selectedDates.length} days selected — draw a time block
+        </div>
+      )}
+
       {/* Header row */}
       <div className="bg-surface-2 border-b border-border" />
       {weekDays.map((day, i) => {
@@ -988,7 +1037,13 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
         return (
           <div
             key={ds}
-            className="bg-surface-2 border-b border-border border-l border-l-border px-2 py-2 text-center"
+            className={`bg-surface-2 border-b border-border border-l border-l-border px-2 py-2 text-center select-none ${
+              headerDrag.headerState?.selectedIndices.includes(i) ? 'ring-2 ring-primary ring-inset' : ''
+            }`}
+            style={headerDrag.headerState?.selectedIndices.includes(i) ? { background: 'rgba(225,6,0,0.08)' } : undefined}
+            onPointerDown={(e) => headerDrag.onHeaderPointerDown(i, e)}
+            onPointerMove={() => headerDrag.onHeaderPointerMove(i)}
+            onPointerUp={() => headerDrag.onHeaderPointerUp()}
           >
             <span className={`block text-xs font-mono font-semibold uppercase tracking-wider ${isToday ? 'text-primary' : 'text-text-3'}`}>
               {DAY_NAMES[i]}
@@ -1040,6 +1095,21 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 background: isToday ? 'rgba(245,158,11,0.02)' : undefined,
                 backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR}px)`,
               }}
+              onPointerDown={(e) => drawToCreate.onPointerDown(ds, e)}
+              onPointerMove={drawToCreate.onPointerMove}
+              onPointerUp={() => {
+                const result = drawToCreate.onPointerUp()
+                if (!result) return
+                if (headerDrag.headerState && !headerDrag.headerState.active) {
+                  // Multi-day mode: apply drawn time to all selected days
+                  const dates = headerDrag.confirm()
+                  if (dates.length > 0) {
+                    onMultiDayCreate?.({ dates, startTime: result.startTime, durationMinutes: result.durationMinutes })
+                  }
+                } else {
+                  onDrawCreate?.(result)
+                }
+              }}
             >
               {/* Current time indicator */}
               {isToday && nowTopPx >= 0 && nowTopPx <= CAL_HEIGHT && (
@@ -1051,6 +1121,24 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                   <div className="flex-1 border-t border-danger" />
                 </div>
               )}
+
+              {drawToCreate.draw && drawToCreate.draw.date === ds && drawToCreate.draw.active && (() => {
+                const topPx = (drawToCreate.draw.startMin - CAL_START_HOUR * 60) * (PX_PER_HOUR / 60)
+                const heightPx = (drawToCreate.draw.endMin - drawToCreate.draw.startMin) * (PX_PER_HOUR / 60)
+                const label = `${minutesToTime(drawToCreate.draw.startMin)} – ${minutesToTime(drawToCreate.draw.endMin)}`
+                return (
+                  <div
+                    className="absolute left-1 right-1 rounded bg-primary/20 border-2 border-primary/50 pointer-events-none z-20 flex items-start justify-center"
+                    style={{ top: topPx, height: Math.max(heightPx, 2) }}
+                  >
+                    {heightPx > 15 && (
+                      <span className="text-xs font-mono text-primary bg-surface/80 rounded px-1 mt-1">
+                        {label}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
 
               {dayEvs.map(ev => {
                 const time = ev.linearStartTime || ev.startTimeBE
@@ -1064,6 +1152,7 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
 
                 const cardContent = (
                   <div
+                    data-event-card="true"
                     className={`absolute left-1 right-1 rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity ${selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400' : ''}`}
                     style={{
                       top,

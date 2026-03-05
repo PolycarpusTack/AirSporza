@@ -61,6 +61,7 @@ export interface Event {
   score?: string
   duration?: string
   status?: EventStatus
+  seriesId?: string
   customFields: Record<string, unknown>
   customValues?: { fieldId: string; fieldValue: string }[]
   createdAt?: Date

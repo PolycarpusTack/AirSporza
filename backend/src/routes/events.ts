@@ -92,6 +92,7 @@ const eventSchema = Joi.object({
     Joi.object({ fieldId: Joi.string().required(), fieldValue: Joi.string().required() })
   ).default([]),
   status: Joi.string().valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled'),
+  seriesId: Joi.string().allow(null, ''),
 })
 
 router.get('/', async (req, res, next) => {
@@ -410,6 +411,73 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
     })
 
     res.status(201).json(event)
+  } catch (error) {
+    next(error)
+  }
+})
+
+const batchCreateSchema = Joi.object({
+  events: Joi.array().items(eventSchema).min(1).max(100).required(),
+  seriesId: Joi.string().allow(null, ''),
+})
+
+router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+  try {
+    const { error, value } = batchCreateSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+
+    const user = req.user as { id: string }
+    const { events: eventPayloads, seriesId } = value
+
+    const created = await prisma.$transaction(async (tx) => {
+      const results = []
+      for (const payload of eventPayloads) {
+        const { customValues, ...eventData } = payload
+        const event = await tx.event.create({
+          data: {
+            ...eventData,
+            seriesId: seriesId || null,
+            startDateBE: new Date(eventData.startDateBE),
+            startDateOrigin: eventData.startDateOrigin ? new Date(eventData.startDateOrigin) : null,
+            livestreamDate: eventData.livestreamDate ? new Date(eventData.livestreamDate) : null,
+            createdById: user.id,
+          },
+          include: { sport: true, competition: true },
+        })
+
+        const cvList = customValues as { fieldId: string; fieldValue: string }[]
+        if (cvList.length > 0) {
+          await Promise.all(
+            cvList.map(({ fieldId, fieldValue }) =>
+              tx.customFieldValue.upsert({
+                where: { entityType_entityId_fieldId: { entityType: 'event', entityId: String(event.id), fieldId } },
+                create: { entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
+                update: { fieldValue },
+              })
+            )
+          )
+        }
+        results.push(event)
+      }
+      return results
+    })
+
+    for (const event of created) {
+      emit('event:created', event, 'events')
+      void publishService.dispatch('event.created', event)
+    }
+
+    await writeAuditLog({
+      userId: user.id,
+      action: 'event.batch_create',
+      entityType: 'event',
+      entityId: created.map(e => String(e.id)).join(','),
+      newValue: { count: created.length, seriesId },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    })
+
+    res.status(201).json(created)
   } catch (error) {
     next(error)
   }
