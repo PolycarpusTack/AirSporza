@@ -5,7 +5,6 @@ import { Badge } from '../components/ui'
 import type { Event, DashboardWidget, Contract, EventStatus, BadgeVariant } from '../data/types'
 import { CONTRACTS } from '../data'
 import { dayLabel } from '../utils'
-import { useSocket } from '../hooks'
 import { useApp } from '../context/AppProvider'
 import { contractsApi } from '../services/contracts'
 import { eventsApi, type ConflictWarning } from '../services'
@@ -178,7 +177,6 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
 
   const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent } = useApp()
   const toast = useToast()
-  const { on } = useSocket()
 
   useEffect(() => {
     savedViewsApi.list('planner').then(setSavedViews).catch(() => {})
@@ -220,19 +218,6 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
   useEffect(() => {
     contractsApi.list().then(data => setContracts(data as Contract[])).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    const unsubCreated = on('event:created', (event: Event) => {
-      setEvents(prev => [...prev, event])
-    })
-    const unsubUpdated = on('event:updated', (event: Event) => {
-      setEvents(prev => prev.map(e => e.id === event.id ? event : e))
-    })
-    const unsubDeleted = on('event:deleted', ({ id }: { id: number }) => {
-      setEvents(prev => prev.filter(e => e.id !== id))
-    })
-    return () => { unsubCreated(); unsubUpdated(); unsubDeleted() }
-  }, [on, setEvents])
 
   // Keyboard navigation for week
   useEffect(() => {

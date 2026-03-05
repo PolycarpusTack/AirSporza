@@ -22,7 +22,7 @@ import {
 } from '../data'
 import { eventsApi, settingsApi, techPlansApi, sportsApi, competitionsApi } from '../services'
 import { useToast } from '../components/Toast'
-import { useAuth } from '../hooks'
+import { useAuth, useSocket } from '../hooks'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, OrgConfig, Role, RoleConfig, Sport, Competition } from '../data/types'
 
 interface AppContextType {
@@ -191,6 +191,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     void fetchSettings()
   }, [activeRole, user])
+
+  const { on } = useSocket()
+
+  useEffect(() => {
+    if (!user) return
+    const unsubCreated = on('event:created', (event: Event) => {
+      setEvents(prev => [...prev, event as Event])
+    })
+    const unsubUpdated = on('event:updated', (event: Event) => {
+      setEvents(prev => prev.map(e => e.id === (event as Event).id ? event as Event : e))
+    })
+    const unsubDeleted = on('event:deleted', ({ id }: { id: number }) => {
+      setEvents(prev => prev.filter(e => e.id !== id))
+    })
+    return () => {
+      unsubCreated()
+      unsubUpdated()
+      unsubDeleted()
+    }
+  }, [user, on])
 
   const handleSaveEvent = useCallback(
     async (ev: Event) => {
