@@ -18,6 +18,7 @@ interface PlannerViewProps {
   widgets: DashboardWidget[]
   loading?: boolean
   onEventClick?: (event: Event) => void
+  scrollToDate?: string | null
 }
 
 // ── Week helpers ─────────────────────────────────────────────────────────────
@@ -160,7 +161,7 @@ function DroppableDayColumn({ date, children }: { date: string; children: ReactN
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps) {
+export function PlannerView({ widgets, loading, onEventClick, scrollToDate }: PlannerViewProps) {
   const [channelFilter, setChannelFilter] = useState('all')
   const [weekOffset, setWeekOffset] = useState(0)
   const [calendarMode, setCalendarMode] = useState(true)
@@ -239,6 +240,25 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  // Auto-scroll to a specific date (e.g. after creating an event)
+  useEffect(() => {
+    if (!scrollToDate) return
+    const eventDate = new Date(scrollToDate + 'T00:00:00')
+    const today = new Date()
+    const todayDay = today.getDay() || 7
+    const todayMonday = new Date(today)
+    todayMonday.setDate(today.getDate() - todayDay + 1)
+    todayMonday.setHours(0, 0, 0, 0)
+    const eventDay = eventDate.getDay() || 7
+    const eventMonday = new Date(eventDate)
+    eventMonday.setDate(eventDate.getDate() - eventDay + 1)
+    eventMonday.setHours(0, 0, 0, 0)
+    const diffWeeks = Math.round(
+      (eventMonday.getTime() - todayMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)
+    )
+    setWeekOffset(diffWeeks)
+  }, [scrollToDate])
 
   const monday = weekMonday(weekOffset)
   const sunday = addDays(monday, 6)

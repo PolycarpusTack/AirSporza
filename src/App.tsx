@@ -62,6 +62,7 @@ function AppContent() {
 
   const [showEventForm, setShowEventForm] = useState(false)
   const [editEvent, setEditEvent] = useState<Event | null>(null)
+  const [scrollToDate, setScrollToDate] = useState<string | null>(null)
   const [showFieldConfig, setShowFieldConfig] = useState<'event' | 'crew' | null>(null)
   const [showDashConfig, setShowDashConfig] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -111,6 +112,7 @@ function AppContent() {
                       widgets={currentWidgets}
                       loading={loading}
                       onEventClick={(ev) => { setEditEvent(ev); setShowEventForm(true) }}
+                      scrollToDate={scrollToDate}
                     />
                   </div>
                 }
@@ -180,7 +182,17 @@ function AppContent() {
             setShowEventForm(false)
             setEditEvent(null)
           }}
-          onSave={handleSaveEvent}
+          onSave={async (ev) => {
+            const isCreate = !editEvent
+            const saved = await handleSaveEvent(ev)
+            if (isCreate && saved) {
+              const rawDate = saved.startDateBE
+              const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0] : (rawDate as Date).toISOString().split('T')[0]
+              setScrollToDate(dateStr)
+              // Clear after a tick so re-creates still trigger
+              setTimeout(() => setScrollToDate(null), 100)
+            }
+          }}
           editEvent={editEvent}
         />
       )}

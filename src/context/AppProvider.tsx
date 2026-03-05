@@ -44,7 +44,7 @@ interface AppContextType {
   currentWidgets: DashboardWidget[]
   setCurrentWidgets: (w: DashboardWidget[] | ((prev: DashboardWidget[]) => DashboardWidget[])) => void
   roleConfig: Record<Role, RoleConfig>
-  handleSaveEvent: (ev: Event) => Promise<void>
+  handleSaveEvent: (ev: Event) => Promise<Event | null>
   applyOptimisticEvent: (patch: Partial<Event> & { id: number }) => void
   revertOptimisticEvent: (id: number) => void
   filteredEvents: Event[]
@@ -213,7 +213,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [user, on])
 
   const handleSaveEvent = useCallback(
-    async (ev: Event) => {
+    async (ev: Event): Promise<Event | null> => {
       const existingIndex = events.findIndex((e) => e.id === ev.id)
       const isUpdate = existingIndex >= 0
       const snapshot = isUpdate ? events[existingIndex] : null
@@ -223,18 +223,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const updated = await eventsApi.update(ev.id, ev)
           setEvents((prev) => prev.map((e) => (e.id === ev.id ? (updated as Event) : e)))
           toast.success('Event updated')
+          return updated as Event
         } else {
           const created = await eventsApi.create(ev)
           setEvents((prev) => [...prev, created as Event])
           toast.success('Event created')
+          return created as Event
         }
       } catch (error) {
         console.error('Failed to save event:', error)
         if (isUpdate && snapshot) {
           setEvents((prev) => prev.map((e) => (e.id === ev.id ? snapshot : e)))
         }
-        // On create failure: do nothing — don't add a ghost event
         toast.error('Save failed — could not reach server')
+        return null
       }
     },
     [events, toast]
