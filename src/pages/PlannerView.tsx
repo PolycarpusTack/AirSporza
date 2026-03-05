@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, type ReactNode } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '../components/ui'
@@ -12,6 +12,7 @@ import { eventsApi, type ConflictWarning } from '../services'
 import { savedViewsApi, type SavedView } from '../services/savedViews'
 import { useToast } from '../components/Toast'
 import { BulkActionBar } from '../components/planner/BulkActionBar'
+import { UndoBar } from '../components/planner/UndoBar'
 
 interface PlannerViewProps {
   events: Event[]
@@ -170,6 +171,8 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
+  const lastDragRef = useRef<{ eventId: number; previousDate: string } | null>(null)
+  const [undoBar, setUndoBar] = useState<{ message: string } | null>(null)
 
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
   const [saveViewName, setSaveViewName] = useState('')
@@ -329,12 +332,41 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
       await eventsApi.update(eventId, { ...event, startDateBE: newDate })
       // Confirm: update global context after API success
       setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
+      // Store undo info and show undo bar
+      lastDragRef.current = { eventId, previousDate: currentDateStr }
+      const label = new Date(newDate + 'T00:00:00').toLocaleDateString('en-GB', {
+        weekday: 'short', day: 'numeric', month: 'short',
+      })
+      setUndoBar({ message: `Moved to ${label}` })
     } catch {
       // Revert local only
       setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: snapshot } : e))
       toast.error('Failed to reschedule event')
     }
   }, [realtimeEvents, setEvents, toast])
+
+  // ── Undo drag ──────────────────────────────────────────────────────────────
+
+  const handleUndoDrag = useCallback(async () => {
+    if (!lastDragRef.current) return
+    const { eventId, previousDate } = lastDragRef.current
+    lastDragRef.current = null
+    const ev = realtimeEvents.find(e => e.id === eventId)
+    if (!ev) return
+    setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: previousDate } : e))
+    try {
+      await eventsApi.update(eventId, { ...ev, startDateBE: previousDate })
+      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: previousDate } : e))
+    } catch {
+      setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: ev.startDateBE } : e))
+      toast.error('Undo failed')
+    }
+  }, [realtimeEvents, setEvents, toast])
+
+  const dismissUndoBar = useCallback(() => {
+    setUndoBar(null)
+    lastDragRef.current = null
+  }, [])
 
   // ── Selection mode ──────────────────────────────────────────────────────────
 
@@ -790,6 +822,14 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
             )
           )}
         </div>
+      )}
+
+      {undoBar && (
+        <UndoBar
+          message={undoBar.message}
+          onUndo={handleUndoDrag}
+          onDismiss={dismissUndoBar}
+        />
       )}
 
       {selectionMode && (

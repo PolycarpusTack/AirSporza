@@ -295,3 +295,91 @@ describe('handleDragEnd — drag-to-reschedule', () => {
     expect(updateFn).not.toHaveBeenCalled()
   })
 })
+
+// ── Undo tests ─────────────────────────────────────────────────────────────
+
+function buildHandleDragEndWithUndo(
+  events: Event[],
+  setRealtimeEvents: (fn: (prev: Event[]) => Event[]) => void,
+  setGlobalEvents: (fn: (prev: Event[]) => Event[]) => void,
+  toastError: (msg: string) => void,
+  updateFn: (id: number, data: Partial<Event>) => Promise<Event>,
+  onUndoReady: (eventId: number, previousDate: string, newDate: string) => void
+) {
+  return async ({ active, over }: DragEndEvent) => {
+    if (!over) return
+    const eventId = Number(active.id)
+    const newDate = over.id as string
+    const event = events.find(e => e.id === eventId)
+    if (!event) return
+    const currentDateStr = typeof event.startDateBE === 'string'
+      ? event.startDateBE.slice(0, 10)
+      : (event.startDateBE as Date).toISOString().slice(0, 10)
+    if (newDate === currentDateStr) return
+    const snapshot = event.startDateBE as string
+    setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
+    try {
+      await updateFn(eventId, { ...event, startDateBE: newDate })
+      setGlobalEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
+      onUndoReady(eventId, snapshot, newDate)
+    } catch {
+      setRealtimeEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: snapshot } : e))
+      toastError('Failed to reschedule event')
+    }
+  }
+}
+
+describe('handleDragEnd — undo callback', () => {
+  const toastError = vi.fn()
+  let localEvents: Event[]
+  let globalEvents: Event[]
+  let updateFn: ReturnType<typeof vi.fn>
+
+  function setRealtimeEvents(fn: (prev: Event[]) => Event[]) {
+    localEvents = fn(localEvents)
+  }
+  function setGlobalEvents(fn: (prev: Event[]) => Event[]) {
+    globalEvents = fn(globalEvents)
+  }
+
+  const setRealtimeEventsSpy = vi.fn(setRealtimeEvents)
+  const setGlobalEventsSpy = vi.fn(setGlobalEvents)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    updateFn = vi.fn()
+    setRealtimeEventsSpy.mockImplementation(setRealtimeEvents)
+    setGlobalEventsSpy.mockImplementation(setGlobalEvents)
+  })
+
+  it('calls onUndoReady with eventId and previousDate after successful drag', async () => {
+    const event = makeEvent({ id: 42, startDateBE: '2026-03-04' })
+    localEvents = [event]
+    globalEvents = [event]
+    updateFn.mockResolvedValue({ ...event, startDateBE: '2026-03-05' })
+
+    const onUndoReady = vi.fn()
+    const handleDragEnd = buildHandleDragEndWithUndo(
+      [event], setRealtimeEventsSpy, setGlobalEventsSpy, toastError, updateFn, onUndoReady
+    )
+    await handleDragEnd(makeDragEvent('42', '2026-03-05', event))
+
+    expect(onUndoReady).toHaveBeenCalledWith(42, '2026-03-04', '2026-03-05')
+  })
+
+  it('does not call onUndoReady on API failure', async () => {
+    const event = makeEvent({ id: 42, startDateBE: '2026-03-04' })
+    localEvents = [event]
+    globalEvents = [event]
+    updateFn.mockRejectedValue(new Error('Network error'))
+
+    const onUndoReady = vi.fn()
+    const handleDragEnd = buildHandleDragEndWithUndo(
+      [event], setRealtimeEventsSpy, setGlobalEventsSpy, toastError, updateFn, onUndoReady
+    )
+    await handleDragEnd(makeDragEvent('42', '2026-03-05', event))
+
+    expect(onUndoReady).not.toHaveBeenCalled()
+    expect(toastError).toHaveBeenCalledWith('Failed to reschedule event')
+  })
+})
