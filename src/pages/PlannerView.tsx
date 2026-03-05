@@ -8,7 +8,7 @@ import { dayLabel } from '../utils'
 import { useSocket } from '../hooks'
 import { useApp } from '../context/AppProvider'
 import { contractsApi } from '../services/contracts'
-import { eventsApi } from '../services'
+import { eventsApi, type ConflictWarning } from '../services'
 import { savedViewsApi, type SavedView } from '../services/savedViews'
 import { useToast } from '../components/Toast'
 
@@ -165,6 +165,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
   const [realtimeEvents, setRealtimeEvents] = useState<Event[]>(events)
   const [calendarMode, setCalendarMode] = useState(true)
   const [contracts, setContracts] = useState<Contract[]>(CONTRACTS)
+  const [conflictMap, setConflictMap] = useState<Record<number, ConflictWarning[]>>({})
 
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
   const [saveViewName, setSaveViewName] = useState('')
@@ -269,6 +270,18 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
     }),
     [realtimeEvents, weekFromStr, weekToStr]
   )
+
+  // Fetch conflicts for visible week events
+  useEffect(() => {
+    if (weekEvents.length === 0) {
+      setConflictMap({})
+      return
+    }
+    const ids = weekEvents.map(e => e.id)
+    eventsApi.checkBulkConflicts(ids)
+      .then(map => setConflictMap(map))
+      .catch(() => {})
+  }, [weekFromStr, weekToStr, weekEvents.length])
 
   const filteredWeekEvents = useMemo(
     () => channelFilter === 'all' ? weekEvents : weekEvents.filter(e => e.linearChannel === channelFilter),
@@ -552,6 +565,7 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
                 events={filteredWeekEvents}
                 onEventClick={onEventClick}
                 getChannelColor={getChannelColor}
+                conflictMap={conflictMap}
               />
             </DndContext>
           ) : (
@@ -603,6 +617,15 @@ export function PlannerView({ events, widgets, loading, onEventClick }: PlannerV
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="font-semibold">{ev.participants}</span>
+                                      {(conflictMap[ev.id]?.length ?? 0) > 0 && (
+                                        <span
+                                          className="inline-flex items-center"
+                                          title={conflictMap[ev.id].map(w => w.message).join('\n')}
+                                          aria-label={`${conflictMap[ev.id].length} conflict warning(s)`}
+                                        >
+                                          ⚠️
+                                        </span>
+                                      )}
                                       {ev.isLive && <Badge variant="live">LIVE</Badge>}
                                       {ev.isDelayedLive && <Badge variant="warning">DELAYED</Badge>}
                                       {ev.status && ev.status !== 'draft' && (
@@ -650,6 +673,7 @@ interface CalendarGridProps {
   events: Event[]
   onEventClick?: (event: Event) => void
   getChannelColor: (channel?: string | null) => { border: string; bg: string; text: string }
+  conflictMap: Record<number, ConflictWarning[]>
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -658,7 +682,7 @@ const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
   return `${String(h).padStart(2, '0')}:00`
 })
 
-function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor }: CalendarGridProps) {
+function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap }: CalendarGridProps) {
   const { sports } = useApp()
   const sportsMap = useMemo(() => new Map(sports.map(s => [s.id, s])), [sports])
 
@@ -803,6 +827,15 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                           }}
                         >
                           {sp?.icon} {ev.participants}
+                          {(conflictMap[ev.id]?.length ?? 0) > 0 && (
+                            <span
+                              className="inline-flex items-center ml-1"
+                              title={conflictMap[ev.id].map(w => w.message).join('\n')}
+                              aria-label={`${conflictMap[ev.id].length} conflict warning(s)`}
+                            >
+                              ⚠️
+                            </span>
+                          )}
                         </span>
                         {height > 50 && ev.linearChannel && (
                           <span

@@ -1,4 +1,5 @@
 export { eventsApi } from './events'
+export type { ConflictWarning } from './events'
 export { sportsApi, competitionsApi } from './sports'
 export { techPlansApi } from './techPlans'
 export { contractsApi } from './contracts'

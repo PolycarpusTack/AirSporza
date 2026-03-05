@@ -1,6 +1,11 @@
 import { api } from '../utils/api'
 import type { Event } from '../data/types'
 
+export interface ConflictWarning {
+  type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan' | 'resource_conflict'
+  message: string
+}
+
 export interface EventFilters {
   sportId?: number
   competitionId?: number
@@ -34,5 +39,8 @@ export const eventsApi = {
     api.put<Event>(`/events/${id}`, data),
 
   delete: (id: number) =>
-    api.delete(`/events/${id}`)
+    api.delete(`/events/${id}`),
+
+  checkBulkConflicts: (ids: number[]): Promise<Record<number, ConflictWarning[]>> =>
+    api.post<Record<number, ConflictWarning[]>>('/events/conflicts/bulk', { eventIds: ids }),
 }
