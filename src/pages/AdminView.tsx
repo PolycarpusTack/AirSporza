@@ -4,6 +4,8 @@ import type { DashboardWidget, Sport, Competition, Encoder } from '../data/types
 import { FieldConfigurator } from '../components/admin/FieldConfigurator'
 import { PublishPanel } from '../components/admin/PublishPanel'
 import { OrgConfigPanel } from '../components/admin/OrgConfigPanel'
+import { CrewRosterPanel } from '../components/admin/CrewRosterPanel'
+import { CrewTemplatesPanel } from '../components/admin/CrewTemplatesPanel'
 import { sportsApi, competitionsApi, encodersApi, importsApi } from '../services'
 import { Badge } from '../components/ui'
 import { Toggle } from '../components/ui/Toggle'
@@ -14,7 +16,7 @@ interface AdminViewProps {
   onTabChange?: (tab: AdminTab) => void
 }
 
-export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org'
+export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates'
 
 // ── Sports Tab ───────────────────────────────────────────────────────────────
 
@@ -548,6 +550,8 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
     { id: 'csv', label: 'CSV Import' },
     { id: 'publish', label: 'Publish' },
     { id: 'org', label: 'Organisation' },
+    { id: 'crew-roster', label: 'Crew Roster' },
+    { id: 'crew-templates', label: 'Crew Templates' },
   ]
 
   return (
@@ -662,6 +666,8 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
           {activeTab === 'csv' && <CsvImportTab sports={sports} />}
           {activeTab === 'publish' && <PublishPanel />}
           {activeTab === 'org'     && <OrgConfigPanel />}
+          {activeTab === 'crew-roster' && <CrewRosterPanel />}
+          {activeTab === 'crew-templates' && <CrewTemplatesPanel />}
         </div>
       </div>
     </div>
