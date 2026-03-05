@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, ChevronDown } from 'lucide-react'
+import { Plus, ChevronDown, AlertTriangle } from 'lucide-react'
 import { Autocomplete, Badge, Btn } from '../ui'
 import { crewMembersApi } from '../../services/crewMembers'
 import { crewTemplatesApi } from '../../services/crewTemplates'
@@ -23,6 +23,7 @@ interface TechPlanCardProps {
   onRemoveCustomField: (idx: number) => void
   onApplyTemplate: (crewData: Record<string, unknown>) => void
   onSaveAsTemplate: (crewData: Record<string, unknown>) => void
+  conflicts?: Map<string, { personName: string; eventName: string; role: string; startTime: string; severity: 'full' | 'partial' }[]>
 }
 
 function getCustomFields(plan: TechPlan): CustomField[] {
@@ -33,7 +34,7 @@ export function TechPlanCard({
   plan, crewFields, isEditing, showCrew,
   onToggleEdit, onCrewEdit, onOpenSwap,
   onAddCustomField, onUpdateCustomField, onRemoveCustomField,
-  onApplyTemplate, onSaveAsTemplate,
+  onApplyTemplate, onSaveAsTemplate, conflicts,
 }: TechPlanCardProps) {
   const customFields = getCustomFields(plan)
   const [templates, setTemplates] = useState<CrewTemplate[]>([])
@@ -111,24 +112,66 @@ export function TechPlanCard({
                   {field.isCustom && <span className="rounded-sm border border-border bg-surface px-1 text-[9px] text-text-2">custom</span>}
                 </div>
                 {isEditing ? (
-                  <Autocomplete
-                    value={(plan.crew[field.id] as string) || ""}
-                    onChange={val => onCrewEdit(field.id, val)}
-                    onSearch={async (q) => {
-                      const results = await crewMembersApi.autocomplete(q, field.id)
-                      return results.map(r => ({
-                        id: r.id,
-                        label: r.name,
-                        subtitle: (r.roles as string[]).filter(role => role !== field.id).join(', ') || undefined,
-                      }))
-                    }}
-                    placeholder={field.label}
-                  />
+                  <div className="flex items-center gap-1">
+                    <div className="flex-1">
+                      <Autocomplete
+                        value={(plan.crew[field.id] as string) || ""}
+                        onChange={val => onCrewEdit(field.id, val)}
+                        onSearch={async (q) => {
+                          const results = await crewMembersApi.autocomplete(q, field.id)
+                          return results.map(r => ({
+                            id: r.id,
+                            label: r.name,
+                            subtitle: (r.roles as string[]).filter(role => role !== field.id).join(', ') || undefined,
+                          }))
+                        }}
+                        placeholder={field.label}
+                      />
+                    </div>
+                    {(() => {
+                      const fieldConflicts = conflicts?.get(`${plan.id}:${field.id}`)
+                      if (!fieldConflicts || fieldConflicts.length === 0) return null
+                      return (
+                        <div className="relative group">
+                          <AlertTriangle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-20 w-56 rounded-md border border-border bg-surface p-2 shadow-md text-xs">
+                            {fieldConflicts.map((c, i) => (
+                              <div key={i} className="mb-1 last:mb-0">
+                                <span className="text-warning font-medium">Also assigned to</span>{' '}
+                                <span className="font-medium text-text">{c.eventName}</span>{' '}
+                                as <span className="font-mono">{c.role}</span> at {c.startTime}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
                 ) : (
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm font-medium ${field.id === "encoder" ? "font-mono font-bold" : ""}`}>
-                      {(plan.crew[field.id] as string) || "—"}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-sm font-medium ${field.id === "encoder" ? "font-mono font-bold" : ""}`}>
+                        {(plan.crew[field.id] as string) || "—"}
+                      </span>
+                      {(() => {
+                        const fieldConflicts = conflicts?.get(`${plan.id}:${field.id}`)
+                        if (!fieldConflicts || fieldConflicts.length === 0) return null
+                        return (
+                          <div className="relative group">
+                            <AlertTriangle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-20 w-56 rounded-md border border-border bg-surface p-2 shadow-md text-xs">
+                              {fieldConflicts.map((c, i) => (
+                                <div key={i} className="mb-1 last:mb-0">
+                                  <span className="text-warning font-medium">Also assigned to</span>{' '}
+                                  <span className="font-medium text-text">{c.eventName}</span>{' '}
+                                  as <span className="font-mono">{c.role}</span> at {c.startTime}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </div>
                     {field.id === "encoder" && (
                       <button
                         onClick={onOpenSwap}
