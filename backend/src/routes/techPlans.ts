@@ -76,10 +76,22 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
     }
     
     const user = req.user as { id: string }
-    
+
+    // Auto-fill crew from plan-type default template if crew is empty
+    let crew = value.crew || {}
+    if (Object.keys(crew).length === 0 && value.planType) {
+      const defaultTemplate = await prisma.crewTemplate.findFirst({
+        where: { planType: value.planType, createdById: null },
+      })
+      if (defaultTemplate) {
+        crew = defaultTemplate.crewData as Record<string, unknown>
+      }
+    }
+
     const plan = await prisma.techPlan.create({
       data: {
         ...value,
+        crew,
         createdById: user.id
       },
       include: {
