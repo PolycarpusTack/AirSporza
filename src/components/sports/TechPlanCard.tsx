@@ -1,6 +1,9 @@
-import { Plus } from 'lucide-react'
-import { Badge, Btn } from '../ui'
-import type { TechPlan, FieldConfig } from '../../data/types'
+import { useState, useEffect } from 'react'
+import { Plus, ChevronDown } from 'lucide-react'
+import { Autocomplete, Badge, Btn } from '../ui'
+import { crewMembersApi } from '../../services/crewMembers'
+import { crewTemplatesApi } from '../../services/crewTemplates'
+import type { TechPlan, FieldConfig, CrewTemplate } from '../../data/types'
 
 interface CustomField {
   name: string
@@ -18,6 +21,8 @@ interface TechPlanCardProps {
   onAddCustomField: () => void
   onUpdateCustomField: (idx: number, key: string, val: string) => void
   onRemoveCustomField: (idx: number) => void
+  onApplyTemplate: (crewData: Record<string, unknown>) => void
+  onSaveAsTemplate: (crewData: Record<string, unknown>) => void
 }
 
 function getCustomFields(plan: TechPlan): CustomField[] {
@@ -28,8 +33,19 @@ export function TechPlanCard({
   plan, crewFields, isEditing, showCrew,
   onToggleEdit, onCrewEdit, onOpenSwap,
   onAddCustomField, onUpdateCustomField, onRemoveCustomField,
+  onApplyTemplate, onSaveAsTemplate,
 }: TechPlanCardProps) {
   const customFields = getCustomFields(plan)
+  const [templates, setTemplates] = useState<CrewTemplate[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  useEffect(() => {
+    crewTemplatesApi.list().then(setTemplates).catch(() => {})
+  }, [])
+
+  const defaults = templates.filter(t => t.planType !== null)
+  const shared = templates.filter(t => t.planType === null && t.isShared)
+  const personal = templates.filter(t => t.planType === null && !t.isShared && t.createdById !== null)
 
   return (
     <div className="card mb-3 overflow-hidden">
@@ -40,6 +56,45 @@ export function TechPlanCard({
         </div>
         <div className="flex items-center gap-2">
           {plan.isLivestream && <Badge variant="live">Livestream</Badge>}
+          <div className="relative">
+            <Btn variant="ghost" size="xs" onClick={() => setShowTemplates(!showTemplates)}>
+              Apply Template <ChevronDown className="w-3 h-3" />
+            </Btn>
+            {showTemplates && (
+              <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border border-border bg-surface shadow-md">
+                {defaults.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-xs font-bold uppercase text-text-3">Defaults</div>
+                    {defaults.map(t => (
+                      <button key={t.id} onClick={() => { onApplyTemplate(t.crewData); setShowTemplates(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-text-2 hover:bg-surface-2 transition">{t.name}</button>
+                    ))}
+                  </>
+                )}
+                {shared.length > 0 && (
+                  <>
+                    <div className="border-t border-border px-3 py-1.5 text-xs font-bold uppercase text-text-3">Shared</div>
+                    {shared.map(t => (
+                      <button key={t.id} onClick={() => { onApplyTemplate(t.crewData); setShowTemplates(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-text-2 hover:bg-surface-2 transition">{t.name}</button>
+                    ))}
+                  </>
+                )}
+                {personal.length > 0 && (
+                  <>
+                    <div className="border-t border-border px-3 py-1.5 text-xs font-bold uppercase text-text-3">My Templates</div>
+                    {personal.map(t => (
+                      <button key={t.id} onClick={() => { onApplyTemplate(t.crewData); setShowTemplates(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-text-2 hover:bg-surface-2 transition">{t.name}</button>
+                    ))}
+                  </>
+                )}
+                {templates.length === 0 && (
+                  <div className="px-3 py-4 text-center text-xs text-text-3">No templates yet</div>
+                )}
+              </div>
+            )}
+          </div>
           <Btn variant="ghost" size="xs" onClick={onToggleEdit}>
             {isEditing ? "Done Editing" : "Edit Crew"}
           </Btn>
@@ -56,10 +111,18 @@ export function TechPlanCard({
                   {field.isCustom && <span className="rounded-sm border border-border bg-surface px-1 text-[9px] text-text-2">custom</span>}
                 </div>
                 {isEditing ? (
-                  <input
+                  <Autocomplete
                     value={(plan.crew[field.id] as string) || ""}
-                    onChange={e => onCrewEdit(field.id, e.target.value)}
-                    className="field-input px-2 py-1"
+                    onChange={val => onCrewEdit(field.id, val)}
+                    onSearch={async (q) => {
+                      const results = await crewMembersApi.autocomplete(q, field.id)
+                      return results.map(r => ({
+                        id: r.id,
+                        label: r.name,
+                        subtitle: (r.roles as string[]).filter(role => role !== field.id).join(', ') || undefined,
+                      }))
+                    }}
+                    placeholder={field.label}
                   />
                 ) : (
                   <div className="flex items-center justify-between">
@@ -114,8 +177,11 @@ export function TechPlanCard({
           </div>
         )}
         {isEditing && (
-          <div className="mt-2">
+          <div className="mt-2 flex gap-2">
             <Btn variant="ghost" size="xs" onClick={onAddCustomField}><Plus className="w-3 h-3" /> Add Custom Field</Btn>
+            <Btn variant="ghost" size="xs" onClick={() => onSaveAsTemplate(plan.crew as Record<string, unknown>)}>
+              Save as Template
+            </Btn>
           </div>
         )}
       </div>

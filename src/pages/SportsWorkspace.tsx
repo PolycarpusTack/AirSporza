@@ -1,12 +1,15 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Menu, X } from 'lucide-react'
-import { Badge, EmptyState } from '../components/ui'
+import { Badge, Btn, EmptyState } from '../components/ui'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, Sport, Competition, Encoder } from '../data/types'
 import { encodersApi, techPlansApi } from '../services'
+import { crewMembersApi } from '../services/crewMembers'
+import { crewTemplatesApi } from '../services/crewTemplates'
 import { resourcesApi } from '../services/resources'
 import type { Resource } from '../services/resources'
 import { fmtDate } from '../utils'
 import { useSocket } from '../hooks'
+import { useToast } from '../components/Toast'
 import { EncoderSwapModal } from '../components/sports/EncoderSwapModal'
 import { EventDetailCard } from '../components/sports/EventDetailCard'
 import { TechPlanCard } from '../components/sports/TechPlanCard'
@@ -38,6 +41,10 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [realtimePlans, setRealtimePlans] = useState<TechPlan[]>(techPlans)
   const [encoders, setEncoders] = useState<Encoder[]>([])
   const [resources, setResources] = useState<Resource[]>([])
+  const [saveTemplateData, setSaveTemplateData] = useState<Record<string, unknown> | null>(null)
+  const [templateName, setTemplateName] = useState('')
+  const [templateShared, setTemplateShared] = useState(false)
+  const toast = useToast()
 
   const { on } = useSocket()
 
@@ -114,11 +121,30 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     if (plan) {
       try {
         await techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields })
+        // Auto-add new crew member to roster
+        if (value.trim()) {
+          crewMembersApi.create({ name: value.trim(), roles: [field] }).catch(() => {})
+        }
       } catch {
         // non-blocking — local state already updated
       }
     }
   }, [realtimePlans, setTechPlans])
+
+  const handleCrewBatchApply = useCallback(async (planId: number, crewData: Record<string, unknown>) => {
+    const updated = realtimePlans.map(p => p.id === planId ? { ...p, crew: { ...p.crew as Record<string, unknown>, ...crewData } } : p)
+    setRealtimePlans(updated)
+    setTechPlans(updated)
+    const plan = updated.find(p => p.id === planId)
+    if (plan) {
+      try {
+        await techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields })
+        toast.success('Template applied')
+      } catch {
+        toast.error('Failed to apply template')
+      }
+    }
+  }, [realtimePlans, setTechPlans, toast])
 
   const getCustomFields = (plan: TechPlan): CustomField[] => {
     if (Array.isArray(plan.customFields)) {
@@ -285,6 +311,12 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                         onAddCustomField={() => addCustomToPlan(plan.id)}
                         onUpdateCustomField={(idx, key, val) => updatePlanCustomField(plan.id, idx, key, val)}
                         onRemoveCustomField={(idx) => removePlanCustomField(plan.id, idx)}
+                        onApplyTemplate={(crewData) => {
+                          const hasExisting = Object.values(plan.crew).some(v => typeof v === 'string' && v.trim())
+                          if (hasExisting && !window.confirm('This will overwrite current crew fields. Continue?')) return
+                          handleCrewBatchApply(plan.id, crewData)
+                        }}
+                        onSaveAsTemplate={(crewData) => { setSaveTemplateData(crewData); setTemplateName(''); setTemplateShared(false) }}
                       />
                     ))}
                     {eventPlans.length === 0 && (
@@ -414,6 +446,35 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
           }}
           onClose={() => setSwapModal(null)}
         />
+      )}
+
+      {saveTemplateData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setSaveTemplateData(null)}>
+          <div className="card w-full max-w-sm rounded-lg p-5 shadow-md animate-scale-in" onClick={e => e.stopPropagation()}>
+            <h4 className="font-bold text-lg mb-4">Save as Template</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium uppercase tracking-wide text-text-2 mb-1 block">Template Name</label>
+                <input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="e.g. Standard Football Crew" className="inp w-full" autoFocus />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={templateShared} onChange={e => setTemplateShared(e.target.checked)} className="rounded border-border" />
+                Share with all users
+              </label>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <Btn variant="primary" className="flex-1" onClick={async () => {
+                if (!templateName.trim()) return
+                try {
+                  await crewTemplatesApi.create({ name: templateName.trim(), crewData: saveTemplateData, isShared: templateShared })
+                  toast.success('Template saved')
+                  setSaveTemplateData(null)
+                } catch { toast.error('Failed to save template') }
+              }}>Save</Btn>
+              <Btn variant="default" className="flex-1" onClick={() => setSaveTemplateData(null)}>Cancel</Btn>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
