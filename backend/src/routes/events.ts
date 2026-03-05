@@ -37,6 +37,32 @@ const conflictCheckSchema = Joi.object({
   status:          Joi.string().valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled').optional(),
 })
 
+const bulkIdsSchema = Joi.array()
+  .items(Joi.number().integer().min(1))
+  .min(1)
+  .max(100)
+  .required()
+
+const bulkDeleteSchema = Joi.object({ ids: bulkIdsSchema })
+
+const bulkStatusSchema = Joi.object({
+  ids: bulkIdsSchema,
+  status: Joi.string()
+    .valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled')
+    .required(),
+})
+
+const bulkRescheduleSchema = Joi.object({
+  ids: bulkIdsSchema,
+  shiftDays: Joi.number().integer().min(-365).max(365).required(),
+})
+
+const bulkAssignSchema = Joi.object({
+  ids: bulkIdsSchema,
+  field: Joi.string().valid('linearChannel', 'sportId', 'competitionId').required(),
+  value: Joi.alternatives().try(Joi.string().allow(''), Joi.number()).required(),
+})
+
 const eventSchema = Joi.object({
   sportId: positiveId,
   competitionId: positiveId,
@@ -186,6 +212,118 @@ router.post('/conflicts/bulk', authenticate, async (req, res, next) => {
     }
 
     res.json(conflictMap)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ── Bulk operations (must be before /:id routes) ────────────────────────────
+
+router.delete('/bulk', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+  try {
+    const { error, value } = bulkDeleteSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+    const { ids } = value as { ids: number[] }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.customFieldValue.deleteMany({
+        where: { entityType: 'event', entityId: { in: ids.map(String) } },
+      })
+      await tx.event.deleteMany({ where: { id: { in: ids } } })
+    })
+
+    for (const id of ids) {
+      emit('event:deleted', { id }, 'events')
+    }
+
+    res.json({ deleted: ids.length })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.patch('/bulk/status', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+  try {
+    const { error, value } = bulkStatusSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+    const { ids, status } = value as { ids: number[]; status: EventStatus }
+
+    const updatedEvents = await prisma.$transaction(async (tx) => {
+      await tx.event.updateMany({
+        where: { id: { in: ids } },
+        data: { status },
+      })
+      return tx.event.findMany({ where: { id: { in: ids } } })
+    })
+
+    for (const ev of updatedEvents) {
+      emit('event:updated', ev, 'events')
+    }
+
+    res.json({ updated: updatedEvents.length })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.patch('/bulk/reschedule', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+  try {
+    const { error, value } = bulkRescheduleSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+    const { ids, shiftDays } = value as { ids: number[]; shiftDays: number }
+
+    const currentEvents = await prisma.event.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, startDateBE: true },
+    })
+
+    const updatedEvents = await prisma.$transaction(async (tx) => {
+      const updated: Awaited<ReturnType<typeof tx.event.update>>[] = []
+      for (const ev of currentEvents) {
+        const d = new Date(ev.startDateBE)
+        d.setDate(d.getDate() + shiftDays)
+        const newDate = d.toISOString().slice(0, 10)
+        const result = await tx.event.update({
+          where: { id: ev.id },
+          data: { startDateBE: new Date(newDate) },
+        })
+        updated.push(result)
+      }
+      return updated
+    })
+
+    for (const ev of updatedEvents) {
+      emit('event:updated', ev, 'events')
+    }
+
+    res.json({ updated: updatedEvents.length })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+  try {
+    const { error, value } = bulkAssignSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+    const { ids, field, value: fieldValue } = value as {
+      ids: number[]
+      field: 'linearChannel' | 'sportId' | 'competitionId'
+      value: string | number
+    }
+
+    const data: Record<string, unknown> = { [field]: fieldValue }
+
+    const updatedEvents = await prisma.$transaction(async (tx) => {
+      await tx.event.updateMany({ where: { id: { in: ids } }, data })
+      return tx.event.findMany({ where: { id: { in: ids } } })
+    })
+
+    for (const ev of updatedEvents) {
+      emit('event:updated', ev, 'events')
+    }
+
+    res.json({ updated: updatedEvents.length })
   } catch (error) {
     next(error)
   }
