@@ -1,10 +1,15 @@
 import { api } from '../utils/api'
 
+export interface PlannerFilterState {
+  channelFilter?: string
+  calendarMode?: 'calendar' | 'list'
+}
+
 export interface SavedView {
   id: string
   name: string
   context: string
-  filterState: Record<string, unknown>
+  filterState: PlannerFilterState & Record<string, unknown>
 }
 
 export const savedViewsApi = {

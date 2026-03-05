@@ -188,7 +188,10 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
   const handleSaveView = async () => {
     if (!saveViewName.trim()) return
     try {
-      const view = await savedViewsApi.create(saveViewName.trim(), 'planner', { channelFilter })
+      const view = await savedViewsApi.create(saveViewName.trim(), 'planner', {
+        channelFilter,
+        calendarMode: calendarMode ? 'calendar' : 'list',
+      })
       setSavedViews(prev => [...prev, view])
       setSaveViewName('')
       setShowSaveInput(false)
@@ -198,8 +201,10 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
   }
 
   const handleLoadView = (view: SavedView) => {
-    const fs = view.filterState as { channelFilter?: string }
+    const fs = view.filterState
     if (fs.channelFilter) setChannelFilter(fs.channelFilter)
+    if (fs.calendarMode === 'calendar') setCalendarMode(true)
+    if (fs.calendarMode === 'list') setCalendarMode(false)
   }
 
   const handleDeleteView = async (id: string) => {
