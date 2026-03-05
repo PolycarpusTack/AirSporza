@@ -45,6 +45,8 @@ interface AppContextType {
   setCurrentWidgets: (w: DashboardWidget[] | ((prev: DashboardWidget[]) => DashboardWidget[])) => void
   roleConfig: Record<Role, RoleConfig>
   handleSaveEvent: (ev: Event) => Promise<void>
+  applyOptimisticEvent: (patch: Partial<Event> & { id: number }) => void
+  revertOptimisticEvent: (id: number) => void
   filteredEvents: Event[]
   sports: Sport[]
   competitions: Competition[]
@@ -147,6 +149,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const prevRoleRef = useRef<Role | null>(null)
   const prevUserIdRef = useRef<string | null>(null)
+  const optimisticPatchesRef = useRef<Map<number, Partial<Event>>>(new Map())
+  const [optimisticVersion, setOptimisticVersion] = useState(0)
+
+  const applyOptimisticEvent = useCallback((patch: Partial<Event> & { id: number }) => {
+    optimisticPatchesRef.current.set(patch.id, { ...optimisticPatchesRef.current.get(patch.id), ...patch })
+    setOptimisticVersion(v => v + 1)
+  }, [])
+
+  const revertOptimisticEvent = useCallback((id: number) => {
+    optimisticPatchesRef.current.delete(id)
+    setOptimisticVersion(v => v + 1)
+  }, [])
 
   useEffect(() => {
     if (!user) return
@@ -206,17 +220,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [events, toast]
   )
 
+  const eventsWithPatches = useMemo(
+    () =>
+      events.map(e => {
+        const patch = optimisticPatchesRef.current.get(e.id)
+        return patch ? { ...e, ...patch } : e
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, optimisticVersion]
+  )
+
   const filteredEvents = useMemo(() => {
-    if (!searchQuery) return events
+    if (!searchQuery) return eventsWithPatches
     const q = searchQuery.toLowerCase()
-    return events.filter(
+    return eventsWithPatches.filter(
       (e) =>
         e.participants?.toLowerCase().includes(q) ||
         e.content?.toLowerCase().includes(q) ||
         sports.find((s) => s.id === e.sportId)?.name.toLowerCase().includes(q) ||
         competitions.find((c) => c.id === e.competitionId)?.name.toLowerCase().includes(q)
     )
-  }, [events, searchQuery, sports, competitions])
+  }, [eventsWithPatches, searchQuery, sports, competitions])
 
   const currentWidgets = dashWidgets[activeRole] || []
   const persistEventFields = useCallback(
@@ -275,7 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         activeRole,
         setActiveRole,
-        events,
+        events: eventsWithPatches,
         setEvents,
         techPlans,
         setTechPlans,
@@ -292,6 +316,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentWidgets,
         roleConfig,
         handleSaveEvent,
+        applyOptimisticEvent,
+        revertOptimisticEvent,
         filteredEvents,
         sports,
         competitions,
