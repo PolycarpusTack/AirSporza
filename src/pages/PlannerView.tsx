@@ -228,6 +228,7 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.key === 'ArrowLeft')  setWeekOffset(o => o - 1)
       if (e.key === 'ArrowRight') setWeekOffset(o => o + 1)
+      if (e.key === 't' || e.key === 'T') setWeekOffset(0)
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
@@ -244,6 +245,17 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
   const weekLabel = (() => {
     const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
     return `${monday.toLocaleDateString('en-GB', opts)} – ${sunday.toLocaleDateString('en-GB', { ...opts, year: 'numeric' })}`
+  })()
+
+  const currentWeekValue = (() => {
+    const d = new Date(monday)
+    d.setUTCHours(0, 0, 0, 0)
+    const thursday = new Date(d)
+    thursday.setDate(d.getDate() - d.getDay() + 4)
+    const yearStart = new Date(thursday.getFullYear(), 0, 1)
+    const weekNo = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+    const year = thursday.getFullYear()
+    return `${year}-W${String(weekNo).padStart(2, '0')}`
   })()
 
   // Memoised lookup Maps for performance
@@ -580,6 +592,33 @@ export function PlannerView({ widgets, loading, onEventClick }: PlannerViewProps
               >
                 ›
               </button>
+              <input
+                type="week"
+                className="inp text-sm px-2 py-1"
+                value={currentWeekValue}
+                onChange={e => {
+                  if (!e.target.value) return
+                  const [yearStr, weekStr] = e.target.value.split('-W')
+                  const year = Number(yearStr)
+                  const week = Number(weekStr)
+                  if (!year || !week) return
+                  const jan4 = new Date(year, 0, 4)
+                  const dayOfWeek = jan4.getDay() || 7
+                  const startOfWeek1 = new Date(jan4)
+                  startOfWeek1.setDate(jan4.getDate() - dayOfWeek + 1)
+                  const targetMonday = new Date(startOfWeek1)
+                  targetMonday.setDate(startOfWeek1.getDate() + (week - 1) * 7)
+                  const today = new Date()
+                  const todayDay = today.getDay() || 7
+                  const todayMonday = new Date(today)
+                  todayMonday.setDate(today.getDate() - todayDay + 1)
+                  todayMonday.setHours(0, 0, 0, 0)
+                  targetMonday.setHours(0, 0, 0, 0)
+                  const diffMs = targetMonday.getTime() - todayMonday.getTime()
+                  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000))
+                  setWeekOffset(diffWeeks)
+                }}
+              />
             </div>
 
             <div className="flex-1" />
