@@ -6,7 +6,9 @@ import { PublishPanel } from '../components/admin/PublishPanel'
 import { OrgConfigPanel } from '../components/admin/OrgConfigPanel'
 import { CrewRosterPanel } from '../components/admin/CrewRosterPanel'
 import { CrewTemplatesPanel } from '../components/admin/CrewTemplatesPanel'
-import { sportsApi, competitionsApi, encodersApi, importsApi } from '../services'
+import { sportsApi, competitionsApi, encodersApi, importsApi, usersApi, type UserRecord } from '../services'
+import { settingsApi, type AdminStats } from '../services/settings'
+import { auditApi, type AuditEntry } from '../services/audit'
 import { Badge } from '../components/ui'
 import { Toggle } from '../components/ui/Toggle'
 
@@ -512,34 +514,24 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
   const isControlled = externalTab !== undefined
   const [sports, setSports] = useState<(Sport & { _count?: { competitions: number; events: number } })[]>([])
 
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null)
+  const [userList, setUserList] = useState<UserRecord[]>([])
+  const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([])
+  const [auditTotal, setAuditTotal] = useState(0)
+
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
   const showStatus = visWidgets.some(w => w.id === 'systemStatus')
   const showUsers = visWidgets.some(w => w.id === 'userManagement')
   const showAudit = visWidgets.some(w => w.id === 'auditLog')
 
-  const stats = [
-    { label: 'Total Users', value: 12, icon: Users, color: 'text-primary' },
-    { label: 'Active Sessions', value: 8, icon: Activity, color: 'text-success' },
-    { label: 'Database Size', value: '2.4 GB', icon: Database, color: 'text-info' },
-    { label: 'API Calls (24h)', value: '14.2K', icon: RefreshCw, color: 'text-warning' },
-  ]
-
-  const users = [
-    { id: '1', name: 'Admin User', email: 'admin@sporza.vrt.be', role: 'admin', status: 'active' },
-    { id: '2', name: 'Jan Peeters', email: 'jan.peeters@vrt.be', role: 'planner', status: 'active' },
-    { id: '3', name: 'Marie Dupont', email: 'marie.dupont@vrt.be', role: 'sports', status: 'active' },
-    { id: '4', name: 'Tom Janssen', email: 'tom.janssen@vrt.be', role: 'contracts', status: 'inactive' },
-  ]
-
-  const auditLogs = [
-    { id: '1', action: 'Event Created', user: 'Jan Peeters', timestamp: '2 min ago', entity: 'Club Brugge vs Anderlecht' },
-    { id: '2', action: 'Tech Plan Updated', user: 'Marie Dupont', timestamp: '15 min ago', entity: 'UCL Coverage' },
-    { id: '3', action: 'User Role Changed', user: 'Admin', timestamp: '1 hour ago', entity: 'tom.janssen@vrt.be' },
-    { id: '4', action: 'Contract Added', user: 'Tom Janssen', timestamp: '3 hours ago', entity: 'Jupiler Pro League' },
-  ]
-
   useEffect(() => {
     sportsApi.list().then(setSports).catch(() => {})
+    settingsApi.getStats().then(setAdminStats).catch(() => {})
+    usersApi.list().then(setUserList).catch(() => {})
+    auditApi.listAll({ limit: 20 }).then(r => {
+      setAuditLogs(r.logs)
+      setAuditTotal(r.total)
+    }).catch(() => {})
   }, [])
 
   const tabs: { id: AdminTab; label: string }[] = [
@@ -556,17 +548,28 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
 
   return (
     <div className="space-y-6">
-      {showStatus && (
+      {showStatus && adminStats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 animate-fade-in">
-          {stats.map((stat) => (
-            <div key={stat.label} className="card p-4">
-              <div className="flex items-center justify-between mb-2">
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-              <div className="statv">{stat.value}</div>
-              <div className="statl">{stat.label}</div>
-            </div>
-          ))}
+          <div className="card p-4">
+            <Users className="w-5 h-5 text-primary mb-2" />
+            <div className="statv">{adminStats.users}</div>
+            <div className="statl">Users</div>
+          </div>
+          <div className="card p-4">
+            <Activity className="w-5 h-5 text-success mb-2" />
+            <div className="statv">{adminStats.events}</div>
+            <div className="statl">Events</div>
+          </div>
+          <div className="card p-4">
+            <Database className="w-5 h-5 text-info mb-2" />
+            <div className="statv">{adminStats.techPlans}</div>
+            <div className="statl">Tech Plans</div>
+          </div>
+          <div className="card p-4">
+            <RefreshCw className="w-5 h-5 text-warning mb-2" />
+            <div className="statv">{adminStats.crewMembers}</div>
+            <div className="statl">Crew Members</div>
+          </div>
         </div>
       )}
 
@@ -574,38 +577,52 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
         <div className="card animate-fade-in">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <h4 className="font-bold">User Management</h4>
-            <button className="btn btn-p btn-sm">
-              <Users className="w-4 h-4" /> Add User
-            </button>
+            <span className="text-xs text-muted">{userList.length} users</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-2">
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-text-2">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-text-2">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-text-2">Role</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-text-2">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-text-2">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Role</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted">Events</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-muted">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-surface-2 transition">
-                    <td className="px-4 py-3 font-medium">{user.name}</td>
-                    <td className="px-4 py-3 text-text-2">{user.email}</td>
+              <tbody className="divide-y divide-border/60">
+                {userList.map(u => (
+                  <tr key={u.id} className="hover:bg-surface-2 transition">
+                    <td className="px-4 py-3 font-medium">{u.name || '\u2014'}</td>
+                    <td className="px-4 py-3 text-muted">{u.email}</td>
                     <td className="px-4 py-3">
-                      <span className={`bdg ${user.role === 'admin' ? 'bdg-d' : user.role === 'sports' ? 'bdg-ok' : 'bdg-n'}`}>
-                        {user.role}
-                      </span>
+                      <select
+                        className="inp text-xs px-2 py-1"
+                        value={u.role}
+                        onChange={async (e) => {
+                          const updated = await usersApi.updateRole(u.id, e.target.value)
+                          setUserList(prev => prev.map(x => x.id === u.id ? { ...x, ...updated } : x))
+                        }}
+                      >
+                        <option value="planner">planner</option>
+                        <option value="sports">sports</option>
+                        <option value="contracts">contracts</option>
+                        <option value="admin">admin</option>
+                      </select>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`bdg ${user.status === 'active' ? 'bdg-ok' : 'bdg-w'}`}>
-                        {user.status}
-                      </span>
-                    </td>
+                    <td className="px-4 py-3 text-muted">{u._count.events}</td>
                     <td className="px-4 py-3 text-right">
-                      <button className="btn btn-g btn-sm">Edit</button>
+                      {u._count.events === 0 && u._count.techPlans === 0 && (
+                        <button
+                          className="text-xs text-danger hover:underline"
+                          onClick={async () => {
+                            await usersApi.delete(u.id)
+                            setUserList(prev => prev.filter(x => x.id !== u.id))
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -619,20 +636,27 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
         <div className="card animate-fade-in">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <h4 className="font-bold">Audit Log</h4>
-            <button className="btn btn-g btn-sm">Export</button>
+            <span className="text-xs text-muted">{auditTotal} total entries</span>
           </div>
           <div className="divide-y divide-border">
-            {auditLogs.map((log) => (
+            {auditLogs.length === 0 && (
+              <div className="px-4 py-6 text-sm text-muted text-center">No audit entries yet.</div>
+            )}
+            {auditLogs.map(log => (
               <div key={log.id} className="px-4 py-3 hover:bg-surface-2 transition">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-medium">{log.action}</span>
-                    <span className="text-text-3 mx-2">—</span>
-                    <span className="text-text-2">{log.entity}</span>
+                    <span className="text-text-3 mx-2">&mdash;</span>
+                    <span className="text-text-2">{log.entityType} #{log.entityId}</span>
                   </div>
-                  <span className="text-xs text-text-3">{log.timestamp}</span>
+                  <span className="text-xs text-text-3">
+                    {new Date(log.createdAt).toLocaleString('en-GB', {
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </span>
                 </div>
-                <div className="text-xs text-text-3 mt-1">by {log.user}</div>
+                {log.userId && <div className="text-xs text-text-3 mt-1">by {log.userId}</div>}
               </div>
             ))}
           </div>
