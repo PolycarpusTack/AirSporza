@@ -1,6 +1,7 @@
 import { Modal } from '../ui'
 import { usePreferences, type UserPreferences } from '../../hooks/usePreferences'
 import { useApp } from '../../context/AppProvider'
+import { NotificationPreferences } from './NotificationPreferences'
 
 interface Props {
   onClose: () => void
@@ -79,6 +80,10 @@ export function UserPreferencesModal({ onClose }: Props) {
             onChange={e => update({ showWeekNumbers: e.target.checked })}
             className="w-4 h-4"
           />
+        </div>
+
+        <div className="pt-4 border-t border-border">
+          <NotificationPreferences />
         </div>
 
         <div className="pt-4 border-t border-border flex justify-between">
