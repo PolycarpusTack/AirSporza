@@ -14,6 +14,7 @@ import { BulkActionBar } from '../components/planner/BulkActionBar'
 import { UndoBar } from '../components/planner/UndoBar'
 import { EventDetailPanel } from '../components/planner/EventDetailPanel'
 import { ContextMenu, type MenuItem } from '../components/planner/ContextMenu'
+import { DuplicatePopover } from '../components/planner/DuplicatePopover'
 import { useDrawToCreate, minutesToTime } from '../hooks/useDrawToCreate'
 import { useHeaderDrag } from '../hooks/useHeaderDrag'
 
@@ -251,8 +252,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   } | null>(null)
   const clipboardRef = useRef<Event | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Event | null>(null)
-  // suppress unused var warning until DuplicatePopover is wired (Task 3)
-  void duplicateTarget
 
   const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent } = useApp()
   const toast = useToast()
@@ -641,7 +640,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
       toast.error('Failed to duplicate event')
     }
   }, [setEvents, toast])
-  void handleCtxDuplicate // used by DuplicatePopover (Task 3)
 
   const handleCtxPaste = useCallback(async (date: string, time?: string) => {
     const src = clipboardRef.current
@@ -1160,6 +1158,14 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
             : buildSlotMenuItems(ctxMenu.date!, ctxMenu.time)
           }
           onClose={() => setCtxMenu(null)}
+        />
+      )}
+
+      {duplicateTarget && (
+        <DuplicatePopover
+          event={duplicateTarget}
+          onDuplicate={(date) => { handleCtxDuplicate(duplicateTarget, date); setDuplicateTarget(null) }}
+          onClose={() => setDuplicateTarget(null)}
         />
       )}
     </div>
