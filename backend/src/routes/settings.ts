@@ -103,6 +103,34 @@ router.get('/stats', authenticate, authorize('admin'), async (_req, res, next) =
   }
 })
 
+// Get auto-fill rules
+router.get('/autofill', authenticate, async (_req, res, next) => {
+  try {
+    const setting = await getSetting('autofill_rules', 'global', 'global')
+    res.json(setting?.value ?? { rules: [] })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Update auto-fill rules
+router.put('/autofill', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const { rules } = req.body
+    const user = getCurrentUser(req)
+    const setting = await upsertSetting({
+      key: 'autofill_rules',
+      scopeKind: 'global',
+      scopeId: 'global',
+      userId: user.id,
+      value: { rules },
+    })
+    res.json(setting?.value ?? { rules })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/app', authenticate, async (req, res, next) => {
   try {
     const role = String(req.query.role || '')

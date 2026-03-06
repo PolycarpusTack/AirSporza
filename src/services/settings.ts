@@ -28,6 +28,15 @@ export interface AdminStats {
   unreadNotifications: number
 }
 
+export interface AutoFillRule {
+  id: string
+  trigger: 'sport' | 'competition' | 'planType'
+  triggerValue: string
+  field: string
+  value: string
+  label: string
+}
+
 export const settingsApi = {
   getStats: (): Promise<AdminStats> => api.get('/settings/stats'),
 
@@ -48,4 +57,10 @@ export const settingsApi = {
 
   updateOrgConfig: (config: OrgConfig) =>
     api.put<{ config: OrgConfig }>('/settings/app/org', config),
+
+  getAutoFillRules: (): Promise<{ rules: AutoFillRule[] }> =>
+    api.get('/settings/autofill'),
+
+  updateAutoFillRules: (rules: AutoFillRule[]): Promise<{ rules: AutoFillRule[] }> =>
+    api.put('/settings/autofill', { rules }),
 }

@@ -7,6 +7,7 @@ import { OrgConfigPanel } from '../components/admin/OrgConfigPanel'
 import { CrewRosterPanel } from '../components/admin/CrewRosterPanel'
 import { CrewTemplatesPanel } from '../components/admin/CrewTemplatesPanel'
 import { AuditLogViewer } from '../components/admin/AuditLogViewer'
+import { AutoFillRulesPanel } from '../components/admin/AutoFillRulesPanel'
 import { sportsApi, competitionsApi, encodersApi, importsApi, usersApi, type UserRecord } from '../services'
 import { settingsApi, type AdminStats } from '../services/settings'
 import { auditApi, type AuditEntry } from '../services/audit'
@@ -19,7 +20,7 @@ interface AdminViewProps {
   onTabChange?: (tab: AdminTab) => void
 }
 
-export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates' | 'audit-log'
+export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates' | 'audit-log' | 'autofill'
 
 interface AdminGroup {
   label: string
@@ -556,6 +557,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
         { id: 'crew-roster', label: 'Crew Roster' },
         { id: 'crew-templates', label: 'Crew Templates' },
         { id: 'encoders', label: 'Encoders' },
+        { id: 'autofill', label: 'Auto-Fill Rules' },
       ],
     },
     {
@@ -724,6 +726,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
               {activeTab === 'crew-roster' && <CrewRosterPanel />}
               {activeTab === 'crew-templates' && <CrewTemplatesPanel />}
               {activeTab === 'audit-log' && <AuditLogViewer />}
+              {activeTab === 'autofill' && <AutoFillRulesPanel />}
             </div>
           </div>
         ) : (
@@ -738,6 +741,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
             {activeTab === 'crew-roster' && <CrewRosterPanel />}
             {activeTab === 'crew-templates' && <CrewTemplatesPanel />}
             {activeTab === 'audit-log' && <AuditLogViewer />}
+            {activeTab === 'autofill' && <AutoFillRulesPanel />}
           </div>
         )}
       </div>
