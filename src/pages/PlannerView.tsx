@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import React, { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '../components/ui'
@@ -13,6 +13,7 @@ import { useToast } from '../components/Toast'
 import { BulkActionBar } from '../components/planner/BulkActionBar'
 import { UndoBar } from '../components/planner/UndoBar'
 import { EventDetailPanel } from '../components/planner/EventDetailPanel'
+import { ContextMenu, type MenuItem } from '../components/planner/ContextMenu'
 import { useDrawToCreate, minutesToTime } from '../hooks/useDrawToCreate'
 import { useHeaderDrag } from '../hooks/useHeaderDrag'
 
@@ -82,6 +83,64 @@ function eventTopPx(time: string): number {
 
 function eventHeightPx(durationMin: number): number {
   return Math.max(20, durationMin * (PX_PER_HOUR / 60))
+}
+
+/** Compute overlap columns for events in a single day. Returns Map<eventId, {col, totalCols}> */
+function computeOverlapLayout(events: Event[]): Map<number, { col: number; totalCols: number }> {
+  const result = new Map<number, { col: number; totalCols: number }>()
+  if (events.length === 0) return result
+
+  // Sort by start time, then duration (longer first)
+  const sorted = [...events].sort((a, b) => {
+    const ta = timeToMinutes(a.linearStartTime || a.startTimeBE || '00:00')
+    const tb = timeToMinutes(b.linearStartTime || b.startTimeBE || '00:00')
+    if (ta !== tb) return ta - tb
+    return parseDurationMin(b.duration) - parseDurationMin(a.duration)
+  })
+
+  // Track active columns: each entry is the end-minute of the event in that column
+  const columns: number[] = []
+  const eventCols: { id: number; col: number; group: number[] }[] = []
+
+  for (const ev of sorted) {
+    const start = timeToMinutes(ev.linearStartTime || ev.startTimeBE || '00:00')
+    const end = start + parseDurationMin(ev.duration)
+
+    // Find first column where this event doesn't overlap
+    let placed = -1
+    for (let c = 0; c < columns.length; c++) {
+      if (columns[c] <= start) {
+        placed = c
+        break
+      }
+    }
+    if (placed === -1) {
+      placed = columns.length
+      columns.push(0)
+    }
+    columns[placed] = end
+    eventCols.push({ id: ev.id, col: placed, group: [] })
+  }
+
+  // For each event, find all events it overlaps with to determine totalCols in its cluster
+  for (let i = 0; i < eventCols.length; i++) {
+    const ev = sorted[i]
+    const start = timeToMinutes(ev.linearStartTime || ev.startTimeBE || '00:00')
+    const end = start + parseDurationMin(ev.duration)
+    let maxCol = eventCols[i].col
+    for (let j = 0; j < eventCols.length; j++) {
+      if (i === j) continue
+      const ej = sorted[j]
+      const sj = timeToMinutes(ej.linearStartTime || ej.startTimeBE || '00:00')
+      const ej_end = sj + parseDurationMin(ej.duration)
+      if (sj < end && ej_end > start) {
+        maxCol = Math.max(maxCol, eventCols[j].col)
+      }
+    }
+    result.set(ev.id, { col: eventCols[i].col, totalCols: maxCol + 1 })
+  }
+
+  return result
 }
 
 const FALLBACK_COLOR = { border: '#4B5563', bg: 'rgba(75,85,99,0.1)', text: '#9CA3AF' }
@@ -183,6 +242,17 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
   const [saveViewName, setSaveViewName] = useState('')
   const [showSaveInput, setShowSaveInput] = useState(false)
+
+  const [ctxMenu, setCtxMenu] = useState<{
+    x: number; y: number
+    event?: Event
+    date?: string
+    time?: string
+  } | null>(null)
+  const clipboardRef = useRef<Event | null>(null)
+  const [duplicateTarget, setDuplicateTarget] = useState<Event | null>(null)
+  // suppress unused var warning until DuplicatePopover is wired (Task 3)
+  void duplicateTarget
 
   const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent } = useApp()
   const toast = useToast()
@@ -308,6 +378,12 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     [contextEvents, weekFromStr, weekToStr]
   )
 
+  // Stable key for conflict refetch: sorted event IDs joined
+  const weekEventKey = useMemo(
+    () => weekEvents.map(e => e.id).sort((a, b) => a - b).join(','),
+    [weekEvents]
+  )
+
   // Fetch conflicts for visible week events
   useEffect(() => {
     if (weekEvents.length === 0) {
@@ -315,10 +391,20 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
       return
     }
     const ids = weekEvents.map(e => e.id)
-    eventsApi.checkBulkConflicts(ids)
-      .then(map => setConflictMap(map))
+    let cancelled = false
+    // Chunk into batches of 50 to avoid backend limits
+    const chunks: number[][] = []
+    for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50))
+    Promise.all(chunks.map(chunk => eventsApi.checkBulkConflicts(chunk)))
+      .then(results => {
+        if (cancelled) return
+        const merged: Record<number, ConflictWarning[]> = {}
+        for (const r of results) Object.assign(merged, r)
+        setConflictMap(merged)
+      })
       .catch(() => {})
-  }, [weekFromStr, weekToStr, weekEvents.length])
+    return () => { cancelled = true }
+  }, [weekEventKey])
 
   const filteredWeekEvents = useMemo(() => {
     let result = channelFilter === 'all' ? weekEvents : weekEvents.filter(e => e.linearChannel === channelFilter)
@@ -514,6 +600,112 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     }
   }, [selectedIds, setEvents, toast])
 
+  // ── Context menu handlers ──────────────────────────────────────────────────
+
+  const handleCtxStatusChange = useCallback(async (event: Event, status: EventStatus) => {
+    try {
+      await eventsApi.update(event.id, { ...event, status })
+      setEvents(prev => prev.map(e => e.id === event.id ? { ...e, status } : e))
+      toast.success(`Status changed to ${status}`)
+    } catch {
+      toast.error('Failed to update status')
+    }
+  }, [setEvents, toast])
+
+  const handleCtxDelete = useCallback(async (event: Event) => {
+    if (!window.confirm(`Delete "${event.participants}"?`)) return
+    try {
+      await eventsApi.delete(event.id)
+      setEvents(prev => prev.filter(e => e.id !== event.id))
+      toast.success('Event deleted')
+    } catch {
+      toast.error('Failed to delete event')
+    }
+  }, [setEvents, toast])
+
+  const handleCtxDuplicate = useCallback(async (event: Event, targetDate: string) => {
+    try {
+      const { id: _id, seriesId: _sid, techPlans: _tp, createdAt: _ca, ...rest } = event
+      const created = await eventsApi.create({
+        ...rest,
+        startDateBE: targetDate,
+        status: 'draft' as EventStatus,
+      }) as Event
+      setEvents(prev => [...prev, created])
+      clipboardRef.current = created
+      const label = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-GB', {
+        weekday: 'short', day: 'numeric', month: 'short',
+      })
+      toast.success(`Duplicated to ${label}`)
+    } catch {
+      toast.error('Failed to duplicate event')
+    }
+  }, [setEvents, toast])
+  void handleCtxDuplicate // used by DuplicatePopover (Task 3)
+
+  const handleCtxPaste = useCallback(async (date: string, time?: string) => {
+    const src = clipboardRef.current
+    if (!src) return
+    try {
+      const { id: _id, seriesId: _sid, techPlans: _tp, createdAt: _ca, ...rest } = src
+      const created = await eventsApi.create({
+        ...rest,
+        startDateBE: date,
+        ...(time ? { startTimeBE: time, linearStartTime: time } : {}),
+        status: 'draft' as EventStatus,
+      }) as Event
+      setEvents(prev => [...prev, created])
+      toast.success('Pasted event')
+    } catch {
+      toast.error('Failed to paste event')
+    }
+  }, [setEvents, toast])
+
+  const ALL_STATUSES: EventStatus[] = ['draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled']
+
+  const buildEventMenuItems = useCallback((event: Event): MenuItem[] => [
+    { type: 'action', label: 'Open details', onClick: () => setDetailEvent(event) },
+    { type: 'action', label: 'Edit event', onClick: () => { setDetailEvent(null); onEventClick?.(event) } },
+    { type: 'separator' },
+    { type: 'action', label: 'Duplicate...', onClick: () => setDuplicateTarget(event) },
+    {
+      type: 'submenu',
+      label: 'Status',
+      children: ALL_STATUSES.map(s => ({
+        type: 'action' as const,
+        label: s.charAt(0).toUpperCase() + s.slice(1),
+        disabled: event.status === s,
+        onClick: () => handleCtxStatusChange(event, s),
+      })),
+    },
+    { type: 'separator' },
+    { type: 'action', label: 'Delete', danger: true, onClick: () => handleCtxDelete(event) },
+  ], [handleCtxStatusChange, handleCtxDelete, onEventClick])
+
+  const buildSlotMenuItems = useCallback((date: string, time?: string): MenuItem[] => {
+    const items: MenuItem[] = [
+      {
+        type: 'action',
+        label: 'Create event here',
+        onClick: () => {
+          onDrawCreate?.({
+            startDateBE: date,
+            startTimeBE: time || '12:00',
+            duration: '01:30:00;00',
+          })
+        },
+      },
+    ]
+    if (clipboardRef.current) {
+      items.push({
+        type: 'action',
+        label: 'Paste event here',
+        onClick: () => handleCtxPaste(date, time),
+      })
+    }
+    return items
+  }, [onDrawCreate, handleCtxPaste])
+
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
   const showSidePanels = visWidgets.filter(w => w.id !== 'channelTimeline')
   const showTimeline = visWidgets.find(w => w.id === 'channelTimeline')
@@ -611,13 +803,13 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
             {/* Week nav */}
             <div className="flex items-center gap-1">
               <button
-                onClick={() => { setWeekOffset(0); setLocalSearch('') }}
+                onClick={() => { setWeekOffset(0); setLocalSearch(''); setSelectedIds(new Set()) }}
                 className="px-3 py-1.5 text-xs border border-border text-text-2 rounded-lg hover:bg-surface-2 transition font-sans"
               >
                 This week
               </button>
               <button
-                onClick={() => { setWeekOffset(o => o - 1); setLocalSearch('') }}
+                onClick={() => { setWeekOffset(o => o - 1); setLocalSearch(''); setSelectedIds(new Set()) }}
                 className="px-2.5 py-1.5 text-sm border border-border text-text-2 rounded-lg hover:bg-surface-2 transition"
                 aria-label="Previous week (←)"
                 title="Previous week (←)"
@@ -628,7 +820,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                 {weekLabel}
               </span>
               <button
-                onClick={() => { setWeekOffset(o => o + 1); setLocalSearch('') }}
+                onClick={() => { setWeekOffset(o => o + 1); setLocalSearch(''); setSelectedIds(new Set()) }}
                 className="px-2.5 py-1.5 text-sm border border-border text-text-2 rounded-lg hover:bg-surface-2 transition"
                 aria-label="Next week (→)"
                 title="Next week (→)"
@@ -660,6 +852,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                   const diffMs = targetMonday.getTime() - todayMonday.getTime()
                   const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000))
                   setLocalSearch('')
+                  setSelectedIds(new Set())
                   setWeekOffset(diffWeeks)
                 }}
               />
@@ -795,6 +988,14 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                 selectionMode={selectionMode}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelectId}
+                onEventContextMenu={(e, ev, date, time) => {
+                  e.preventDefault()
+                  setCtxMenu({ x: e.clientX, y: e.clientY, event: ev, date, time })
+                }}
+                onSlotContextMenu={(e, date, time) => {
+                  e.preventDefault()
+                  setCtxMenu({ x: e.clientX, y: e.clientY, date, time })
+                }}
                 onDrawCreate={(result) => {
                   const durMin = result.durationMinutes
                   const h = Math.floor(durMin / 60)
@@ -851,6 +1052,10 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                                 key={ev.id}
                                 className={`px-4 py-3 hover:bg-surface-2/50 transition-colors cursor-pointer ${selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
                                 onClick={() => selectionMode ? toggleSelectId(ev.id) : setDetailEvent(ev)}
+                                onContextMenu={(e) => {
+                                  e.preventDefault()
+                                  setCtxMenu({ x: e.clientX, y: e.clientY, event: ev, date: getDateKey(ev.startDateBE) })
+                                }}
                               >
                                 <div className="flex items-start gap-3">
                                   {selectionMode && (
@@ -945,6 +1150,18 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
         sports={sports}
         competitions={competitions}
       />
+
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={ctxMenu.event
+            ? buildEventMenuItems(ctxMenu.event)
+            : buildSlotMenuItems(ctxMenu.date!, ctxMenu.time)
+          }
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
     </div>
   )
 }
@@ -963,6 +1180,8 @@ interface CalendarGridProps {
   onToggleSelect: (id: number) => void
   onDrawCreate?: (result: { date: string; startTime: string; durationMinutes: number }) => void
   onMultiDayCreate?: (result: { dates: string[]; startTime: string; durationMinutes: number }) => void
+  onEventContextMenu?: (e: React.MouseEvent, event: Event, date: string, time: string) => void
+  onSlotContextMenu?: (e: React.MouseEvent, date: string, time: string) => void
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -971,7 +1190,7 @@ const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
   return `${String(h).padStart(2, '0')}:00`
 })
 
-function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate }: CalendarGridProps) {
+function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate, onEventContextMenu, onSlotContextMenu }: CalendarGridProps) {
   const { sports } = useApp()
 
   const headerDrag = useHeaderDrag(weekDays, dateStr)
@@ -1080,6 +1299,7 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
         const ds = dateStr(day)
         const isToday = ds === todayStr
         const dayEvs = eventsByDay[dayIdx]
+        const overlapLayout = computeOverlapLayout(dayEvs)
 
         // Current time indicator position
         const nowTopPx = isToday
@@ -1094,6 +1314,17 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 height: CAL_HEIGHT,
                 background: isToday ? 'rgba(245,158,11,0.02)' : undefined,
                 backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR}px)`,
+              }}
+              onContextMenu={(e) => {
+                if ((e.target as HTMLElement).closest('[data-event-card]')) return
+                e.preventDefault()
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                const yOffset = e.clientY - rect.top
+                const minutes = CAL_START_HOUR * 60 + (yOffset / PX_PER_HOUR) * 60
+                const h = Math.floor(minutes / 60)
+                const m = Math.round((minutes % 60) / 5) * 5
+                const time = `${String(h).padStart(2,'0')}:${String(m >= 60 ? 0 : m).padStart(2,'0')}`
+                onSlotContextMenu?.(e, ds, time)
               }}
               onPointerDown={(e) => drawToCreate.onPointerDown(ds, e)}
               onPointerMove={drawToCreate.onPointerMove}
@@ -1146,22 +1377,34 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 const height = eventHeightPx(parseDurationMin(ev.duration))
                 const col = getChannelColor(ev.linearChannel)
                 const sp = sportsMap.get(ev.sportId)
+                const layout = overlapLayout.get(ev.id) ?? { col: 0, totalCols: 1 }
 
                 // Skip events outside the visible range
                 if (top >= CAL_HEIGHT) return null
 
+                const widthPct = 100 / layout.totalCols
+                const leftPct = layout.col * widthPct
+
                 const cardContent = (
                   <div
                     data-event-card="true"
-                    className={`absolute left-1 right-1 rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity ${selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400' : ''}`}
+                    className={`absolute rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity ${selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400' : ''}`}
                     style={{
                       top,
                       height: Math.min(height, CAL_HEIGHT - top),
+                      left: `calc(${leftPct}% + 2px)`,
+                      width: `calc(${widthPct}% - 4px)`,
                       background: col.bg,
                       borderLeft: `3px solid ${col.border}`,
                     }}
                     title={`${time} · ${ev.participants}`}
                     onClick={() => selectionMode ? onToggleSelect(ev.id) : onEventClick?.(ev)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const evTime = ev.linearStartTime || ev.startTimeBE
+                      onEventContextMenu?.(e, ev, ds, evTime)
+                    }}
                   >
                     {selectionMode && (
                       <input
