@@ -6,6 +6,7 @@ import { PublishPanel } from '../components/admin/PublishPanel'
 import { OrgConfigPanel } from '../components/admin/OrgConfigPanel'
 import { CrewRosterPanel } from '../components/admin/CrewRosterPanel'
 import { CrewTemplatesPanel } from '../components/admin/CrewTemplatesPanel'
+import { AuditLogViewer } from '../components/admin/AuditLogViewer'
 import { sportsApi, competitionsApi, encodersApi, importsApi, usersApi, type UserRecord } from '../services'
 import { settingsApi, type AdminStats } from '../services/settings'
 import { auditApi, type AuditEntry } from '../services/audit'
@@ -18,7 +19,7 @@ interface AdminViewProps {
   onTabChange?: (tab: AdminTab) => void
 }
 
-export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates'
+export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates' | 'audit-log'
 
 interface AdminGroup {
   label: string
@@ -562,6 +563,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
       items: [
         { id: 'csv', label: 'CSV Import' },
         { id: 'publish', label: 'Publish & Webhooks' },
+        { id: 'audit-log', label: 'Audit Log' },
       ],
     },
   ]
@@ -721,6 +723,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
               {activeTab === 'org' && <OrgConfigPanel />}
               {activeTab === 'crew-roster' && <CrewRosterPanel />}
               {activeTab === 'crew-templates' && <CrewTemplatesPanel />}
+              {activeTab === 'audit-log' && <AuditLogViewer />}
             </div>
           </div>
         ) : (
@@ -734,6 +737,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
             {activeTab === 'org' && <OrgConfigPanel />}
             {activeTab === 'crew-roster' && <CrewRosterPanel />}
             {activeTab === 'crew-templates' && <CrewTemplatesPanel />}
+            {activeTab === 'audit-log' && <AuditLogViewer />}
           </div>
         )}
       </div>
