@@ -81,6 +81,28 @@ async function upsertSetting(params: {
   return rows[0]
 }
 
+// Admin stats
+router.get('/stats', authenticate, authorize('admin'), async (_req, res, next) => {
+  try {
+    const [userCount, eventCount, techPlanCount, crewMemberCount, notificationCount] = await Promise.all([
+      prisma.user.count(),
+      prisma.event.count(),
+      prisma.techPlan.count(),
+      prisma.crewMember.count(),
+      prisma.notification.count({ where: { isRead: false } }),
+    ])
+    res.json({
+      users: userCount,
+      events: eventCount,
+      techPlans: techPlanCount,
+      crewMembers: crewMemberCount,
+      unreadNotifications: notificationCount,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/app', authenticate, async (req, res, next) => {
   try {
     const role = String(req.query.role || '')

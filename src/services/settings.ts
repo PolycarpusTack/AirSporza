@@ -20,7 +20,17 @@ export interface AppSettingsResponse {
   }
 }
 
+export interface AdminStats {
+  users: number
+  events: number
+  techPlans: number
+  crewMembers: number
+  unreadNotifications: number
+}
+
 export const settingsApi = {
+  getStats: (): Promise<AdminStats> => api.get('/settings/stats'),
+
   getApp: (role: Role) =>
     api.get<AppSettingsResponse>(`/settings/app?role=${role}`),
 
