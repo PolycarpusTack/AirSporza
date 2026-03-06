@@ -548,7 +548,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       {/* ── RESOURCES TAB ── */}
       {activeTab === 'resources' && (
         <div className="animate-fade-in">
-          <ResourcesTab resources={resources} techPlans={realtimePlans} events={events} />
+          <ResourcesTab resources={resources} techPlans={realtimePlans} events={events} sports={sports} />
         </div>
       )}
 

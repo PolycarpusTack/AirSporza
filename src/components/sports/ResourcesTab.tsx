@@ -3,7 +3,8 @@ import { X, Plus } from 'lucide-react'
 import { Badge, Btn } from '../ui'
 import { resourcesApi, RESOURCE_TYPE_LABELS } from '../../services/resources'
 import type { Resource, ResourceAssignment } from '../../services/resources'
-import type { Event, TechPlan } from '../../data/types'
+import type { Event, TechPlan, Sport } from '../../data/types'
+import { ResourceTimeline } from './ResourceTimeline'
 import { useToast } from '../Toast'
 import { fmtDate } from '../../utils'
 
@@ -11,12 +12,14 @@ interface ResourcesTabProps {
   resources: Resource[]
   techPlans: TechPlan[]
   events: Event[]
+  sports: Sport[]
 }
 
-export function ResourcesTab({ resources, techPlans, events }: ResourcesTabProps) {
+export function ResourcesTab({ resources, techPlans, events, sports }: ResourcesTabProps) {
   const [assignments, setAssignments] = useState<Record<number, ResourceAssignment[]>>({})
   const [assignModalResource, setAssignModalResource] = useState<Resource | null>(null)
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
+  const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table')
   const toast = useToast()
 
   const fetchAssignments = useCallback(() => {
@@ -69,6 +72,35 @@ export function ResourcesTab({ resources, techPlans, events }: ResourcesTabProps
 
   return (
     <>
+      {/* View toggle */}
+      <div className="flex gap-1 rounded-lg bg-surface-2 p-1 w-fit mb-3">
+        <button
+          onClick={() => setViewMode('table')}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+            viewMode === 'table' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
+          }`}
+        >
+          Table
+        </button>
+        <button
+          onClick={() => setViewMode('timeline')}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+            viewMode === 'timeline' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
+          }`}
+        >
+          Timeline
+        </button>
+      </div>
+
+      {viewMode === 'timeline' ? (
+        <ResourceTimeline
+          resources={resources}
+          assignments={assignments}
+          events={events}
+          sports={sports}
+        />
+      ) : (
+      <>
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -154,6 +186,8 @@ export function ResourcesTab({ resources, techPlans, events }: ResourcesTabProps
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       {assignModalResource && (
         <AssignModal
