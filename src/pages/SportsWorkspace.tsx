@@ -18,7 +18,9 @@ import { CrewTab } from '../components/sports/CrewTab'
 import { CrewMatrixView } from '../components/sports/CrewMatrixView'
 import { ResourcesTab } from '../components/sports/ResourcesTab'
 import { ConflictDashboard } from '../components/sports/ConflictDashboard'
+import { ResourceConflictList } from '../components/sports/ResourceConflictList'
 import { detectCrewConflicts, groupConflictsByPerson } from '../utils/crewConflicts'
+import { detectResourceConflicts } from '../utils/resourceConflicts'
 
 interface SportsWorkspaceProps {
   events: Event[]
@@ -108,9 +110,10 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   }, [on])
 
   const [selectedSport, setSelectedSport] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew' | 'resources'>('events')
+  const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew' | 'resources' | 'conflicts'>('events')
   const [crewSubTab, setCrewSubTab] = useState<'assignments' | 'conflicts'>('assignments')
   const [crewViewMode, setCrewViewMode] = useState<'table' | 'matrix'>('table')
+  const [conflictSubTab, setConflictSubTab] = useState<'crew' | 'resources'>('crew')
 
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
   const showTree = visWidgets.some(w => w.id === "sportTree")
@@ -144,6 +147,10 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const eventPlans = useMemo(() => selEvent ? realtimePlans.filter(p => p.eventId === selEvent.id) : [], [selEvent, realtimePlans])
   const crewConflicts = useMemo(() => detectCrewConflicts(realtimePlans, events), [realtimePlans, events])
   const conflictGroups = useMemo(() => groupConflictsByPerson(realtimePlans, events), [realtimePlans, events])
+  const resourceConflicts = useMemo(
+    () => detectResourceConflicts(resources, allAssignments, events),
+    [resources, allAssignments, events]
+  )
   const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
 
   const crewEditTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -266,6 +273,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
           { id: 'plans',     label: `Tech Plans${realtimePlans.length ? ` (${realtimePlans.length})` : ''}` },
           { id: 'crew',      label: 'Crew' },
           { id: 'resources', label: `Resources${resources.length ? ` (${resources.length})` : ''}` },
+          { id: 'conflicts', label: `Conflicts${(conflictGroups.length + resourceConflicts.length) > 0 ? ` (${conflictGroups.length + resourceConflicts.length})` : ''}` },
         ] as const).map(tab => (
           <button
             key={tab.id}
@@ -569,6 +577,42 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       {activeTab === 'resources' && (
         <div className="animate-fade-in">
           <ResourcesTab resources={resources} techPlans={realtimePlans} events={events} sports={sports} />
+        </div>
+      )}
+
+      {/* ── CONFLICTS TAB ── */}
+      {activeTab === 'conflicts' && (
+        <div className="animate-fade-in space-y-4">
+          <div className="flex gap-1 rounded-lg bg-surface-2 p-1 w-fit">
+            <button
+              onClick={() => setConflictSubTab('crew')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${
+                conflictSubTab === 'crew' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
+              }`}
+            >
+              Crew
+              {conflictGroups.length > 0 && (
+                <span className="rounded-full bg-warning/20 text-warning px-1.5 py-0.5 text-xs font-bold">{conflictGroups.length}</span>
+              )}
+            </button>
+            <button
+              onClick={() => setConflictSubTab('resources')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${
+                conflictSubTab === 'resources' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
+              }`}
+            >
+              Resources
+              {resourceConflicts.length > 0 && (
+                <span className="rounded-full bg-danger/20 text-danger px-1.5 py-0.5 text-xs font-bold">{resourceConflicts.length}</span>
+              )}
+            </button>
+          </div>
+
+          {conflictSubTab === 'crew' ? (
+            <ConflictDashboard groups={conflictGroups} />
+          ) : (
+            <ResourceConflictList conflicts={resourceConflicts} />
+          )}
         </div>
       )}
 
