@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { Btn } from '../ui'
 import { NotificationCenter } from './NotificationCenter'
+import { UserPreferencesModal } from '../settings/UserPreferencesModal'
 import type { Role, RoleConfig, User } from '../../data/types'
 
 interface HeaderProps {
@@ -62,6 +63,7 @@ export function Header({
   onLogout,
 }: HeaderProps) {
   const [mobileMenu, setMobileMenu] = useState(false)
+  const [showPreferences, setShowPreferences] = useState(false)
 
   return (
     <header className="bg-surface border-b border-border sticky top-0 z-30 shadow-sm">
@@ -144,14 +146,30 @@ export function Header({
               <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Event</span>
             </Btn>
 
-            <button
-              onClick={onLogout}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow"
-              style={{ background: 'linear-gradient(135deg, #374151, #111827)' }}
-              title={user?.name || 'User'}
-            >
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
-            </button>
+            <div className="relative group">
+              <button
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow"
+                style={{ background: 'linear-gradient(135deg, #374151, #111827)' }}
+                title={user?.name || 'User'}
+              >
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              </button>
+              <div className="absolute right-0 top-full mt-1 w-40 bg-surface rounded-xl border border-border shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1">
+                <button
+                  onClick={() => setShowPreferences(true)}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-surface-2"
+                >
+                  Preferences
+                </button>
+                <div className="border-t border-border my-1" />
+                <button
+                  onClick={onLogout}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-surface-2 text-danger"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -219,6 +237,9 @@ export function Header({
             </Btn>
           </div>
         </div>
+      )}
+      {showPreferences && (
+        <UserPreferencesModal onClose={() => setShowPreferences(false)} />
       )}
     </header>
   )
