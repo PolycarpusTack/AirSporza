@@ -4,6 +4,8 @@ import { Autocomplete, Badge, Btn } from '../ui'
 import { crewMembersApi } from '../../services/crewMembers'
 import { crewTemplatesApi } from '../../services/crewTemplates'
 import type { TechPlan, FieldConfig, CrewTemplate } from '../../data/types'
+import { ResourceSection } from './ResourceSection'
+import type { Resource, ResourceAssignment } from '../../services/resources'
 
 interface CustomField {
   name: string
@@ -24,6 +26,9 @@ interface TechPlanCardProps {
   onApplyTemplate: (crewData: Record<string, unknown>) => void
   onSaveAsTemplate: (crewData: Record<string, unknown>) => void
   conflicts?: Map<string, { personName: string; eventName: string; role: string; startTime: string; severity: 'full' | 'partial' }[]>
+  resources?: Resource[]
+  planAssignments?: ResourceAssignment[]
+  onAssignmentChange?: () => void
 }
 
 function getCustomFields(plan: TechPlan): CustomField[] {
@@ -35,6 +40,7 @@ export function TechPlanCard({
   onToggleEdit, onCrewEdit, onOpenSwap,
   onAddCustomField, onUpdateCustomField, onRemoveCustomField,
   onApplyTemplate, onSaveAsTemplate, conflicts,
+  resources, planAssignments, onAssignmentChange,
 }: TechPlanCardProps) {
   const customFields = getCustomFields(plan)
   const [templates, setTemplates] = useState<CrewTemplate[]>([])
@@ -226,6 +232,14 @@ export function TechPlanCard({
               Save as Template
             </Btn>
           </div>
+        )}
+        {resources && planAssignments && onAssignmentChange && (
+          <ResourceSection
+            planId={plan.id}
+            resources={resources}
+            assignments={planAssignments}
+            onAssignmentChange={onAssignmentChange}
+          />
         )}
       </div>
     </div>
