@@ -84,12 +84,12 @@ Write-Host ""
 Write-Host "[4/7] Installing dependencies..." -ForegroundColor Yellow
 
 Push-Location $projectRoot
-npm install 2>$null | Out-Null
+npm install --force 2>$null | Out-Null
 Write-Host "  Frontend dependencies installed" -ForegroundColor Green
 Pop-Location
 
 Push-Location $backendDir
-npm install 2>$null | Out-Null
+npm install --force 2>$null | Out-Null
 Write-Host "  Backend dependencies installed" -ForegroundColor Green
 
 Write-Host ""

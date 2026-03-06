@@ -89,11 +89,11 @@ echo ""
 echo "[4/7] Installing dependencies..."
 
 cd "$PROJECT_ROOT"
-npm install --silent 2>/dev/null
+npm install --force --silent 2>/dev/null
 echo "  Frontend dependencies installed"
 
 cd "$BACKEND_DIR"
-npm install --silent 2>/dev/null
+npm install --force --silent 2>/dev/null
 echo "  Backend dependencies installed"
 
 # ─── 5. Schema ───────────────────────────────────────────────────────────────
