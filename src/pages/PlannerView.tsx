@@ -21,6 +21,8 @@ import { ContextMenu, type MenuItem } from '../components/planner/ContextMenu'
 import { DuplicatePopover } from '../components/planner/DuplicatePopover'
 import { useDrawToCreate, minutesToTime } from '../hooks/useDrawToCreate'
 import { useHeaderDrag } from '../hooks/useHeaderDrag'
+import { useVerticalDrag, type VerticalDragResult } from '../hooks/useVerticalDrag'
+import { minutesToSmpte } from '../utils'
 
 interface PlannerViewProps {
   widgets: DashboardWidget[]
@@ -242,7 +244,12 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
-  const lastDragRef = useRef<{ eventId: number; previousDate: string } | null>(null)
+  const lastDragRef = useRef<{
+    eventId: number
+    previousDate?: string        // for horizontal drag
+    previousTime?: string        // for vertical drag (time reschedule)
+    previousDuration?: string    // for resize
+  } | null>(null)
   const [undoBar, setUndoBar] = useState<{ message: string } | null>(null)
 
   const [detailEvent, setDetailEvent] = useState<Event | null>(null)
@@ -508,18 +515,87 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     }
   }, [contextEvents, setEvents, toast, applyOptimisticEvent, revertOptimisticEvent])
 
+  // ── Vertical drag complete ────────────────────────────────────────────────
+
+  const handleVerticalDragComplete = useCallback(async (result: VerticalDragResult) => {
+    const ev = contextEvents.find(e => e.id === result.eventId)
+    if (!ev) return
+
+    const newTime = minutesToTime(result.newStartMin)
+    const newDuration = minutesToSmpte(result.newDurationMin)
+    const oldTime = ev.linearStartTime || ev.startTimeBE
+    const oldDuration = ev.duration
+
+    // Determine what changed
+    const timeChanged = newTime !== oldTime
+    const durationChanged = newDuration !== oldDuration
+
+    if (!timeChanged && !durationChanged) return
+
+    // Build patch
+    const patch: Partial<Event> = {}
+    if (timeChanged) {
+      // Update linearStartTime if it exists, otherwise startTimeBE
+      if (ev.linearStartTime) {
+        patch.linearStartTime = newTime
+      } else {
+        patch.startTimeBE = newTime
+      }
+    }
+    if (durationChanged) {
+      patch.duration = newDuration
+    }
+
+    // Optimistic update
+    applyOptimisticEvent({ id: result.eventId, ...patch })
+    try {
+      await eventsApi.update(result.eventId, { ...ev, ...patch })
+      setEvents(prev => prev.map(e => e.id === result.eventId ? { ...e, ...patch } : e))
+      revertOptimisticEvent(result.eventId)
+
+      // Store undo info
+      if (timeChanged && !durationChanged) {
+        lastDragRef.current = { eventId: result.eventId, previousTime: oldTime }
+        setUndoBar({ message: `Rescheduled to ${newTime}` })
+      } else if (durationChanged && !timeChanged) {
+        lastDragRef.current = { eventId: result.eventId, previousDuration: oldDuration }
+        const h = Math.floor(result.newDurationMin / 60)
+        const m = result.newDurationMin % 60
+        const durLabel = h > 0 ? `${h}h ${m}m` : `${m}m`
+        setUndoBar({ message: `Duration changed to ${durLabel}` })
+      } else {
+        // Both changed (shouldn't normally happen but handle it)
+        lastDragRef.current = { eventId: result.eventId, previousTime: oldTime, previousDuration: oldDuration }
+        setUndoBar({ message: `Rescheduled to ${newTime}` })
+      }
+    } catch {
+      revertOptimisticEvent(result.eventId)
+      toast.error('Failed to update event')
+    }
+  }, [contextEvents, setEvents, toast, applyOptimisticEvent, revertOptimisticEvent])
+
   // ── Undo drag ──────────────────────────────────────────────────────────────
 
   const handleUndoDrag = useCallback(async () => {
     if (!lastDragRef.current) return
-    const { eventId, previousDate } = lastDragRef.current
+    const { eventId, previousDate, previousTime, previousDuration } = lastDragRef.current
     lastDragRef.current = null
     const ev = contextEvents.find(e => e.id === eventId)
     if (!ev) return
-    applyOptimisticEvent({ id: eventId, startDateBE: previousDate })
+
+    // Build revert patch
+    const patch: Partial<Event> = {}
+    if (previousDate) patch.startDateBE = previousDate
+    if (previousTime) {
+      if (ev.linearStartTime) patch.linearStartTime = previousTime
+      else patch.startTimeBE = previousTime
+    }
+    if (previousDuration) patch.duration = previousDuration
+
+    applyOptimisticEvent({ id: eventId, ...patch })
     try {
-      await eventsApi.update(eventId, { ...ev, startDateBE: previousDate })
-      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: previousDate } : e))
+      await eventsApi.update(eventId, { ...ev, ...patch })
+      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, ...patch } : e))
       revertOptimisticEvent(eventId)
     } catch {
       revertOptimisticEvent(eventId)
@@ -1084,6 +1160,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                   const smpte = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00;00`
                   onMultiDayCreate?.({ dates: result.dates, startTimeBE: result.startTime, duration: smpte })
                 }}
+                onVerticalDragComplete={handleVerticalDragComplete}
                 contracts={contracts}
                 crewFields={crewFields}
               />
@@ -1277,6 +1354,7 @@ interface CalendarGridProps {
   onMultiDayCreate?: (result: { dates: string[]; startTime: string; durationMinutes: number }) => void
   onEventContextMenu?: (e: React.MouseEvent, event: Event, date: string, time: string) => void
   onSlotContextMenu?: (e: React.MouseEvent, date: string, time: string) => void
+  onVerticalDragComplete?: (result: VerticalDragResult) => void
   freezeWindowHours: number
   userRole?: string
   contracts: Contract[]
@@ -1289,7 +1367,7 @@ const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
   return `${String(h).padStart(2, '0')}:00`
 })
 
-function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate, onEventContextMenu, onSlotContextMenu, freezeWindowHours, userRole, contracts, crewFields }: CalendarGridProps) {
+function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate, onEventContextMenu, onSlotContextMenu, onVerticalDragComplete, freezeWindowHours, userRole, contracts, crewFields }: CalendarGridProps) {
   const { sports, techPlans } = useApp()
 
   const headerDrag = useHeaderDrag(weekDays, dateStr)
@@ -1299,6 +1377,19 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
     pxPerHour: PX_PER_HOUR,
     enabled: !selectionMode && !!onDrawCreate,
   })
+
+  const verticalDrag = useVerticalDrag({
+    enabled: !selectionMode,
+    calStartHour: CAL_START_HOUR,
+    calEndHour: CAL_END_HOUR,
+    pxPerHour: PX_PER_HOUR,
+    isLocked: (eventId) => {
+      const ev = events.find(e => e.id === eventId)
+      return ev ? isEventLocked(ev, freezeWindowHours, userRole).locked : true
+    },
+    onComplete: (result) => onVerticalDragComplete?.(result),
+  })
+
   // Escape cancels header drag selection
   useEffect(() => {
     if (!headerDrag.headerState) return
@@ -1435,8 +1526,12 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 onSlotContextMenu?.(e, ds, time)
               }}
               onPointerDown={(e) => drawToCreate.onPointerDown(ds, e)}
-              onPointerMove={drawToCreate.onPointerMove}
+              onPointerMove={(e) => {
+                drawToCreate.onPointerMove(e)
+                verticalDrag.onPointerMove(e)
+              }}
               onPointerUp={() => {
+                verticalDrag.onPointerUp()
                 const result = drawToCreate.onPointerUp()
                 if (!result) return
                 if (headerDrag.headerState && !headerDrag.headerState.active) {
@@ -1479,14 +1574,40 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 )
               })()}
 
+              {/* Vertical drag ghost preview */}
+              {verticalDrag.state && verticalDrag.state.date === ds && (() => {
+                const vd = verticalDrag.state
+                const ghostTop = (vd.startMin - CAL_START_HOUR * 60) * (PX_PER_HOUR / 60)
+                const ghostHeight = (vd.endMin - vd.startMin) * (PX_PER_HOUR / 60)
+                const timeLabel = `${minutesToTime(vd.startMin)} – ${minutesToTime(vd.endMin)}`
+                const durMin = vd.endMin - vd.startMin
+                const durH = Math.floor(durMin / 60)
+                const durM = durMin % 60
+                const durLabel = durH > 0 ? `${durH}h ${durM}m` : `${durM}m`
+                return (
+                  <div
+                    className="absolute left-1 right-1 rounded bg-primary/15 border border-primary/40 pointer-events-none z-20 flex flex-col items-center justify-center"
+                    style={{ top: ghostTop, height: Math.max(ghostHeight, 2) }}
+                  >
+                    {ghostHeight > 15 && (
+                      <span className="text-xs font-mono text-primary bg-surface/80 rounded px-1">
+                        {vd.mode === 'move' ? timeLabel : durLabel}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
+
               {dayEvs.map(ev => {
                 const time = ev.linearStartTime || ev.startTimeBE
                 const top = eventTopPx(time)
-                const height = eventHeightPx(parseDurationMin(ev.duration))
+                const durationMin = parseDurationMin(ev.duration)
+                const height = eventHeightPx(durationMin)
                 const col = getChannelColor(ev.linearChannel)
                 const sp = sportsMap.get(ev.sportId)
                 const layout = overlapLayout.get(ev.id) ?? { col: 0, totalCols: 1 }
                 const evLock = isEventLocked(ev, freezeWindowHours, userRole)
+                const startMinutes = timeToMinutes(time)
 
                 // Skip events outside the visible range
                 if (top >= CAL_HEIGHT) return null
@@ -1513,6 +1634,7 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                     }}
                     title={`${time} · ${ev.participants}${evLock.locked ? ' (locked)' : ''}`}
                     onClick={() => selectionMode ? onToggleSelect(ev.id) : onEventClick?.(ev)}
+                    onPointerDown={(e) => verticalDrag.onPointerDown(e, ev.id, startMinutes, durationMin, ds)}
                     onContextMenu={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
@@ -1616,6 +1738,13 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                         return null
                       })()}
                     </div>
+                    {/* Resize handle — bottom 10px zone with ns-resize cursor */}
+                    {!evLock.locked && !selectionMode && cardH >= 20 && (
+                      <div
+                        className="absolute bottom-0 left-0 right-0 cursor-ns-resize"
+                        style={{ height: Math.min(10, cardH) }}
+                      />
+                    )}
                   </div>
                 )
 
