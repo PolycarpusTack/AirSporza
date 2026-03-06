@@ -6,6 +6,37 @@ import { writeAuditLog } from '../utils/audit.js'
 
 const router = Router()
 
+// System-wide audit log with filters
+router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const { action, userId, entityType, from, to, limit = '50', offset = '0' } = req.query as Record<string, string>
+
+    const where: Record<string, unknown> = {}
+    if (action) where.action = { contains: action }
+    if (userId) where.userId = userId
+    if (entityType) where.entityType = entityType
+    if (from || to) {
+      where.createdAt = {}
+      if (from) (where.createdAt as Record<string, unknown>).gte = new Date(from)
+      if (to) (where.createdAt as Record<string, unknown>).lte = new Date(to)
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: Math.min(Number(limit), 100),
+        skip: Number(offset),
+      }),
+      prisma.auditLog.count({ where }),
+    ])
+
+    res.json({ logs, total })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/:entityType/:entityId', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const entityType = String(req.params.entityType)
