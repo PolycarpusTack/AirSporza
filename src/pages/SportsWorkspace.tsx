@@ -15,6 +15,7 @@ import { EventDetailCard } from '../components/sports/EventDetailCard'
 import { TechPlanCard } from '../components/sports/TechPlanCard'
 import { SportTreePanel } from '../components/sports/SportTreePanel'
 import { CrewTab } from '../components/sports/CrewTab'
+import { CrewMatrixView } from '../components/sports/CrewMatrixView'
 import { ResourcesTab } from '../components/sports/ResourcesTab'
 import { ConflictDashboard } from '../components/sports/ConflictDashboard'
 import { detectCrewConflicts, groupConflictsByPerson } from '../utils/crewConflicts'
@@ -83,6 +84,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [selectedSport, setSelectedSport] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew' | 'resources'>('events')
   const [crewSubTab, setCrewSubTab] = useState<'assignments' | 'conflicts'>('assignments')
+  const [crewViewMode, setCrewViewMode] = useState<'table' | 'matrix'>('table')
 
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
   const showTree = visWidgets.some(w => w.id === "sportTree")
@@ -149,6 +151,24 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
         toast.error('Failed to apply template')
       }
     }
+  }, [realtimePlans, setTechPlans, toast])
+
+  const handleBulkBatchApply = useCallback(async (planIds: number[], crewData: Record<string, unknown>) => {
+    const updated = realtimePlans.map(p => {
+      if (!planIds.includes(p.id)) return p
+      return { ...p, crew: { ...(p.crew as Record<string, unknown>), ...crewData } }
+    })
+    setRealtimePlans(updated)
+    setTechPlans(updated)
+    for (const planId of planIds) {
+      const plan = updated.find(p => p.id === planId)
+      if (plan) {
+        try {
+          await techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields })
+        } catch { /* non-blocking */ }
+      }
+    }
+    toast.success(`Template applied to ${planIds.length} plan${planIds.length !== 1 ? 's' : ''}`)
   }, [realtimePlans, setTechPlans, toast])
 
   const getCustomFields = (plan: TechPlan): CustomField[] => {
@@ -426,30 +446,72 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       {/* ── CREW TAB ── */}
       {activeTab === 'crew' && (
         <div className="animate-fade-in space-y-4">
-          <div className="flex gap-1 rounded-lg bg-surface-2 p-1 w-fit">
-            <button
-              onClick={() => setCrewSubTab('assignments')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${
-                crewSubTab === 'assignments' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
-              }`}
-            >
-              Assignments
-            </button>
-            <button
-              onClick={() => setCrewSubTab('conflicts')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${
-                crewSubTab === 'conflicts' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
-              }`}
-            >
-              Conflicts
-              {conflictGroups.length > 0 && (
-                <span className="rounded-full bg-warning/20 text-warning px-1.5 py-0.5 text-xs font-bold">{conflictGroups.length}</span>
-              )}
-            </button>
+          <div className="flex items-center gap-4">
+            {/* Assignments / Conflicts toggle */}
+            <div className="flex gap-1 rounded-lg bg-surface-2 p-1">
+              <button
+                onClick={() => setCrewSubTab('assignments')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${
+                  crewSubTab === 'assignments' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
+                }`}
+              >
+                Assignments
+              </button>
+              <button
+                onClick={() => setCrewSubTab('conflicts')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${
+                  crewSubTab === 'conflicts' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
+                }`}
+              >
+                Conflicts
+                {conflictGroups.length > 0 && (
+                  <span className="rounded-full bg-warning/20 text-warning px-1.5 py-0.5 text-xs font-bold">{conflictGroups.length}</span>
+                )}
+              </button>
+            </div>
+
+            {/* Table / Matrix toggle — only in assignments mode */}
+            {crewSubTab === 'assignments' && (
+              <div className="flex gap-1 rounded-lg bg-surface-2 p-1">
+                <button
+                  onClick={() => setCrewViewMode('table')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                    crewViewMode === 'table' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
+                  }`}
+                >
+                  Table
+                </button>
+                <button
+                  onClick={() => setCrewViewMode('matrix')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                    crewViewMode === 'matrix' ? 'bg-surface shadow-sm text-text' : 'text-text-2 hover:text-text'
+                  }`}
+                >
+                  Matrix
+                </button>
+              </div>
+            )}
           </div>
 
           {crewSubTab === 'assignments' ? (
-            <CrewTab plans={realtimePlans} events={events} crewFields={crewFields} />
+            crewViewMode === 'table' ? (
+              <CrewTab
+                plans={realtimePlans}
+                events={events}
+                crewFields={crewFields}
+                conflicts={crewConflicts}
+                onCrewEdit={handleCrewEdit}
+                onBatchApply={handleBulkBatchApply}
+              />
+            ) : (
+              <CrewMatrixView
+                plans={realtimePlans}
+                events={events}
+                crewFields={crewFields}
+                conflicts={crewConflicts}
+                onCrewEdit={handleCrewEdit}
+              />
+            )
           ) : (
             <ConflictDashboard groups={conflictGroups} />
           )}
