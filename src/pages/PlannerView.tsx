@@ -3,10 +3,11 @@ import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSe
 import { CSS } from '@dnd-kit/utilities'
 import { Lock } from 'lucide-react'
 import { Badge } from '../components/ui'
-import type { Event, DashboardWidget, Contract, EventStatus, BadgeVariant } from '../data/types'
+import type { Event, DashboardWidget, Contract, EventStatus, BadgeVariant, FieldConfig } from '../data/types'
 import { CONTRACTS } from '../data'
 import { dayLabel } from '../utils'
 import { isEventLocked, isForwardTransition, lockReasonLabel } from '../utils/eventLock'
+import { computeReadiness, type ReadinessResult } from '../utils/eventReadiness'
 import { useApp } from '../context/AppProvider'
 import { useAuth } from '../hooks'
 import { contractsApi } from '../services/contracts'
@@ -233,6 +234,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const [sportFilter, setSportFilter] = useState<number | undefined>()
   const [competitionFilter, setCompetitionFilter] = useState<number | undefined>()
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
+  const [readinessFilter, setReadinessFilter] = useState<string>('all')
   const [weekOffset, setWeekOffset] = useState(0)
   const [calendarMode, setCalendarMode] = useState(true)
   const [contracts, setContracts] = useState<Contract[]>(CONTRACTS)
@@ -259,7 +261,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const clipboardRef = useRef<Event | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Event | null>(null)
 
-  const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent } = useApp()
+  const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent, crewFields, techPlans } = useApp()
   const { user } = useAuth()
   const toast = useToast()
   const freezeHours = orgConfig.freezeWindowHours ?? 3
@@ -438,8 +440,17 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
         compsMap.get(ev.competitionId)?.name?.toLowerCase().includes(q)
       )
     }
+    if (readinessFilter !== 'all') {
+      result = result.filter(ev => {
+        const r = computeReadiness(ev, techPlans, contracts, crewFields)
+        if (readinessFilter === 'ready') return r.ready
+        if (readinessFilter === 'not-ready') return r.score === 0
+        if (readinessFilter === 'partial') return r.score > 0 && r.score < r.total
+        return true
+      })
+    }
     return result
-  }, [weekEvents, channelFilter, sportFilter, competitionFilter, statusFilter, localSearch, sportsMap, compsMap])
+  }, [weekEvents, channelFilter, sportFilter, competitionFilter, statusFilter, localSearch, sportsMap, compsMap, readinessFilter, techPlans, contracts, crewFields])
 
   // Only show live events happening today
   const liveNow = contextEvents.filter(e => e.isLive && getDateKey(e.startDateBE) === todayStr)
@@ -917,6 +928,18 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
               ))}
             </select>
 
+            {/* Readiness filter */}
+            <select
+              className="inp text-sm py-1 px-2"
+              value={readinessFilter}
+              onChange={e => setReadinessFilter(e.target.value)}
+            >
+              <option value="all">All readiness</option>
+              <option value="ready">Ready</option>
+              <option value="not-ready">Not Ready</option>
+              <option value="partial">Partial</option>
+            </select>
+
             {/* Stats inline */}
             <span className="text-xs text-text-2 font-mono bg-surface border border-border px-2 py-1 rounded">
               {weekEvents.length} events
@@ -1061,6 +1084,8 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                   const smpte = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00;00`
                   onMultiDayCreate?.({ dates: result.dates, startTimeBE: result.startTime, duration: smpte })
                 }}
+                contracts={contracts}
+                crewFields={crewFields}
               />
             </DndContext>
           ) : (
@@ -1208,6 +1233,9 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
         conflictMap={conflictMap}
         freezeWindowHours={freezeHours}
         userRole={user?.role}
+        techPlans={techPlans}
+        contracts={contracts}
+        crewFields={crewFields}
       />
 
       {ctxMenu && (
@@ -1251,6 +1279,8 @@ interface CalendarGridProps {
   onSlotContextMenu?: (e: React.MouseEvent, date: string, time: string) => void
   freezeWindowHours: number
   userRole?: string
+  contracts: Contract[]
+  crewFields: FieldConfig[]
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -1259,8 +1289,8 @@ const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
   return `${String(h).padStart(2, '0')}:00`
 })
 
-function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate, onEventContextMenu, onSlotContextMenu, freezeWindowHours, userRole }: CalendarGridProps) {
-  const { sports } = useApp()
+function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate, onEventContextMenu, onSlotContextMenu, freezeWindowHours, userRole, contracts, crewFields }: CalendarGridProps) {
+  const { sports, techPlans } = useApp()
 
   const headerDrag = useHeaderDrag(weekDays, dateStr)
 
@@ -1280,6 +1310,15 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
   }, [headerDrag.headerState, headerDrag.cancel])
 
   const sportsMap = useMemo(() => new Map(sports.map(s => [s.id, s])), [sports])
+
+  // Readiness map for all events in this grid
+  const readinessMap = useMemo(() => {
+    const map = new Map<number, ReadinessResult>()
+    for (const ev of events) {
+      map.set(ev.id, computeReadiness(ev, techPlans, contracts, crewFields))
+    }
+    return map
+  }, [events, techPlans, contracts, crewFields])
 
   // Current time indicator
   const [nowMinutes, setNowMinutes] = useState(() => {
@@ -1539,6 +1578,43 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                           {ev.status}
                         </Badge>
                       )}
+                      {(() => {
+                        const r = readinessMap.get(ev.id)
+                        if (!r) return null
+                        if (cardH >= 50) {
+                          // Full dots: one per check
+                          return (
+                            <div className="flex gap-0.5 mt-auto pt-0.5">
+                              {r.checks.map(c => (
+                                <span
+                                  key={c.key}
+                                  className={`inline-block rounded-full ${
+                                    c.status === 'pass' ? 'bg-emerald-400'
+                                    : c.status === 'fail' ? 'bg-red-400'
+                                    : 'bg-zinc-500/30'
+                                  }`}
+                                  style={{ width: 5, height: 5 }}
+                                  title={`${c.label}: ${c.status}`}
+                                />
+                              ))}
+                            </div>
+                          )
+                        }
+                        if (cardH >= 30) {
+                          // Summary dot
+                          const color = r.ready ? 'bg-emerald-400'
+                            : r.score === 0 ? 'bg-red-400'
+                            : 'bg-amber-400'
+                          return (
+                            <span
+                              className={`inline-block rounded-full mt-auto ${color}`}
+                              style={{ width: 5, height: 5 }}
+                              title={`Readiness: ${r.score}/${r.total}`}
+                            />
+                          )
+                        }
+                        return null
+                      })()}
                     </div>
                   </div>
                 )

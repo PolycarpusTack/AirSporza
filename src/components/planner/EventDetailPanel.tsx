@@ -1,8 +1,10 @@
+import { useMemo } from 'react'
 import { X, Copy, ExternalLink, Lock } from 'lucide-react'
 import { Badge, Btn } from '../ui'
-import type { Event, Sport, Competition, EventStatus, BadgeVariant } from '../../data/types'
+import type { Event, Sport, Competition, EventStatus, BadgeVariant, TechPlan, Contract, FieldConfig } from '../../data/types'
 import type { ConflictWarning } from '../../services/events'
 import { isEventLocked, isForwardTransition } from '../../utils/eventLock'
+import { computeReadiness } from '../../utils/eventReadiness'
 
 const EVENT_STATUSES: EventStatus[] = ['draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled']
 
@@ -18,6 +20,9 @@ interface EventDetailPanelProps {
   conflictMap?: Record<number, ConflictWarning[]>
   freezeWindowHours?: number
   userRole?: string
+  techPlans?: TechPlan[]
+  contracts?: Contract[]
+  crewFields?: FieldConfig[]
 }
 
 function statusVariant(s: EventStatus): BadgeVariant {
@@ -33,12 +38,16 @@ function statusVariant(s: EventStatus): BadgeVariant {
   return map[s] ?? 'default'
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, sports, competitions, onStatusChange, onDuplicate, onNavigateToSports, conflictMap, freezeWindowHours = 3, userRole }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, sports, competitions, onStatusChange, onDuplicate, onNavigateToSports, conflictMap, freezeWindowHours = 3, userRole, techPlans = [], contracts = [], crewFields = [] }: EventDetailPanelProps) {
   const sport = event ? sports.find(s => s.id === event.sportId) : null
   const competition = event ? competitions.find(c => c.id === event.competitionId) : null
   const conflicts = event ? conflictMap?.[event.id] : undefined
   const lock = event ? isEventLocked(event, freezeWindowHours, userRole) : { locked: false, reason: null, canOverride: false }
   const editDisabled = lock.locked && !lock.canOverride
+  const readiness = useMemo(
+    () => event ? computeReadiness(event, techPlans, contracts, crewFields) : null,
+    [event, techPlans, contracts, crewFields]
+  )
 
   return (
     <div
@@ -156,6 +165,30 @@ export function EventDetailPanel({ event, onClose, onEdit, sports, competitions,
                   <span className="text-text-2">{event.onDemandChannel}</span>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Readiness */}
+          {readiness && (
+            <div className="text-sm">
+              <p className="text-text-3 text-xs uppercase tracking-wider font-semibold mb-1">
+                Readiness {readiness.score}/{readiness.total}
+              </p>
+              <div className="space-y-0.5">
+                {readiness.checks.map(c => (
+                  <div key={c.key} className="flex items-center gap-2 text-xs">
+                    <span className={
+                      c.status === 'pass' ? 'text-emerald-400'
+                      : c.status === 'fail' ? 'text-red-400'
+                      : 'text-zinc-500'
+                    }>
+                      {c.status === 'pass' ? '\u2713' : c.status === 'fail' ? '\u2717' : '\u2014'}
+                    </span>
+                    <span className="text-text-2">{c.label}</span>
+                    {c.status === 'na' && <span className="text-text-3 ml-auto">N/A</span>}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
