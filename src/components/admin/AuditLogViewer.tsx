@@ -117,9 +117,9 @@ export function AuditLogViewer() {
               </span>
             </div>
             {log.userId && <div className="text-xs text-muted mt-1">by {log.userId}</div>}
-            {expandedId === log.id && (log.oldValue || log.newValue) && (
+            {expandedId === log.id && (log.oldValue != null || log.newValue != null) && (
               <div className="mt-3 grid grid-cols-2 gap-3">
-                {log.oldValue && (
+                {log.oldValue != null && (
                   <div>
                     <div className="text-xs font-bold text-muted mb-1">Before</div>
                     <pre className="text-xs bg-surface-2 rounded p-2 overflow-auto max-h-40">
@@ -127,7 +127,7 @@ export function AuditLogViewer() {
                     </pre>
                   </div>
                 )}
-                {log.newValue && (
+                {log.newValue != null && (
                   <div>
                     <div className="text-xs font-bold text-muted mb-1">After</div>
                     <pre className="text-xs bg-surface-2 rounded p-2 overflow-auto max-h-40">
