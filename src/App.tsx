@@ -6,9 +6,8 @@ import { Header } from './components/layout/Header'
 import { Sidebar } from './components/layout/Sidebar'
 import { RequireRole } from './components/auth/RequireRole'
 import { DevLogin, OAuthLogin } from './components/Login'
-import { AuthCallback } from './components/AuthCallback'
+import { AuthCallback } from './components/auth/AuthCallback'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { ToastProvider } from './components/Toast'
 import { AppProvider, useApp } from './context/AppProvider'
 import { useAuth } from './hooks'
 import type { Event } from './data/types'
@@ -217,7 +216,11 @@ function AppContent() {
           onBatchSave={async (events, seriesId) => {
             try {
               const created = await eventsApi.batchCreate(events, seriesId)
-              setEvents(prev => [...prev, ...(created as Event[])])
+              setEvents(prev => {
+                const existingIds = new Set(prev.map(e => e.id))
+                const newEvents = (created as Event[]).filter(e => !existingIds.has(e.id))
+                return newEvents.length > 0 ? [...prev, ...newEvents] : prev
+              })
               if (created.length > 0) {
                 const firstDate = typeof created[0].startDateBE === 'string'
                   ? created[0].startDateBE.split('T')[0]
@@ -319,11 +322,9 @@ function AppRoutes() {
 function App() {
   return (
     <ErrorBoundary>
-      <ToastProvider>
-        <AppProvider>
-          <AppRoutes />
-        </AppProvider>
-      </ToastProvider>
+      <AppProvider>
+        <AppRoutes />
+      </AppProvider>
     </ErrorBoundary>
   )
 }

@@ -73,6 +73,19 @@ router.post('/:id/assign', authenticate, authorize('sports', 'admin'), async (re
     if (!Number.isFinite(resourceId)) return next(createError(400, 'Invalid resource ID'))
     const { error: valErr, value } = assignSchema.validate(req.body)
     if (valErr) return next(createError(400, valErr.details[0].message))
+
+    // Enforce capacity
+    const resource = await prisma.resource.findUnique({ where: { id: resourceId } })
+    if (!resource) return next(createError(404, 'Resource not found'))
+    const currentUsage = await prisma.resourceAssignment.aggregate({
+      where: { resourceId },
+      _sum: { quantity: true },
+    })
+    const used = currentUsage._sum.quantity ?? 0
+    if (used + value.quantity > resource.capacity) {
+      return next(createError(409, `Resource "${resource.name}" is at capacity (${used}/${resource.capacity})`))
+    }
+
     const assignment = await prisma.resourceAssignment.create({
       data: { resourceId, techPlanId: value.techPlanId, quantity: value.quantity, notes: value.notes },
     })

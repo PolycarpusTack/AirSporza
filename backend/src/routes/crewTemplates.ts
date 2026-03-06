@@ -69,7 +69,12 @@ router.put('/:id', authenticate, async (req, res, next) => {
     const existing = await prisma.crewTemplate.findUnique({ where: { id } })
     if (!existing) return next(createError(404, 'Template not found'))
     const userId = (req as any).user?.id as string
-    if (existing.createdById !== null && existing.createdById !== userId) {
+    const userRole = (req as any).user?.role as string | undefined
+    // System defaults (createdById === null) can only be edited by admins
+    if (existing.createdById === null && userRole !== 'admin') {
+      return next(createError(403, 'Only admins can edit system default templates'))
+    }
+    if (existing.createdById !== null && existing.createdById !== userId && userRole !== 'admin') {
       return next(createError(403, 'Not allowed to update this template'))
     }
     const { error, value } = updateSchema.validate(req.body)
@@ -87,7 +92,12 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     const existing = await prisma.crewTemplate.findUnique({ where: { id } })
     if (!existing) return next(createError(404, 'Template not found'))
     const userId = (req as any).user?.id as string
-    if (existing.createdById !== null && existing.createdById !== userId) {
+    const userRole = (req as any).user?.role as string | undefined
+    // System defaults (createdById === null) can only be deleted by admins
+    if (existing.createdById === null && userRole !== 'admin') {
+      return next(createError(403, 'Only admins can delete system default templates'))
+    }
+    if (existing.createdById !== null && existing.createdById !== userId && userRole !== 'admin') {
       return next(createError(403, 'Not allowed to delete this template'))
     }
     await prisma.crewTemplate.delete({ where: { id } })

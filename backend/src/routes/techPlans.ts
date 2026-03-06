@@ -23,7 +23,7 @@ const techPlanSchema = Joi.object({
   customFields: Joi.array().items(Joi.object({ name: Joi.string(), value: Joi.string() }))
 })
 
-router.get('/', async (req, res, next) => {
+router.get('/', authenticate, async (req, res, next) => {
   try {
     const { eventId } = req.query
     
@@ -46,7 +46,7 @@ router.get('/', async (req, res, next) => {
   }
 })
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const plan = await prisma.techPlan.findUnique({
       where: { id: Number(req.params.id) },

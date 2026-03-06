@@ -42,6 +42,14 @@ const rolePaths: Record<Role, string> = {
   admin: '/admin',
 }
 
+// Which user roles can see each nav item (mirrors Sidebar NAV_MAIN)
+const roleAccess: Record<Role, Role[]> = {
+  planner: ['planner', 'admin'],
+  sports: ['planner', 'sports', 'admin'],
+  contracts: ['planner', 'contracts', 'admin'],
+  admin: ['admin'],
+}
+
 export function Header({
   activeRole,
   roleConfig,
@@ -148,7 +156,9 @@ export function Header({
       {/* Mobile menu — shown on sm: and below */}
       {mobileMenu && (
         <div className="sm:hidden border-t border-border bg-surface px-4 py-2 space-y-1">
-          {(Object.entries(roleConfig) as [Role, RoleConfig][]).map(([k, v]) => (
+          {(Object.entries(roleConfig) as [Role, RoleConfig][])
+            .filter(([k]) => !user?.role || roleAccess[k]?.includes(user.role))
+            .map(([k, v]) => (
             <NavLink
               key={k}
               to={rolePaths[k]}

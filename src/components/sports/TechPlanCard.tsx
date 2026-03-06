@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Plus, ChevronDown, AlertTriangle } from 'lucide-react'
 import { Autocomplete, Badge, Btn } from '../ui'
 import { crewMembersApi } from '../../services/crewMembers'
-import { crewTemplatesApi } from '../../services/crewTemplates'
 import type { TechPlan, FieldConfig, CrewTemplate } from '../../data/types'
 import { ResourceSection } from './ResourceSection'
 import type { Resource, ResourceAssignment } from '../../services/resources'
@@ -25,6 +24,7 @@ interface TechPlanCardProps {
   onRemoveCustomField: (idx: number) => void
   onApplyTemplate: (crewData: Record<string, unknown>) => void
   onSaveAsTemplate: (crewData: Record<string, unknown>) => void
+  templates?: CrewTemplate[]
   conflicts?: Map<string, { personName: string; eventName: string; role: string; startTime: string; severity: 'full' | 'partial' }[]>
   resources?: Resource[]
   planAssignments?: ResourceAssignment[]
@@ -39,16 +39,12 @@ export function TechPlanCard({
   plan, crewFields, isEditing, showCrew,
   onToggleEdit, onCrewEdit, onOpenSwap,
   onAddCustomField, onUpdateCustomField, onRemoveCustomField,
-  onApplyTemplate, onSaveAsTemplate, conflicts,
-  resources, planAssignments, onAssignmentChange,
+  onApplyTemplate, onSaveAsTemplate, templates: templatesProp,
+  conflicts, resources, planAssignments, onAssignmentChange,
 }: TechPlanCardProps) {
   const customFields = getCustomFields(plan)
-  const [templates, setTemplates] = useState<CrewTemplate[]>([])
+  const templates = templatesProp ?? []
   const [showTemplates, setShowTemplates] = useState(false)
-
-  useEffect(() => {
-    crewTemplatesApi.list().then(setTemplates).catch(() => {})
-  }, [])
 
   const defaults = templates.filter(t => t.planType !== null)
   const shared = templates.filter(t => t.planType === null && t.isShared)

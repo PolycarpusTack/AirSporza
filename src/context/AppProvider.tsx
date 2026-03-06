@@ -197,7 +197,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return
     const unsubCreated = on('event:created', (event: Event) => {
-      setEvents(prev => [...prev, event as Event])
+      setEvents(prev => prev.some(e => e.id === (event as Event).id) ? prev : [...prev, event as Event])
     })
     const unsubUpdated = on('event:updated', (event: Event) => {
       setEvents(prev => prev.map(e => e.id === (event as Event).id ? event as Event : e))
@@ -226,7 +226,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return updated as Event
         } else {
           const created = await eventsApi.create(ev)
-          setEvents((prev) => [...prev, created as Event])
+          // Socket 'event:created' handles adding to state — only append if no socket
+          // Use a dedup check in case socket already delivered it
+          setEvents((prev) => {
+            if (prev.some(e => e.id === (created as Event).id)) return prev
+            return [...prev, created as Event]
+          })
           toast.success('Event created')
           return created as Event
         }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { Menu, X } from 'lucide-react'
 import { Badge, Btn, EmptyState } from '../components/ui'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, Sport, Competition, Encoder } from '../data/types'
@@ -45,6 +45,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [encoders, setEncoders] = useState<Encoder[]>([])
   const [resources, setResources] = useState<Resource[]>([])
   const [allAssignments, setAllAssignments] = useState<Record<number, ResourceAssignment[]>>({})
+  const [crewTemplates, setCrewTemplates] = useState<import('../data/types').CrewTemplate[]>([])
   const [saveTemplateData, setSaveTemplateData] = useState<Record<string, unknown> | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [templateShared, setTemplateShared] = useState(false)
@@ -55,6 +56,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   useEffect(() => {
     encodersApi.list().then(setEncoders).catch(() => {})
     resourcesApi.list().then(setResources).catch(() => {})
+    crewTemplatesApi.list().then(setCrewTemplates).catch(() => {})
   }, [])
 
   const fetchAllAssignments = useCallback(() => {
@@ -144,22 +146,28 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const conflictGroups = useMemo(() => groupConflictsByPerson(realtimePlans, events), [realtimePlans, events])
   const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
 
-  const handleCrewEdit = useCallback(async (planId: number, field: string, value: string) => {
+  const crewEditTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  const handleCrewEdit = useCallback((planId: number, field: string, value: string) => {
+    // Immediate local state update
     const updated = realtimePlans.map(p => p.id === planId ? { ...p, crew: { ...p.crew as Record<string, unknown>, [field]: value } } : p)
     setRealtimePlans(updated)
     setTechPlans(updated)
-    const plan = updated.find(p => p.id === planId)
-    if (plan) {
-      try {
-        await techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields })
-        // Auto-add new crew member to roster
+
+    // Debounce the API persist + roster add (500ms)
+    const key = `${planId}:${field}`
+    const existing = crewEditTimers.current.get(key)
+    if (existing) clearTimeout(existing)
+    crewEditTimers.current.set(key, setTimeout(() => {
+      crewEditTimers.current.delete(key)
+      const plan = updated.find(p => p.id === planId)
+      if (plan) {
+        techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields }).catch(() => {})
         if (value.trim()) {
           crewMembersApi.create({ name: value.trim(), roles: [field] }).catch(() => {})
         }
-      } catch {
-        // non-blocking — local state already updated
       }
-    }
+    }, 500))
   }, [realtimePlans, setTechPlans])
 
   const handleCrewBatchApply = useCallback(async (planId: number, crewData: Record<string, unknown>) => {
@@ -229,7 +237,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const updatePlanCustomField = (planId: number, idx: number, key: string, val: string) => {
     const updated = realtimePlans.map(p => {
       if (p.id !== planId) return p
-      const cf = getCustomFields(p)
+      const cf = [...getCustomFields(p)]
       cf[idx] = { ...cf[idx], [key]: val }
       return { ...p, customFields: cf }
     })
@@ -241,8 +249,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const removePlanCustomField = (planId: number, idx: number) => {
     const updated = realtimePlans.map(p => {
       if (p.id !== planId) return p
-      const cf = getCustomFields(p)
-      cf.splice(idx, 1)
+      const cf = getCustomFields(p).filter((_, i) => i !== idx)
       return { ...p, customFields: cf }
     })
     setRealtimePlans(updated)
@@ -355,6 +362,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                         isEditing={editingPlanCrew === plan.id}
                         showCrew={showCrew}
                         conflicts={crewConflicts}
+                        templates={crewTemplates}
                         onToggleEdit={() => setEditingPlanCrew(editingPlanCrew === plan.id ? null : plan.id)}
                         onCrewEdit={(field, value) => handleCrewEdit(plan.id, field, value)}
                         onOpenSwap={() => setSwapModal(plan.id)}
@@ -415,10 +423,19 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
           )}
 
           <div>
+            {(() => {
+              const filteredPlans = selectedSport
+                ? realtimePlans.filter(p => {
+                    const ev = events.find(e => e.id === p.eventId)
+                    return ev && ev.sportId === selectedSport
+                  })
+                : realtimePlans
+              return (
+              <>
             <h4 className="text-xs font-bold uppercase tracking-wider text-text-2 mb-3">
-              Tech Plans ({realtimePlans.filter(p => !selectedSport || events.find(e => e.id === p.eventId && sports.find(s => s.id === e.sportId)?.id === selectedSport)).length})
+              Tech Plans ({filteredPlans.length})
             </h4>
-            {realtimePlans.length === 0 ? (
+            {filteredPlans.length === 0 ? (
               <div className="card p-8 text-center text-text-3 text-sm">No tech plans yet</div>
             ) : (
               <div className="card overflow-hidden">
@@ -434,7 +451,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {realtimePlans.map(plan => {
+                    {filteredPlans.map(plan => {
                       const ev = events.find(e => e.id === plan.eventId)
                       const encoderName = plan.crew.encoder as string | undefined
                       return (
@@ -466,6 +483,9 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                 </table>
               </div>
             )}
+              </>
+              )
+            })()}
           </div>
         </div>
       )}
