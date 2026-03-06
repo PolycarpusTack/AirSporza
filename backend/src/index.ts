@@ -29,6 +29,7 @@ import savedViewsRoutes from './routes/savedViews.js'
 import resourcesRoutes from './routes/resources.js'
 import crewMembersRoutes from './routes/crewMembers.js'
 import crewTemplatesRoutes from './routes/crewTemplates.js'
+import usersRouter from './routes/users.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -129,6 +130,7 @@ app.use('/api/saved-views', savedViewsRoutes)
 app.use('/api/resources', resourcesRoutes)
 app.use('/api/crew-members', crewMembersRoutes)
 app.use('/api/crew-templates', crewTemplatesRoutes)
+app.use('/api/users', usersRouter)
 
 app.use(errorHandler)
 
