@@ -15,6 +15,21 @@ export interface EventFilters {
   search?: string
 }
 
+// Strip fields the backend Joi schema doesn't accept and normalize dates
+function stripEventPayload(data: Partial<Event>): Record<string, unknown> {
+  const { id, sport, competition, techPlans, createdAt, updatedAt, createdById, ...rest } = data as Record<string, unknown>
+  // Normalize Date objects to ISO date strings (YYYY-MM-DD)
+  for (const key of ['startDateBE', 'startDateOrigin', 'livestreamDate'] as const) {
+    const val = rest[key]
+    if (val instanceof Date) {
+      rest[key] = val.toISOString().split('T')[0]
+    } else if (typeof val === 'string' && val.includes('T')) {
+      rest[key] = val.split('T')[0]
+    }
+  }
+  return rest
+}
+
 export const eventsApi = {
   list: (filters?: EventFilters) => {
     const params = new URLSearchParams()
@@ -33,14 +48,14 @@ export const eventsApi = {
     api.get<Event>(`/events/${id}`),
 
   create: (data: Partial<Event>) =>
-    api.post<Event>('/events', data),
+    api.post<Event>('/events', stripEventPayload(data)),
 
   batchCreate(events: Partial<Event>[], seriesId?: string): Promise<Event[]> {
-    return api.post('/events/batch', { events, seriesId })
+    return api.post('/events/batch', { events: events.map(stripEventPayload), seriesId })
   },
 
   update: (id: number, data: Partial<Event>) =>
-    api.put<Event>(`/events/${id}`, data),
+    api.put<Event>(`/events/${id}`, stripEventPayload(data)),
 
   delete: (id: number) =>
     api.delete(`/events/${id}`),

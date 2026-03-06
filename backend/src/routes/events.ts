@@ -403,6 +403,11 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
     const user = req.user as { id: string }
     const { customValues, ...eventData } = value
 
+    // Remove undefined values that Prisma can't handle
+    Object.keys(eventData).forEach(k => {
+      if (eventData[k] === undefined) delete eventData[k]
+    })
+
     const event = await prisma.event.create({
       data: {
         ...eventData,
@@ -577,6 +582,11 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
     }
 
     const { customValues, ...eventData } = value
+
+    // Remove undefined values that Prisma can't handle
+    Object.keys(eventData).forEach(k => {
+      if (eventData[k] === undefined) delete eventData[k]
+    })
 
     const event = await prisma.event.update({
       where: { id: Number(req.params.id) },

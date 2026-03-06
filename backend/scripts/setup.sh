@@ -8,6 +8,23 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$BACKEND_DIR")"
 
+# Warn WSL users on Windows filesystems — npm install from WSL pulls Linux
+# packages that won't work when running the app from Windows/PowerShell.
+if grep -qi microsoft /proc/version 2>/dev/null && echo "$PROJECT_ROOT" | grep -q '^/mnt/'; then
+  echo ""
+  echo "  ⚠  WARNING: You are running this from WSL on a Windows filesystem."
+  echo "     npm packages installed here will be Linux-specific and won't"
+  echo "     work from Windows/PowerShell. Use the PowerShell script instead:"
+  echo ""
+  echo "       .\\backend\\scripts\\setup.ps1"
+  echo ""
+  read -rp "  Continue anyway? [y/N] " confirm
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    echo "  Aborted. Use the PowerShell script on Windows."
+    exit 0
+  fi
+fi
+
 echo ""
 echo "=== Planza Local Setup ==="
 echo ""

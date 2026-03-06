@@ -639,11 +639,22 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     }
   }, [setEvents, toast])
 
+  const pickEventFields = (e: Event) => ({
+    sportId: e.sportId, competitionId: e.competitionId, phase: e.phase,
+    category: e.category, participants: e.participants, content: e.content,
+    startDateBE: e.startDateBE, startTimeBE: e.startTimeBE,
+    startDateOrigin: e.startDateOrigin, startTimeOrigin: e.startTimeOrigin,
+    complex: e.complex, livestreamDate: e.livestreamDate, livestreamTime: e.livestreamTime,
+    linearChannel: e.linearChannel, radioChannel: e.radioChannel, onDemandChannel: e.onDemandChannel,
+    linearStartTime: e.linearStartTime, isLive: e.isLive, isDelayedLive: e.isDelayedLive,
+    videoRef: e.videoRef, winner: e.winner, score: e.score, duration: e.duration,
+    customFields: e.customFields,
+  })
+
   const handleCtxDuplicate = useCallback(async (event: Event, targetDate: string) => {
     try {
-      const { id: _id, seriesId: _sid, techPlans: _tp, createdAt: _ca, ...rest } = event
       const created = await eventsApi.create({
-        ...rest,
+        ...pickEventFields(event),
         startDateBE: targetDate,
         status: 'draft' as EventStatus,
       }) as Event
@@ -662,9 +673,8 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     const src = clipboardRef.current
     if (!src) return
     try {
-      const { id: _id, seriesId: _sid, techPlans: _tp, createdAt: _ca, ...rest } = src
       const created = await eventsApi.create({
-        ...rest,
+        ...pickEventFields(src),
         startDateBE: date,
         ...(time ? { startTimeBE: time, linearStartTime: time } : {}),
         status: 'draft' as EventStatus,

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { eventsApi } from '../../services'
 
 type RepeatType = 'none' | 'daily' | 'weekdays' | 'every_n_days' | 'matchday'
@@ -82,13 +82,10 @@ export function RepeatSection({ startDate, onDatesChange, competitionId }: Repea
     return result
   }, [repeatType, startDate, untilDate, selectedDays, everyN, matchdays, selectedMatchdays])
 
-  // Use useCallback for the effect to avoid dependency issues
-  const stableDatesChange = useCallback(onDatesChange, [onDatesChange])
-
   // Propagate dates up when they change
-  useMemo(() => {
-    stableDatesChange(dates)
-  }, [dates, stableDatesChange])
+  useEffect(() => {
+    onDatesChange(dates)
+  }, [dates, onDatesChange])
 
   if (!expanded) {
     return (
@@ -108,7 +105,7 @@ export function RepeatSection({ startDate, onDatesChange, competitionId }: Repea
         <span className="text-xs font-bold text-text-3 uppercase tracking-wider">Repeat</span>
         <button
           type="button"
-          onClick={() => { setExpanded(false); setRepeatType('none'); stableDatesChange([]) }}
+          onClick={() => { setExpanded(false); setRepeatType('none'); onDatesChange([]) }}
           className="text-xs text-muted hover:text-text"
         >
           Remove
