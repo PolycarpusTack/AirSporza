@@ -49,6 +49,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [resources, setResources] = useState<Resource[]>([])
   const [allAssignments, setAllAssignments] = useState<Record<number, ResourceAssignment[]>>({})
   const [crewTemplates, setCrewTemplates] = useState<import('../data/types').CrewTemplate[]>([])
+  const [showCreatePlan, setShowCreatePlan] = useState(false)
+  const [newPlanType, setNewPlanType] = useState('')
   const [saveTemplateData, setSaveTemplateData] = useState<Record<string, unknown> | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [templateShared, setTemplateShared] = useState(false)
@@ -152,6 +154,10 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     () => detectResourceConflicts(resources, allAssignments, events),
     [resources, allAssignments, events]
   )
+  const knownPlanTypes = useMemo(() => {
+    const types = new Set(realtimePlans.map(p => p.planType))
+    return Array.from(types).sort()
+  }, [realtimePlans])
   const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
 
   const crewEditTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -378,17 +384,59 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-bold">Technical Plans ({eventPlans.length})</h4>
                       {canEdit && (
-                        <div className="flex items-center gap-1">
-                          {['OB', 'ENG', 'Studio', 'Remote'].map(type => (
-                            <Btn
-                              key={type}
-                              variant="ghost"
-                              size="xs"
-                              onClick={() => handleCreatePlan(selEvent!.id, type)}
-                            >
-                              <Plus className="w-3 h-3" /> {type}
-                            </Btn>
-                          ))}
+                        <div className="relative">
+                          <Btn variant="ghost" size="xs" onClick={() => { setShowCreatePlan(!showCreatePlan); setNewPlanType('') }}>
+                            <Plus className="w-3 h-3" /> New Plan
+                          </Btn>
+                          {showCreatePlan && (
+                            <div className="absolute right-0 top-full z-20 mt-1 w-60 rounded-md border border-border bg-surface shadow-md p-3">
+                              <div className="text-xs font-medium uppercase tracking-wide text-text-2 mb-2">Plan Type</div>
+                              <input
+                                value={newPlanType}
+                                onChange={e => setNewPlanType(e.target.value)}
+                                placeholder="e.g. Live Coverage"
+                                className="inp w-full mb-2"
+                                autoFocus
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && newPlanType.trim()) {
+                                    handleCreatePlan(selEvent!.id, newPlanType.trim())
+                                    setShowCreatePlan(false)
+                                    setNewPlanType('')
+                                  }
+                                  if (e.key === 'Escape') setShowCreatePlan(false)
+                                }}
+                              />
+                              {knownPlanTypes.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {knownPlanTypes.map(type => (
+                                    <button
+                                      key={type}
+                                      onClick={() => {
+                                        handleCreatePlan(selEvent!.id, type)
+                                        setShowCreatePlan(false)
+                                        setNewPlanType('')
+                                      }}
+                                      className="px-2 py-0.5 rounded-full text-xs border border-border text-text-2 hover:bg-surface-2 transition"
+                                    >
+                                      {type}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              <Btn
+                                size="xs"
+                                disabled={!newPlanType.trim()}
+                                onClick={() => {
+                                  handleCreatePlan(selEvent!.id, newPlanType.trim())
+                                  setShowCreatePlan(false)
+                                  setNewPlanType('')
+                                }}
+                                className="w-full"
+                              >
+                                Create
+                              </Btn>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
