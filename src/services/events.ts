@@ -55,6 +55,10 @@ export const eventsApi = {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getStoredToken()}` },
       body: JSON.stringify({ ids }),
     })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || `Bulk delete failed (${res.status})`)
+    }
     return res.json()
   },
 

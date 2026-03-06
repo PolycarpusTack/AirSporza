@@ -51,12 +51,12 @@ export function useHeaderDrag(
     [weekDays, dateStr],
   );
 
+  // Ref to the header row container for hit-testing during captured drag
+  const headerRowRef = useRef<HTMLElement | null>(null);
+
   /* ---- pointer down on a header ---- */
   const onHeaderPointerDown = useCallback(
-    (dayIdx: number, e: React.PointerEvent) => {
-      // Capture pointer for reliable tracking even if cursor leaves element
-      (e.target as Element).setPointerCapture(e.pointerId);
-
+    (dayIdx: number, _e: React.PointerEvent) => {
       anchorRef.current = dayIdx;
       updateState({
         selectedIndices: [dayIdx],
@@ -106,5 +106,5 @@ export function useHeaderDrag(
     return dates;
   }, [updateState]);
 
-  return { headerState, onHeaderPointerDown, onHeaderPointerMove, onHeaderPointerUp, cancel, confirm } as const;
+  return { headerState, headerRowRef, onHeaderPointerDown, onHeaderPointerMove, onHeaderPointerUp, cancel, confirm } as const;
 }
