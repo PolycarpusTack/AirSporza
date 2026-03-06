@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { FieldConfigurator, DashboardCustomizer, DynamicEventForm } from './components/forms'
 import { SettingsModal } from './components/settings/SettingsModal'
 import { Header } from './components/layout/Header'
@@ -13,6 +13,8 @@ import { useAuth } from './hooks'
 import type { Event } from './data/types'
 import { eventsApi } from './services'
 import { useToast } from './components/Toast'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { ShortcutHelpModal } from './components/ui/ShortcutHelpModal'
 
 const PlannerView = lazy(() =>
   import('./pages/PlannerView').then((m) => ({ default: m.PlannerView }))
@@ -63,6 +65,8 @@ function AppContent() {
   } = useApp()
 
   const toast = useToast()
+  const navigate = useNavigate()
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false)
   const [showEventForm, setShowEventForm] = useState(false)
   const [editEvent, setEditEvent] = useState<Event | null>(null)
   const [eventPrefill, setEventPrefill] = useState<Partial<Record<string, string>> | null>(null)
@@ -86,6 +90,23 @@ function AppContent() {
     setIntegrationScope(scope)
     setShowSettings(true)
   }
+
+  const shortcuts = useMemo(() => [
+    { key: 'n', label: 'New Event', action: () => { setEditEvent(null); setShowEventForm(true) } },
+    { key: 'k', ctrl: true, label: 'Search', action: () => {
+      document.querySelector<HTMLInputElement>('[data-search-input]')?.focus()
+    }},
+    { key: '?', shift: true, label: 'Show Shortcuts', action: () => setShowShortcutHelp(true) },
+    { key: '1', label: 'Go to Planning', action: () => navigate('/planner') },
+    { key: '2', label: 'Go to Sports', action: () => navigate('/sports') },
+    { key: '3', label: 'Go to Contracts', action: () => navigate('/contracts') },
+    { key: 'Escape', label: 'Close', action: () => {
+      setShowEventForm(false)
+      setShowSettings(false)
+      setShowShortcutHelp(false)
+    }},
+  ], [navigate])
+  useKeyboardShortcuts(shortcuts)
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
@@ -273,6 +294,10 @@ function AppContent() {
           defaultIntegrationScope={integrationScope}
           userRole={user?.role}
         />
+      )}
+
+      {showShortcutHelp && (
+        <ShortcutHelpModal onClose={() => setShowShortcutHelp(false)} />
       )}
     </div>
   )

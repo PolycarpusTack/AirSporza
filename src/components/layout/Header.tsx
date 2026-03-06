@@ -95,6 +95,7 @@ export function Header({
             <div className="relative hidden sm:block">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-3 w-4 h-4" />
               <input
+                data-search-input
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Search events..."
