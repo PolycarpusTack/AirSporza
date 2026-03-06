@@ -12,6 +12,7 @@ import {
   LayoutGrid,
 } from 'lucide-react'
 import { Btn } from '../ui'
+import { NotificationCenter } from './NotificationCenter'
 import type { Role, RoleConfig, User } from '../../data/types'
 
 interface HeaderProps {
@@ -98,6 +99,8 @@ export function Header({
                 className="inp pl-8 pr-3 py-1.5 w-40 focus:w-56 transition-all"
               />
             </div>
+
+            <NotificationCenter />
 
             <div className="relative group">
               <Btn variant="ghost" size="xs" className="text-text-3">
