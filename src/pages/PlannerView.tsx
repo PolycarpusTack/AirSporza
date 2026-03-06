@@ -8,7 +8,7 @@ import { dayLabel } from '../utils'
 import { useApp } from '../context/AppProvider'
 import { contractsApi } from '../services/contracts'
 import { eventsApi, type ConflictWarning } from '../services'
-import { savedViewsApi, type SavedView } from '../services/savedViews'
+import { savedViewsApi, type SavedView, type PlannerFilterState } from '../services/savedViews'
 import { useToast } from '../components/Toast'
 import { BulkActionBar } from '../components/planner/BulkActionBar'
 import { UndoBar } from '../components/planner/UndoBar'
@@ -227,6 +227,9 @@ function DroppableDayColumn({ date, children }: { date: string; children: ReactN
 
 export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDrawCreate, onMultiDayCreate }: PlannerViewProps) {
   const [channelFilter, setChannelFilter] = useState('all')
+  const [sportFilter, setSportFilter] = useState<number | undefined>()
+  const [competitionFilter, setCompetitionFilter] = useState<number | undefined>()
+  const [statusFilter, setStatusFilter] = useState<string | undefined>()
   const [weekOffset, setWeekOffset] = useState(0)
   const [calendarMode, setCalendarMode] = useState(true)
   const [contracts, setContracts] = useState<Contract[]>(CONTRACTS)
@@ -270,6 +273,11 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
       const view = await savedViewsApi.create(saveViewName.trim(), 'planner', {
         channelFilter,
         calendarMode: calendarMode ? 'calendar' : 'list',
+        sportFilter,
+        competitionFilter,
+        statusFilter,
+        searchText: localSearch || undefined,
+        weekOffset,
       })
       setSavedViews(prev => [...prev, view])
       setSaveViewName('')
@@ -280,10 +288,15 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   }
 
   const handleLoadView = (view: SavedView) => {
-    const fs = view.filterState
+    const fs = view.filterState as PlannerFilterState
     if (fs.channelFilter) setChannelFilter(fs.channelFilter)
     if (fs.calendarMode === 'calendar') setCalendarMode(true)
     if (fs.calendarMode === 'list') setCalendarMode(false)
+    setSportFilter(fs.sportFilter)
+    setCompetitionFilter(fs.competitionFilter)
+    setStatusFilter(fs.statusFilter)
+    setLocalSearch(fs.searchText ?? '')
+    if (fs.weekOffset !== undefined) setWeekOffset(fs.weekOffset)
   }
 
   const handleDeleteView = async (id: string) => {
@@ -406,7 +419,11 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   }, [weekEventKey])
 
   const filteredWeekEvents = useMemo(() => {
-    let result = channelFilter === 'all' ? weekEvents : weekEvents.filter(e => e.linearChannel === channelFilter)
+    let result = weekEvents
+    if (channelFilter !== 'all') result = result.filter(e => e.linearChannel === channelFilter)
+    if (sportFilter) result = result.filter(e => e.sportId === sportFilter)
+    if (competitionFilter) result = result.filter(e => e.competitionId === competitionFilter)
+    if (statusFilter) result = result.filter(e => (e.status ?? 'draft') === statusFilter)
     if (localSearch) {
       const q = localSearch.toLowerCase()
       result = result.filter(ev =>
@@ -417,7 +434,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
       )
     }
     return result
-  }, [weekEvents, channelFilter, localSearch, sportsMap, compsMap])
+  }, [weekEvents, channelFilter, sportFilter, competitionFilter, statusFilter, localSearch, sportsMap, compsMap])
 
   // Only show live events happening today
   const liveNow = contextEvents.filter(e => e.isLive && getDateKey(e.startDateBE) === todayStr)
@@ -865,6 +882,42 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
               value={localSearch}
               onChange={e => setLocalSearch(e.target.value)}
             />
+
+            {/* Sport filter */}
+            <select
+              className="inp text-sm py-1 px-2"
+              value={sportFilter ?? ''}
+              onChange={e => setSportFilter(e.target.value ? Number(e.target.value) : undefined)}
+            >
+              <option value="">All sports</option>
+              {sports.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+
+            {/* Competition filter */}
+            <select
+              className="inp text-sm py-1 px-2"
+              value={competitionFilter ?? ''}
+              onChange={e => setCompetitionFilter(e.target.value ? Number(e.target.value) : undefined)}
+            >
+              <option value="">All competitions</option>
+              {competitions.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+
+            {/* Status filter */}
+            <select
+              className="inp text-sm py-1 px-2"
+              value={statusFilter ?? ''}
+              onChange={e => setStatusFilter(e.target.value || undefined)}
+            >
+              <option value="">All statuses</option>
+              {(['draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled']).map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
 
             {/* Stats inline */}
             <span className="text-xs text-text-2 font-mono bg-surface border border-border px-2 py-1 rounded">

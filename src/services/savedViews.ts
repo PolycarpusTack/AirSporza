@@ -3,6 +3,11 @@ import { api } from '../utils/api'
 export interface PlannerFilterState {
   channelFilter?: string
   calendarMode?: 'calendar' | 'list'
+  sportFilter?: number
+  competitionFilter?: number
+  statusFilter?: string
+  searchText?: string
+  weekOffset?: number
 }
 
 export interface SavedView {
