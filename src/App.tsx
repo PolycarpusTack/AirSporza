@@ -136,17 +136,20 @@ function AppContent() {
               <Route
                 path="/sports"
                 element={
-                  <div className="p-4 sm:p-5">
-                    <SportsWorkspace
-                      events={filteredEvents}
-                      techPlans={techPlans}
-                      setTechPlans={setTechPlans}
-                      crewFields={crewFields}
-                      widgets={currentWidgets}
-                      sports={sports}
-                      competitions={competitions}
-                    />
-                  </div>
+                  <RequireRole roles={['admin', 'sports', 'planner']}>
+                    <div className="p-4 sm:p-5">
+                      <SportsWorkspace
+                        events={filteredEvents}
+                        techPlans={techPlans}
+                        setTechPlans={setTechPlans}
+                        crewFields={crewFields}
+                        widgets={currentWidgets}
+                        sports={sports}
+                        competitions={competitions}
+                        canEdit={user?.role === 'sports' || user?.role === 'admin'}
+                      />
+                    </div>
+                  </RequireRole>
                 }
               />
               <Route

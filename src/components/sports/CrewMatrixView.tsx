@@ -139,15 +139,23 @@ export function CrewMatrixView({ plans, events, crewFields, conflicts, onCrewEdi
   const columns = useMemo(() => buildColumns(events, plans), [events, plans])
   const assignmentMap = useMemo(() => buildAssignmentMap(plans, crewFields), [plans, crewFields])
 
-  // All unique roles from crew fields and members
+  // All unique roles — use field IDs as canonical keys, labels for display
+  const fieldLabelMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const f of crewFields) map.set(f.id, f.label)
+    return map
+  }, [crewFields])
+
   const allRoles = useMemo(() => {
-    const roles = new Set<string>()
-    for (const f of crewFields) roles.add(f.label)
+    const roleIds = new Set<string>()
+    for (const f of crewFields) roleIds.add(f.id)
     for (const m of members) {
-      for (const r of m.roles) roles.add(r)
+      for (const r of m.roles) roleIds.add(r)
     }
-    return Array.from(roles).sort()
-  }, [crewFields, members])
+    return Array.from(roleIds).sort((a, b) =>
+      (fieldLabelMap.get(a) ?? a).localeCompare(fieldLabelMap.get(b) ?? b)
+    )
+  }, [crewFields, members, fieldLabelMap])
 
   // Filter members
   const filteredMembers = useMemo(() => {
@@ -159,8 +167,7 @@ export function CrewMatrixView({ plans, events, crewFields, conflicts, onCrewEdi
     }
 
     if (roleFilter) {
-      // Show members assigned to that role in any event OR who have that role in their profile
-      const roleFieldIds = crewFields.filter(f => f.label === roleFilter).map(f => f.id)
+      // roleFilter is now a field ID
       filtered = filtered.filter(m => {
         // Check profile roles
         if (m.roles.includes(roleFilter)) return true
@@ -168,14 +175,14 @@ export function CrewMatrixView({ plans, events, crewFields, conflicts, onCrewEdi
         for (const col of columns) {
           const key = `${m.name.toLowerCase()}:${col.event.id}`
           const assignments = assignmentMap.get(key)
-          if (assignments?.some(a => roleFieldIds.includes(a.fieldId))) return true
+          if (assignments?.some(a => a.fieldId === roleFilter)) return true
         }
         return false
       })
     }
 
     return filtered
-  }, [members, search, roleFilter, crewFields, columns, assignmentMap])
+  }, [members, search, roleFilter, columns, assignmentMap])
 
   const handleCellClick = useCallback((e: React.MouseEvent, member: CrewMember, col: EventColumn) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -259,7 +266,7 @@ export function CrewMatrixView({ plans, events, crewFields, conflicts, onCrewEdi
         >
           <option value="">All roles</option>
           {allRoles.map(r => (
-            <option key={r} value={r}>{r}</option>
+            <option key={r} value={r}>{fieldLabelMap.get(r) ?? r}</option>
           ))}
         </select>
 

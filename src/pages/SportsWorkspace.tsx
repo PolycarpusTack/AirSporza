@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, Plus } from 'lucide-react'
 import { Badge, Btn, EmptyState } from '../components/ui'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, Sport, Competition, Encoder } from '../data/types'
 import { encodersApi, techPlansApi } from '../services'
@@ -30,6 +30,7 @@ interface SportsWorkspaceProps {
   widgets: DashboardWidget[]
   sports: Sport[]
   competitions: Competition[]
+  canEdit?: boolean
 }
 
 interface CustomField {
@@ -37,7 +38,7 @@ interface CustomField {
   value: string
 }
 
-export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, widgets, sports, competitions }: SportsWorkspaceProps) {
+export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, widgets, sports, competitions, canEdit = true }: SportsWorkspaceProps) {
   const [selEvent, setSelEvent] = useState<Event | null>(null)
   const [expanded, setExpanded] = useState<Set<number>>(new Set([1]))
   const [swapModal, setSwapModal] = useState<number | null>(null)
@@ -210,6 +211,21 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     toast.success(`Template applied to ${planIds.length} plan${planIds.length !== 1 ? 's' : ''}`)
   }, [realtimePlans, setTechPlans, toast])
 
+  const handleCreatePlan = useCallback(async (eventId: number, planType: string) => {
+    try {
+      const created = await techPlansApi.create({ eventId, planType, crew: {}, customFields: [] })
+      const plan = created as TechPlan
+      setRealtimePlans(prev => prev.some(p => p.id === plan.id) ? prev : [...prev, plan])
+      setTechPlans(prev => {
+        const arr = Array.isArray(prev) ? prev : []
+        return arr.some(p => p.id === plan.id) ? arr : [...arr, plan]
+      })
+      toast.success('Tech plan created')
+    } catch {
+      toast.error('Failed to create tech plan')
+    }
+  }, [setTechPlans, toast])
+
   const getCustomFields = (plan: TechPlan): CustomField[] => {
     if (Array.isArray(plan.customFields)) {
       return plan.customFields as CustomField[]
@@ -361,6 +377,20 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-bold">Technical Plans ({eventPlans.length})</h4>
+                      {canEdit && (
+                        <div className="flex items-center gap-1">
+                          {['OB', 'ENG', 'Studio', 'Remote'].map(type => (
+                            <Btn
+                              key={type}
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => handleCreatePlan(selEvent!.id, type)}
+                            >
+                              <Plus className="w-3 h-3" /> {type}
+                            </Btn>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {eventPlans.map(plan => (
                       <TechPlanCard
@@ -386,6 +416,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                         resources={resources}
                         planAssignments={getAssignmentsForPlan(plan.id)}
                         onAssignmentChange={fetchAllAssignments}
+                        canEdit={canEdit}
                       />
                     ))}
                     {eventPlans.length === 0 && (
@@ -477,12 +508,14 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                             {plan.isLivestream ? <Badge variant="live">Yes</Badge> : <span className="text-text-3 text-xs">No</span>}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => setSwapModal(plan.id)}
-                              className="btn btn-g btn-sm"
-                            >
-                              Swap encoder
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => setSwapModal(plan.id)}
+                                className="btn btn-g btn-sm"
+                              >
+                                Swap encoder
+                              </button>
+                            )}
                           </td>
                         </tr>
                       )

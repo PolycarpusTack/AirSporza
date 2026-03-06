@@ -255,8 +255,10 @@ function AssignModal({ resource, assignments, techPlans, events, onClose, onAssi
 
     // Sort by event date descending
     return [...groups.entries()].sort((a, b) => {
-      const da = a[1].event?.startDateBE?.toString() ?? ''
-      const db = b[1].event?.startDateBE?.toString() ?? ''
+      const rawA = a[1].event?.startDateBE
+      const rawB = b[1].event?.startDateBE
+      const da = rawA instanceof Date ? rawA.toISOString().split('T')[0] : typeof rawA === 'string' ? rawA.split('T')[0] : ''
+      const db = rawB instanceof Date ? rawB.toISOString().split('T')[0] : typeof rawB === 'string' ? rawB.split('T')[0] : ''
       return db.localeCompare(da)
     })
   }, [techPlans, assignedPlanIds, eventsById, search])

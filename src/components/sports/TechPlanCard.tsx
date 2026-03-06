@@ -29,6 +29,7 @@ interface TechPlanCardProps {
   resources?: Resource[]
   planAssignments?: ResourceAssignment[]
   onAssignmentChange?: () => void
+  canEdit?: boolean
 }
 
 function getCustomFields(plan: TechPlan): CustomField[] {
@@ -41,6 +42,7 @@ export function TechPlanCard({
   onAddCustomField, onUpdateCustomField, onRemoveCustomField,
   onApplyTemplate, onSaveAsTemplate, templates: templatesProp,
   conflicts, resources, planAssignments, onAssignmentChange,
+  canEdit = true,
 }: TechPlanCardProps) {
   const customFields = getCustomFields(plan)
   const templates = templatesProp ?? []
@@ -59,7 +61,7 @@ export function TechPlanCard({
         </div>
         <div className="flex items-center gap-2">
           {plan.isLivestream && <Badge variant="live">Livestream</Badge>}
-          <div className="relative">
+          {canEdit && <div className="relative">
             <Btn variant="ghost" size="xs" onClick={() => setShowTemplates(!showTemplates)}>
               Apply Template <ChevronDown className="w-3 h-3" />
             </Btn>
@@ -97,10 +99,10 @@ export function TechPlanCard({
                 )}
               </div>
             )}
-          </div>
-          <Btn variant="ghost" size="xs" onClick={onToggleEdit}>
+          </div>}
+          {canEdit && <Btn variant="ghost" size="xs" onClick={onToggleEdit}>
             {isEditing ? "Done Editing" : "Edit Crew"}
-          </Btn>
+          </Btn>}
         </div>
       </div>
       <div className="p-4">

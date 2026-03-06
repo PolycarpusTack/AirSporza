@@ -205,10 +205,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const unsubDeleted = on('event:deleted', ({ id }: { id: number }) => {
       setEvents(prev => prev.filter(e => e.id !== id))
     })
+    // Tech plan socket events — keep app-level state in sync
+    const unsubPlanCreated = on('techPlan:created', (plan: TechPlan) => {
+      setTechPlans(prev => prev.some(p => p.id === (plan as TechPlan).id) ? prev : [...prev, plan as TechPlan])
+    })
+    const unsubPlanUpdated = on('techPlan:updated', (plan: TechPlan) => {
+      setTechPlans(prev => prev.map(p => p.id === (plan as TechPlan).id ? plan as TechPlan : p))
+    })
+    const unsubPlanDeleted = on('techPlan:deleted', ({ id }: { id: number }) => {
+      setTechPlans(prev => prev.filter(p => p.id !== id))
+    })
+    const unsubEncoderSwapped = on('encoder:swapped', ({ planId, plan }: { planId: number; plan: TechPlan }) => {
+      setTechPlans(prev => prev.map(p => p.id === planId ? plan as TechPlan : p))
+    })
     return () => {
       unsubCreated()
       unsubUpdated()
       unsubDeleted()
+      unsubPlanCreated()
+      unsubPlanUpdated()
+      unsubPlanDeleted()
+      unsubEncoderSwapped()
     }
   }, [user, on])
 
