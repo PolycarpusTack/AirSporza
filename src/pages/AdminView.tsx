@@ -20,6 +20,11 @@ interface AdminViewProps {
 
 export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates'
 
+interface AdminGroup {
+  label: string
+  items: { id: AdminTab; label: string }[]
+}
+
 // ── Sports Tab ───────────────────────────────────────────────────────────────
 
 function SportsTab({ sports, setSports }: {
@@ -508,7 +513,7 @@ function CsvImportTab({ sports }: { sports: Sport[] }) {
 // ── AdminView ────────────────────────────────────────────────────────────────
 
 export function AdminView({ widgets, activeTab: externalTab, onTabChange }: AdminViewProps) {
-  const [internalTab, setInternalTab] = useState<AdminTab>('fields')
+  const [internalTab, setInternalTab] = useState<AdminTab>('org')
   const activeTab = externalTab ?? internalTab
   const setActiveTab = (tab: AdminTab) => { if (onTabChange) onTabChange(tab); else setInternalTab(tab) }
   const isControlled = externalTab !== undefined
@@ -534,16 +539,31 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
     }).catch(() => {})
   }, [])
 
-  const tabs: { id: AdminTab; label: string }[] = [
-    { id: 'fields', label: 'Fields' },
-    { id: 'sports', label: 'Sports' },
-    { id: 'competitions', label: 'Competitions' },
-    { id: 'encoders', label: 'Encoders' },
-    { id: 'csv', label: 'CSV Import' },
-    { id: 'publish', label: 'Publish' },
-    { id: 'org', label: 'Organisation' },
-    { id: 'crew-roster', label: 'Crew Roster' },
-    { id: 'crew-templates', label: 'Crew Templates' },
+  const sidebarGroups: AdminGroup[] = [
+    {
+      label: 'Workspace',
+      items: [
+        { id: 'org', label: 'Organisation' },
+        { id: 'sports', label: 'Sports' },
+        { id: 'competitions', label: 'Competitions' },
+      ],
+    },
+    {
+      label: 'Planning',
+      items: [
+        { id: 'fields', label: 'Field Configuration' },
+        { id: 'crew-roster', label: 'Crew Roster' },
+        { id: 'crew-templates', label: 'Crew Templates' },
+        { id: 'encoders', label: 'Encoders' },
+      ],
+    },
+    {
+      label: 'Data',
+      items: [
+        { id: 'csv', label: 'CSV Import' },
+        { id: 'publish', label: 'Publish & Webhooks' },
+      ],
+    },
   ]
 
   return (
@@ -664,35 +684,58 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
       )}
 
       <div className={isControlled ? '' : 'card animate-fade-in'}>
-        {!isControlled && (
-          <div className="px-4 py-3 border-b border-border flex gap-1 flex-wrap">
-            {tabs.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`px-4 py-1.5 rounded-sm text-sm font-semibold transition ${
-                  activeTab === t.id
-                    ? 'bg-primary text-primary-fg'
-                    : 'text-muted hover:text-foreground'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+        {!isControlled ? (
+          <div className="flex min-h-[500px]">
+            {/* Sidebar */}
+            <div className="w-48 flex-shrink-0 border-r border-border bg-surface-2/50 p-3 space-y-4">
+              {sidebarGroups.map(group => (
+                <div key={group.label}>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted px-2 mb-1">
+                    {group.label}
+                  </div>
+                  {group.items.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      className={`w-full text-left px-2 py-1.5 rounded text-sm transition ${
+                        activeTab === item.id
+                          ? 'bg-primary/10 text-primary font-semibold'
+                          : 'text-text-2 hover:bg-surface-2 hover:text-text'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 p-6 overflow-auto">
+              {activeTab === 'fields' && <FieldConfigurator />}
+              {activeTab === 'sports' && <SportsTab sports={sports} setSports={setSports} />}
+              {activeTab === 'competitions' && <CompetitionsTab sports={sports} />}
+              {activeTab === 'encoders' && <EncodersTab />}
+              {activeTab === 'csv' && <CsvImportTab sports={sports} />}
+              {activeTab === 'publish' && <PublishPanel />}
+              {activeTab === 'org' && <OrgConfigPanel />}
+              {activeTab === 'crew-roster' && <CrewRosterPanel />}
+              {activeTab === 'crew-templates' && <CrewTemplatesPanel />}
+            </div>
+          </div>
+        ) : (
+          <div>
+            {activeTab === 'fields' && <FieldConfigurator />}
+            {activeTab === 'sports' && <SportsTab sports={sports} setSports={setSports} />}
+            {activeTab === 'competitions' && <CompetitionsTab sports={sports} />}
+            {activeTab === 'encoders' && <EncodersTab />}
+            {activeTab === 'csv' && <CsvImportTab sports={sports} />}
+            {activeTab === 'publish' && <PublishPanel />}
+            {activeTab === 'org' && <OrgConfigPanel />}
+            {activeTab === 'crew-roster' && <CrewRosterPanel />}
+            {activeTab === 'crew-templates' && <CrewTemplatesPanel />}
           </div>
         )}
-
-        <div className={isControlled ? '' : 'p-4'}>
-          {activeTab === 'fields' && <FieldConfigurator />}
-          {activeTab === 'sports' && <SportsTab sports={sports} setSports={setSports} />}
-          {activeTab === 'competitions' && <CompetitionsTab sports={sports} />}
-          {activeTab === 'encoders' && <EncodersTab />}
-          {activeTab === 'csv' && <CsvImportTab sports={sports} />}
-          {activeTab === 'publish' && <PublishPanel />}
-          {activeTab === 'org'     && <OrgConfigPanel />}
-          {activeTab === 'crew-roster' && <CrewRosterPanel />}
-          {activeTab === 'crew-templates' && <CrewTemplatesPanel />}
-        </div>
       </div>
     </div>
   )
