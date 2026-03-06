@@ -305,8 +305,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
         ))}
       </div>
 
-      {/* Sport filter chips — visible on Events and Plans tabs */}
-      {(activeTab === 'events' || activeTab === 'plans') && sportTree.length > 1 && (
+      {/* Sport filter chips — Plans tab only (Events tab has sidebar tree) */}
+      {activeTab === 'plans' && sportTree.length > 1 && (
         <div className="flex flex-wrap gap-1.5 mb-4">
           <button
             onClick={() => setSelectedSport(null)}
