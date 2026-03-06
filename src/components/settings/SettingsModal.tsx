@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Btn, Modal } from '../ui'
+import { useState, useEffect } from 'react'
+import { Modal } from '../ui'
 import { IntegrationsPanel } from './IntegrationsPanel'
+import { FieldConfigurator } from '../admin/FieldConfigurator'
 
 type SettingsTab = 'event' | 'crew' | 'dashboard' | 'integrations'
 
@@ -9,9 +10,6 @@ interface SettingsModalProps {
   defaultTab?: SettingsTab
   defaultIntegrationScope?: 'sports' | 'competitions' | 'teams' | 'events' | 'fixtures' | 'live'
   userRole?: string
-  onOpenEventFields: () => void
-  onOpenCrewFields: () => void
-  onOpenDashboard: () => void
 }
 
 const tabs: Array<{ id: SettingsTab; label: string }> = [
@@ -26,9 +24,6 @@ export function SettingsModal({
   defaultTab = 'event',
   defaultIntegrationScope = 'events',
   userRole,
-  onOpenEventFields,
-  onOpenCrewFields,
-  onOpenDashboard,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab)
   const isAdmin = userRole === 'admin'
@@ -36,11 +31,6 @@ export function SettingsModal({
   useEffect(() => {
     setActiveTab(defaultTab)
   }, [defaultTab])
-
-  const openSubModal = (open: () => void) => {
-    onClose()
-    open()
-  }
 
   return (
     <Modal title="Settings" onClose={onClose} width="max-w-6xl">
@@ -62,71 +52,30 @@ export function SettingsModal({
         </div>
       </div>
 
-      {activeTab === 'event' && (
-        <div className="space-y-4 p-6">
-          <div>
-            <h4 className="section-title">Event Metadata</h4>
-            <p className="meta mt-1">Adjust which event fields are visible and required in the planner form.</p>
-          </div>
-          <div className="card p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="font-semibold">Event field editor</div>
-                <div className="meta mt-1">Global admin-managed event schema for the planner workflow.</div>
-              </div>
-              <Btn variant="secondary" disabled={!isAdmin} onClick={() => openSubModal(onOpenEventFields)}>
-                Open Editor
-              </Btn>
-            </div>
-            {!isAdmin && <div className="meta mt-3">Only admins can edit the global event field schema.</div>}
-          </div>
-        </div>
-      )}
+      <div className="p-6 max-h-[70vh] overflow-auto">
+        {activeTab === 'event' && (
+          isAdmin
+            ? <FieldConfigurator />
+            : <div className="text-sm text-muted">Only admins can edit event field configuration.</div>
+        )}
 
-      {activeTab === 'crew' && (
-        <div className="space-y-4 p-6">
-          <div>
-            <h4 className="section-title">Crew & Technical Fields</h4>
-            <p className="meta mt-1">Control which operational fields appear in the sports workspace and technical plans.</p>
-          </div>
-          <div className="card p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="font-semibold">Crew field editor</div>
-                <div className="meta mt-1">Global admin-managed crew and technical metadata schema.</div>
-              </div>
-              <Btn variant="secondary" disabled={!isAdmin} onClick={() => openSubModal(onOpenCrewFields)}>
-                Open Editor
-              </Btn>
-            </div>
-            {!isAdmin && <div className="meta mt-3">Only admins can edit the global crew field schema.</div>}
-          </div>
-        </div>
-      )}
+        {activeTab === 'crew' && (
+          isAdmin
+            ? <FieldConfigurator />
+            : <div className="text-sm text-muted">Only admins can edit crew field configuration.</div>
+        )}
 
-      {activeTab === 'dashboard' && (
-        <div className="space-y-4 p-6">
-          <div>
-            <h4 className="section-title">Dashboard Layout</h4>
-            <p className="meta mt-1">Choose which widgets are visible for the current role view and in what order they appear.</p>
+        {activeTab === 'dashboard' && (
+          <div className="text-sm text-muted">
+            Dashboard customization is available from the role-specific view.
+            Use the gear icon → "Customize Dashboard" from the main header.
           </div>
-          <div className="card p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="font-semibold">Dashboard customizer</div>
-                <div className="meta mt-1">Save your own dashboard layout for the active role view. Admin role defaults can be added later.</div>
-              </div>
-              <Btn variant="secondary" onClick={() => openSubModal(onOpenDashboard)}>
-                Open Customizer
-              </Btn>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'integrations' && (
-        <IntegrationsPanel userRole={userRole} defaultScope={defaultIntegrationScope} />
-      )}
+        {activeTab === 'integrations' && (
+          <IntegrationsPanel userRole={userRole} defaultScope={defaultIntegrationScope} />
+        )}
+      </div>
     </Modal>
   )
 }

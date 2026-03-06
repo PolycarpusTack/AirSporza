@@ -272,9 +272,6 @@ function AppContent() {
           defaultTab={settingsTab}
           defaultIntegrationScope={integrationScope}
           userRole={user?.role}
-          onOpenEventFields={() => setShowFieldConfig('event')}
-          onOpenCrewFields={() => setShowFieldConfig('crew')}
-          onOpenDashboard={() => setShowDashConfig(true)}
         />
       )}
     </div>
