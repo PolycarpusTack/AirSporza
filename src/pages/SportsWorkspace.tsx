@@ -6,7 +6,7 @@ import { encodersApi, techPlansApi } from '../services'
 import { crewMembersApi } from '../services/crewMembers'
 import { crewTemplatesApi } from '../services/crewTemplates'
 import { resourcesApi } from '../services/resources'
-import type { Resource } from '../services/resources'
+import type { Resource, ResourceAssignment } from '../services/resources'
 import { fmtDate } from '../utils'
 import { useSocket } from '../hooks'
 import { useToast } from '../components/Toast'
@@ -44,6 +44,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [realtimePlans, setRealtimePlans] = useState<TechPlan[]>(techPlans)
   const [encoders, setEncoders] = useState<Encoder[]>([])
   const [resources, setResources] = useState<Resource[]>([])
+  const [allAssignments, setAllAssignments] = useState<Record<number, ResourceAssignment[]>>({})
   const [saveTemplateData, setSaveTemplateData] = useState<Record<string, unknown> | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [templateShared, setTemplateShared] = useState(false)
@@ -55,6 +56,29 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     encodersApi.list().then(setEncoders).catch(() => {})
     resourcesApi.list().then(setResources).catch(() => {})
   }, [])
+
+  const fetchAllAssignments = useCallback(() => {
+    if (resources.length === 0) return
+    Promise.all(resources.map(r => resourcesApi.getAssignments(r.id).then(a => ({ id: r.id, a }))))
+      .then(results => {
+        const next: Record<number, ResourceAssignment[]> = {}
+        for (const { id, a } of results) next[id] = a
+        setAllAssignments(next)
+      })
+      .catch(() => {})
+  }, [resources])
+
+  useEffect(() => { fetchAllAssignments() }, [fetchAllAssignments])
+
+  const getAssignmentsForPlan = useCallback((planId: number): ResourceAssignment[] => {
+    const result: ResourceAssignment[] = []
+    for (const ra of Object.values(allAssignments)) {
+      for (const a of ra) {
+        if (a.techPlanId === planId) result.push(a)
+      }
+    }
+    return result
+  }, [allAssignments])
 
   useEffect(() => {
     setRealtimePlans(techPlans)
@@ -343,6 +367,9 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                           handleCrewBatchApply(plan.id, crewData)
                         }}
                         onSaveAsTemplate={(crewData) => { setSaveTemplateData(crewData); setTemplateName(''); setTemplateShared(false) }}
+                        resources={resources}
+                        planAssignments={getAssignmentsForPlan(plan.id)}
+                        onAssignmentChange={fetchAllAssignments}
                       />
                     ))}
                     {eventPlans.length === 0 && (
@@ -521,7 +548,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       {/* ── RESOURCES TAB ── */}
       {activeTab === 'resources' && (
         <div className="animate-fade-in">
-          <ResourcesTab resources={resources} />
+          <ResourcesTab resources={resources} techPlans={realtimePlans} events={events} />
         </div>
       )}
 
