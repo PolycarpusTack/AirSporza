@@ -15,7 +15,11 @@ import { eventsApi } from './services'
 import { useToast } from './components/Toast'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { ShortcutHelpModal } from './components/ui/ShortcutHelpModal'
+import { isEventLocked } from './utils/eventLock'
 
+const DashboardView = lazy(() =>
+  import('./pages/DashboardView').then((m) => ({ default: m.DashboardView }))
+)
 const PlannerView = lazy(() =>
   import('./pages/PlannerView').then((m) => ({ default: m.PlannerView }))
 )
@@ -62,6 +66,7 @@ function AppContent() {
     sports,
     competitions,
     setEvents,
+    orgConfig,
   } = useApp()
 
   const toast = useToast()
@@ -97,9 +102,10 @@ function AppContent() {
       document.querySelector<HTMLInputElement>('[data-search-input]')?.focus()
     }},
     { key: '?', shift: true, label: 'Show Shortcuts', action: () => setShowShortcutHelp(true) },
-    { key: '1', label: 'Go to Planning', action: () => navigate('/planner') },
-    { key: '2', label: 'Go to Sports', action: () => navigate('/sports') },
-    { key: '3', label: 'Go to Contracts', action: () => navigate('/contracts') },
+    { key: '1', label: 'Go to Dashboard', action: () => navigate('/dashboard') },
+    { key: '2', label: 'Go to Planning', action: () => navigate('/planner') },
+    { key: '3', label: 'Go to Sports', action: () => navigate('/sports') },
+    { key: '4', label: 'Go to Contracts', action: () => navigate('/contracts') },
     { key: 'Escape', label: 'Close', action: () => {
       setShowEventForm(false)
       setShowSettings(false)
@@ -130,6 +136,10 @@ function AppContent() {
         <main className="flex-1 overflow-auto">
           <Suspense fallback={<PageSkeleton />}>
             <Routes>
+              <Route
+                path="/dashboard"
+                element={<DashboardView widgets={currentWidgets} />}
+              />
               <Route
                 path="/planner"
                 element={
@@ -209,56 +219,61 @@ function AppContent() {
                   </RequireRole>
                 }
               />
-              <Route path="*" element={<Navigate to="/planner" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Suspense>
         </main>
       </div>
 
-      {showEventForm && (
-        <DynamicEventForm
-          eventFields={eventFields}
-          onClose={() => {
-            setShowEventForm(false)
-            setEditEvent(null)
-            setEventPrefill(null)
-            setMultiDayPrefill(null)
-          }}
-          prefill={eventPrefill}
-          multiDayDates={multiDayPrefill?.dates}
-          onSave={async (ev) => {
-            const isCreate = !editEvent
-            const saved = await handleSaveEvent(ev)
-            if (isCreate && saved) {
-              const rawDate = saved.startDateBE
-              const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0] : (rawDate as Date).toISOString().split('T')[0]
-              setScrollToDate(dateStr)
-              // Clear after a tick so re-creates still trigger
-              setTimeout(() => setScrollToDate(null), 100)
-            }
-          }}
-          onBatchSave={async (events, seriesId) => {
-            try {
-              const created = await eventsApi.batchCreate(events, seriesId)
-              setEvents(prev => {
-                const existingIds = new Set(prev.map(e => e.id))
-                const newEvents = (created as Event[]).filter(e => !existingIds.has(e.id))
-                return newEvents.length > 0 ? [...prev, ...newEvents] : prev
-              })
-              if (created.length > 0) {
-                const firstDate = typeof created[0].startDateBE === 'string'
-                  ? created[0].startDateBE.split('T')[0]
-                  : (created[0].startDateBE as Date).toISOString().split('T')[0]
-                setScrollToDate(firstDate)
+      {showEventForm && (() => {
+        const _lock = editEvent ? isEventLocked(editEvent, orgConfig.freezeWindowHours ?? 3, user?.role) : null
+        const readOnly = _lock ? (_lock.locked && !_lock.canOverride) : false
+        return (
+          <DynamicEventForm
+            eventFields={eventFields}
+            onClose={() => {
+              setShowEventForm(false)
+              setEditEvent(null)
+              setEventPrefill(null)
+              setMultiDayPrefill(null)
+            }}
+            prefill={eventPrefill}
+            multiDayDates={multiDayPrefill?.dates}
+            readOnly={readOnly}
+            onSave={async (ev) => {
+              const isCreate = !editEvent
+              const saved = await handleSaveEvent(ev)
+              if (isCreate && saved) {
+                const rawDate = saved.startDateBE
+                const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0] : (rawDate as Date).toISOString().split('T')[0]
+                setScrollToDate(dateStr)
+                // Clear after a tick so re-creates still trigger
                 setTimeout(() => setScrollToDate(null), 100)
               }
-            } catch {
-              toast.error('Failed to create event series')
-            }
-          }}
-          editEvent={editEvent}
-        />
-      )}
+            }}
+            onBatchSave={async (events, seriesId) => {
+              try {
+                const created = await eventsApi.batchCreate(events, seriesId)
+                setEvents(prev => {
+                  const existingIds = new Set(prev.map(e => e.id))
+                  const newEvents = (created as Event[]).filter(e => !existingIds.has(e.id))
+                  return newEvents.length > 0 ? [...prev, ...newEvents] : prev
+                })
+                if (created.length > 0) {
+                  const firstDate = typeof created[0].startDateBE === 'string'
+                    ? created[0].startDateBE.split('T')[0]
+                    : (created[0].startDateBE as Date).toISOString().split('T')[0]
+                  setScrollToDate(firstDate)
+                  setTimeout(() => setScrollToDate(null), 100)
+                }
+              } catch {
+                toast.error('Failed to create event series')
+              }
+            }}
+            editEvent={editEvent}
+          />
+        )
+      })()}
 
       {showFieldConfig === 'event' && (
         <FieldConfigurator
@@ -322,7 +337,7 @@ function AppRoutes() {
         path="/login"
         element={
           user ? (
-            <Navigate to="/planner" replace />
+            <Navigate to="/dashboard" replace />
           ) : import.meta.env.PROD ? (
             <OAuthLogin />
           ) : (

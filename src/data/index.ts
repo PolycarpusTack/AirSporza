@@ -39,6 +39,7 @@ export const DEFAULT_ORG_CONFIG: OrgConfig = {
   phases: ['Group Stage', 'Round of 16', 'Quarter-final', 'Semi-final', 'Final', 'Regular Season', 'Stage'],
   categories: ['Men', 'Women', 'Mixed', 'Youth'],
   complexes: ['Lotto Arena', 'Koning Boudewijnstadion', 'Jan Breydel', 'Bosuil', 'Roland Garros', 'Spa-Francorchamps', 'Stade de France', 'Arthur Ashe Stadium', 'Col du Tourmalet', 'Ghelamco Arena'],
+  freezeWindowHours: 3,
 }
 
 export const DEFAULT_EVENT_FIELDS: FieldConfig[] = [

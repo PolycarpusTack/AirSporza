@@ -5,7 +5,7 @@ import { useApp } from '../../context/AppProvider'
 import { settingsApi } from '../../services/settings'
 import type { OrgConfig, ChannelConfig } from '../../data/types'
 
-type Panel = 'channels' | 'ondemand' | 'radio' | 'phases' | 'categories' | 'venues'
+type Panel = 'channels' | 'ondemand' | 'radio' | 'phases' | 'categories' | 'venues' | 'freeze'
 
 const PANEL_LABELS: Record<Panel, string> = {
   channels:  'Linear Channels',
@@ -14,6 +14,7 @@ const PANEL_LABELS: Record<Panel, string> = {
   phases:    'Event Phases',
   categories:'Categories',
   venues:    'Venues',
+  freeze:    'Freeze Window',
 }
 
 const PALETTE = [
@@ -261,6 +262,7 @@ export function OrgConfigPanel() {
                : p === 'radio'    ? local.radioChannels.length
                : p === 'phases'   ? local.phases.length
                : p === 'categories' ? local.categories.length
+               : p === 'freeze'   ? `${local.freezeWindowHours ?? 3}h`
                : local.complexes.length}
             </span>
           </button>
@@ -333,6 +335,35 @@ export function OrgConfigPanel() {
               onChange={v => update('complexes', v)}
               placeholder="Venue name…"
             />
+          </div>
+        )}
+
+        {activePanel === 'freeze' && (
+          <div className="space-y-3">
+            <p className="text-xs text-text-3">
+              Automatically lock events that are within a certain number of hours of their air time.
+              Locked events cannot be edited by non-admin users. Set to 0 to disable.
+            </p>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-text font-medium whitespace-nowrap">Auto-lock events within</label>
+              <input
+                type="number"
+                min={0}
+                max={72}
+                value={local.freezeWindowHours ?? 3}
+                onChange={e => {
+                  const val = Math.max(0, Math.min(72, Number(e.target.value) || 0))
+                  setLocal(prev => ({ ...prev, freezeWindowHours: val }))
+                }}
+                className="w-20 px-3 py-1.5 text-sm bg-surface-2 border border-border rounded-lg focus:outline-none focus:border-primary/50 text-text text-center"
+              />
+              <span className="text-sm text-text-2">hours of air time</span>
+            </div>
+            <div className="px-3 py-2 bg-surface-2 rounded-lg text-xs text-text-3">
+              {(local.freezeWindowHours ?? 3) === 0
+                ? 'Freeze window is disabled. Events will only be locked by status (approved, published, live).'
+                : `Events starting within ${local.freezeWindowHours ?? 3} hour(s) will be auto-locked for non-admin users.`}
+            </div>
           </div>
         )}
       </div>

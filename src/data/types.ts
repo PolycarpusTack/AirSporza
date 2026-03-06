@@ -150,11 +150,24 @@ export interface User {
   updatedAt?: Date
 }
 
+export type CustomWidgetType = 'metric' | 'list' | 'my-assignments'
+export type CustomWidgetDateRange = 'today' | 'this-week' | 'next-7-days' | 'this-month' | 'all'
+
+export interface CustomWidgetConfig {
+  type: CustomWidgetType
+  sportId?: number
+  competitionId?: number
+  status?: string
+  dateRange: CustomWidgetDateRange
+  maxItems?: number
+}
+
 export interface DashboardWidget {
   id: string
   label: string
   visible: boolean
   order: number
+  custom?: CustomWidgetConfig
 }
 
 export interface RoleConfig {
@@ -175,4 +188,5 @@ export interface OrgConfig {
   phases: string[]
   categories: string[]
   complexes: string[]
+  freezeWindowHours?: number
 }

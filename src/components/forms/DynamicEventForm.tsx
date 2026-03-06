@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Lock } from 'lucide-react'
 import { Modal, Btn } from '../ui'
 import type { FieldConfig, Event, MandatoryFieldConfig } from '../../data/types'
 import { SPORTS, COMPETITIONS } from '../../data'
@@ -29,6 +30,7 @@ interface DynamicEventFormProps {
   editEvent?: Event | null
   prefill?: Partial<Record<string, string>> | null
   multiDayDates?: string[] | null
+  readOnly?: boolean
 }
 
 const CORE_FIELD_IDS = new Set([
@@ -47,7 +49,7 @@ function isCustomField(fieldId: string, fieldConfig: FieldConfig[]): boolean {
   return field?.isCustom === true || !CORE_FIELD_IDS.has(fieldId)
 }
 
-export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, editEvent, prefill, multiDayDates }: DynamicEventFormProps) {
+export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, editEvent, prefill, multiDayDates, readOnly }: DynamicEventFormProps) {
   const { orgConfig, sports: ctxSports, competitions: ctxComps } = useApp()
 
   const initForm = (): Record<string, string | boolean> => {
@@ -366,7 +368,13 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
   }
 
   return (
-    <Modal onClose={onClose} title={editEvent ? 'Edit Event' : 'New Sports Event'}>
+    <Modal onClose={onClose} title={readOnly ? 'View Event (Locked)' : editEvent ? 'Edit Event' : 'New Sports Event'}>
+      {readOnly && (
+        <div className="flex items-center gap-2 mx-6 mt-4 mb-0 px-3 py-2 bg-warning/10 border border-warning/20 rounded-lg text-sm text-warning">
+          <Lock className="w-4 h-4 flex-shrink-0" />
+          This event is locked and cannot be edited.
+        </div>
+      )}
       {multiDayDates && multiDayDates.length > 1 && (
         <div className="bg-primary/10 border border-primary/30 rounded px-3 py-2 mx-6 mt-4 mb-0 text-sm">
           <span className="font-bold text-primary">Series</span>
@@ -383,6 +391,7 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
           <LinkFromImport onLink={handleLinkImport} />
         </div>
       )}
+      <fieldset disabled={readOnly} className="contents">
       <div className='p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto'>
         {visibleFields.map(field => (
           <div key={field.id} className={field.type === 'textarea' ? 'sm:col-span-2' : ''}>
@@ -407,7 +416,8 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
           </div>
         )}
       </div>
-      {!editEvent && !multiDayDates?.length && (
+      </fieldset>
+      {!editEvent && !multiDayDates?.length && !readOnly && (
         <div className="px-6 pb-2">
           <RepeatSection
             startDate={form.startDateBE as string}
@@ -431,10 +441,10 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
           </div>
         )}
         <div className='flex items-center justify-between'>
-          <span className='text-xs uppercase tracking-wide text-text-2'>{visibleFields.filter(f => f.required).length} required fields</span>
+          <span className='text-xs uppercase tracking-wide text-text-2'>{readOnly ? 'Read-only' : `${visibleFields.filter(f => f.required).length} required fields`}</span>
           <div className='flex gap-2'>
-            <Btn onClick={onClose}>Cancel</Btn>
-            <Btn variant='primary' onClick={handleSave}>{editEvent ? 'Save Changes' : 'Create Event'}</Btn>
+            <Btn onClick={onClose}>{readOnly ? 'Close' : 'Cancel'}</Btn>
+            {!readOnly && <Btn variant='primary' onClick={handleSave}>{editEvent ? 'Save Changes' : 'Create Event'}</Btn>}
           </div>
         </div>
       </div>

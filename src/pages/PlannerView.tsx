@@ -1,11 +1,14 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { Lock } from 'lucide-react'
 import { Badge } from '../components/ui'
 import type { Event, DashboardWidget, Contract, EventStatus, BadgeVariant } from '../data/types'
 import { CONTRACTS } from '../data'
 import { dayLabel } from '../utils'
+import { isEventLocked, isForwardTransition, lockReasonLabel } from '../utils/eventLock'
 import { useApp } from '../context/AppProvider'
+import { useAuth } from '../hooks'
 import { contractsApi } from '../services/contracts'
 import { eventsApi, type ConflictWarning } from '../services'
 import { savedViewsApi, type SavedView, type PlannerFilterState } from '../services/savedViews'
@@ -195,8 +198,8 @@ function SkeletonCard() {
 
 // ── Drag-and-drop wrappers ────────────────────────────────────────────────────
 
-function DraggableEventCard({ event, children }: { event: Event; children: ReactNode }) {
-  const disabled = event.status === 'completed' || event.status === 'cancelled'
+function DraggableEventCard({ event, children, locked }: { event: Event; children: ReactNode; locked?: boolean }) {
+  const disabled = locked || event.status === 'completed' || event.status === 'cancelled'
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(event.id),
     disabled,
@@ -257,7 +260,9 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const [duplicateTarget, setDuplicateTarget] = useState<Event | null>(null)
 
   const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent } = useApp()
+  const { user } = useAuth()
   const toast = useToast()
+  const freezeHours = orgConfig.freezeWindowHours ?? 3
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -462,6 +467,12 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     const newDate = over.id as string
     const event = contextEvents.find(e => e.id === eventId)
     if (!event) return
+    // Lock check: prevent dragging locked events
+    const lock = isEventLocked(event, freezeHours, user?.role)
+    if (lock.locked && !lock.canOverride) return
+    if (lock.locked && lock.canOverride) {
+      if (!window.confirm(`This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`)) return
+    }
     const currentDateStr = typeof event.startDateBE === 'string'
       ? event.startDateBE.slice(0, 10)
       : (event.startDateBE as Date).toISOString().slice(0, 10)
@@ -530,49 +541,75 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
 
   // ── Bulk operation handlers ────────────────────────────────────────────────
 
+  /** Filter out locked events from a bulk operation. Shows a warning if some are skipped. Returns IDs to proceed with. */
+  const filterLockedForBulk = useCallback((ids: number[]): number[] | null => {
+    const events = contextEvents.filter(e => ids.includes(e.id))
+    const locked = events.filter(e => {
+      const lock = isEventLocked(e, freezeHours, user?.role)
+      return lock.locked && !lock.canOverride
+    })
+    if (locked.length === ids.length) {
+      toast.warning('All selected events are locked and will be skipped')
+      return null
+    }
+    if (locked.length > 0) {
+      if (!window.confirm(`${locked.length} of ${ids.length} event(s) are locked and will be skipped. Continue with the remaining ${ids.length - locked.length}?`)) {
+        return null
+      }
+      const lockedIds = new Set(locked.map(e => e.id))
+      return ids.filter(id => !lockedIds.has(id))
+    }
+    return ids
+  }, [contextEvents, freezeHours, user?.role, toast])
+
   const handleBulkDelete = useCallback(async () => {
-    const ids = Array.from(selectedIds)
+    const filtered = filterLockedForBulk(Array.from(selectedIds))
+    if (!filtered || filtered.length === 0) return
     setBulkLoading(true)
     try {
-      await eventsApi.bulkDelete(ids)
-      setEvents(prev => prev.filter(e => !selectedIds.has(e.id)))
+      await eventsApi.bulkDelete(filtered)
+      const filteredSet = new Set(filtered)
+      setEvents(prev => prev.filter(e => !filteredSet.has(e.id)))
       setSelectedIds(new Set())
-      toast.success(`Deleted ${ids.length} event(s)`)
+      toast.success(`Deleted ${filtered.length} event(s)`)
     } catch {
       toast.error('Bulk delete failed')
     } finally {
       setBulkLoading(false)
     }
-  }, [selectedIds, setEvents, toast])
+  }, [selectedIds, setEvents, toast, filterLockedForBulk])
 
   const handleBulkStatus = useCallback(async (status: EventStatus) => {
-    const ids = Array.from(selectedIds)
+    const filtered = filterLockedForBulk(Array.from(selectedIds))
+    if (!filtered || filtered.length === 0) return
     setBulkLoading(true)
     try {
-      await eventsApi.bulkStatus(ids, status)
-      setEvents(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, status } : e))
-      toast.success(`Updated status for ${ids.length} event(s)`)
+      await eventsApi.bulkStatus(filtered, status)
+      const filteredSet = new Set(filtered)
+      setEvents(prev => prev.map(e => filteredSet.has(e.id) ? { ...e, status } : e))
+      toast.success(`Updated status for ${filtered.length} event(s)`)
     } catch {
       toast.error('Bulk status update failed')
     } finally {
       setBulkLoading(false)
     }
-  }, [selectedIds, setEvents, toast])
+  }, [selectedIds, setEvents, toast, filterLockedForBulk])
 
   const handleBulkReschedule = useCallback(async (shiftDays: number) => {
-    const ids = Array.from(selectedIds)
+    const filtered = filterLockedForBulk(Array.from(selectedIds))
+    if (!filtered || filtered.length === 0) return
     setBulkLoading(true)
     try {
-      await eventsApi.bulkReschedule(ids, shiftDays)
+      await eventsApi.bulkReschedule(filtered, shiftDays)
       const updated = await eventsApi.list()
       setEvents(updated as Event[])
-      toast.success(`Rescheduled ${ids.length} event(s) by ${shiftDays} day(s)`)
+      toast.success(`Rescheduled ${filtered.length} event(s) by ${shiftDays} day(s)`)
     } catch {
       toast.error('Bulk reschedule failed')
     } finally {
       setBulkLoading(false)
     }
-  }, [selectedIds, setEvents, toast])
+  }, [selectedIds, setEvents, toast, filterLockedForBulk])
 
   const handleBulkAssignChannel = useCallback(async (channel: string) => {
     const ids = Array.from(selectedIds)
@@ -619,6 +656,19 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   // ── Context menu handlers ──────────────────────────────────────────────────
 
   const handleCtxStatusChange = useCallback(async (event: Event, status: EventStatus) => {
+    const currentStatus = (event.status ?? 'draft') as EventStatus
+    const forward = isForwardTransition(currentStatus, status)
+    // Forward transitions bypass lock
+    if (!forward) {
+      const lock = isEventLocked(event, freezeHours, user?.role)
+      if (lock.locked && !lock.canOverride) {
+        toast.warning('This event is locked and cannot be changed')
+        return
+      }
+      if (lock.locked && lock.canOverride) {
+        if (!window.confirm(`This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`)) return
+      }
+    }
     try {
       await eventsApi.update(event.id, { ...event, status })
       setEvents(prev => prev.map(e => e.id === event.id ? { ...e, status } : e))
@@ -626,9 +676,17 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     } catch {
       toast.error('Failed to update status')
     }
-  }, [setEvents, toast])
+  }, [setEvents, toast, freezeHours, user?.role])
 
   const handleCtxDelete = useCallback(async (event: Event) => {
+    const lock = isEventLocked(event, freezeHours, user?.role)
+    if (lock.locked && !lock.canOverride) {
+      toast.warning('This event is locked and cannot be deleted')
+      return
+    }
+    if (lock.locked && lock.canOverride) {
+      if (!window.confirm(`This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`)) return
+    }
     if (!window.confirm(`Delete "${event.participants}"?`)) return
     try {
       await eventsApi.delete(event.id)
@@ -637,7 +695,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     } catch {
       toast.error('Failed to delete event')
     }
-  }, [setEvents, toast])
+  }, [setEvents, toast, freezeHours, user?.role])
 
   const pickEventFields = (e: Event) => ({
     sportId: e.sportId, competitionId: e.competitionId, phase: e.phase,
@@ -688,24 +746,29 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
 
   const ALL_STATUSES: EventStatus[] = ['draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled']
 
-  const buildEventMenuItems = useCallback((event: Event): MenuItem[] => [
-    { type: 'action', label: 'Open details', onClick: () => setDetailEvent(event) },
-    { type: 'action', label: 'Edit event', onClick: () => { setDetailEvent(null); onEventClick?.(event) } },
-    { type: 'separator' },
-    { type: 'action', label: 'Duplicate...', onClick: () => setDuplicateTarget(event) },
-    {
-      type: 'submenu',
-      label: 'Status',
-      children: ALL_STATUSES.map(s => ({
-        type: 'action' as const,
-        label: s.charAt(0).toUpperCase() + s.slice(1),
-        disabled: event.status === s,
-        onClick: () => handleCtxStatusChange(event, s),
-      })),
-    },
-    { type: 'separator' },
-    { type: 'action', label: 'Delete', danger: true, onClick: () => handleCtxDelete(event) },
-  ], [handleCtxStatusChange, handleCtxDelete, onEventClick])
+  const buildEventMenuItems = useCallback((event: Event): MenuItem[] => {
+    const lock = isEventLocked(event, freezeHours, user?.role)
+    const editDisabled = lock.locked && !lock.canOverride
+    const currentStatus = (event.status ?? 'draft') as EventStatus
+    return [
+      { type: 'action', label: 'Open details', onClick: () => setDetailEvent(event) },
+      { type: 'action', label: 'Edit event', disabled: editDisabled, onClick: () => { setDetailEvent(null); onEventClick?.(event) } },
+      { type: 'separator' },
+      { type: 'action', label: 'Duplicate...', onClick: () => setDuplicateTarget(event) },
+      {
+        type: 'submenu',
+        label: 'Status',
+        children: ALL_STATUSES.map(s => ({
+          type: 'action' as const,
+          label: s.charAt(0).toUpperCase() + s.slice(1),
+          disabled: event.status === s || (lock.locked && !lock.canOverride && !isForwardTransition(currentStatus, s)),
+          onClick: () => handleCtxStatusChange(event, s),
+        })),
+      },
+      { type: 'separator' },
+      { type: 'action', label: 'Delete', danger: true, disabled: editDisabled, onClick: () => handleCtxDelete(event) },
+    ]
+  }, [handleCtxStatusChange, handleCtxDelete, onEventClick, freezeHours, user?.role])
 
   const buildSlotMenuItems = useCallback((date: string, time?: string): MenuItem[] => {
     const items: MenuItem[] = [
@@ -732,7 +795,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   }, [onDrawCreate, handleCtxPaste])
 
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
-  const showSidePanels = visWidgets.filter(w => w.id !== 'channelTimeline')
   const showTimeline = visWidgets.find(w => w.id === 'channelTimeline')
 
   // Event counts per channel (for filter chips)
@@ -744,82 +806,8 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     return counts
   }, [weekEvents])
 
-  const renderSideWidget = (widget: DashboardWidget) => {
-    switch (widget.id) {
-      case 'liveNow':
-        return (
-          <div key={widget.id} className="card p-4 animate-fade-in">
-            <h4 className="text-xs font-bold text-text-3 uppercase tracking-wider mb-3">Live / Upcoming</h4>
-            <div className="space-y-2">
-              {liveNow.slice(0, 4).map(e => {
-                const sp = sportsMap.get(e.sportId)
-                return (
-                  <div key={e.id} className="flex items-center gap-2 text-sm">
-                    <span>{sp?.icon}</span>
-                    <span className="font-medium truncate">{e.participants}</span>
-                    <span className="ml-auto font-mono text-xs text-text-3">{e.startTimeBE}</span>
-                  </div>
-                )
-              })}
-              {liveNow.length === 0 && <div className="text-sm text-text-3">No live events</div>}
-            </div>
-          </div>
-        )
-
-      case 'maxConditions':
-        return (
-          <div key={widget.id} className="card p-4 animate-fade-in">
-            <h4 className="text-xs font-bold text-text-3 uppercase tracking-wider mb-3">VRT MAX Rights</h4>
-            <div className="space-y-2">
-              {contextEvents.slice(0, 5).map(e => {
-                const contract = getContract(e)
-                const comp = compsMap.get(e.competitionId)
-                return (
-                  <div key={e.id} className="flex items-center justify-between text-sm">
-                    <span className="truncate text-text-2">{comp?.name}</span>
-                    {contract?.maxRights ? <Badge variant="success">MAX</Badge> : <Badge variant="danger">No MAX</Badge>}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-
-      case 'upcomingToday':
-        return (
-          <div key={widget.id} className="card p-4 animate-fade-in">
-            <h4 className="text-xs font-bold text-text-3 uppercase tracking-wider mb-3">Quick Stats</h4>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="text-center p-3 bg-surface-2 rounded-lg">
-                <div className="text-2xl font-bold text-text">{weekEvents.length}</div>
-                <div className="text-xs text-text-2">This Week</div>
-              </div>
-              <div className="text-center p-3 rounded-lg" style={{ background: 'rgba(225,6,0,0.1)' }}>
-                <div className="text-2xl font-bold text-primary">{liveNow.length}</div>
-                <div className="text-xs text-primary">Live</div>
-              </div>
-              <div className="text-center p-3 rounded-lg" style={{ background: 'rgba(234,140,0,0.1)' }}>
-                <div className="text-2xl font-bold text-warning">{contextEvents.filter(e => e.isDelayedLive).length}</div>
-                <div className="text-xs text-warning">Delayed</div>
-              </div>
-            </div>
-          </div>
-        )
-
-      default:
-        return null
-    }
-  }
-
   return (
     <div>
-      {/* Side panels row */}
-      {showSidePanels.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          {showSidePanels.map(w => renderSideWidget(w))}
-        </div>
-      )}
-
       {/* Main calendar / timeline area */}
       {showTimeline && (
         <div className="animate-fade-in">
@@ -1043,6 +1031,8 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                 weekDays={weekDays}
                 todayStr={todayStr}
                 events={filteredWeekEvents}
+                freezeWindowHours={freezeHours}
+                userRole={user?.role}
                 onEventClick={ev => setDetailEvent(ev)}
                 getChannelColor={getChannelColor}
                 conflictMap={conflictMap}
@@ -1216,6 +1206,8 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
         sports={sports}
         competitions={competitions}
         conflictMap={conflictMap}
+        freezeWindowHours={freezeHours}
+        userRole={user?.role}
       />
 
       {ctxMenu && (
@@ -1257,6 +1249,8 @@ interface CalendarGridProps {
   onMultiDayCreate?: (result: { dates: string[]; startTime: string; durationMinutes: number }) => void
   onEventContextMenu?: (e: React.MouseEvent, event: Event, date: string, time: string) => void
   onSlotContextMenu?: (e: React.MouseEvent, date: string, time: string) => void
+  freezeWindowHours: number
+  userRole?: string
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -1265,7 +1259,7 @@ const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
   return `${String(h).padStart(2, '0')}:00`
 })
 
-function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate, onEventContextMenu, onSlotContextMenu }: CalendarGridProps) {
+function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColor, conflictMap, selectionMode, selectedIds, onToggleSelect, onDrawCreate, onMultiDayCreate, onEventContextMenu, onSlotContextMenu, freezeWindowHours, userRole }: CalendarGridProps) {
   const { sports } = useApp()
 
   const headerDrag = useHeaderDrag(weekDays, dateStr)
@@ -1453,26 +1447,32 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 const col = getChannelColor(ev.linearChannel)
                 const sp = sportsMap.get(ev.sportId)
                 const layout = overlapLayout.get(ev.id) ?? { col: 0, totalCols: 1 }
+                const evLock = isEventLocked(ev, freezeWindowHours, userRole)
 
                 // Skip events outside the visible range
                 if (top >= CAL_HEIGHT) return null
 
                 const widthPct = 100 / layout.totalCols
                 const leftPct = layout.col * widthPct
+                const cardH = Math.min(height, CAL_HEIGHT - top)
 
                 const cardContent = (
                   <div
                     data-event-card="true"
-                    className={`absolute rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity ${selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400' : ''}`}
+                    className={[
+                      'absolute rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity',
+                      selectionMode && selectedIds.has(ev.id) ? 'ring-2 ring-blue-400' : '',
+                      evLock.locked && cardH <= 30 ? 'opacity-80' : '',
+                    ].filter(Boolean).join(' ')}
                     style={{
                       top,
-                      height: Math.min(height, CAL_HEIGHT - top),
+                      height: cardH,
                       left: `calc(${leftPct}% + 2px)`,
                       width: `calc(${widthPct}% - 4px)`,
-                      background: col.bg,
-                      borderLeft: `3px solid ${col.border}`,
+                      background: evLock.locked && cardH <= 30 ? `color-mix(in srgb, ${col.bg} 90%, var(--color-warning) 10%)` : col.bg,
+                      borderLeft: evLock.locked ? '3px solid var(--color-warning, #F59E0B)' : `3px solid ${col.border}`,
                     }}
-                    title={`${time} · ${ev.participants}`}
+                    title={`${time} · ${ev.participants}${evLock.locked ? ' (locked)' : ''}`}
                     onClick={() => selectionMode ? onToggleSelect(ev.id) : onEventClick?.(ev)}
                     onContextMenu={(e) => {
                       e.preventDefault()
@@ -1481,6 +1481,9 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                       onEventContextMenu?.(e, ev, ds, evTime)
                     }}
                   >
+                    {evLock.locked && cardH > 30 && (
+                      <Lock className="absolute top-1 right-1 w-3 h-3 text-warning/70 z-10" />
+                    )}
                     {selectionMode && (
                       <input
                         type="checkbox"
@@ -1543,7 +1546,7 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 return selectionMode ? (
                   <div key={ev.id}>{cardContent}</div>
                 ) : (
-                  <DraggableEventCard key={ev.id} event={ev}>
+                  <DraggableEventCard key={ev.id} event={ev} locked={evLock.locked}>
                     {cardContent}
                   </DraggableEventCard>
                 )

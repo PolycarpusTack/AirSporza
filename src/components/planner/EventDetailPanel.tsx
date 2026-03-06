@@ -1,7 +1,8 @@
-import { X, Copy, ExternalLink } from 'lucide-react'
+import { X, Copy, ExternalLink, Lock } from 'lucide-react'
 import { Badge, Btn } from '../ui'
 import type { Event, Sport, Competition, EventStatus, BadgeVariant } from '../../data/types'
 import type { ConflictWarning } from '../../services/events'
+import { isEventLocked, isForwardTransition } from '../../utils/eventLock'
 
 const EVENT_STATUSES: EventStatus[] = ['draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled']
 
@@ -15,6 +16,8 @@ interface EventDetailPanelProps {
   onDuplicate?: (event: Event) => void
   onNavigateToSports?: (eventId: number) => void
   conflictMap?: Record<number, ConflictWarning[]>
+  freezeWindowHours?: number
+  userRole?: string
 }
 
 function statusVariant(s: EventStatus): BadgeVariant {
@@ -30,10 +33,12 @@ function statusVariant(s: EventStatus): BadgeVariant {
   return map[s] ?? 'default'
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, sports, competitions, onStatusChange, onDuplicate, onNavigateToSports, conflictMap }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, sports, competitions, onStatusChange, onDuplicate, onNavigateToSports, conflictMap, freezeWindowHours = 3, userRole }: EventDetailPanelProps) {
   const sport = event ? sports.find(s => s.id === event.sportId) : null
   const competition = event ? competitions.find(c => c.id === event.competitionId) : null
   const conflicts = event ? conflictMap?.[event.id] : undefined
+  const lock = event ? isEventLocked(event, freezeWindowHours, userRole) : { locked: false, reason: null, canOverride: false }
+  const editDisabled = lock.locked && !lock.canOverride
 
   return (
     <div
@@ -67,6 +72,15 @@ export function EventDetailPanel({ event, onClose, onEdit, sports, competitions,
             <h2 className="text-base font-bold text-text-1">{event.participants}</h2>
           </div>
 
+          {/* Lock indicator */}
+          {lock.locked && (
+            <div className="flex items-center gap-1.5 px-2 py-1.5 bg-warning/10 border border-warning/20 rounded-lg text-xs text-warning">
+              <Lock className="w-3 h-3" />
+              {lock.reason === 'status' ? 'Locked (status)' : 'Locked (freeze window)'}
+              {lock.canOverride && <span className="text-text-3 ml-1">— admin override available</span>}
+            </div>
+          )}
+
           {/* Quick actions */}
           <div className="flex items-center gap-2 flex-wrap">
             {onStatusChange && (
@@ -75,9 +89,14 @@ export function EventDetailPanel({ event, onClose, onEdit, sports, competitions,
                 value={event.status ?? 'draft'}
                 onChange={e => onStatusChange(event, e.target.value as EventStatus)}
               >
-                {EVENT_STATUSES.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+                {EVENT_STATUSES.map(s => {
+                  const currentStatus = (event.status ?? 'draft') as EventStatus
+                  const forward = isForwardTransition(currentStatus, s)
+                  const disabled = s === currentStatus || (lock.locked && !lock.canOverride && !forward)
+                  return (
+                    <option key={s} value={s} disabled={disabled}>{s}</option>
+                  )
+                })}
               </select>
             )}
             {onDuplicate && (
@@ -205,9 +224,10 @@ export function EventDetailPanel({ event, onClose, onEdit, sports, competitions,
         <div className="p-4 border-t">
           <button
             className="btn btn-p w-full"
+            disabled={editDisabled}
             onClick={() => onEdit(event)}
           >
-            Edit Event
+            {editDisabled ? 'View Event (Locked)' : 'Edit Event'}
           </button>
         </div>
       )}
