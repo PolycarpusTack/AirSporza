@@ -1145,8 +1145,14 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
         event={detailEvent}
         onClose={() => setDetailEvent(null)}
         onEdit={(ev) => { setDetailEvent(null); onEventClick?.(ev) }}
+        onStatusChange={handleCtxStatusChange}
+        onDuplicate={(ev) => setDuplicateTarget(ev)}
+        onNavigateToSports={(eventId) => {
+          window.location.href = `/sports?eventId=${eventId}`
+        }}
         sports={sports}
         competitions={competitions}
+        conflictMap={conflictMap}
       />
 
       {ctxMenu && (

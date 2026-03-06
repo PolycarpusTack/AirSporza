@@ -1,6 +1,9 @@
-import { X } from 'lucide-react'
-import { Badge } from '../ui'
+import { X, Copy, ExternalLink } from 'lucide-react'
+import { Badge, Btn } from '../ui'
 import type { Event, Sport, Competition, EventStatus, BadgeVariant } from '../../data/types'
+import type { ConflictWarning } from '../../services/events'
+
+const EVENT_STATUSES: EventStatus[] = ['draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled']
 
 interface EventDetailPanelProps {
   event: Event | null
@@ -8,6 +11,10 @@ interface EventDetailPanelProps {
   onEdit: (event: Event) => void
   sports: Sport[]
   competitions: Competition[]
+  onStatusChange?: (event: Event, status: EventStatus) => void
+  onDuplicate?: (event: Event) => void
+  onNavigateToSports?: (eventId: number) => void
+  conflictMap?: Record<number, ConflictWarning[]>
 }
 
 function statusVariant(s: EventStatus): BadgeVariant {
@@ -23,9 +30,10 @@ function statusVariant(s: EventStatus): BadgeVariant {
   return map[s] ?? 'default'
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, sports, competitions }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, sports, competitions, onStatusChange, onDuplicate, onNavigateToSports, conflictMap }: EventDetailPanelProps) {
   const sport = event ? sports.find(s => s.id === event.sportId) : null
   const competition = event ? competitions.find(c => c.id === event.competitionId) : null
+  const conflicts = event ? conflictMap?.[event.id] : undefined
 
   return (
     <div
@@ -57,6 +65,26 @@ export function EventDetailPanel({ event, onClose, onEdit, sports, competitions 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div>
             <h2 className="text-base font-bold text-text-1">{event.participants}</h2>
+          </div>
+
+          {/* Quick actions */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {onStatusChange && (
+              <select
+                className="inp text-xs py-1 px-2"
+                value={event.status ?? 'draft'}
+                onChange={e => onStatusChange(event, e.target.value as EventStatus)}
+              >
+                {EVENT_STATUSES.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            )}
+            {onDuplicate && (
+              <Btn variant="ghost" size="xs" onClick={() => onDuplicate(event)}>
+                <Copy className="w-3 h-3 mr-1" />Duplicate
+              </Btn>
+            )}
           </div>
 
           <div className="space-y-1 text-sm">
@@ -112,12 +140,49 @@ export function EventDetailPanel({ event, onClose, onEdit, sports, competitions 
             </div>
           )}
 
-          {(event.techPlans?.length ?? 0) > 0 && (
+          {/* Conflicts */}
+          {conflicts && conflicts.length > 0 && (
             <div className="text-sm">
-              <span className="text-text-3 text-xs uppercase tracking-wider font-semibold">Tech Plans</span>
-              <p className="text-text-2 mt-1">{event.techPlans!.length} plan(s) assigned</p>
+              <p className="text-text-3 text-xs uppercase tracking-wider font-semibold mb-1">Conflicts</p>
+              <div className="space-y-1">
+                {conflicts.map((c, i) => (
+                  <div key={i} className="text-xs bg-warning/10 text-warning rounded px-2 py-1">
+                    {c.message}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Tech plans */}
+          <div className="text-sm">
+            <p className="text-text-3 text-xs uppercase tracking-wider font-semibold mb-1">Tech Plans</p>
+            {(event.techPlans?.length ?? 0) > 0 ? (
+              onNavigateToSports ? (
+                <button
+                  className="text-xs text-primary hover:underline flex items-center gap-1"
+                  onClick={() => onNavigateToSports(event.id)}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  {event.techPlans!.length} plan(s) — Open in Sports
+                </button>
+              ) : (
+                <p className="text-text-2">{event.techPlans!.length} plan(s) assigned</p>
+              )
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-text-3 text-xs">No plans</span>
+                {onNavigateToSports && (
+                  <button
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => onNavigateToSports(event.id)}
+                  >
+                    Create in Sports
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {event.phase && (
             <div className="text-sm">
