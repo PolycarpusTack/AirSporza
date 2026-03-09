@@ -34,6 +34,7 @@ import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { authenticate, authorize } from './middleware/auth.js'
+import { setTenantContext } from './middleware/tenantContext.js'
 import { publishService } from './services/publishService.js'
 import { startScheduledImports } from './services/importScheduler.js'
 
@@ -112,6 +113,10 @@ app.get('/api/debug/db', authenticate, authorize('admin'), (_req, res) => {
 })
 
 app.use('/api/auth', authRoutes)
+
+// Tenant context middleware — sets RLS session variable for all subsequent routes
+app.use('/api', setTenantContext)
+
 app.use('/api/events', eventsRoutes)
 app.use('/api/sports', sportsRoutes)
 app.use('/api/competitions', competitionsRoutes)
