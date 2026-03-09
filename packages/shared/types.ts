@@ -107,3 +107,31 @@ export interface ApiResponse<T> {
   data: T
   error?: string
 }
+
+// === Broadcast Middleware Types ===
+
+export type SchedulingMode = 'FIXED' | 'FLOATING' | 'WINDOW'
+export type StageType = 'LEAGUE' | 'GROUP' | 'KNOCKOUT' | 'QUALIFIER' | 'TOURNAMENT_MAIN'
+export type OverrunStrategy = 'EXTEND' | 'CONDITIONAL_SWITCH' | 'HARD_CUT' | 'SPLIT_SCREEN'
+export type AnchorType = 'FIXED_TIME' | 'COURT_POSITION' | 'FOLLOWS_MATCH' | 'HANDOFF' | 'NOT_BEFORE'
+export type BroadcastSlotStatus = 'PLANNED' | 'LIVE' | 'OVERRUN' | 'SWITCHED_OUT' | 'COMPLETED' | 'VOIDED'
+export type ContentSegment = 'FULL' | 'CONTINUATION'
+export type DraftStatus = 'EDITING' | 'VALIDATING' | 'PUBLISHED'
+export type RunType = 'LIVE' | 'CONTINUATION' | 'TAPE_DELAY' | 'HIGHLIGHTS' | 'CLIP'
+export type RunStatus = 'PENDING' | 'CONFIRMED' | 'RECONCILED' | 'DISPUTED'
+export type CoverageType = 'LIVE' | 'HIGHLIGHTS' | 'DELAYED' | 'CLIP'
+export type Platform = 'LINEAR' | 'OTT' | 'SVOD' | 'AVOD' | 'PPV' | 'STREAMING'
+export type SwitchTriggerType = 'CONDITIONAL' | 'REACTIVE' | 'EMERGENCY' | 'HARD_CUT' | 'COURT_SWITCH'
+export type SwitchExecutionStatus = 'PENDING' | 'EXECUTING' | 'COMPLETED' | 'FAILED'
+export type OutboxPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
+export type AdapterType = 'LIVE_SCORE' | 'OOP' | 'LIVE_TIMING' | 'AS_RUN' | 'EPG' | 'PLAYOUT' | 'NOTIFICATION'
+export type AdapterDirection = 'INBOUND' | 'OUTBOUND'
+export type ValidationSeverity = 'ERROR' | 'WARNING' | 'INFO'
+
+export interface ValidationResult {
+  severity: ValidationSeverity
+  code: string
+  scope: string[]
+  message: string
+  remediation?: string
+}
