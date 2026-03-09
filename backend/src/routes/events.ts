@@ -10,6 +10,7 @@ import { canTransition } from '../services/eventTransitions.js'
 import { createNotification } from '../services/notificationService.js'
 import { detectConflicts, type ConflictWarning } from '../services/conflictService.js'
 import { writeOutboxEvent } from '../services/outbox.js'
+import { syncEventToSlot, shouldSync, unlinkEventSlot } from '../services/eventSlotBridge.js'
 import type { EventStatus, Role } from '@prisma/client'
 
 const router = Router()
@@ -463,6 +464,9 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
         payload: created,
       })
 
+      // Auto-bridge: create linked BroadcastSlot if event has channel + time
+      await syncEventToSlot(created as Parameters<typeof syncEventToSlot>[0], tx as unknown as Parameters<typeof syncEventToSlot>[1])
+
       return created
     })
 
@@ -536,6 +540,9 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
           payload: event,
         })
 
+        // Auto-bridge: create linked BroadcastSlot
+        await syncEventToSlot(event as Parameters<typeof syncEventToSlot>[0], tx as unknown as Parameters<typeof syncEventToSlot>[1])
+
         results.push(event)
       }
       return results
@@ -579,7 +586,11 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.event.update({ where: { id }, data: { status } })
+      const result = await tx.event.update({
+        where: { id },
+        data: { status },
+        include: { channel: { select: { id: true, name: true, timezone: true } } },
+      })
 
       const outboxType = status === 'completed'
         ? 'fixture.completed'
@@ -595,6 +606,11 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
         payload: { ...result, previousStatus: event.status },
         priority: status === 'live' ? 'HIGH' : 'NORMAL',
       })
+
+      // Auto-bridge: sync slot status (cancelled → VOIDED, live → ON_AIR, etc.)
+      if (result.channelId) {
+        await syncEventToSlot(result as Parameters<typeof syncEventToSlot>[0], tx as unknown as Parameters<typeof syncEventToSlot>[1])
+      }
 
       return result
     })
@@ -662,6 +678,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
         include: {
           sport: true,
           competition: true,
+          channel: { select: { id: true, name: true, color: true, types: true, timezone: true } },
         }
       })
 
@@ -685,6 +702,16 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
         aggregateId: String(updated.id),
         payload: updated,
       })
+
+      // Auto-bridge: sync linked BroadcastSlot if trigger fields changed
+      if (shouldSync(existing, updated)) {
+        if (updated.channelId) {
+          await syncEventToSlot(updated as Parameters<typeof syncEventToSlot>[0], tx as unknown as Parameters<typeof syncEventToSlot>[1])
+        } else {
+          // Channel removed — unlink the slot
+          await unlinkEventSlot(updated.id, updated.tenantId, tx as unknown as Parameters<typeof unlinkEventSlot>[2])
+        }
+      }
 
       return updated
     })
