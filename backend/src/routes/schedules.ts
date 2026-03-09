@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { validateSchedule, type ValidationContext } from '../services/validation/index.js'
+import { writeOutboxEvent } from '../services/outbox.js'
 
 const router = Router()
 
@@ -320,6 +321,15 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), async (
           status: 'PUBLISHED',
           version: draft.version + 1
         }
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: isEmergency ? 'schedule.emergency_published' : 'schedule.published',
+        aggregateType: 'ScheduleVersion',
+        aggregateId: version.id,
+        payload: { versionId: version.id, draftId: draft.id, channelId: draft.channelId, slotCount: slots.length, isEmergency: isEmergency || false },
+        priority: isEmergency ? 'HIGH' : 'NORMAL',
       })
 
       return version

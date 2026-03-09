@@ -9,6 +9,7 @@ import { publishService } from '../services/publishService.js'
 import { canTransition } from '../services/eventTransitions.js'
 import { createNotification } from '../services/notificationService.js'
 import { detectConflicts, type ConflictWarning } from '../services/conflictService.js'
+import { writeOutboxEvent } from '../services/outbox.js'
 import type { EventStatus, Role } from '@prisma/client'
 
 const router = Router()
@@ -408,33 +409,45 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
       if (eventData[k] === undefined) delete eventData[k]
     })
 
-    const event = await prisma.event.create({
-      data: {
-        ...eventData,
-        tenantId: req.tenantId!,
-        startDateBE: new Date(eventData.startDateBE),
-        startDateOrigin: eventData.startDateOrigin ? new Date(eventData.startDateOrigin) : null,
-        livestreamDate: eventData.livestreamDate ? new Date(eventData.livestreamDate) : null,
-        createdById: user.id
-      },
-      include: {
-        sport: true,
-        competition: true,
-      }
-    })
+    const event = await prisma.$transaction(async (tx) => {
+      const created = await tx.event.create({
+        data: {
+          ...eventData,
+          tenantId: req.tenantId!,
+          startDateBE: new Date(eventData.startDateBE),
+          startDateOrigin: eventData.startDateOrigin ? new Date(eventData.startDateOrigin) : null,
+          livestreamDate: eventData.livestreamDate ? new Date(eventData.livestreamDate) : null,
+          createdById: user.id
+        },
+        include: {
+          sport: true,
+          competition: true,
+        }
+      })
 
-    const customValuesList = customValues as { fieldId: string; fieldValue: string }[]
-    if (customValuesList.length > 0) {
-      await prisma.$transaction(
-        customValuesList.map(({ fieldId, fieldValue }) =>
-          prisma.customFieldValue.upsert({
-            where: { entityType_entityId_fieldId: { entityType: 'event', entityId: String(event.id), fieldId } },
-            create: { tenantId: req.tenantId!, entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
-            update: { fieldValue },
-          })
+      const customValuesList = customValues as { fieldId: string; fieldValue: string }[]
+      if (customValuesList.length > 0) {
+        await Promise.all(
+          customValuesList.map(({ fieldId, fieldValue }) =>
+            tx.customFieldValue.upsert({
+              where: { entityType_entityId_fieldId: { entityType: 'event', entityId: String(created.id), fieldId } },
+              create: { tenantId: req.tenantId!, entityType: 'event', entityId: String(created.id), fieldId, fieldValue },
+              update: { fieldValue },
+            })
+          )
         )
-      )
-    }
+      }
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'fixture.created',
+        aggregateType: 'Event',
+        aggregateId: String(created.id),
+        payload: created,
+      })
+
+      return created
+    })
 
     emit('event:created', event, 'events')
     void publishService.dispatch('event.created', event)
@@ -498,6 +511,14 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
             )
           )
         }
+        await writeOutboxEvent(tx, {
+          tenantId: req.tenantId!,
+          eventType: 'fixture.created',
+          aggregateType: 'Event',
+          aggregateId: String(event.id),
+          payload: event,
+        })
+
         results.push(event)
       }
       return results
@@ -540,7 +561,26 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
       return next(createError(422, `Transition ${event.status} → ${status} is not allowed for role ${user.role}`))
     }
 
-    const updated = await prisma.event.update({ where: { id }, data: { status } })
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.event.update({ where: { id }, data: { status } })
+
+      const outboxType = status === 'completed'
+        ? 'fixture.completed'
+        : status === 'live'
+          ? 'fixture.status_changed'
+          : 'fixture.status_changed'
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: outboxType,
+        aggregateType: 'Event',
+        aggregateId: String(id),
+        payload: { ...result, previousStatus: event.status },
+        priority: status === 'live' ? 'HIGH' : 'NORMAL',
+      })
+
+      return result
+    })
 
     await writeAuditLog({
       userId: user.id,
@@ -593,32 +633,44 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
       if (eventData[k] === undefined) delete eventData[k]
     })
 
-    const event = await prisma.event.update({
-      where: { id: Number(req.params.id) },
-      data: {
-        ...eventData,
-        startDateBE: new Date(eventData.startDateBE),
-        startDateOrigin: eventData.startDateOrigin ? new Date(eventData.startDateOrigin) : null,
-        livestreamDate: eventData.livestreamDate ? new Date(eventData.livestreamDate) : null
-      },
-      include: {
-        sport: true,
-        competition: true,
-      }
-    })
+    const event = await prisma.$transaction(async (tx) => {
+      const updated = await tx.event.update({
+        where: { id: Number(req.params.id) },
+        data: {
+          ...eventData,
+          startDateBE: new Date(eventData.startDateBE),
+          startDateOrigin: eventData.startDateOrigin ? new Date(eventData.startDateOrigin) : null,
+          livestreamDate: eventData.livestreamDate ? new Date(eventData.livestreamDate) : null
+        },
+        include: {
+          sport: true,
+          competition: true,
+        }
+      })
 
-    const customValuesList = customValues as { fieldId: string; fieldValue: string }[]
-    if (customValuesList.length > 0) {
-      await prisma.$transaction(
-        customValuesList.map(({ fieldId, fieldValue }) =>
-          prisma.customFieldValue.upsert({
-            where: { entityType_entityId_fieldId: { entityType: 'event', entityId: String(event.id), fieldId } },
-            create: { tenantId: req.tenantId!, entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
-            update: { fieldValue },
-          })
+      const customValuesList = customValues as { fieldId: string; fieldValue: string }[]
+      if (customValuesList.length > 0) {
+        await Promise.all(
+          customValuesList.map(({ fieldId, fieldValue }) =>
+            tx.customFieldValue.upsert({
+              where: { entityType_entityId_fieldId: { entityType: 'event', entityId: String(updated.id), fieldId } },
+              create: { tenantId: req.tenantId!, entityType: 'event', entityId: String(updated.id), fieldId, fieldValue },
+              update: { fieldValue },
+            })
+          )
         )
-      )
-    }
+      }
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'fixture.updated',
+        aggregateType: 'Event',
+        aggregateId: String(updated.id),
+        payload: updated,
+      })
+
+      return updated
+    })
 
     emit('event:updated', event, 'events')
     void publishService.dispatch('event.updated', event)

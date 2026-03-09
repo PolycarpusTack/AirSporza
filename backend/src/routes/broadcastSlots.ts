@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
+import { writeOutboxEvent } from '../services/outbox.js'
 
 const router = Router()
 
@@ -119,36 +120,48 @@ router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, n
       if (!event) return next(createError(404, 'Event not found'))
     }
 
-    const slot = await prisma.broadcastSlot.create({
-      data: {
-        channelId,
-        eventId: eventId || null,
-        schedulingMode: schedulingMode || 'FIXED',
-        plannedStartUtc: plannedStartUtc ? new Date(plannedStartUtc) : null,
-        plannedEndUtc: plannedEndUtc ? new Date(plannedEndUtc) : null,
-        estimatedStartUtc: estimatedStartUtc ? new Date(estimatedStartUtc) : null,
-        estimatedEndUtc: estimatedEndUtc ? new Date(estimatedEndUtc) : null,
-        earliestStartUtc: earliestStartUtc ? new Date(earliestStartUtc) : null,
-        latestStartUtc: latestStartUtc ? new Date(latestStartUtc) : null,
-        bufferBeforeMin: bufferBeforeMin ?? 15,
-        bufferAfterMin: bufferAfterMin ?? 25,
-        expectedDurationMin: expectedDurationMin || null,
-        overrunStrategy: overrunStrategy || 'EXTEND',
-        conditionalTriggerUtc: conditionalTriggerUtc ? new Date(conditionalTriggerUtc) : null,
-        conditionalTargetChannelId: conditionalTargetChannelId || null,
-        anchorType: anchorType || 'FIXED_TIME',
-        coveragePriority: coveragePriority ?? 1,
-        fallbackEventId: fallbackEventId || null,
-        status: status || 'PLANNED',
-        contentSegment: contentSegment || 'FULL',
-        scheduleVersionId: scheduleVersionId || null,
-        sportMetadata: sportMetadata || {},
-        tenantId: req.tenantId!
-      },
-      include: {
-        channel: { select: { id: true, name: true, color: true } },
-        event: { select: { id: true, participants: true, sportId: true } }
-      }
+    const slot = await prisma.$transaction(async (tx) => {
+      const created = await tx.broadcastSlot.create({
+        data: {
+          channelId,
+          eventId: eventId || null,
+          schedulingMode: schedulingMode || 'FIXED',
+          plannedStartUtc: plannedStartUtc ? new Date(plannedStartUtc) : null,
+          plannedEndUtc: plannedEndUtc ? new Date(plannedEndUtc) : null,
+          estimatedStartUtc: estimatedStartUtc ? new Date(estimatedStartUtc) : null,
+          estimatedEndUtc: estimatedEndUtc ? new Date(estimatedEndUtc) : null,
+          earliestStartUtc: earliestStartUtc ? new Date(earliestStartUtc) : null,
+          latestStartUtc: latestStartUtc ? new Date(latestStartUtc) : null,
+          bufferBeforeMin: bufferBeforeMin ?? 15,
+          bufferAfterMin: bufferAfterMin ?? 25,
+          expectedDurationMin: expectedDurationMin || null,
+          overrunStrategy: overrunStrategy || 'EXTEND',
+          conditionalTriggerUtc: conditionalTriggerUtc ? new Date(conditionalTriggerUtc) : null,
+          conditionalTargetChannelId: conditionalTargetChannelId || null,
+          anchorType: anchorType || 'FIXED_TIME',
+          coveragePriority: coveragePriority ?? 1,
+          fallbackEventId: fallbackEventId || null,
+          status: status || 'PLANNED',
+          contentSegment: contentSegment || 'FULL',
+          scheduleVersionId: scheduleVersionId || null,
+          sportMetadata: sportMetadata || {},
+          tenantId: req.tenantId!
+        },
+        include: {
+          channel: { select: { id: true, name: true, color: true } },
+          event: { select: { id: true, participants: true, sportId: true } }
+        }
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'slot.created',
+        aggregateType: 'BroadcastSlot',
+        aggregateId: created.id,
+        payload: created,
+      })
+
+      return created
     })
 
     res.status(201).json(slot)
@@ -265,13 +278,25 @@ router.patch('/:id/status', authenticate, authorize('planner', 'admin'), async (
       return next(createError(400, `Invalid status. Must be one of: ${validStatuses.join(', ')}`))
     }
 
-    const slot = await prisma.broadcastSlot.update({
-      where: { id: existing.id },
-      data: { status },
-      include: {
-        channel: { select: { id: true, name: true, color: true } },
-        event: { select: { id: true, participants: true, sportId: true } }
-      }
+    const slot = await prisma.$transaction(async (tx) => {
+      const updated = await tx.broadcastSlot.update({
+        where: { id: existing.id },
+        data: { status },
+        include: {
+          channel: { select: { id: true, name: true, color: true } },
+          event: { select: { id: true, participants: true, sportId: true } }
+        }
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'slot.status_changed',
+        aggregateType: 'BroadcastSlot',
+        aggregateId: updated.id,
+        payload: { ...updated, previousStatus: existing.status },
+      })
+
+      return updated
     })
 
     res.json(slot)
