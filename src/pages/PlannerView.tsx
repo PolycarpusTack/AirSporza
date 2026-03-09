@@ -83,6 +83,9 @@ function parseDurationMin(duration?: string | null): number {
   // SMPTE timecode: HH:MM:SS;FF or HH:MM:SS:FF
   const smpte = duration.match(/^(\d{1,2}):(\d{2}):(\d{2})[;:](\d{2})$/)
   if (smpte) return Number(smpte[1]) * 60 + Number(smpte[2])
+  // Standard HH:MM format (e.g., "02:00" → 120min)
+  const hhmm = duration.match(/^(\d{1,2}):(\d{2})$/)
+  if (hhmm) return Number(hhmm[1]) * 60 + Number(hhmm[2])
   const match = duration.match(/(\d+)h\s*(\d+)?m?/)
   if (match) return Number(match[1]) * 60 + Number(match[2] || 0)
   return 90
@@ -272,6 +275,10 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
 
   const [detailEvent, setDetailEvent] = useState<Event | null>(null)
   const [localSearch, setLocalSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const listObserverRef = useRef<IntersectionObserver | null>(null)
+  const [visibleDays, setVisibleDays] = useState<Set<string>>(new Set())
 
   const [savedViews, setSavedViews] = useState<SavedView[]>([])
   const [saveViewName, setSaveViewName] = useState('')
@@ -336,6 +343,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     setCompetitionFilter(fs.competitionFilter)
     setStatusFilter(fs.statusFilter)
     setLocalSearch(fs.searchText ?? '')
+    setSearchInput(fs.searchText ?? '')
     if (fs.weekOffset !== undefined) setWeekOffset(fs.weekOffset)
   }
 
@@ -371,6 +379,28 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  // Intersection Observer for list mode virtualization
+  useEffect(() => {
+    if (calendarMode) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        setVisibleDays(prev => {
+          const next = new Set(prev)
+          for (const entry of entries) {
+            const date = (entry.target as HTMLElement).dataset.dayDate
+            if (!date) continue
+            if (entry.isIntersecting) next.add(date)
+            else next.delete(date)
+          }
+          return next
+        })
+      },
+      { rootMargin: '200px 0px' }
+    )
+    listObserverRef.current = obs
+    return () => obs.disconnect()
+  }, [calendarMode])
 
   // Auto-scroll to a specific date (e.g. after creating an event)
   useEffect(() => {
@@ -431,34 +461,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     [contextEvents, weekFromStr, weekToStr]
   )
 
-  // Stable key for conflict refetch: sorted event IDs joined
-  const weekEventKey = useMemo(
-    () => weekEvents.map(e => e.id).sort((a, b) => a - b).join(','),
-    [weekEvents]
-  )
-
-  // Fetch conflicts for visible week events
-  useEffect(() => {
-    if (weekEvents.length === 0) {
-      setConflictMap({})
-      return
-    }
-    const ids = weekEvents.map(e => e.id)
-    let cancelled = false
-    // Chunk into batches of 50 to avoid backend limits
-    const chunks: number[][] = []
-    for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50))
-    Promise.all(chunks.map(chunk => eventsApi.checkBulkConflicts(chunk)))
-      .then(results => {
-        if (cancelled) return
-        const merged: Record<number, ConflictWarning[]> = {}
-        for (const r of results) Object.assign(merged, r)
-        setConflictMap(merged)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [weekEventKey])
-
   const filteredWeekEvents = useMemo(() => {
     let result = weekEvents
     if (channelFilter !== 'all') result = result.filter(e => e.channelId === channelFilter)
@@ -485,6 +487,34 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     }
     return result
   }, [weekEvents, channelFilter, sportFilter, competitionFilter, statusFilter, localSearch, sportsMap, compsMap, readinessFilter, techPlans, contracts, crewFields])
+
+  // Stable key for conflict refetch: based on filtered events to avoid unnecessary re-checks
+  const weekEventKey = useMemo(
+    () => filteredWeekEvents.map(e => `${e.id}:${getDateKey(e.startDateBE)}:${e.startTimeBE}:${e.duration ?? ''}`).sort().join(','),
+    [filteredWeekEvents]
+  )
+
+  // Fetch conflicts for filtered week events
+  useEffect(() => {
+    if (filteredWeekEvents.length === 0) {
+      setConflictMap({})
+      return
+    }
+    const ids = filteredWeekEvents.map(e => e.id)
+    let cancelled = false
+    // Chunk into batches of 50 to avoid backend limits
+    const chunks: number[][] = []
+    for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50))
+    Promise.all(chunks.map(chunk => eventsApi.checkBulkConflicts(chunk)))
+      .then(results => {
+        if (cancelled) return
+        const merged: Record<number, ConflictWarning[]> = {}
+        for (const r of results) Object.assign(merged, r)
+        setConflictMap(merged)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [weekEventKey])
 
   // Only show live events happening today
   const liveNow = contextEvents.filter(e => e.isLive && getDateKey(e.startDateBE) === todayStr)
@@ -932,13 +962,13 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
             {/* Week nav */}
             <div className="flex items-center gap-1">
               <button
-                onClick={() => { setWeekOffset(0); setLocalSearch(''); setSelectedIds(new Set()) }}
+                onClick={() => { setWeekOffset(0); setLocalSearch(''); setSearchInput(''); setSelectedIds(new Set()) }}
                 className="px-3 py-1.5 text-xs border border-border text-text-2 rounded-lg hover:bg-surface-2 transition font-sans"
               >
                 This week
               </button>
               <button
-                onClick={() => { setWeekOffset(o => o - 1); setLocalSearch(''); setSelectedIds(new Set()) }}
+                onClick={() => { setWeekOffset(o => o - 1); setLocalSearch(''); setSearchInput(''); setSelectedIds(new Set()) }}
                 className="px-2.5 py-1.5 text-sm border border-border text-text-2 rounded-lg hover:bg-surface-2 transition"
                 aria-label="Previous week (←)"
                 title="Previous week (←)"
@@ -949,7 +979,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                 {weekLabel}
               </span>
               <button
-                onClick={() => { setWeekOffset(o => o + 1); setLocalSearch(''); setSelectedIds(new Set()) }}
+                onClick={() => { setWeekOffset(o => o + 1); setLocalSearch(''); setSearchInput(''); setSelectedIds(new Set()) }}
                 className="px-2.5 py-1.5 text-sm border border-border text-text-2 rounded-lg hover:bg-surface-2 transition"
                 aria-label="Next week (→)"
                 title="Next week (→)"
@@ -981,6 +1011,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                   const diffMs = targetMonday.getTime() - todayMonday.getTime()
                   const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000))
                   setLocalSearch('')
+                  setSearchInput('')
                   setSelectedIds(new Set())
                   setWeekOffset(diffWeeks)
                 }}
@@ -993,8 +1024,12 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
               type="search"
               placeholder="Search events..."
               className="inp text-sm px-2 py-1 w-48"
-              value={localSearch}
-              onChange={e => setLocalSearch(e.target.value)}
+              value={searchInput}
+              onChange={e => {
+                setSearchInput(e.target.value)
+                clearTimeout(searchTimerRef.current)
+                searchTimerRef.current = setTimeout(() => setLocalSearch(e.target.value), 200)
+              }}
             />
 
             {/* Sport filter */}
@@ -1202,7 +1237,10 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
               </div>
             ) : (
               grouped.map(([date, dayEvs]) => (
-                <div key={date} className="mb-6">
+                <div key={date} className="mb-6" data-day-date={date} ref={el => {
+                  if (el && listObserverRef.current) listObserverRef.current.observe(el)
+                }}>
+                  {visibleDays.has(date) || visibleDays.size === 0 ? (<>
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-1 h-6 rounded-full bg-gradient-to-b from-blue-400 to-blue-700" />
                     <h3 className="font-bold text-base">{dayLabel(date)}</h3>
@@ -1295,6 +1333,9 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                       </div>
                     )
                   })}
+                  </>) : (
+                    <div style={{ minHeight: 100 }} />
+                  )}
                 </div>
               ))
             )
@@ -1463,6 +1504,11 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
     [weekDays, events]
   )
 
+  const overlapLayouts = useMemo(
+    () => eventsByDay.map(dayEvs => computeOverlapLayout(dayEvs)),
+    [eventsByDay]
+  )
+
   return (
     <div
       className="card overflow-hidden relative"
@@ -1527,7 +1573,7 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
         const ds = dateStr(day)
         const isToday = ds === todayStr
         const dayEvs = eventsByDay[dayIdx]
-        const overlapLayout = computeOverlapLayout(dayEvs)
+        const overlapLayout = overlapLayouts[dayIdx]
 
         // Current time indicator position
         const nowTopPx = isToday
@@ -1542,6 +1588,16 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 height: CAL_HEIGHT,
                 background: isToday ? 'rgba(245,158,11,0.02)' : undefined,
                 backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR - 1}px, rgba(255,255,255,0.025) ${PX_PER_HOUR}px)`,
+              }}
+              onDoubleClick={(e) => {
+                if ((e.target as HTMLElement).closest('[data-event-card]')) return
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                const yOffset = e.clientY - rect.top
+                const minutes = CAL_START_HOUR * 60 + (yOffset / PX_PER_HOUR) * 60
+                const h = Math.floor(minutes / 60)
+                const m = Math.round((minutes % 60) / 5) * 5
+                const time = `${String(h).padStart(2,'0')}:${String(m >= 60 ? 0 : m).padStart(2,'0')}`
+                onDrawCreate?.({ date: ds, startTime: time, durationMinutes: 90 })
               }}
               onContextMenu={(e) => {
                 if ((e.target as HTMLElement).closest('[data-event-card]')) return
@@ -1659,6 +1715,7 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                       left: `calc(${leftPct}% + 2px)`,
                       width: `calc(${widthPct}% - 4px)`,
                       background: evLock.locked && cardH <= 30 ? `color-mix(in srgb, ${col.bg} 90%, var(--color-warning) 10%)` : col.bg,
+                      backgroundImage: evLock.locked ? 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(245,158,11,0.08) 3px, rgba(245,158,11,0.08) 6px)' : undefined,
                       borderLeft: evLock.locked ? '3px solid var(--color-warning, #F59E0B)' : `3px solid ${col.border}`,
                     }}
                     title={`${time} · ${ev.participants}${evLock.locked ? ' (locked)' : ''}`}
@@ -1733,9 +1790,13 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                         const r = readinessMap.get(ev.id)
                         if (!r) return null
                         if (cardH >= 50) {
-                          // Full dots: one per check
+                          // Full dots with combined tooltip showing failed checks
+                          const failedChecks = r.checks.filter(c => c.status === 'fail')
+                          const tooltipText = failedChecks.length > 0
+                            ? `Missing: ${failedChecks.map(c => c.label).join(', ')}`
+                            : `Ready (${r.score}/${r.total})`
                           return (
-                            <div className="flex gap-0.5 mt-auto pt-0.5">
+                            <div className="flex gap-0.5 mt-auto pt-0.5" title={tooltipText}>
                               {r.checks.map(c => (
                                 <span
                                   key={c.key}
@@ -1745,7 +1806,6 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                                     : 'bg-zinc-500/30'
                                   }`}
                                   style={{ width: 5, height: 5 }}
-                                  title={`${c.label}: ${c.status}`}
                                 />
                               ))}
                             </div>

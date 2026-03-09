@@ -33,8 +33,8 @@ type ApiFieldDef = {
 interface DynamicEventFormProps {
   eventFields: FieldConfig[]
   onClose: () => void
-  onSave: (event: Event) => void
-  onBatchSave?: (events: Partial<Event>[], seriesId: string) => void
+  onSave: (event: Event) => void | Promise<void>
+  onBatchSave?: (events: Partial<Event>[], seriesId: string) => void | Promise<void>
   editEvent?: Event | null
   prefill?: Partial<Record<string, string>> | null
   multiDayDates?: string[] | null
@@ -275,13 +275,26 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
       if (result?.warnings && result.warnings.length > 0 && !conflicts) return
     }
 
-    // Mandatory field enforcement
+    // API custom fields required enforcement
+    const missingApiRequired = apiCustomFields
+      .filter(f => f.required && f.visible)
+      .filter(f => {
+        const val = customValues[f.id]
+        // Checkbox fields store 'true'/'false' as strings — 'false' means unchecked
+        if (f.fieldType === 'checkbox') return val !== 'true'
+        return !val || (typeof val === 'string' && val.trim() === '')
+      })
+      .map(f => f.id)
+
+    // Mandatory field enforcement (sport-specific)
     const missingMandatory = mandatoryFieldIds.filter(fieldId => {
       const val = customValues[fieldId]
       return !val || (typeof val === 'string' && val.trim() === '')
     })
-    if (missingMandatory.length > 0) {
-      setMandatoryErrors(missingMandatory)
+
+    const allMissing = [...new Set([...missingApiRequired, ...missingMandatory])]
+    if (allMissing.length > 0) {
+      setMandatoryErrors(allMissing)
       return
     }
     setMandatoryErrors([])
@@ -295,8 +308,10 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
         startDateBE: date,
         seriesId,
       }))
-      onBatchSave(events as Partial<Event>[], seriesId)
-      onClose()
+      try {
+        await onBatchSave(events as Partial<Event>[], seriesId)
+        onClose()
+      } catch { /* save failed — keep form open */ }
       return
     }
 
@@ -309,13 +324,17 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
         startDateBE: date,
         seriesId,
       }))
-      onBatchSave(events as Partial<Event>[], seriesId)
-      onClose()
+      try {
+        await onBatchSave(events as Partial<Event>[], seriesId)
+        onClose()
+      } catch { /* save failed — keep form open */ }
       return
     }
 
-    onSave(event)
-    onClose()
+    try {
+      await onSave(event)
+      onClose()
+    } catch { /* save failed — keep form open */ }
   }
 
   const inputCls = 'field-input'
@@ -325,6 +344,21 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
     const hasErr = errors[field.id]
     const cls = `${inputCls} ${hasErr ? errCls : 'border-border'}`
 
+    // Custom dropdowns with literal options — must check BEFORE system lookups
+    // to prevent a custom dropdown whose options string happens to match a system key
+    if (field.type === 'dropdown' && field.isCustom && field.options) {
+      const opts = (typeof field.options === 'string' ? field.options.split(',') : []).map(o => o.trim()).filter(Boolean)
+      return (
+        <select
+          value={form[field.id] as string || ''}
+          onChange={e => update(field.id, e.target.value)}
+          className={cls}
+        >
+          <option value=''>Select...</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      )
+    }
     // Channel FK dropdowns — render ChannelSelect with type filter + hierarchy
     if (field.type === 'dropdown' && field.options && CHANNEL_FIELD_MAP[field.options]) {
       const { typeFilter } = CHANNEL_FIELD_MAP[field.options]
@@ -350,19 +384,6 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
           {optionsMap[field.options].map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
-        </select>
-      )
-    }
-    if (field.type === 'dropdown' && field.isCustom && field.options) {
-      const opts = (typeof field.options === 'string' ? field.options.split(',') : []).map(o => o.trim()).filter(Boolean)
-      return (
-        <select
-          value={form[field.id] as string || ''}
-          onChange={e => update(field.id, e.target.value)}
-          className={cls}
-        >
-          <option value=''>Select...</option>
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       )
     }

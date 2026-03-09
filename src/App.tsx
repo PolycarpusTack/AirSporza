@@ -254,7 +254,8 @@ function AppContent() {
             onSave={async (ev) => {
               const isCreate = !editEvent
               const saved = await handleSaveEvent(ev)
-              if (isCreate && saved) {
+              if (!saved) throw new Error('Save failed')
+              if (isCreate) {
                 const rawDate = saved.startDateBE
                 const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0]
                   : `${(rawDate as Date).getFullYear()}-${String((rawDate as Date).getMonth() + 1).padStart(2, '0')}-${String((rawDate as Date).getDate()).padStart(2, '0')}`
@@ -280,6 +281,7 @@ function AppContent() {
                 }
               } catch {
                 toast.error('Failed to create event series')
+                throw new Error('Batch save failed')
               }
             }}
             editEvent={editEvent}

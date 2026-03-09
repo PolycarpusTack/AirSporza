@@ -62,8 +62,15 @@ export function LinkFromImport({ onLink }: LinkFromImportProps) {
     let startTimeBE: string | undefined
     if (n.startsAtUtc) {
       const d = new Date(n.startsAtUtc)
-      startDateBE = d.toISOString().split('T')[0]
-      startTimeBE = d.toISOString().split('T')[1]?.slice(0, 5)
+      // Format in Europe/Brussels timezone (not UTC) so date/time fields are correct
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Brussels',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(d)
+      const get = (t: string) => parts.find(p => p.type === t)?.value ?? ''
+      startDateBE = `${get('year')}-${get('month')}-${get('day')}`
+      startTimeBE = `${get('hour')}:${get('minute')}`
     }
 
     onLink({
