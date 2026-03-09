@@ -9,6 +9,9 @@ import { CrewTemplatesPanel } from '../components/admin/CrewTemplatesPanel'
 import { AuditLogViewer } from '../components/admin/AuditLogViewer'
 import { AutoFillRulesPanel } from '../components/admin/AutoFillRulesPanel'
 import { WorkflowTogglesPanel } from '../components/admin/WorkflowTogglesPanel'
+import { ChannelsPanel } from '../components/admin/ChannelsPanel'
+import { RightsPoliciesPanel } from '../components/admin/RightsPoliciesPanel'
+import { AdapterConfigPanel } from '../components/admin/AdapterConfigPanel'
 import { sportsApi, competitionsApi, encodersApi, importsApi, usersApi, type UserRecord } from '../services'
 import { settingsApi, type AdminStats } from '../services/settings'
 import { auditApi, type AuditEntry } from '../services/audit'
@@ -21,7 +24,7 @@ interface AdminViewProps {
   onTabChange?: (tab: AdminTab) => void
 }
 
-export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates' | 'audit-log' | 'autofill' | 'workflows'
+export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates' | 'audit-log' | 'autofill' | 'workflows' | 'channels' | 'rights' | 'adapters'
 
 interface AdminGroup {
   label: string
@@ -570,6 +573,14 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
         { id: 'audit-log', label: 'Audit Log' },
       ],
     },
+    {
+      label: 'Broadcast',
+      items: [
+        { id: 'channels' as AdminTab, label: 'Channels' },
+        { id: 'rights' as AdminTab, label: 'Rights Policies' },
+        { id: 'adapters' as AdminTab, label: 'Adapters' },
+      ],
+    },
   ]
 
   return (
@@ -730,6 +741,9 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
               {activeTab === 'audit-log' && <AuditLogViewer />}
               {activeTab === 'autofill' && <AutoFillRulesPanel />}
               {activeTab === 'workflows' && <WorkflowTogglesPanel />}
+              {activeTab === 'channels' && <ChannelsPanel />}
+              {activeTab === 'rights' && <RightsPoliciesPanel />}
+              {activeTab === 'adapters' && <AdapterConfigPanel />}
             </div>
           </div>
         ) : (
@@ -746,6 +760,9 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
             {activeTab === 'audit-log' && <AuditLogViewer />}
             {activeTab === 'autofill' && <AutoFillRulesPanel />}
             {activeTab === 'workflows' && <WorkflowTogglesPanel />}
+            {activeTab === 'channels' && <ChannelsPanel />}
+            {activeTab === 'rights' && <RightsPoliciesPanel />}
+            {activeTab === 'adapters' && <AdapterConfigPanel />}
           </div>
         )}
       </div>
