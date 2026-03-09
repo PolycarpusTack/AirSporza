@@ -39,6 +39,20 @@ enum SettingScopeKind {
   user_role
 }
 
+enum StageType {
+  LEAGUE
+  GROUP
+  KNOCKOUT
+  QUALIFIER
+  TOURNAMENT_MAIN
+}
+
+enum SchedulingMode {
+  FIXED
+  FLOATING
+  WINDOW
+}
+
 // =============================================================================
 // MULTI-TENANCY
 // =============================================================================
@@ -94,6 +108,9 @@ model Tenant {
   venues                 Venue[]
   teams                  Team[]
   courts                 Court[]
+  seasons                Season[]
+  stages                 Stage[]
+  rounds                 Round[]
 }
 
 model User {
@@ -156,6 +173,7 @@ model Competition {
   sport      Sport        @relation(fields: [sportId], references: [id], onDelete: Cascade)
   events     Event[]
   contracts  Contract[]
+  seasons    Season[]
 
   @@unique([sportId, name, season])
   @@index([sportId])
@@ -201,6 +219,12 @@ model Event {
   seriesId          String?
 
   venueId           Int?
+  seasonId          Int?
+  stageId           Int?
+  roundId           Int?
+  schedulingMode    SchedulingMode @default(FIXED)
+  sportMetadata     Json           @default("{}")
+  externalRefs      Json           @default("{}")
 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -210,6 +234,9 @@ model Event {
   competition       Competition   @relation(fields: [competitionId], references: [id])
   createdBy         User?         @relation(fields: [createdById], references: [id])
   venue             Venue?        @relation(fields: [venueId], references: [id])
+  season            Season?       @relation(fields: [seasonId], references: [id])
+  stage             Stage?        @relation(fields: [stageId], references: [id])
+  round             Round?        @relation(fields: [roundId], references: [id])
   techPlans         TechPlan[]
 
   @@index([sportId])
@@ -219,6 +246,9 @@ model Event {
   @@index([status])
   @@index([seriesId])
   @@index([venueId])
+  @@index([seasonId])
+  @@index([stageId])
+  @@index([roundId])
   @@index([tenantId])
 }
 
@@ -1062,5 +1092,67 @@ model Court {
   venue             Venue    @relation(fields: [venueId], references: [id])
 
   @@unique([venueId, name])
+  @@index([tenantId])
+}
+
+// =============================================================================
+// BROADCAST MIDDLEWARE — SEASON, STAGE, ROUND
+// =============================================================================
+
+model Season {
+  id            Int         @id @default(autoincrement())
+  tenantId      String      @db.Uuid
+  competitionId Int
+  name          String
+  startDate     DateTime    @db.Date
+  endDate       DateTime    @db.Date
+  sportMetadata Json        @default("{}")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  competition   Competition @relation(fields: [competitionId], references: [id])
+  stages        Stage[]
+  events        Event[]
+
+  @@unique([tenantId, competitionId, name])
+  @@index([tenantId])
+}
+
+model Stage {
+  id               Int       @id @default(autoincrement())
+  tenantId         String    @db.Uuid
+  seasonId         Int
+  name             String
+  stageType        StageType
+  sortOrder        Int       @default(0)
+  advancementRules Json      @default("{}")
+  sportMetadata    Json      @default("{}")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  season           Season    @relation(fields: [seasonId], references: [id])
+  rounds           Round[]
+  events           Event[]
+
+  @@index([tenantId])
+}
+
+model Round {
+  id                 Int       @id @default(autoincrement())
+  tenantId           String    @db.Uuid
+  stageId            Int
+  name               String
+  roundNumber        Int
+  scheduledDateStart DateTime? @db.Date
+  scheduledDateEnd   DateTime? @db.Date
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  tenant             Tenant    @relation(fields: [tenantId], references: [id])
+  stage              Stage     @relation(fields: [stageId], references: [id])
+  events             Event[]
+
   @@index([tenantId])
 }
