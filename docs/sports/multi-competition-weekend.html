@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Competition Weekend — Sports Scheduler Middleware</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --bg2: #0f1318;
+    --bg3: #151b22;
+    --bg4: #1c2430;
+    --border: #1e2d3d;
+    --border2: #253545;
+    --text: #c8d8e8;
+    --text-dim: #6b8299;
+    --text-bright: #e8f4ff;
+
+    --pl: #3d1eb5;
+    --pl-light: #7c4fff;
+    --pl-bg: #1a0f3a;
+    --pl-border: #3d2880;
+
+    --bun: #c8102e;
+    --bun-light: #ff4060;
+    --bun-bg: #2d0810;
+    --bun-border: #6b1020;
+
+    --jpl: #f5c400;
+    --jpl-light: #ffe066;
+    --jpl-bg: #1f1800;
+    --jpl-border: #5a4400;
+
+    --green: #00c896;
+    --orange: #ff8c00;
+    --red: #ff4444;
+    --cyan: #00b4d8;
+
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .logo {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .header-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-bright);
+  }
+  .header-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    gap: 20px;
+  }
+  .meta-badge {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .meta-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+
+  /* ── COMPETITION BADGES ── */
+  .badge-pl { background: var(--pl); border: 1px solid var(--pl-light); color: #fff; }
+  .badge-bun { background: var(--bun-bg); border: 1px solid var(--bun-border); color: var(--bun-light); }
+  .badge-jpl { background: var(--jpl-bg); border: 1px solid var(--jpl-border); color: var(--jpl); }
+  .comp-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 0 24px;
+  }
+  .tab {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 12px 20px;
+    cursor: pointer;
+    color: var(--text-dim);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    border: none; background: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--cyan); border-bottom: 2px solid var(--cyan); }
+
+  /* ── PANELS ── */
+  .panel { display: none; padding: 24px; }
+  .panel.active { display: block; }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── STORAGE PANEL ── */
+  .storage-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .storage-full { grid-column: 1 / -1; }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .card-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-bright);
+  }
+  .card-body { padding: 14px; }
+
+  /* Competition row */
+  .comp-row {
+    display: grid;
+    grid-template-columns: 80px 140px 80px 80px 1fr;
+    gap: 0;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    align-items: center;
+  }
+  .comp-row:last-child { border-bottom: none; }
+  .comp-row.header { color: var(--text-dim); font-size: 10px; letter-spacing: 0.1em; }
+  .comp-row .id { color: var(--text-dim); }
+  .comp-row .name { color: var(--text-bright); font-weight: 500; }
+  .comp-row .code { }
+  .comp-row .country { }
+  .comp-row .refs { color: var(--text-dim); font-size: 10px; }
+
+  /* entity table */
+  .ent-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; }
+  .ent-table th {
+    text-align: left;
+    padding: 5px 8px;
+    color: var(--text-dim);
+    font-weight: 400;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--border);
+  }
+  .ent-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .ent-table tr:last-child td { border-bottom: none; }
+  .ent-table .fk { color: var(--cyan); }
+  .ent-table .val { color: var(--text-bright); }
+  .ent-table .dim { color: var(--text-dim); }
+  .ent-table .pl-row td:first-child { border-left: 2px solid var(--pl-light); padding-left: 10px; }
+  .ent-table .bun-row td:first-child { border-left: 2px solid var(--bun-light); padding-left: 10px; }
+  .ent-table .jpl-row td:first-child { border-left: 2px solid var(--jpl); padding-left: 10px; }
+
+  .tag {
+    display: inline-block;
+    font-size: 9px;
+    font-family: var(--mono);
+    padding: 1px 6px;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  .tag-pl { background: var(--pl-bg); border: 1px solid var(--pl-border); color: var(--pl-light); }
+  .tag-bun { background: var(--bun-bg); border: 1px solid var(--bun-border); color: var(--bun-light); }
+  .tag-jpl { background: var(--jpl-bg); border: 1px solid var(--jpl-border); color: var(--jpl); }
+  .tag-shared { background: #0d2030; border: 1px solid #1a4060; color: var(--cyan); }
+
+  /* fk arrow diagram */
+  .fk-diagram {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 12px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .fk-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .fk-box {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-bright);
+    white-space: nowrap;
+  }
+  .fk-count {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+  .fk-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    color: var(--text-dim);
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .fk-box.comp-pl { border-color: var(--pl-border); color: var(--pl-light); }
+  .fk-box.comp-bun { border-color: var(--bun-border); color: var(--bun-light); }
+  .fk-box.comp-jpl { border-color: var(--jpl-border); color: var(--jpl); }
+  .fk-box.shared { border-color: #1a4060; color: var(--cyan); }
+
+  .multi-comp-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tree-comp-row {
+    display: grid;
+    grid-template-columns: 130px 130px 130px 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+  .tree-box {
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-align: center;
+  }
+  .tree-box.pl-b { background: var(--pl-bg); border: 1px solid var(--pl-border); color: var(--pl-light); }
+  .tree-box.bun-b { background: var(--bun-bg); border: 1px solid var(--bun-border); color: var(--bun-light); }
+  .tree-box.jpl-b { background: var(--jpl-bg); border: 1px solid var(--jpl-border); color: var(--jpl); }
+  .tree-box.fix-b { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); font-size: 9px; padding: 4px 8px; }
+  .tree-arr { color: var(--text-dim); font-size: 12px; text-align: center; }
+
+  /* ── GRID PANEL ── */
+  .weekend-controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .day-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text-dim);
+    transition: all 0.15s;
+  }
+  .day-btn:hover { color: var(--text); border-color: var(--border2); }
+  .day-btn.active { background: var(--bg4); border-color: var(--cyan); color: var(--cyan); }
+
+  .tz-toggle {
+    font-family: var(--mono);
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+  .toggle {
+    display: flex;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .toggle-opt {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    transition: all 0.1s;
+  }
+  .toggle-opt.active { background: var(--bg4); color: var(--cyan); }
+
+  /* Timeline grid */
+  .timeline-container {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .timeline-header {
+    display: grid;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .timeline-time-axis {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .tl-label-col { width: 110px; flex-shrink: 0; }
+  .tl-times { flex: 1; display: flex; position: relative; }
+  .time-tick {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    padding: 6px 0 6px 4px;
+    border-left: 1px solid var(--border);
+    flex: 1;
+    min-width: 0;
+  }
+
+  .timeline-row {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    min-height: 54px;
+    align-items: stretch;
+  }
+  .timeline-row:last-child { border-bottom: none; }
+  .tl-league-label {
+    width: 110px;
+    flex-shrink: 0;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    border-right: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .tl-league-name {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .tl-fixtures { flex: 1; position: relative; background: var(--bg2); }
+
+  .fixture-block {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 6px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.15s;
+    z-index: 1;
+  }
+  .fixture-block:hover { z-index: 10; filter: brightness(1.15); }
+  .fixture-block .match-teams {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+  }
+  .fixture-block .match-time {
+    font-family: var(--mono);
+    font-size: 8px;
+    opacity: 0.7;
+    margin-top: 2px;
+  }
+  .fixture-block.pl-block {
+    background: linear-gradient(135deg, #2a1570 0%, #1a0f3a 100%);
+    border: 1px solid var(--pl-border);
+    color: #c4a8ff;
+  }
+  .fixture-block.bun-block {
+    background: linear-gradient(135deg, #4a0c18 0%, #2d0810 100%);
+    border: 1px solid var(--bun-border);
+    color: #ff8090;
+  }
+  .fixture-block.jpl-block {
+    background: linear-gradient(135deg, #3a2800 0%, #1f1800 100%);
+    border: 1px solid var(--jpl-border);
+    color: var(--jpl);
+  }
+
+  .clash-indicator {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 3px;
+    background: var(--red);
+    opacity: 0.8;
+    z-index: 5;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+  /* grid lines */
+  .grid-lines {
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 0; right: 0;
+    display: flex;
+    pointer-events: none;
+  }
+  .grid-line {
+    flex: 1;
+    border-left: 1px solid #141d26;
+  }
+
+  /* ── SCHEDULE PANEL ── */
+  .schedule-broadcast {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 16px;
+  }
+
+  .broadcast-day { margin-bottom: 20px; }
+  .day-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .day-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-bright);
+    letter-spacing: 0.08em;
+  }
+  .day-count {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .slot {
+    display: grid;
+    grid-template-columns: 80px 1fr auto;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    margin-bottom: 6px;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .slot:hover { border-color: var(--border2); background: var(--bg3); }
+  .slot.selected { border-color: var(--cyan) !important; background: var(--bg4) !important; }
+  .slot.conflict { border-color: var(--red) !important; }
+  .slot-time {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+  .slot-time .tz { font-size: 9px; color: var(--text-dim); font-weight: 400; }
+  .slot-match {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .slot-teams {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+  .slot-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .slot-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .duration-pill {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: var(--bg4);
+    border: 1px solid var(--border2);
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-scheduled { background: var(--text-dim); }
+  .status-confirmed { background: var(--green); }
+  .status-conflict { background: var(--red); }
+
+  .conflict-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--red);
+    background: rgba(255,68,68,0.1);
+    border: 1px solid rgba(255,68,68,0.3);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+
+  /* sidebar info */
+  .sidebar-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    position: sticky;
+    top: 80px;
+  }
+  .sidebar-body { padding: 14px; }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-row .key { color: var(--text-dim); }
+  .info-row .value { color: var(--text-bright); font-weight: 500; }
+  .info-row .value.green { color: var(--green); }
+  .info-row .value.orange { color: var(--orange); }
+  .info-row .value.red { color: var(--red); }
+
+  .resolve-chain {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 0;
+  }
+  .resolve-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .resolve-step .num {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--bg4);
+    border: 1px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: var(--cyan);
+    flex-shrink: 0;
+  }
+  .resolve-step .desc { padding-top: 1px; line-height: 1.5; }
+  .resolve-step .highlight { color: var(--text-bright); }
+  .resolve-step .comp { }
+
+  /* tz conversion box */
+  .tz-box {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-top: 10px;
+  }
+  .tz-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 0;
+  }
+  .tz-flag { font-size: 14px; }
+  .tz-zone { color: var(--text-dim); width: 60px; flex-shrink: 0; }
+  .tz-time { color: var(--text-bright); font-weight: 600; }
+  .tz-utc { color: var(--text-dim); font-size: 9px; }
+
+  /* resolution diagram */
+  .res-section { margin-bottom: 20px; }
+
+  .fixture-detail-popup {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    padding: 12px;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    display: none;
+  }
+  .fixture-detail-popup.show { display: block; }
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-key { color: var(--text-dim); }
+  .detail-val { color: var(--text-bright); }
+  .detail-val.cyan { color: var(--cyan); }
+  .detail-val.green { color: var(--green); }
+  .detail-val.orange { color: var(--orange); }
+
+  /* summary stats */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 14px;
+    text-align: center;
+  }
+  .stat-num {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text-bright);
+    line-height: 1;
+  }
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .stat-card.pl-s { border-color: var(--pl-border); }
+  .stat-card.pl-s .stat-num { color: var(--pl-light); }
+  .stat-card.bun-s { border-color: var(--bun-border); }
+  .stat-card.bun-s .stat-num { color: var(--bun-light); }
+  .stat-card.jpl-s { border-color: var(--jpl-border); }
+  .stat-card.jpl-s .stat-num { color: var(--jpl); }
+
+  /* highlight box */
+  .highlight-box {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .highlight-box.warn { border-color: rgba(255,140,0,0.4); background: rgba(255,140,0,0.04); }
+  .highlight-box.info { border-color: rgba(0,180,216,0.3); background: rgba(0,180,216,0.04); }
+  .highlight-box strong { color: var(--text-bright); }
+  .hl-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .hl-title.warn { color: var(--orange); }
+  .hl-title.info { color: var(--cyan); }
+
+  .scrollable { overflow-x: auto; }
+  .nowrap { white-space: nowrap; }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .storage-grid { grid-template-columns: 1fr; }
+    .schedule-broadcast { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo">Sports Scheduler MW</div>
+    <div class="header-title">Multi-Competition Weekend · 06–09 Mar 2026</div>
+  </div>
+  <div class="header-meta">
+    <div class="meta-badge">
+      <div class="meta-dot" style="background:var(--pl-light)"></div>
+      <span>Premier League GW29</span>
+    </div>
+    <div class="meta-badge">
+      <div class="meta-dot" style="background:var(--bun-light)"></div>
+      <span>Bundesliga MD25</span>
+    </div>
+    <div class="meta-badge">
+      <div class="meta-dot" style="background:var(--jpl)"></div>
+      <span>JPL MD28</span>
+    </div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('storage', this)">① Storage Model</button>
+  <button class="tab" onclick="switchTab('grid', this)">② Weekend Grid</button>
+  <button class="tab" onclick="switchTab('planning', this)">③ Broadcast Plan</button>
+  <button class="tab" onclick="switchTab('resolution', this)">④ Resolution & TZ</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB 1: STORAGE MODEL
+═══════════════════════════════════════════════════════ -->
+<div id="tab-storage" class="panel active">
+
+  <div class="section-header">
+    <span class="section-label">Hierarchy</span>
+    <div class="section-line"></div>
+    <span class="section-label">3 competitions → 3 seasons → 3 rounds → 28 fixtures</span>
+  </div>
+
+  <!-- FK Flow -->
+  <div class="card storage-full" style="margin-bottom:16px">
+    <div class="card-header">
+      <span class="card-title">Entity Hierarchy — Shared Model</span>
+      <span class="tag tag-shared">same schema, all three leagues</span>
+    </div>
+    <div class="card-body">
+      <div class="fk-diagram">
+        <div class="fk-node">
+          <div class="fk-box">Competition</div>
+          <div class="fk-count">3 rows</div>
+        </div>
+        <div class="fk-arrow">→</div>
+        <div class="fk-node">
+          <div class="fk-box">Season</div>
+          <div class="fk-count">3 rows (one each)</div>
+        </div>
+        <div class="fk-arrow">→</div>
+        <div class="fk-node">
+          <div class="fk-box">Round</div>
+          <div class="fk-count">3 rows (MD25 / GW29 / MD28)</div>
+        </div>
+        <div class="fk-arrow">→</div>
+        <div class="fk-node">
+          <div class="fk-box">Fixture</div>
+          <div class="fk-count">28 rows across 4 days</div>
+        </div>
+        <div class="fk-arrow">↙</div>
+        <div class="fk-node">
+          <div class="fk-box shared">Team</div>
+          <div class="fk-count">60 rows (home + away × 28)</div>
+        </div>
+        <div style="width:12px"></div>
+        <div class="fk-node">
+          <div class="fk-box shared">Venue</div>
+          <div class="fk-count">28 rows (unique stadiums)</div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);padding-top:8px;border-top:1px solid var(--border)">
+        Key insight: there is no separate "Premier League table", "Bundesliga table", "JPL table". All three competitions flow through the same Competition → Season → Round → Fixture schema. A fixture query with <span style="color:var(--cyan)">competition_id = 'comp_epl'</span> returns PL fixtures. The same query with <span style="color:var(--bun-light)">competition_id = 'comp_bun'</span> returns Bundesliga fixtures. Zero schema changes between leagues.
+      </div>
+    </div>
+  </div>
+
+  <!-- Competition table -->
+  <div class="storage-grid">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">competition</span>
+        <span class="tag tag-shared">3 rows (one per league)</span>
+      </div>
+      <div class="card-body scrollable">
+        <table class="ent-table nowrap">
+          <thead>
+            <tr><th>id</th><th>name</th><th>short</th><th>country</th><th>timezone</th><th>ext_refs</th></tr>
+          </thead>
+          <tbody>
+            <tr class="pl-row">
+              <td class="fk">comp_epl</td>
+              <td class="val">Premier League</td>
+              <td>EPL</td>
+              <td>GB</td>
+              <td class="val">Europe/London</td>
+              <td class="dim">opta:1 · statsperform:12</td>
+            </tr>
+            <tr class="bun-row">
+              <td class="fk">comp_bun</td>
+              <td class="val">Bundesliga</td>
+              <td>BUN</td>
+              <td>DE</td>
+              <td class="val">Europe/Berlin</td>
+              <td class="dim">opta:12 · dfl:bundesliga</td>
+            </tr>
+            <tr class="jpl-row">
+              <td class="fk">comp_jpl</td>
+              <td class="val">Jupiler Pro League</td>
+              <td>JPL</td>
+              <td>BE</td>
+              <td class="val">Europe/Brussels</td>
+              <td class="dim">opta:19 · statsperform:54</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">season (2025–26)</span>
+        <span class="tag tag-shared">3 rows</span>
+      </div>
+      <div class="card-body scrollable">
+        <table class="ent-table nowrap">
+          <thead>
+            <tr><th>id</th><th>competition_id</th><th>name</th><th>rounds</th><th>status</th></tr>
+          </thead>
+          <tbody>
+            <tr class="pl-row">
+              <td class="fk">sea_epl_2526</td>
+              <td class="fk">comp_epl</td>
+              <td class="val">2025–26</td>
+              <td>38</td>
+              <td style="color:var(--green)">ACTIVE</td>
+            </tr>
+            <tr class="bun-row">
+              <td class="fk">sea_bun_2526</td>
+              <td class="fk">comp_bun</td>
+              <td class="val">2025–26</td>
+              <td>34</td>
+              <td style="color:var(--green)">ACTIVE</td>
+            </tr>
+            <tr class="jpl-row">
+              <td class="fk">sea_jpl_2526</td>
+              <td class="fk">comp_jpl</td>
+              <td class="val">2025–26</td>
+              <td>30</td>
+              <td style="color:var(--green)">ACTIVE</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">round (this weekend)</span>
+        <span class="tag tag-shared">3 rows — the scheduling unit</span>
+      </div>
+      <div class="card-body scrollable">
+        <table class="ent-table nowrap">
+          <thead>
+            <tr><th>id</th><th>season_id</th><th>label</th><th>window_start</th><th>window_end</th><th>fixtures</th></tr>
+          </thead>
+          <tbody>
+            <tr class="pl-row">
+              <td class="fk">rnd_epl_gw29</td>
+              <td class="fk">sea_epl_2526</td>
+              <td class="val">Gameweek 29</td>
+              <td>07 Mar 12:30</td>
+              <td>09 Mar 20:00</td>
+              <td class="val">10</td>
+            </tr>
+            <tr class="bun-row">
+              <td class="fk">rnd_bun_md25</td>
+              <td class="fk">sea_bun_2526</td>
+              <td class="val">Spieltag 25</td>
+              <td>06 Mar 19:30</td>
+              <td>08 Mar 18:30</td>
+              <td class="val">9</td>
+            </tr>
+            <tr class="jpl-row">
+              <td class="fk">rnd_jpl_md28</td>
+              <td class="fk">sea_jpl_2526</td>
+              <td class="val">Speeldag 28</td>
+              <td>06 Mar 20:00</td>
+              <td>09 Mar 21:00</td>
+              <td class="val">8</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">fixture (selected — 28 total this weekend)</span>
+        <span class="tag tag-shared">all share the same schema</span>
+      </div>
+      <div class="card-body scrollable">
+        <table class="ent-table nowrap">
+          <thead>
+            <tr><th>id</th><th>round_id</th><th>home / away</th><th>kickoff_utc</th><th>venue_tz</th><th>broadcast_dur</th></tr>
+          </thead>
+          <tbody>
+            <tr class="pl-row">
+              <td class="fk">fix_epl_arsmci</td>
+              <td class="fk">rnd_epl_gw29</td>
+              <td class="val">Arsenal vs Man City</td>
+              <td class="val">07 Mar 17:30Z</td>
+              <td>Europe/London</td>
+              <td>115 min</td>
+            </tr>
+            <tr class="bun-row">
+              <td class="fk">fix_bun_fcbmgb</td>
+              <td class="fk">rnd_bun_md25</td>
+              <td class="val">Bayern vs M'gladbach</td>
+              <td class="val">06 Mar 18:30Z</td>
+              <td>Europe/Berlin</td>
+              <td>115 min</td>
+            </tr>
+            <tr class="jpl-row">
+              <td class="fk">fix_jpl_rscbru</td>
+              <td class="fk">rnd_jpl_md28</td>
+              <td class="val">Anderlecht vs Club Brugge</td>
+              <td class="val">07 Mar 15:00Z</td>
+              <td>Europe/Brussels</td>
+              <td>120 min</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);padding-top:8px">
+          Note: venue_timezone is snapshotted from venue.timezone at fixture creation. UTC remains the canonical truth.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shared entities -->
+  <div class="section-header" style="margin-top:4px">
+    <span class="section-label">Shared entities</span>
+    <div class="section-line"></div>
+    <span class="section-label">Written once, referenced forever across all leagues</span>
+  </div>
+  <div class="storage-grid">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">team (sample — 60 involved this weekend)</span>
+      </div>
+      <div class="card-body scrollable">
+        <table class="ent-table nowrap">
+          <thead>
+            <tr><th>id</th><th>name</th><th>abbr</th><th>country</th><th>competition</th><th>colors</th></tr>
+          </thead>
+          <tbody>
+            <tr class="pl-row">
+              <td class="fk">team_ars</td><td class="val">Arsenal</td><td>ARS</td><td>GB</td>
+              <td><span class="tag tag-pl">EPL</span></td>
+              <td style="display:flex;gap:4px;padding-top:2px">
+                <span style="width:14px;height:14px;border-radius:2px;background:#EF0107;display:inline-block"></span>
+                <span style="width:14px;height:14px;border-radius:2px;background:#063672;display:inline-block"></span>
+              </td>
+            </tr>
+            <tr class="bun-row">
+              <td class="fk">team_fcb</td><td class="val">Bayern Munich</td><td>FCB</td><td>DE</td>
+              <td><span class="tag tag-bun">BUN</span></td>
+              <td style="display:flex;gap:4px;padding-top:2px">
+                <span style="width:14px;height:14px;border-radius:2px;background:#DC052D;display:inline-block"></span>
+                <span style="width:14px;height:14px;border-radius:2px;background:#0066B2;display:inline-block"></span>
+              </td>
+            </tr>
+            <tr class="jpl-row">
+              <td class="fk">team_rsc</td><td class="val">Anderlecht</td><td>RSC</td><td>BE</td>
+              <td><span class="tag tag-jpl">JPL</span></td>
+              <td style="display:flex;gap:4px;padding-top:2px">
+                <span style="width:14px;height:14px;border-radius:2px;background:#6B0F8C;display:inline-block"></span>
+                <span style="width:14px;height:14px;border-radius:2px;background:#FFFFFF;display:inline-block;border:1px solid #333"></span>
+              </td>
+            </tr>
+            <tr class="pl-row">
+              <td class="fk">team_mci</td><td class="val">Manchester City</td><td>MCI</td><td>GB</td>
+              <td><span class="tag tag-pl">EPL</span></td>
+              <td style="display:flex;gap:4px;padding-top:2px">
+                <span style="width:14px;height:14px;border-radius:2px;background:#6CABDD;display:inline-block"></span>
+                <span style="width:14px;height:14px;border-radius:2px;background:#1C2C5B;display:inline-block"></span>
+              </td>
+            </tr>
+            <tr class="bun-row">
+              <td class="fk">team_bvb</td><td class="val">Borussia Dortmund</td><td>BVB</td><td>DE</td>
+              <td><span class="tag tag-bun">BUN</span></td>
+              <td style="display:flex;gap:4px;padding-top:2px">
+                <span style="width:14px;height:14px;border-radius:2px;background:#FDE100;display:inline-block"></span>
+                <span style="width:14px;height:14px;border-radius:2px;background:#000000;display:inline-block"></span>
+              </td>
+            </tr>
+            <tr class="jpl-row">
+              <td class="fk">team_bru</td><td class="val">Club Brugge</td><td>CLB</td><td>BE</td>
+              <td><span class="tag tag-jpl">JPL</span></td>
+              <td style="display:flex;gap:4px;padding-top:2px">
+                <span style="width:14px;height:14px;border-radius:2px;background:#003CA6;display:inline-block"></span>
+                <span style="width:14px;height:14px;border-radius:2px;background:#000000;display:inline-block"></span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">venue (authoritative timezone source)</span>
+      </div>
+      <div class="card-body scrollable">
+        <table class="ent-table nowrap">
+          <thead>
+            <tr><th>id</th><th>name</th><th>city</th><th>timezone (IANA)</th><th>capacity</th></tr>
+          </thead>
+          <tbody>
+            <tr class="pl-row">
+              <td class="fk">ven_emirates</td><td class="val">Emirates Stadium</td><td>London</td>
+              <td class="val">Europe/London</td><td>60,704</td>
+            </tr>
+            <tr class="pl-row">
+              <td class="fk">ven_etihad</td><td class="val">Etihad Stadium</td><td>Manchester</td>
+              <td class="val">Europe/London</td><td>55,017</td>
+            </tr>
+            <tr class="bun-row">
+              <td class="fk">ven_allianz</td><td class="val">Allianz Arena</td><td>Munich</td>
+              <td class="val">Europe/Berlin</td><td>75,021</td>
+            </tr>
+            <tr class="bun-row">
+              <td class="fk">ven_signal</td><td class="val">Signal Iduna Park</td><td>Dortmund</td>
+              <td class="val">Europe/Berlin</td><td>81,365</td>
+            </tr>
+            <tr class="jpl-row">
+              <td class="fk">ven_lotto</td><td class="val">Lotto Park</td><td>Anderlecht</td>
+              <td class="val">Europe/Brussels</td><td>21,500</td>
+            </tr>
+            <tr class="jpl-row">
+              <td class="fk">ven_jan_b</td><td class="val">Jan Breydel Stadium</td><td>Bruges</td>
+              <td class="val">Europe/Brussels</td><td>29,042</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          Note: London and Brussels are both UTC+0/UTC+1 in March 2026 — but this is a coincidence. DST changes happen different dates (UK last Sun Mar, EU last Sun Mar). The system stores IANA tz strings, never hardcoded offsets.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB 2: WEEKEND GRID
+═══════════════════════════════════════════════════════ -->
+<div id="tab-grid" class="panel">
+
+  <div class="stats-row">
+    <div class="stat-card pl-s">
+      <div class="stat-num">10</div>
+      <div class="stat-label">PL fixtures GW29</div>
+    </div>
+    <div class="stat-card bun-s">
+      <div class="stat-num">9</div>
+      <div class="stat-label">Bundesliga MD25</div>
+    </div>
+    <div class="stat-card jpl-s">
+      <div class="stat-num">8</div>
+      <div class="stat-label">JPL Speeldag 28</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--red)">4</div>
+      <div class="stat-label">Time slot clashes</div>
+    </div>
+  </div>
+
+  <div class="weekend-controls">
+    <button class="day-btn" onclick="showDay('fri', this)">Fri 06 Mar</button>
+    <button class="day-btn active" onclick="showDay('sat', this)">Sat 07 Mar</button>
+    <button class="day-btn" onclick="showDay('sun', this)">Sun 08 Mar</button>
+    <button class="day-btn" onclick="showDay('mon', this)">Mon 09 Mar</button>
+    <div class="tz-toggle">
+      <span>Display as</span>
+      <div class="toggle">
+        <button class="toggle-opt active" onclick="setTZ('utc', this)">UTC</button>
+        <button class="toggle-opt" onclick="setTZ('cet', this)">CET</button>
+        <button class="toggle-opt" onclick="setTZ('gmt', this)">GMT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRIDAY -->
+  <div id="day-fri" class="day-panel" style="display:none">
+    <div class="highlight-box info" style="margin-bottom:12px">
+      <div class="hl-title info">Friday 06 March — Curtain Raisers</div>
+      Friday evenings open the weekend with marquee matches from both the Bundesliga and JPL. No Premier League action — GW29 starts Saturday. <strong>Bayern vs M'gladbach</strong> is the Bundesliga Friday night fixture, a slot the DFL uses for premium visibility. <strong>Standard Liège vs Gent</strong> opens JPL MD28 simultaneously.
+    </div>
+    <div class="timeline-container">
+      <div class="timeline-time-axis" style="display:flex">
+        <div style="width:110px;padding:6px 10px;border-right:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--text-dim)">LEAGUE</div>
+        <div class="tl-times" style="flex:1;display:flex">
+          <div class="time-tick">17:00</div><div class="time-tick">18:00</div>
+          <div class="time-tick">19:00</div><div class="time-tick">20:00</div>
+          <div class="time-tick">21:00</div><div class="time-tick">22:00</div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--pl-light)">EPL</span></div>
+        <div class="tl-fixtures" style="height:54px">
+          <div style="position:absolute;top:0;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;color:var(--text-dim)">— No fixtures Friday —</div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--bun-light)">BUN</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <!-- Bayern 18:30 UTC = slot at ~50% of 17-22 range. Range=300min. 18:30 = 90min from start = 30% -->
+          <div class="fixture-block bun-block" style="left:30%;width:23%" title="Bayern Munich vs Borussia M'gladbach · 19:30 CET">
+            <div class="match-teams">Bayern München vs B. M'gladbach</div>
+            <div class="match-time">18:30 UTC · Allianz Arena · 115 min</div>
+          </div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--jpl)">JPL</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <!-- Standard 19:00 CET = 18:00 UTC = 20min offset = 6.7% past 17:00. -->
+          <!-- range 17-22 = 5hrs = 300min. 18:00 = 60min = 20% -->
+          <div class="fixture-block jpl-block" style="left:20%;width:27%" title="Standard Liège vs Gent · 19:00 CET">
+            <div class="match-teams">Standard Liège vs KAA Gent</div>
+            <div class="match-time">18:00 UTC · Stade Maurice D. · 115 min</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="highlight-box" style="font-family:var(--mono);font-size:10px;color:var(--text-dim)">
+      Friday has <strong style="color:var(--green)">no clashes</strong> — Bundesliga and JPL matches kick off simultaneously at 18:30 UTC and 18:00 UTC respectively, but on different channels. For a broadcaster with rights to both leagues, this is the ideal scenario: two separate broadcast slots, no scheduling conflict.
+    </div>
+  </div>
+
+  <!-- SATURDAY -->
+  <div id="day-sat" class="day-panel" style="display:block">
+    <div class="highlight-box warn" style="margin-bottom:12px">
+      <div class="hl-title warn">Saturday 07 March — Peak Clash Day</div>
+      This is where multi-competition scheduling gets complex. <strong>Bundesliga MD25 Saturday card</strong> runs from 13:30 UTC (5 simultaneous matches) through 16:30 UTC (Cologne vs Dortmund). <strong>Premier League GW29</strong> has its standard Saturday programme: 12:30 early kick-off, 15:00 block (6 matches), 17:30 marquee. <strong>JPL MD28</strong> places its biggest match — Anderlecht vs Club Brugge — at 15:00 UTC, directly overlapping with the entire PL 15:00 block and the Bundesliga 14:30 slot.
+    </div>
+    <div class="timeline-container">
+      <div class="timeline-time-axis" style="display:flex">
+        <div style="width:110px;padding:6px 10px;border-right:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--text-dim)">LEAGUE</div>
+        <div class="tl-times" style="flex:1;display:flex">
+          <div class="time-tick">12:00</div><div class="time-tick">13:00</div>
+          <div class="time-tick">14:00</div><div class="time-tick">15:00</div>
+          <div class="time-tick">16:00</div><div class="time-tick">17:00</div>
+          <div class="time-tick">18:00</div><div class="time-tick">19:00</div>
+        </div>
+      </div>
+      <!-- 12:00–19:00 = 420min range. px per min = 100% / 420 -->
+      <!-- EPL -->
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--pl-light)">EPL</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <div class="grid-lines">
+            <div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div>
+            <div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div>
+          </div>
+          <!-- 12:30 = 30min = 7.1% -->
+          <div class="fixture-block pl-block" style="left:7.1%;width:14.3%" title="Everton vs Leeds">
+            <div class="match-teams">Everton vs Leeds</div>
+            <div class="match-time">12:30 UTC · 115 min</div>
+          </div>
+          <!-- 15:00 = 180min = 42.9% — 6 matches block, show as one -->
+          <div class="fixture-block pl-block" style="left:42.9%;width:19%;border-color:#a070ff" title="6x PL matches at 15:00">
+            <div class="match-teams">×6 PL matches</div>
+            <div class="match-time">15:00 UTC · Sat block</div>
+          </div>
+          <!-- 17:30 = 330min = 78.6% -->
+          <div class="fixture-block pl-block" style="left:78.6%;width:14.3%;border-color:#a070ff" title="Arsenal vs Manchester City">
+            <div class="match-teams">Arsenal vs Man City ⭐</div>
+            <div class="match-time">17:30 UTC · Emirates · 125 min</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bundesliga -->
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--bun-light)">BUN</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <div class="grid-lines">
+            <div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div>
+            <div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div>
+          </div>
+          <!-- 13:30 = 90min = 21.4% — 5 matches block -->
+          <div class="fixture-block bun-block" style="left:21.4%;width:19%;border-color:var(--bun-light)" title="5x Bundesliga matches 14:30 CET">
+            <div class="match-teams">×5 BUN matches</div>
+            <div class="match-time">13:30 UTC · Sat 14:30 CET</div>
+          </div>
+          <!-- 16:30 = 270min = 64.3% -->
+          <div class="fixture-block bun-block" style="left:64.3%;width:14.3%;border-color:var(--bun-light)" title="Cologne vs Dortmund 17:30 CET">
+            <div class="match-teams">Köln vs Dortmund ⭐</div>
+            <div class="match-time">16:30 UTC · RheinEnergie</div>
+          </div>
+          <!-- clash indicator at 15:00 -->
+          <div class="clash-indicator" style="left:42.9%" title="Overlap with JPL/PL"></div>
+        </div>
+      </div>
+
+      <!-- JPL -->
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--jpl)">JPL</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <div class="grid-lines">
+            <div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div>
+            <div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div>
+          </div>
+          <!-- Anderlecht 15:00 UTC = 42.9% -->
+          <div class="fixture-block jpl-block" style="left:42.9%;width:19.1%;border-color:var(--jpl)" title="Anderlecht vs Club Brugge 16:00 CET">
+            <div class="match-teams">Anderlecht vs Club Brugge ⭐</div>
+            <div class="match-time">15:00 UTC · 16:00 CET · Lotto Park</div>
+          </div>
+          <!-- clash at 15:00 -->
+          <div class="clash-indicator" style="left:42.9%" title="Clash: BUN 14:30 block, PL 15:00 block, JPL Anderlecht-Brugge"></div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);padding:10px;background:rgba(255,68,68,0.05);border:1px solid rgba(255,68,68,0.2);border-radius:4px">
+      <span style="color:var(--red)">⚠ CLASH 15:00 UTC:</span> Anderlecht vs Club Brugge · Bundesliga ×5 block · PL ×6 block all overlap. On a single channel, the scheduler must choose one live broadcast and time-shift or cut the others. The system flags this as a planning conflict in the draft view.
+    </div>
+  </div>
+
+  <!-- SUNDAY -->
+  <div id="day-sun" class="day-panel" style="display:none">
+    <div class="highlight-box info" style="margin-bottom:12px">
+      <div class="hl-title info">Sunday 08 March — Staggered Finish</div>
+      Sunday is lighter and more staggered. Bundesliga wraps up with St. Pauli vs Frankfurt (13:30 UTC) and Union Berlin vs Werder (15:30 UTC). JPL runs three afternoon matches. Premier League has its Sunday double: early kick-off at 14:00 and the main match at 16:30 UTC. No three-way clashes today — the system shows this as a manageable scheduling day.
+    </div>
+    <div class="timeline-container">
+      <div class="timeline-time-axis" style="display:flex">
+        <div style="width:110px;padding:6px 10px;border-right:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--text-dim)">LEAGUE</div>
+        <div class="tl-times" style="flex:1;display:flex">
+          <div class="time-tick">11:00</div><div class="time-tick">12:00</div>
+          <div class="time-tick">13:00</div><div class="time-tick">14:00</div>
+          <div class="time-tick">15:00</div><div class="time-tick">16:00</div>
+          <div class="time-tick">17:00</div><div class="time-tick">18:00</div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--pl-light)">EPL</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <!-- 14:00 = 180min into 11:00-18:00 range = 420min. 14:00 = 3hrs = 42.9% -->
+          <div class="fixture-block pl-block" style="left:42.9%;width:14.3%">
+            <div class="match-teams">Tottenham vs Fulham</div>
+            <div class="match-time">14:00 UTC · 115 min</div>
+          </div>
+          <!-- 16:30 = 330min = 78.6% -->
+          <div class="fixture-block pl-block" style="left:78.6%;width:14.3%">
+            <div class="match-teams">Man United vs Bournemouth</div>
+            <div class="match-time">16:30 UTC · Old Trafford</div>
+          </div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--bun-light)">BUN</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <!-- 13:30 = 150min = 35.7% -->
+          <div class="fixture-block bun-block" style="left:35.7%;width:14.3%">
+            <div class="match-teams">St. Pauli vs Frankfurt</div>
+            <div class="match-time">13:30 UTC · Millerntor</div>
+          </div>
+          <!-- 15:30 = 270min = 64.3% -->
+          <div class="fixture-block bun-block" style="left:64.3%;width:14.3%">
+            <div class="match-teams">Union Berlin vs Werder</div>
+            <div class="match-time">15:30 UTC · Stadion an der Alten F.</div>
+          </div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--jpl)">JPL</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <!-- 11:30 = 30min = 7.1% -->
+          <div class="fixture-block jpl-block" style="left:7.1%;width:14.3%">
+            <div class="match-teams">Westerlo vs OH Leuven</div>
+            <div class="match-time">11:30 UTC · 115 min</div>
+          </div>
+          <!-- 13:30 = 150min = 35.7% -->
+          <div class="fixture-block jpl-block" style="left:35.7%;width:14.3%">
+            <div class="match-teams">STVV vs Cercle Brugge</div>
+            <div class="match-time">13:30 UTC · Stayen</div>
+          </div>
+          <!-- 15:00 = 240min = 57.1% -->
+          <div class="fixture-block jpl-block" style="left:57.1%;width:14.3%">
+            <div class="match-teams">Union SG vs Charleroi</div>
+            <div class="match-time">15:00 UTC · Stade DH</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--green);padding:8px 10px;background:rgba(0,200,150,0.05);border:1px solid rgba(0,200,150,0.2);border-radius:4px">
+      ✓ Sunday has manageable overlap: BUN 13:30 and JPL 13:30 run simultaneously but are typically on separate channels. The PL 14:00 starts 30 minutes after, giving the post-match transition time. A broadcaster can schedule all Sunday fixtures without live clashes on a single channel.
+    </div>
+  </div>
+
+  <!-- MONDAY -->
+  <div id="day-mon" class="day-panel" style="display:none">
+    <div class="highlight-box info" style="margin-bottom:12px">
+      <div class="hl-title info">Monday 09 March — Weekend Close</div>
+      Monday closes the weekend with two final JPL fixtures and one late Premier League match. The system treats Monday as still part of the broadcast weekend round — all three Round records have window_end dates covering Monday.
+    </div>
+    <div class="timeline-container">
+      <div class="timeline-time-axis" style="display:flex">
+        <div style="width:110px;padding:6px 10px;border-right:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--text-dim)">LEAGUE</div>
+        <div class="tl-times" style="flex:1;display:flex">
+          <div class="time-tick">16:00</div><div class="time-tick">17:00</div>
+          <div class="time-tick">18:00</div><div class="time-tick">19:00</div>
+          <div class="time-tick">20:00</div><div class="time-tick">21:00</div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--pl-light)">EPL</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <!-- 20:00 = 240min into 300min range = 80% -->
+          <div class="fixture-block pl-block" style="left:80%;width:16.7%">
+            <div class="match-teams">Brighton vs Wolves</div>
+            <div class="match-time">20:00 UTC · Amex Stadium</div>
+          </div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--bun-light)">BUN</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;color:var(--text-dim)">— No fixtures Monday —</div>
+        </div>
+      </div>
+      <div class="timeline-row">
+        <div class="tl-league-label"><span class="tl-league-name" style="color:var(--jpl)">JPL</span></div>
+        <div class="tl-fixtures" style="height:54px;position:relative">
+          <!-- 17:30 = 90min = 30% -->
+          <div class="fixture-block jpl-block" style="left:30%;width:20%">
+            <div class="match-teams">Mechelen vs Dender</div>
+            <div class="match-time">17:30 UTC · AFAS Stadion</div>
+          </div>
+          <!-- 18:45 = 165min = 55% -->
+          <div class="fixture-block jpl-block" style="left:55%;width:20%">
+            <div class="match-teams">La Louvière vs Waregem</div>
+            <div class="match-time">18:45 UTC · Stade du Tivoli</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB 3: BROADCAST PLAN
+═══════════════════════════════════════════════════════ -->
+<div id="tab-planning" class="panel">
+
+  <div class="section-header">
+    <span class="section-label">Channel: Sports 1 — Broadcast Schedule Draft</span>
+    <div class="section-line"></div>
+    <span class="section-label">Click any slot to inspect · Red = conflict</span>
+  </div>
+
+  <div class="schedule-broadcast">
+    <div>
+      <!-- Friday -->
+      <div class="broadcast-day">
+        <div class="day-header">
+          <span class="day-label">Friday 06 March</span>
+          <span class="day-count">2 slots · 0 conflicts</span>
+        </div>
+        <div class="slot" onclick="selectSlot(this, 'fri1')">
+          <div class="slot-time">18:30 UTC<br><span class="tz">19:30 CET</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">Bayern München vs B. M'gladbach</div>
+            <div class="slot-meta">
+              <span class="tag tag-bun">BUNDESLIGA</span>
+              <span>Spieltag 25</span>
+              <span>Allianz Arena · Munich</span>
+            </div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">115 min block</div>
+            <div class="duration-pill">Pre 15' + Match + Post 10'</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-confirmed"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--green)">CONFIRMED</span>
+            </div>
+          </div>
+        </div>
+        <div class="slot" onclick="selectSlot(this, 'fri2')">
+          <div class="slot-time">18:00 UTC<br><span class="tz">19:00 CET</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">Standard Liège vs KAA Gent</div>
+            <div class="slot-meta">
+              <span class="tag tag-jpl">JPL</span>
+              <span>Speeldag 28</span>
+              <span>Stade Maurice Dufrasne · Liège</span>
+            </div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">115 min block</div>
+            <div class="duration-pill">Delayed to Sports 2 →</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-scheduled"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--text-dim)">SCHEDULED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saturday -->
+      <div class="broadcast-day">
+        <div class="day-header">
+          <span class="day-label">Saturday 07 March</span>
+          <span class="day-count">4 slots selected · 1 conflict</span>
+        </div>
+
+        <div class="slot" onclick="selectSlot(this, 'sat1')">
+          <div class="slot-time">12:30 UTC<br><span class="tz">12:30 GMT</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">Everton vs Leeds United</div>
+            <div class="slot-meta">
+              <span class="tag tag-pl">PREMIER LEAGUE</span>
+              <span>GW29 Early</span>
+              <span>Goodison Park · Liverpool</span>
+            </div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">115 min block</div>
+            <div class="duration-pill">ends 14:25 UTC</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-confirmed"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--green)">CONFIRMED</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="slot conflict" onclick="selectSlot(this, 'sat2')">
+          <div class="slot-time" style="color:var(--red)">15:00 UTC<br><span class="tz">16:00 CET</span></div>
+          <div class="slot-match">
+            <div class="slot-teams" style="color:var(--jpl-light)">Anderlecht vs Club Brugge ⭐</div>
+            <div class="slot-meta">
+              <span class="tag tag-jpl">JPL</span>
+              <span>Speeldag 28 · MARQUEE</span>
+              <span>Lotto Park · Anderlecht</span>
+            </div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">120 min block</div>
+            <div class="conflict-badge">⚠ PL clash</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-conflict"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--red)">CONFLICT</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="slot conflict" onclick="selectSlot(this, 'sat3')" style="opacity:0.6;border-style:dashed">
+          <div class="slot-time" style="color:var(--text-dim)">15:00 UTC<br><span class="tz">15:00 GMT</span></div>
+          <div class="slot-match">
+            <div class="slot-teams" style="color:var(--text-dim)">× 6 Premier League (15:00 block)</div>
+            <div class="slot-meta">
+              <span class="tag tag-pl">PREMIER LEAGUE</span>
+              <span>moved to Sports 2 / delayed</span>
+            </div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">rights: delayed ok</div>
+            <div class="conflict-badge">→ Sports 2</div>
+          </div>
+        </div>
+
+        <div class="slot" onclick="selectSlot(this, 'sat4')">
+          <div class="slot-time">16:30 UTC<br><span class="tz">17:30 CET</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">Köln vs Borussia Dortmund ⭐</div>
+            <div class="slot-meta">
+              <span class="tag tag-bun">BUNDESLIGA</span>
+              <span>Spieltag 25 · Highlight</span>
+              <span>RheinEnergie Stadion · Cologne</span>
+            </div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">115 min block</div>
+            <div class="duration-pill">ends 18:25 UTC</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-confirmed"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--green)">CONFIRMED</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="slot selected" onclick="selectSlot(this, 'sat5')">
+          <div class="slot-time">17:30 UTC<br><span class="tz">17:30 GMT</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">Arsenal vs Manchester City ⭐⭐</div>
+            <div class="slot-meta">
+              <span class="tag tag-pl">PREMIER LEAGUE</span>
+              <span>GW29 Marquee · Title Race</span>
+              <span>Emirates Stadium · London</span>
+            </div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">125 min block</div>
+            <div class="duration-pill">ends 19:35 UTC</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-confirmed"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--green)">CONFIRMED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sunday highlights -->
+      <div class="broadcast-day">
+        <div class="day-header">
+          <span class="day-label">Sunday 08 March</span>
+          <span class="day-count">4 slots · 0 conflicts</span>
+        </div>
+        <div class="slot" onclick="selectSlot(this, 'sun1')">
+          <div class="slot-time">13:30 UTC<br><span class="tz">14:30 CET</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">St. Pauli vs Eintracht Frankfurt</div>
+            <div class="slot-meta"><span class="tag tag-bun">BUNDESLIGA</span><span>MD25 Sunday</span><span>Millerntor · Hamburg</span></div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">115 min block</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-confirmed"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--green)">CONFIRMED</span>
+            </div>
+          </div>
+        </div>
+        <div class="slot" onclick="selectSlot(this, 'sun2')">
+          <div class="slot-time">14:00 UTC<br><span class="tz">14:00 GMT</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">Tottenham Hotspur vs Fulham</div>
+            <div class="slot-meta"><span class="tag tag-pl">PREMIER LEAGUE</span><span>GW29 Sunday Early</span></div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">115 min block</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-confirmed"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--green)">CONFIRMED</span>
+            </div>
+          </div>
+        </div>
+        <div class="slot" onclick="selectSlot(this, 'sun3')">
+          <div class="slot-time">15:00 UTC<br><span class="tz">16:00 CET</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">Union SG vs Charleroi</div>
+            <div class="slot-meta"><span class="tag tag-jpl">JPL</span><span>MD28 Sunday · Stade DH</span></div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">115 min block</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-confirmed"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--green)">CONFIRMED</span>
+            </div>
+          </div>
+        </div>
+        <div class="slot" onclick="selectSlot(this, 'sun4')">
+          <div class="slot-time">16:30 UTC<br><span class="tz">16:30 GMT</span></div>
+          <div class="slot-match">
+            <div class="slot-teams">Manchester United vs Bournemouth</div>
+            <div class="slot-meta"><span class="tag tag-pl">PREMIER LEAGUE</span><span>GW29 Sunday Main</span><span>Old Trafford · Manchester</span></div>
+          </div>
+          <div class="slot-right">
+            <div class="duration-pill">115 min block</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+              <div class="status-dot status-confirmed"></div>
+              <span style="font-family:var(--mono);font-size:9px;color:var(--green)">CONFIRMED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div>
+      <div class="sidebar-card">
+        <div class="card-header"><span class="card-title">Selected Slot Detail</span></div>
+        <div class="sidebar-body" id="slot-detail">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);text-align:center;padding:20px 0">
+            Click a slot to inspect its data model
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="card-header"><span class="card-title">Weekend Summary</span></div>
+        <div class="sidebar-body">
+          <div class="info-row"><span class="key">Total fixtures</span><span class="value">27 (Fri–Mon)</span></div>
+          <div class="info-row"><span class="key">Schedulable slots</span><span class="value">~14 on single channel</span></div>
+          <div class="info-row"><span class="key">Rights-limited</span><span class="value orange">3 (PL delayed-only)</span></div>
+          <div class="info-row"><span class="key">Hard conflicts (Sat)</span><span class="value red">1 (15:00 UTC block)</span></div>
+          <div class="info-row"><span class="key">Broadcast hours</span><span class="value">~28 hrs of content</span></div>
+          <div class="info-row"><span class="key">Timezones involved</span><span class="value">GMT · CET (UTC+1)</span></div>
+          <div class="info-row"><span class="key">Fixture status</span><span class="value green">All CONFIRMED</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB 4: RESOLUTION & TZ
+═══════════════════════════════════════════════════════ -->
+<div id="tab-resolution" class="panel">
+
+  <div class="section-header">
+    <span class="section-label">How the system resolves a multi-competition weekend</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="storage-grid">
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><span class="card-title">① Query Resolution Flow</span></div>
+        <div class="card-body">
+          <div class="resolve-chain">
+            <div class="resolve-step">
+              <div class="num">1</div>
+              <div class="desc">Scheduler opens <span class="highlight">weekend view</span> for channel <span class="highlight">Sports 1</span>, date range <span class="highlight">2026-03-06 → 2026-03-09</span></div>
+            </div>
+            <div class="resolve-step">
+              <div class="num">2</div>
+              <div class="desc">API fires: <span class="highlight">SELECT * FROM fixture WHERE round_id IN (rnd_epl_gw29, rnd_bun_md25, rnd_jpl_md28) ORDER BY scheduled_kickoff_utc</span> — all three leagues, one query</div>
+            </div>
+            <div class="resolve-step">
+              <div class="num">3</div>
+              <div class="desc">JOIN on <span class="highlight">team</span> (home + away), <span class="highlight">venue</span>, <span class="highlight">round → season → competition</span> — fully denormalized for the grid payload</div>
+            </div>
+            <div class="resolve-step">
+              <div class="num">4</div>
+              <div class="desc">Rights engine evaluates each fixture against channel rights policy. Returns <span class="highlight">LIVE</span>, <span class="highlight">DELAYED</span>, or <span class="highlight">BLOCKED</span> per fixture × channel</div>
+            </div>
+            <div class="resolve-step">
+              <div class="num">5</div>
+              <div class="desc">Overlap detector scans for fixtures whose <span class="highlight">[kickoff_utc, kickoff_utc + broadcast_duration]</span> intervals intersect. Flags Saturday 15:00 UTC as 3-way overlap</div>
+            </div>
+            <div class="resolve-step">
+              <div class="num">6</div>
+              <div class="desc">ResolvedSchedule view returned to UI with <span class="highlight">validation badges</span> (CONFLICT · RIGHTS · OK) pre-computed per slot. Zero N+1 queries</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">③ Conflict Resolution Options (Sat 15:00)</span></div>
+        <div class="card-body">
+          <div class="highlight-box warn" style="margin-bottom:10px">
+            <div class="hl-title warn">Decision required by scheduler</div>
+            Three events collide at 15:00 UTC on Saturday: Anderlecht–Brugge, Bundesliga 5-pack at 13:30 UTC (still live), and 6× PL 15:00 kick-offs. System presents options:
+          </div>
+          <table class="ent-table">
+            <thead><tr><th>Option</th><th>Action</th><th>Rights impact</th><th>Viewer impact</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="val">A</td>
+                <td>Show Anderlecht–Brugge live on Sports 1. Delay PL 15:00 to +90min highlights.</td>
+                <td style="color:var(--green)">JPL live ✓</td>
+                <td>PL fans miss live</td>
+              </tr>
+              <tr>
+                <td class="val">B</td>
+                <td>Show PL 15:00 live on Sports 1. Move Anderlecht–Brugge to Sports 2.</td>
+                <td style="color:var(--orange)">Check Sports 2 rights</td>
+                <td>Split audience</td>
+              </tr>
+              <tr>
+                <td class="val">C</td>
+                <td>Show PL 15:00 on Sports 1. Delay Anderlecht–Brugge to 19:00 (delayed broadcast).</td>
+                <td style="color:var(--orange)">Delay rights required</td>
+                <td>JPL delayed 4hrs</td>
+              </tr>
+              <tr>
+                <td class="val">D</td>
+                <td>Run Anderlecht–Brugge live on Sports 1, PL 15:00 live on Sports 2, BUN highlights at 22:00.</td>
+                <td style="color:var(--green)">Cleanest split</td>
+                <td>Ideal but needs 2 live rights</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:8px">
+            System does not auto-decide. It presents this options panel and requires scheduler confirmation. Decision is logged to audit trail with mandatory reason code.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><span class="card-title">② Timezone Resolution</span></div>
+        <div class="card-body">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-bottom:10px">
+            Early March 2026 — UK still on GMT (DST change last Sunday of March). Germany/Belgium on CET (UTC+1). Gap between leagues = 1 hour in local display, zero in UTC storage.
+          </div>
+
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-bright);margin-bottom:6px;font-weight:600">Arsenal vs Man City — Sat 17:30 UTC</div>
+          <div class="tz-box">
+            <div class="tz-row"><span class="tz-flag">🌐</span><span class="tz-zone">STORED</span><span class="tz-time">17:30</span><span class="tz-utc">UTC (canonical truth)</span></div>
+            <div class="tz-row"><span class="tz-flag">🇬🇧</span><span class="tz-zone">Europe/London</span><span class="tz-time">17:30</span><span class="tz-utc">GMT (+0) · venue timezone</span></div>
+            <div class="tz-row"><span class="tz-flag">🇩🇪</span><span class="tz-zone">Europe/Berlin</span><span class="tz-time">18:30</span><span class="tz-utc">CET (+1) · German viewer</span></div>
+            <div class="tz-row"><span class="tz-flag">🇧🇪</span><span class="tz-zone">Europe/Brussels</span><span class="tz-time">18:30</span><span class="tz-utc">CET (+1) · Belgian viewer</span></div>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-bright);margin:10px 0 6px;font-weight:600">Anderlecht vs Club Brugge — Sat 15:00 UTC</div>
+          <div class="tz-box">
+            <div class="tz-row"><span class="tz-flag">🌐</span><span class="tz-zone">STORED</span><span class="tz-time">15:00</span><span class="tz-utc">UTC (canonical truth)</span></div>
+            <div class="tz-row"><span class="tz-flag">🇧🇪</span><span class="tz-zone">Europe/Brussels</span><span class="tz-time">16:00</span><span class="tz-utc">CET (+1) · venue timezone</span></div>
+            <div class="tz-row"><span class="tz-flag">🇬🇧</span><span class="tz-zone">Europe/London</span><span class="tz-time">15:00</span><span class="tz-utc">GMT (+0) · UK viewer</span></div>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-bright);margin:10px 0 6px;font-weight:600">Bayern vs M'gladbach — Fri 18:30 UTC</div>
+          <div class="tz-box">
+            <div class="tz-row"><span class="tz-flag">🌐</span><span class="tz-zone">STORED</span><span class="tz-time">18:30</span><span class="tz-utc">UTC (canonical truth)</span></div>
+            <div class="tz-row"><span class="tz-flag">🇩🇪</span><span class="tz-zone">Europe/Berlin</span><span class="tz-time">19:30</span><span class="tz-utc">CET (+1) · venue timezone</span></div>
+            <div class="tz-row"><span class="tz-flag">🇬🇧</span><span class="tz-zone">Europe/London</span><span class="tz-time">18:30</span><span class="tz-utc">GMT (+0) · UK viewer</span></div>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+            DST alert: UK switches last Sunday of March. Bundesliga switched same date in 2026. For fixtures scheduled across the DST boundary — the system will re-evaluate UTC offsets using the fixture's venue_timezone IANA string. No hardcoded offsets anywhere in the schema.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">④ What the planning grid query returns</span></div>
+        <div class="card-body">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-bottom:8px">GraphQL payload (simplified) for the full weekend:</div>
+          <pre style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:var(--bg3);padding:10px;border-radius:4px;overflow-x:auto;line-height:1.6">query WeekendPlan {
+  fixtures(
+    rounds: ["rnd_epl_gw29","rnd_bun_md25","rnd_jpl_md28"]
+    channel: "channel_sports1"
+  ) {
+    id
+    kickoff_utc
+    kickoff_local  # computed from venue_timezone
+    broadcast_duration_min
+    competition { id shortCode color }
+    round { label roundNumber }
+    homeTeam { name abbreviation primaryColor }
+    awayTeam { name abbreviation primaryColor }
+    venue { name timezone }
+    rights { status canBroadcastLive canDelay }
+    conflicts {  # pre-computed overlap detection
+      conflictsWith { id homeTeam { name } }
+      overlapMinutes
+    }
+    validationBadges { code severity message }
+  }
+}</pre>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:8px">
+            Single query. All three leagues. Rights pre-evaluated. Conflicts pre-detected. The scheduler receives a fully decorated payload — no follow-up fetches needed to render the planning grid.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function switchTab(id, btn) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  function showDay(day, btn) {
+    document.querySelectorAll('.day-panel').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('day-' + day).style.display = 'block';
+    btn.classList.add('active');
+  }
+
+  function setTZ(tz, btn) {
+    document.querySelectorAll('.toggle-opt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  const slotDetails = {
+    sat5: {
+      fixture_id: 'fix_epl_arsmci',
+      teams: 'Arsenal vs Manchester City',
+      comp: 'Premier League · GW29',
+      comp_tag: 'pl',
+      kickoff_utc: '2026-03-07T17:30:00Z',
+      kickoff_local: '17:30 GMT (Europe/London)',
+      venue: 'Emirates Stadium, London',
+      broadcast_dur: '125 min (15 pre + 90 match + 15 HT + 5 post)',
+      broadcast_end: '2026-03-07T19:35:00Z',
+      rights: 'LIVE (full rights)',
+      content_item: 'ci_epl_arsmci_live (BOUND)',
+      status: 'CONFIRMED',
+      status_color: '#00c896',
+      validation: '✓ No issues'
+    },
+    sat2: {
+      fixture_id: 'fix_jpl_rscbru',
+      teams: 'RSC Anderlecht vs Club Brugge',
+      comp: 'Jupiler Pro League · MD28',
+      comp_tag: 'jpl',
+      kickoff_utc: '2026-03-07T15:00:00Z',
+      kickoff_local: '16:00 CET (Europe/Brussels)',
+      venue: 'Lotto Park, Anderlecht',
+      broadcast_dur: '120 min (15 pre + 90 + 15 post)',
+      broadcast_end: '2026-03-07T17:00:00Z',
+      rights: 'LIVE (check Sports 2 fallback)',
+      content_item: 'ci_jpl_rscbru_live (BOUND)',
+      status: 'CONFLICT',
+      status_color: '#ff4444',
+      validation: '⚠ Overlaps with PL 15:00 block on same channel'
+    },
+    fri1: {
+      fixture_id: 'fix_bun_fcbmgb',
+      teams: 'Bayern München vs B. M\'gladbach',
+      comp: 'Bundesliga · Spieltag 25',
+      comp_tag: 'bun',
+      kickoff_utc: '2026-03-06T18:30:00Z',
+      kickoff_local: '19:30 CET (Europe/Berlin)',
+      venue: 'Allianz Arena, Munich',
+      broadcast_dur: '115 min (15 pre + 90 + 10 post)',
+      broadcast_end: '2026-03-06T20:25:00Z',
+      rights: 'LIVE (full rights)',
+      content_item: 'ci_bun_fcbmgb_live (BOUND)',
+      status: 'CONFIRMED',
+      status_color: '#00c896',
+      validation: '✓ No issues'
+    }
+  };
+
+  function selectSlot(el, id) {
+    document.querySelectorAll('.slot').forEach(s => s.classList.remove('selected'));
+    if (id !== 'sat2' && id !== 'sat3') el.classList.add('selected');
+    const d = slotDetails[id];
+    if (!d) {
+      document.getElementById('slot-detail').innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);padding:10px 0">No detail view for this slot yet.</div>';
+      return;
+    }
+    const tagClass = 'tag-' + d.comp_tag;
+    document.getElementById('slot-detail').innerHTML = `
+      <div class="detail-row"><span class="detail-key">fixture_id</span><span class="detail-val cyan">${d.fixture_id}</span></div>
+      <div class="detail-row"><span class="detail-key">teams</span><span class="detail-val">${d.teams}</span></div>
+      <div class="detail-row"><span class="detail-key">competition</span><span class="detail-val"><span class="tag ${tagClass}">${d.comp}</span></span></div>
+      <div class="detail-row"><span class="detail-key">kickoff_utc</span><span class="detail-val cyan">${d.kickoff_utc}</span></div>
+      <div class="detail-row"><span class="detail-key">kickoff_local</span><span class="detail-val">${d.kickoff_local}</span></div>
+      <div class="detail-row"><span class="detail-key">venue</span><span class="detail-val">${d.venue}</span></div>
+      <div class="detail-row"><span class="detail-key">broadcast_dur</span><span class="detail-val">${d.broadcast_dur}</span></div>
+      <div class="detail-row"><span class="detail-key">broadcast_end_utc</span><span class="detail-val">${d.broadcast_end}</span></div>
+      <div class="detail-row"><span class="detail-key">rights</span><span class="detail-val green">${d.rights}</span></div>
+      <div class="detail-row"><span class="detail-key">content_item_id</span><span class="detail-val cyan">${d.content_item}</span></div>
+      <div class="detail-row"><span class="detail-key">status</span><span class="detail-val" style="color:${d.status_color}">${d.status}</span></div>
+      <div class="detail-row"><span class="detail-key">validation</span><span class="detail-val" style="color:${d.status_color === '#ff4444' ? '#ff8c00' : '#00c896'}">${d.validation}</span></div>
+    `;
+  }
+</script>
+</body>
+</html>

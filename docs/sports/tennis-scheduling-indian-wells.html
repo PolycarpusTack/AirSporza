@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tennis Scheduling — BNP Paribas Open 2026 · Sports Scheduler MW</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;600&family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:    #080b0f;
+  --bg2:   #0d1117;
+  --bg3:   #131a22;
+  --bg4:   #1a2330;
+  --border: #1c2b3a;
+  --border2: #243445;
+
+  --text:       #bdd0e0;
+  --text-dim:   #506070;
+  --text-bright:#e8f2ff;
+
+  --tennis:     #b5e853;   /* hard court blue-green accent */
+  --tennis-dim: #5a7528;
+  --court:      #2563a8;   /* hardcourt blue */
+  --court-dim:  #0d2a50;
+
+  --amber:  #f59e0b;
+  --red:    #ef4444;
+  --green:  #22c55e;
+  --cyan:   #38bdf8;
+  --orange: #fb923c;
+  --purple: #a78bfa;
+
+  --s1:    #1e3a5f;   /* Stadium 1 */
+  --s1-l:  #4a9eff;
+  --s2:    #1f3320;   /* Stadium 2 */
+  --s2-l:  #4adf7a;
+  --s3:    #3a1f00;   /* Stadium 3 */
+  --s3-l:  #ff9a3a;
+
+  --mono: 'Roboto Mono', monospace;
+  --sans: 'Barlow', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 400;
+  min-height: 100vh;
+}
+
+/* HEADER */
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex;
+  align-items: stretch;
+  min-height: 52px;
+  position: sticky; top: 0; z-index: 100;
+}
+.header-brand {
+  display: flex; align-items: center; gap: 14px;
+  border-right: 1px solid var(--border);
+  padding-right: 20px; margin-right: 20px;
+}
+.brand-tennis {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--tennis) 0%, var(--tennis-dim) 60%, #2a3800 100%);
+  border: 2px solid var(--tennis);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.brand-name {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-bright);
+  letter-spacing: 0.02em;
+}
+.brand-sub {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+.header-info {
+  display: flex; align-items: center; gap: 20px;
+  flex: 1;
+}
+.hinfo {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.hinfo-val {
+  font-size: 12px; font-weight: 600; color: var(--text-bright);
+}
+.hinfo-key {
+  font-family: var(--mono); font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+.live-badge {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  padding: 4px 10px; border-radius: 3px;
+  background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4);
+  color: var(--red); letter-spacing: 0.1em;
+  animation: blink 2s ease-in-out infinite;
+  margin-left: auto;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* TABS */
+.tabs {
+  display: flex;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 11px 18px; cursor: pointer;
+  color: var(--text-dim); border-bottom: 2px solid transparent;
+  border: none; background: none; white-space: nowrap;
+  transition: all 0.15s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--tennis); border-bottom: 2px solid var(--tennis); }
+
+/* PANELS */
+.panel { display: none; padding: 20px 24px; }
+.panel.active { display: block; }
+
+/* CARDS */
+.card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 14px; border-bottom: 1px solid var(--border); background: var(--bg3);
+}
+.card-title { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-bright); }
+.card-body { padding: 14px; }
+
+/* GRID LAYOUTS */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.full { grid-column: 1/-1; }
+
+/* TAGS */
+.tag {
+  display: inline-block; font-family: var(--mono); font-size: 9px; font-weight: 600;
+  padding: 2px 7px; border-radius: 2px; letter-spacing: 0.06em; white-space: nowrap;
+}
+.tag-atp { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); color: var(--cyan); }
+.tag-wta { background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.3); color: var(--purple); }
+.tag-s1 { background: var(--s1); border: 1px solid var(--s1-l); color: var(--s1-l); }
+.tag-s2 { background: var(--s2); border: 1px solid var(--s2-l); color: var(--s2-l); }
+.tag-s3 { background: var(--s3); border: 1px solid var(--s3-l); color: var(--s3-l); }
+.tag-warn { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: var(--amber); }
+.tag-ok { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
+.tag-err { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
+.tag-float { background: rgba(181,232,83,0.08); border: 1px solid rgba(181,232,83,0.25); color: var(--tennis); }
+
+/* ENTITY TABLES */
+.ent { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 10px; }
+.ent th { padding: 4px 8px; color: var(--text-dim); font-weight: 400; font-size: 9px; letter-spacing: 0.1em; border-bottom: 1px solid var(--border); text-align: left; }
+.ent td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+.ent tr:last-child td { border-bottom: none; }
+.ent .fk { color: var(--cyan); }
+.ent .val { color: var(--text-bright); }
+.ent .dim { color: var(--text-dim); }
+.ent .warn { color: var(--amber); }
+.ent .good { color: var(--green); }
+.ent .bad { color: var(--red); }
+
+/* KEY DIFFERENCE BOX */
+.diff-box {
+  border-radius: 5px; padding: 12px 14px; margin-bottom: 10px;
+  font-size: 13px; line-height: 1.7;
+}
+.diff-box.challenge { background: rgba(245,158,11,0.05); border: 1px solid rgba(245,158,11,0.2); }
+.diff-box.solution { background: rgba(181,232,83,0.04); border: 1px solid rgba(181,232,83,0.2); }
+.diff-box.critical { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.25); }
+.diff-title { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+.diff-title.amber { color: var(--amber); }
+.diff-title.tennis { color: var(--tennis); }
+.diff-title.red { color: var(--red); }
+
+/* COMPARE TABLE */
+.compare {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.compare th {
+  padding: 8px 12px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  border-bottom: 2px solid var(--border2); text-align: left;
+}
+.compare th.football { color: #7c4fff; }
+.compare th.tennis { color: var(--tennis); }
+.compare th.label { color: var(--text-dim); }
+.compare td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+.compare td.label { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.05em; }
+.compare td.football { color: #c4a8ff; background: rgba(124,79,255,0.04); }
+.compare td.tennis { color: #d8f580; background: rgba(181,232,83,0.04); }
+.compare tr:last-child td { border-bottom: none; }
+
+/* ORDER OF PLAY */
+.court-block { margin-bottom: 20px; }
+.court-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  padding: 10px 14px; border-radius: 5px;
+}
+.court-header.s1 { background: rgba(37,99,168,0.15); border: 1px solid var(--s1-l); }
+.court-header.s2 { background: rgba(74,223,122,0.08); border: 1px solid var(--s2-l); }
+.court-header.s3 { background: rgba(255,154,58,0.08); border: 1px solid var(--s3-l); }
+
+.court-name { font-size: 15px; font-weight: 700; }
+.court-name.s1 { color: var(--s1-l); }
+.court-name.s2 { color: var(--s2-l); }
+.court-name.s3 { color: var(--s3-l); }
+.court-meta { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+.court-start { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-bright); margin-left: auto; }
+
+/* MATCH SLOT */
+.match-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 5px;
+  margin-bottom: 6px; overflow: hidden; cursor: pointer; transition: all 0.15s;
+}
+.match-card:hover { border-color: var(--border2); background: var(--bg3); }
+.match-card.selected { border-color: var(--tennis) !important; background: var(--bg4) !important; }
+.match-card.walkover { opacity: 0.55; border-style: dashed; }
+.match-card.suspended { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.04); }
+.match-card.retired { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.04); }
+
+.match-header {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.match-order {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bg4); border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim); flex-shrink: 0;
+}
+.match-order.nb { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); color: var(--amber); }
+.not-before {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  color: var(--amber); letter-spacing: 0.05em;
+}
+.est-dur {
+  font-family: var(--mono); font-size: 9px;
+  color: var(--text-dim); margin-left: auto;
+}
+.est-dur .range { color: var(--orange); }
+.match-body { padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+.players { display: flex; flex-direction: column; gap: 5px; }
+.player-row { display: flex; align-items: center; gap: 8px; }
+.player-seed {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  width: 22px; height: 16px; border-radius: 2px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.atp-seed { background: rgba(56,189,248,0.15); color: var(--cyan); border: 1px solid rgba(56,189,248,0.3); }
+.wta-seed { background: rgba(167,139,250,0.15); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+.no-seed { background: var(--bg4); color: var(--text-dim); border: 1px solid var(--border); }
+.qual-seed { background: rgba(251,146,60,0.15); color: var(--orange); border: 1px solid rgba(251,146,60,0.3); }
+.player-name { font-size: 14px; font-weight: 600; color: var(--text-bright); }
+.player-nat { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+.vs-dot { font-family: var(--mono); font-size: 9px; color: var(--text-dim); padding-left: 30px; }
+.match-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+
+/* Duration bar */
+.dur-bar-wrap { width: 120px; }
+.dur-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); margin-bottom: 3px; text-align: right; }
+.dur-bar { height: 6px; background: var(--bg4); border-radius: 3px; overflow: visible; position: relative; }
+.dur-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--green), var(--tennis)); }
+.dur-max { position: absolute; top: 0; height: 100%; border-right: 2px solid var(--red); border-radius: 0 3px 3px 0; }
+.dur-range { font-family: var(--mono); font-size: 9px; color: var(--text-dim); margin-top: 3px; text-align: right; }
+.dur-range span { color: var(--orange); }
+
+/* Broadcast cascade timeline */
+.cascade { margin-bottom: 16px; }
+.cascade-row {
+  display: flex; align-items: stretch; gap: 0;
+  margin-bottom: 4px; min-height: 40px;
+}
+.cas-label {
+  width: 140px; flex-shrink: 0;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  padding: 0 10px; display: flex; align-items: center;
+  border-right: 1px solid var(--border); color: var(--text-dim);
+}
+.cas-track { flex: 1; position: relative; background: var(--bg3); border-radius: 0 3px 3px 0; }
+.cas-block {
+  position: absolute; top: 4px; bottom: 4px;
+  border-radius: 3px; display: flex; flex-direction: column;
+  justify-content: center; padding: 2px 6px;
+  overflow: hidden; font-family: var(--mono); font-size: 9px;
+}
+.cas-block .cb-name { color: var(--text-bright); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cas-block .cb-time { color: inherit; opacity: 0.7; font-size: 8px; }
+.cas-block.plan { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); color: var(--cyan); }
+.cas-block.actual { background: rgba(181,232,83,0.1); border: 1px solid rgba(181,232,83,0.3); color: var(--tennis); }
+.cas-block.delay { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); color: var(--amber); }
+.cas-block.overrun { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); color: var(--red); }
+.cas-block.walkover-b { background: rgba(80,96,112,0.15); border: 1px dashed var(--border2); color: var(--text-dim); }
+.cas-block.switch { background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.35); color: var(--purple); }
+.cascade-time-axis { display: flex; margin-left: 140px; margin-bottom: 4px; }
+.ct-tick { flex: 1; font-family: var(--mono); font-size: 9px; color: var(--text-dim); border-left: 1px solid var(--border); padding-left: 3px; padding-bottom: 4px; }
+
+/* Stat pills */
+.stat-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 5px; padding: 12px 14px; text-align: center; }
+.stat-n { font-family: var(--sans); font-size: 24px; font-weight: 700; color: var(--text-bright); line-height: 1; }
+.stat-l { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-top: 3px; }
+.stat.hl { border-color: rgba(181,232,83,0.3); }
+.stat.hl .stat-n { color: var(--tennis); }
+.stat.warn .stat-n { color: var(--amber); }
+.stat.crit .stat-n { color: var(--red); }
+
+/* Info box */
+.info-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; margin-bottom: 10px; font-size: 12px; line-height: 1.7; }
+.info-box strong { color: var(--text-bright); }
+.info-box .ib-title { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 5px; color: var(--tennis); }
+
+/* Row info */
+.kv { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; }
+.kv:last-child { border-bottom: none; }
+.kv .k { color: var(--text-dim); }
+.kv .v { color: var(--text-bright); font-weight: 500; }
+.kv .v.green { color: var(--green); }
+.kv .v.amber { color: var(--amber); }
+.kv .v.red { color: var(--red); }
+.kv .v.tennis { color: var(--tennis); }
+.kv .v.cyan { color: var(--cyan); }
+
+/* Sidebar */
+.sidebar-sticky { position: sticky; top: 70px; }
+.plan-grid { display: grid; grid-template-columns: 1fr 280px; gap: 16px; }
+
+/* Status timeline (match detail) */
+.status-flow { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.sf-step { display: flex; align-items: flex-start; gap: 8px; font-family: var(--mono); font-size: 10px; }
+.sf-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.sf-text { color: var(--text-dim); line-height: 1.5; }
+.sf-text strong { color: var(--text-bright); }
+
+/* Scrollable */
+.scrollable { overflow-x: auto; }
+.nowrap { white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .two-col, .three-col { grid-template-columns: 1fr; }
+  .plan-grid { grid-template-columns: 1fr; }
+  .stat-row { grid-template-columns: repeat(3,1fr); }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <div class="brand-tennis">🎾</div>
+    <div>
+      <div class="brand-name">BNP Paribas Open 2026</div>
+      <div class="brand-sub">Indian Wells · Day 3 · 6 March 2026</div>
+    </div>
+  </div>
+  <div class="header-info">
+    <div class="hinfo"><div class="hinfo-val">Masters 1000 / WTA 1000</div><div class="hinfo-key">Category</div></div>
+    <div class="hinfo"><div class="hinfo-val">Indian Wells, CA · PST (UTC−8)</div><div class="hinfo-key">Location / Timezone</div></div>
+    <div class="hinfo"><div class="hinfo-val">Stadium 1 · Stadium 2 · Stadium 3</div><div class="hinfo-key">Show Courts</div></div>
+    <div class="hinfo"><div class="hinfo-val">4–15 March 2026</div><div class="hinfo-key">Tournament Window</div></div>
+    <div class="live-badge">● LIVE TODAY</div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('model',this)">① Data Model</button>
+  <button class="tab" onclick="switchTab('oop',this)">② Order of Play</button>
+  <button class="tab" onclick="switchTab('cascade',this)">③ Broadcast Cascade</button>
+  <button class="tab" onclick="switchTab('compare',this)">④ Football vs Tennis</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TAB 1: DATA MODEL
+═══════════════════════════════════════════════════ -->
+<div id="tab-model" class="panel active">
+
+  <div class="stat-row">
+    <div class="stat hl"><div class="stat-n">96</div><div class="stat-l">Draw size (Singles)</div></div>
+    <div class="stat hl"><div class="stat-n">9</div><div class="stat-l">Courts in play</div></div>
+    <div class="stat warn"><div class="stat-n">45–300</div><div class="stat-l">Min match duration (min)</div></div>
+    <div class="stat crit"><div class="stat-n">0</div><div class="stat-l">Fixed kickoff times</div></div>
+    <div class="stat"><div class="stat-n">2</div><div class="stat-l">Tours (ATP + WTA)</div></div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="diff-box challenge">
+        <div class="diff-title amber">The Core Challenge</div>
+        In football, a match has a <strong>fixed kickoff time</strong> and a <strong>predictable duration</strong> (90 ± 15 min). A broadcaster can build a rigid schedule around it. In tennis, neither is true. Matches are scheduled in <strong>order on a court</strong> — each one starts when the previous one ends. Duration ranges from 45 minutes (a bagel-bagel) to 5+ hours (Isner–Mahut). The broadcast model must be completely reimagined.
+      </div>
+
+      <div class="diff-box critical">
+        <div class="diff-title red">What breaks from the football model</div>
+        <strong>No scheduled_kickoff_utc</strong> — replaced by <code>not_before_utc</code> and <code>estimated_start_utc</code> (dynamically recomputed). <strong>No Team entity</strong> — replaced by <code>Player</code> with ranking and seed. <strong>No Round as a time window</strong> — Round is a draw stage (R32, QF, SF, F). <strong>No Venue as timezone source</strong> — tournament venue is fixed, all matches share one timezone. <strong>No fixed broadcast slot</strong> — all slots are floating windows with estimated ranges.
+      </div>
+
+      <div class="diff-box solution">
+        <div class="diff-title tennis">Key architectural decisions</div>
+        <strong>Court</strong> becomes the primary scheduling unit (replaces fixture time as the organising axis). <strong>OrderOfPlay</strong> is a first-class entity — the official daily schedule published each morning. <strong>BroadcastSlot is always floating</strong> — defined by <code>court_id + match position</code>, not a fixed time. A dedicated <strong>CascadeEngine</strong> continuously recomputes estimated start times as earlier matches complete or run long.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Entity hierarchy — Tennis vs Football</span></div>
+      <div class="card-body">
+        <table class="ent">
+          <thead><tr><th>Tennis Entity</th><th>Football Equivalent</th><th>Key difference</th></tr></thead>
+          <tbody>
+            <tr><td class="val">Tournament</td><td class="dim">Competition + Season</td><td class="dim">Combined — tournament IS a single edition</td></tr>
+            <tr><td class="val">Draw</td><td class="dim">Season</td><td class="dim">Separate draws per tour (ATP/WTA) per format</td></tr>
+            <tr><td class="val">Round</td><td class="dim">Round</td><td class="warn">Stage in bracket, not a time window</td></tr>
+            <tr><td class="val">Match</td><td class="dim">Fixture</td><td class="warn">No fixed kickoff — order-based scheduling</td></tr>
+            <tr><td class="val">Player</td><td class="dim">Team</td><td class="warn">Individual athlete — singles or doubles pair</td></tr>
+            <tr><td class="val">Court</td><td class="dim">(no direct equiv.)</td><td class="warn">Primary scheduling unit within tournament</td></tr>
+            <tr><td class="val">OrderOfPlay</td><td class="dim">(no equiv.)</td><td class="warn">New — daily schedule published each morning</td></tr>
+            <tr><td class="val">BroadcastSlot</td><td class="dim">ScheduleItem</td><td class="warn">Always floating — no fixed UTC time</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-header"><span class="card-title">match entity — timing model</span></div>
+      <div class="card-body scrollable">
+        <table class="ent nowrap">
+          <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="fk">id</td><td>uuid</td><td class="dim">match_iw26_s1_m3 etc.</td></tr>
+            <tr><td class="val">round_id</td><td>FK → round</td><td class="dim">R32 / R16 / QF / SF / F</td></tr>
+            <tr><td class="val">player1_id</td><td>FK → player</td><td class="dim">Higher seed / first named</td></tr>
+            <tr><td class="val">player2_id</td><td>FK → player</td><td class="warn">NULL until previous round completes → TBD</td></tr>
+            <tr><td class="val">court_id</td><td>FK → court</td><td class="dim">Stadium 1 / 2 / 3</td></tr>
+            <tr><td class="val">order_on_court</td><td>int</td><td class="dim">1st, 2nd, 3rd match of day on this court</td></tr>
+            <tr><td class="warn">not_before_local</td><td>time / null</td><td class="warn">e.g. "13:00" — NULL for 1st match of day</td></tr>
+            <tr><td class="warn">estimated_start_utc</td><td>timestamptz</td><td class="warn">Recomputed by CascadeEngine after each match</td></tr>
+            <tr><td class="warn">est_duration_short_min</td><td>int</td><td class="warn">Optimistic: e.g. 75 (straight sets 6-3 6-2)</td></tr>
+            <tr><td class="warn">est_duration_long_min</td><td>int</td><td class="warn">Pessimistic: e.g. 180 (3 sets, tiebreaks)</td></tr>
+            <tr><td class="dim">actual_start_utc</td><td>timestamptz</td><td class="dim">Set when match begins</td></tr>
+            <tr><td class="dim">actual_end_utc</td><td>timestamptz</td><td class="dim">Set when match ends</td></tr>
+            <tr><td class="val">status</td><td>enum</td><td class="warn">SCHEDULED / IN_PROGRESS / SUSPENDED / COMPLETED / RETIRED / WALKOVER</td></tr>
+            <tr><td class="dim">set_scores</td><td>JSONB</td><td class="dim">{"sets":[{"p1":6,"p2":3},{"p1":6,"p2":4}]}</td></tr>
+            <tr><td class="dim">retirement_reason</td><td>text / null</td><td class="dim">Injury, illness, personal</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">broadcast_slot — floating window model</span></div>
+      <div class="card-body scrollable">
+        <table class="ent nowrap">
+          <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="fk">id</td><td>uuid</td><td></td></tr>
+            <tr><td class="val">channel_id</td><td>FK</td><td></td></tr>
+            <tr><td class="val">match_id</td><td>FK → match</td><td class="dim">The specific match to broadcast</td></tr>
+            <tr><td class="warn">is_floating</td><td>bool</td><td class="warn">Always TRUE for tennis. No fixed time.</td></tr>
+            <tr><td class="warn">anchor_type</td><td>enum</td><td class="warn">NOT_BEFORE / FOLLOWS_MATCH / COURT_OPEN</td></tr>
+            <tr><td class="warn">not_before_utc</td><td>timestamptz</td><td class="warn">Hard floor — cannot start earlier</td></tr>
+            <tr><td class="warn">estimated_start_utc</td><td>timestamptz</td><td class="warn">Best current estimate — refreshed live</td></tr>
+            <tr><td class="warn">estimated_end_utc</td><td>timestamptz</td><td class="warn">estimated_start + est_duration_long</td></tr>
+            <tr><td class="val">buffer_before_min</td><td>int</td><td class="dim">Pre-match studio (default 15)</td></tr>
+            <tr><td class="val">buffer_after_min</td><td>int</td><td class="dim">Post-match analysis (default 20)</td></tr>
+            <tr><td class="val">fallback_match_id</td><td>FK / null</td><td class="dim">If this match ends early → switch to this</td></tr>
+            <tr><td class="val">overrun_strategy</td><td>enum</td><td class="dim">EXTEND / CUT_TO_NEXT / SPLIT_SCREEN</td></tr>
+            <tr><td class="dim">actual_start_utc</td><td>timestamptz</td><td></td></tr>
+            <tr><td class="dim">actual_end_utc</td><td>timestamptz</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-header"><span class="card-title">player entity</span></div>
+      <div class="card-body scrollable">
+        <table class="ent nowrap">
+          <thead><tr><th>id</th><th>name</th><th>nat</th><th>ranking</th><th>seed (IW26)</th><th>tour</th><th>ext_refs</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="fk">ply_sinner</td><td class="val">Jannik Sinner</td><td>ITA</td>
+              <td class="good">#1</td><td class="val">[2]</td><td><span class="tag tag-atp">ATP</span></td>
+              <td class="dim">atp:s0ag / opta:sin1</td>
+            </tr>
+            <tr>
+              <td class="fk">ply_zverev</td><td class="val">Alexander Zverev</td><td>GER</td>
+              <td class="good">#3</td><td class="val">[4]</td><td><span class="tag tag-atp">ATP</span></td>
+              <td class="dim">atp:z355 / opta:zve1</td>
+            </tr>
+            <tr>
+              <td class="fk">ply_berrettini</td><td class="val">Matteo Berrettini</td><td>ITA</td>
+              <td class="dim">#22</td><td class="dim">—</td><td><span class="tag tag-atp">ATP</span></td>
+              <td class="dim">atp:b748 / opta:ber1</td>
+            </tr>
+            <tr>
+              <td class="fk">ply_sabalenka</td><td class="val">Aryna Sabalenka</td><td>BLR</td>
+              <td class="good">#1</td><td class="val">[1]</td><td><span class="tag tag-wta">WTA</span></td>
+              <td class="dim">wta:s0ag / opta:sab1</td>
+            </tr>
+            <tr>
+              <td class="fk">ply_gauff</td><td class="val">Coco Gauff</td><td>USA</td>
+              <td class="good">#3</td><td class="val">[4]</td><td><span class="tag tag-wta">WTA</span></td>
+              <td class="dim">wta:g555 / opta:gau1</td>
+            </tr>
+            <tr>
+              <td class="fk">ply_shelton</td><td class="val">Ben Shelton</td><td>USA</td>
+              <td>  #9</td><td class="val">[8]</td><td><span class="tag tag-atp">ATP</span></td>
+              <td class="dim">atp:s801 / opta:she1</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          Note: ranking = world ranking (persists, updated weekly). seed = tournament-specific seeding assigned at draw. player records are evergreen — same entity used across all tournaments.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">court entity — scheduling unit</span></div>
+      <div class="card-body scrollable">
+        <table class="ent nowrap">
+          <thead><tr><th>id</th><th>name</th><th>capacity</th><th>has_roof</th><th>show_court</th><th>notes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="fk">crt_iw_s1</td>
+              <td class="val" style="color:var(--s1-l)">Stadium 1</td>
+              <td>16,100</td>
+              <td class="warn">NO</td>
+              <td class="good">YES</td>
+              <td class="dim">2nd largest tennis stadium in world</td>
+            </tr>
+            <tr>
+              <td class="fk">crt_iw_s2</td>
+              <td class="val" style="color:var(--s2-l)">Stadium 2</td>
+              <td>8,000</td>
+              <td class="warn">NO</td>
+              <td class="good">YES</td>
+              <td class="dim">Secondary show court</td>
+            </tr>
+            <tr>
+              <td class="fk">crt_iw_s3</td>
+              <td class="val" style="color:var(--s3-l)">Stadium 3</td>
+              <td>3,200</td>
+              <td class="warn">NO</td>
+              <td>YES</td>
+              <td class="dim">Broadcast from Rd 3 onward</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px">
+          <div class="diff-box challenge" style="margin-bottom:0">
+            <div class="diff-title amber">has_roof matters enormously</div>
+            Indian Wells has no roof on any court. Rain or extreme heat triggers suspension of all outdoor matches simultaneously. Unlike football (one match affected), a suspension at Indian Wells can void an entire day's Order of Play across 9 courts simultaneously. The system must handle <strong>tournament-wide suspension events</strong>, not just per-match delays.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TAB 2: ORDER OF PLAY
+═══════════════════════════════════════════════════ -->
+<div id="tab-oop" class="panel">
+
+  <div class="info-box" style="margin-bottom:16px">
+    <div class="ib-title">Day 3 Order of Play — Friday 6 March 2026 · Real Data</div>
+    The Order of Play is published each morning (typically 18:00 local the previous evening). It lists matches <strong>in sequence per court</strong>, not at fixed times. The first match has a guaranteed start time. All subsequent matches are <strong>"Not Before"</strong> a certain time, or simply follow the previous match. For broadcast planning, this means: only the first slot of the day has a known start time. Every subsequent slot is a floating estimate.
+  </div>
+
+  <div class="plan-grid">
+    <div>
+
+      <!-- STADIUM 1 -->
+      <div class="court-block">
+        <div class="court-header s1">
+          <span class="court-name s1">Stadium 1</span>
+          <span class="tag tag-s1">SHOW COURT</span>
+          <span class="court-meta">16,100 capacity · Hard court · No roof</span>
+          <span class="court-start">START 11:00 PST · 19:00 UTC</span>
+        </div>
+
+        <div class="match-card" onclick="selectMatch(this,'m1')">
+          <div class="match-header">
+            <div class="match-order">1</div>
+            <span class="tag tag-atp">ATP</span>
+            <span class="tag tag-s1">R32</span>
+            <span style="font-family:var(--mono);font-size:9px;color:var(--green)">FIXED START 11:00 PST / 19:00 UTC</span>
+            <span class="est-dur">Est: <span class="range">60–140 min</span></span>
+          </div>
+          <div class="match-body">
+            <div class="players">
+              <div class="player-row">
+                <div class="player-seed no-seed">—</div>
+                <div class="player-name">Matteo Berrettini</div>
+                <div class="player-nat">🇮🇹 ITA · #22</div>
+              </div>
+              <div class="vs-dot">vs</div>
+              <div class="player-row">
+                <div class="player-seed atp-seed">[4]</div>
+                <div class="player-name">Alexander Zverev</div>
+                <div class="player-nat">🇩🇪 GER · #3</div>
+              </div>
+            </div>
+            <div class="match-right">
+              <div class="dur-bar-wrap">
+                <div class="dur-label">Duration range</div>
+                <div class="dur-bar">
+                  <div class="dur-fill" style="width:43%"></div>
+                  <div class="dur-max" style="left:97%"></div>
+                </div>
+                <div class="dur-range"><span>60</span> – <span>140</span> min</div>
+              </div>
+              <div class="tag tag-warn">FLOATING END</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="match-card" onclick="selectMatch(this,'m2')">
+          <div class="match-header">
+            <div class="match-order nb">NB</div>
+            <span class="tag tag-wta">WTA</span>
+            <span class="tag tag-s1">R32</span>
+            <span class="not-before">NOT BEFORE 13:00 PST / 21:00 UTC</span>
+            <span class="est-dur">Est: <span class="range">55–120 min</span></span>
+          </div>
+          <div class="match-body">
+            <div class="players">
+              <div class="player-row">
+                <div class="player-seed wta-seed">[1]</div>
+                <div class="player-name">Aryna Sabalenka</div>
+                <div class="player-nat">🇧🇾 BLR · #1</div>
+              </div>
+              <div class="vs-dot">vs</div>
+              <div class="player-row">
+                <div class="player-seed no-seed">—</div>
+                <div class="player-name">Himeno Sakatsume</div>
+                <div class="player-nat">🇯🇵 JPN · #88</div>
+              </div>
+            </div>
+            <div class="match-right">
+              <div class="dur-bar-wrap">
+                <div class="dur-label">Duration range</div>
+                <div class="dur-bar">
+                  <div class="dur-fill" style="width:46%"></div>
+                  <div class="dur-max" style="left:100%"></div>
+                </div>
+                <div class="dur-range"><span>55</span> – <span>120</span> min</div>
+              </div>
+              <div class="tag tag-ok">LIKELY SHORT</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="match-card" onclick="selectMatch(this,'m3')">
+          <div class="match-header">
+            <div class="match-order nb">NB</div>
+            <span class="tag tag-wta">WTA</span>
+            <span class="tag tag-s1">R32</span>
+            <span class="not-before">FOLLOWS SABALENKA</span>
+            <span class="est-dur">Est: <span class="range">60–130 min</span></span>
+          </div>
+          <div class="match-body">
+            <div class="players">
+              <div class="player-row">
+                <div class="player-seed wta-seed">[4]</div>
+                <div class="player-name">Coco Gauff</div>
+                <div class="player-nat">🇺🇸 USA · #3</div>
+              </div>
+              <div class="vs-dot">vs</div>
+              <div class="player-row">
+                <div class="player-seed no-seed">—</div>
+                <div class="player-name">Kamilla Rakhimova</div>
+                <div class="player-nat">🇷🇺 RUS · #44</div>
+              </div>
+            </div>
+            <div class="match-right">
+              <div class="dur-bar-wrap">
+                <div class="dur-label">Duration range</div>
+                <div class="dur-bar">
+                  <div class="dur-fill" style="width:46%"></div>
+                  <div class="dur-max" style="left:100%"></div>
+                </div>
+                <div class="dur-range"><span>60</span> – <span>130</span> min</div>
+              </div>
+              <div class="tag tag-warn">FLOATING</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="match-card" onclick="selectMatch(this,'m4')">
+          <div class="match-header">
+            <div class="match-order nb">NB</div>
+            <span class="tag tag-atp">ATP</span>
+            <span class="tag tag-s1">R32</span>
+            <span class="not-before">NOT BEFORE 18:00 PST / 02:00 UTC+1</span>
+            <span class="est-dur">Est: <span class="range">75–200 min</span></span>
+          </div>
+          <div class="match-body">
+            <div class="players">
+              <div class="player-row">
+                <div class="player-seed qual-seed">[Q]</div>
+                <div class="player-name">Dalibor Svrcina</div>
+                <div class="player-nat">🇨🇿 CZE · Qualifier</div>
+              </div>
+              <div class="vs-dot">vs</div>
+              <div class="player-row">
+                <div class="player-seed atp-seed">[2]</div>
+                <div class="player-name">Jannik Sinner</div>
+                <div class="player-nat">🇮🇹 ITA · #1</div>
+              </div>
+            </div>
+            <div class="match-right">
+              <div class="dur-bar-wrap">
+                <div class="dur-label">Duration range</div>
+                <div class="dur-bar">
+                  <div class="dur-fill" style="width:38%"></div>
+                  <div class="dur-max" style="left:100%"></div>
+                </div>
+                <div class="dur-range"><span>75</span> – <span>200</span> min</div>
+              </div>
+              <div class="tag tag-err">WIDE RANGE</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="match-card" onclick="selectMatch(this,'m5')">
+          <div class="match-header">
+            <div class="match-order nb">NB</div>
+            <span class="tag tag-wta">WTA</span>
+            <span class="tag tag-s1">R32</span>
+            <span class="not-before">NOT BEFORE 20:00 PST / 04:00 UTC+1</span>
+            <span class="est-dur">Est: <span class="range">55–120 min</span></span>
+          </div>
+          <div class="match-body">
+            <div class="players">
+              <div class="player-row">
+                <div class="player-seed no-seed">—</div>
+                <div class="player-name">Anna Blinkova</div>
+                <div class="player-nat">🇷🇺 RUS · #62</div>
+              </div>
+              <div class="vs-dot">vs</div>
+              <div class="player-row">
+                <div class="player-seed wta-seed">[6]</div>
+                <div class="player-name">Amanda Anisimova</div>
+                <div class="player-nat">🇺🇸 USA · #7</div>
+              </div>
+            </div>
+            <div class="match-right">
+              <div class="dur-bar-wrap">
+                <div class="dur-label">Duration range</div>
+                <div class="dur-bar">
+                  <div class="dur-fill" style="width:46%"></div>
+                  <div class="dur-max" style="left:100%"></div>
+                </div>
+                <div class="dur-range"><span>55</span> – <span>120</span> min</div>
+              </div>
+              <div style="font-family:var(--mono);font-size:8px;color:var(--text-dim);text-align:right">02:00–04:00 CET next day</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STADIUM 2 -->
+      <div class="court-block">
+        <div class="court-header s2">
+          <span class="court-name s2">Stadium 2</span>
+          <span class="tag tag-s2">SHOW COURT</span>
+          <span class="court-meta">8,000 capacity · Hard court · No roof</span>
+          <span class="court-start">START 11:00 PST · 19:00 UTC</span>
+        </div>
+
+        <div class="match-card" onclick="selectMatch(this,'m6')">
+          <div class="match-header">
+            <div class="match-order">1</div>
+            <span class="tag tag-wta">WTA</span>
+            <span class="tag tag-s2">R32</span>
+            <span style="font-family:var(--mono);font-size:9px;color:var(--green)">FIXED START 11:00 PST</span>
+            <span class="est-dur">Est: <span class="range">50–100 min</span></span>
+          </div>
+          <div class="match-body">
+            <div class="players">
+              <div class="player-row"><div class="player-seed wta-seed">[10]</div><div class="player-name">Victoria Mboko</div><div class="player-nat">🇨🇦 CAN · #11</div></div>
+              <div class="vs-dot">vs</div>
+              <div class="player-row"><div class="player-seed no-seed">—</div><div class="player-name">Kimberly Birrell</div><div class="player-nat">🇦🇺 AUS · #73</div></div>
+            </div>
+            <div class="match-right">
+              <div class="tag tag-ok">PREDICTABLE</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="match-card" onclick="selectMatch(this,'m7')">
+          <div class="match-header">
+            <div class="match-order">2</div>
+            <span class="tag tag-atp">ATP</span>
+            <span class="tag tag-s2">R32</span>
+            <span class="not-before" style="color:var(--text-dim)">FOLLOWS MBOKO</span>
+            <span class="est-dur">Est: <span class="range">75–160 min</span></span>
+          </div>
+          <div class="match-body">
+            <div class="players">
+              <div class="player-row"><div class="player-seed atp-seed">[8]</div><div class="player-name">Ben Shelton</div><div class="player-nat">🇺🇸 USA · #9</div></div>
+              <div class="vs-dot">vs</div>
+              <div class="player-row"><div class="player-seed no-seed">—</div><div class="player-name">Reilly Opelka</div><div class="player-nat">🇺🇸 USA · #67</div></div>
+            </div>
+            <div class="match-right">
+              <div class="tag tag-warn">BIG SERVERS → FAST?</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="match-card walkover" onclick="selectMatch(this,'m8')">
+          <div class="match-header">
+            <div class="match-order">3</div>
+            <span class="tag tag-atp">ATP</span>
+            <span class="tag tag-s2">R32</span>
+            <span class="not-before" style="color:var(--text-dim)">FOLLOWS SHELTON</span>
+            <span class="tag tag-err" style="margin-left:auto">WALKOVER</span>
+          </div>
+          <div class="match-body">
+            <div class="players">
+              <div class="player-row"><div class="player-seed no-seed">—</div><div class="player-name">Jenson Brooksby</div><div class="player-nat">🇺🇸 USA · #98</div></div>
+              <div class="vs-dot">vs</div>
+              <div class="player-row"><div class="player-seed atp-seed">[21]</div><div class="player-name">Frances Tiafoe</div><div class="player-nat">🇺🇸 USA · #24</div></div>
+            </div>
+            <div class="match-right">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--red)">Brooksby w/d — injury</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim)">Broadcast slot voided → court free earlier</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar-sticky">
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-header"><span class="card-title">Match Detail</span></div>
+        <div class="card-body" id="match-detail">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);text-align:center;padding:16px 0">Click a match card to inspect</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Day 3 Summary</span></div>
+        <div class="card-body">
+          <div class="kv"><span class="k">Matches today</span><span class="v">~22 across all courts</span></div>
+          <div class="kv"><span class="k">Fixed start times</span><span class="v tennis">1 per court (11:00)</span></div>
+          <div class="kv"><span class="k">Floating slots</span><span class="v amber">All subsequent</span></div>
+          <div class="kv"><span class="k">Known walkovers</span><span class="v red">1 (Brooksby w/d)</span></div>
+          <div class="kv"><span class="k">Duration range today</span><span class="v amber">45 – 300+ min/match</span></div>
+          <div class="kv"><span class="k">Local timezone</span><span class="v">PST (UTC−8)</span></div>
+          <div class="kv"><span class="k">CET (Europe)</span><span class="v cyan">UTC+1 — evening matches = next morning</span></div>
+          <div class="kv"><span class="k">Latest match end</span><span class="v amber">~02:00–04:00 UTC+1 (CET)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TAB 3: BROADCAST CASCADE
+═══════════════════════════════════════════════════ -->
+<div id="tab-cascade" class="panel">
+
+  <div class="info-box" style="margin-bottom:16px">
+    <div class="ib-title">The cascade problem — why tennis breaks the football broadcast model</div>
+    In football, a delay to one match doesn't affect any other. In tennis, <strong>every match on a court is dependent on every earlier match that day</strong>. If Match 1 runs 3 hours instead of 1 hour, Match 2 starts 2 hours late, Match 3 starts 4 hours late. The broadcaster planned for a 19:30 prime-time slot. It becomes a 23:30 slot. Below: three scenarios showing how the cascade propagates through Stadium 1 on Day 3.
+  </div>
+
+  <!-- SCENARIO A: NORMAL -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <span class="card-title">Scenario A — Normal Day (Zverev wins in straight sets ~80 min)</span>
+      <span class="tag tag-ok">✓ Broadcast plan holds</span>
+    </div>
+    <div class="card-body">
+      <div class="cascade-time-axis">
+        <div class="ct-tick">19:00 UTC</div>
+        <div class="ct-tick">20:00</div>
+        <div class="ct-tick">21:00</div>
+        <div class="ct-tick">22:00</div>
+        <div class="ct-tick">23:00</div>
+        <div class="ct-tick">00:00</div>
+        <div class="ct-tick">01:00</div>
+        <div class="ct-tick">02:00</div>
+        <div class="ct-tick">03:00</div>
+      </div>
+      <div class="cascade">
+        <div class="cascade-row">
+          <div class="cas-label">Berrettini/Zverev</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <!-- 19:00–20:25: 85min out of 480min range = 17.7% wide -->
+            <div class="cas-block actual" style="left:0%;width:17.7%">
+              <div class="cb-name">Zverev def. Berrettini</div>
+              <div class="cb-time">19:00–20:25 UTC · 85 min</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">Sabalenka</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <!-- NB 21:00. Starts ~20:40 (15min gap). 70min. -->
+            <div class="cas-block actual" style="left:35.4%;width:14.6%">
+              <div class="cb-name">Sabalenka wins</div>
+              <div class="cb-time">~20:40–21:50 UTC · 70 min</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">Gauff</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block actual" style="left:60.4%;width:18.8%">
+              <div class="cb-name">Gauff wins</div>
+              <div class="cb-time">~22:05–23:35 UTC · 90 min</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">Sinner (NB 02:00)</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block actual" style="left:83.3%;width:16.7%">
+              <div class="cb-name">Sinner match</div>
+              <div class="cb-time">~02:00–03:30 UTC · 90 min</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--green);padding:6px 0">✓ Broadcast matches planned schedule. European prime time (~21:00–23:00 CET) covers Sabalenka and Gauff as intended.</div>
+    </div>
+  </div>
+
+  <!-- SCENARIO B: MARATHON MATCH -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <span class="card-title">Scenario B — Berrettini/Zverev goes 3 sets (~3hr 15min)</span>
+      <span class="tag tag-warn">⚠ Full cascade shift — every match pushed</span>
+    </div>
+    <div class="card-body">
+      <div class="cascade-time-axis">
+        <div class="ct-tick">19:00 UTC</div>
+        <div class="ct-tick">20:00</div>
+        <div class="ct-tick">21:00</div>
+        <div class="ct-tick">22:00</div>
+        <div class="ct-tick">23:00</div>
+        <div class="ct-tick">00:00</div>
+        <div class="ct-tick">01:00</div>
+        <div class="ct-tick">02:00</div>
+        <div class="ct-tick">03:00</div>
+      </div>
+      <div class="cascade">
+        <div class="cascade-row">
+          <div class="cas-label">Berrettini/Zverev</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block overrun" style="left:0%;width:40.6%">
+              <div class="cb-name">MARATHON — Zverev wins 7-6 5-7 7-6</div>
+              <div class="cb-time">19:00–22:15 UTC · 195 min</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">Sabalenka (NB 21:00)</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block plan" style="left:41.7%;width:3.1%" title="Planned start">
+              <div class="cb-name">Planned 21:00</div>
+            </div>
+            <div class="cas-block delay" style="left:44.8%;width:14.6%">
+              <div class="cb-name">Sabalenka — DELAYED +70min</div>
+              <div class="cb-time">22:30–23:40 UTC</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">Gauff</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block delay" style="left:72.9%;width:18.8%">
+              <div class="cb-name">Gauff — DELAYED +2h</div>
+              <div class="cb-time">00:00–01:30 UTC</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">Sinner (NB 02:00)</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block delay" style="left:87.5%;width:16.7%">
+              <div class="cb-name">Sinner — starts ~02:00 UTC (held)</div>
+              <div class="cb-time">02:00–03:30 UTC</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:rgba(245,158,11,0.06);border-radius:3px;margin-top:4px">
+        ⚠ Broadcast impact: Sabalenka match pushed from 21:00 CET to 23:30 CET. Gauff moves to 01:00 CET (next day). CascadeEngine fires alerts at 20:00, 21:00, 22:00 as each NB time is missed. The scheduler receives: "Estimated start Sabalenka: now 22:30 UTC — your broadcast slot was 21:00 UTC. Action required."
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENARIO C: WALKOVER + COURT SWITCH -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <span class="card-title">Scenario C — Walkover on Stadium 2 → Court Switch opportunity</span>
+      <span class="tag tag-s2">Stadium 2 freed early</span>
+    </div>
+    <div class="card-body">
+      <div class="info-box" style="margin-bottom:12px">
+        <strong>Brooksby withdraws</strong> (injury) before his match vs Tiafoe on Stadium 2. Stadium 2's 3rd slot is voided — court becomes free ~2 hours earlier than planned. The system detects: Stadium 1 is running long (Scenario B). The scheduler has an option: <strong>move the delayed Gauff match from Stadium 1 to Stadium 2</strong>, giving it a fixed start time rather than waiting for Sabalenka to finish on S1.
+      </div>
+      <div class="cascade-time-axis">
+        <div class="ct-tick">19:00 UTC</div>
+        <div class="ct-tick">20:00</div>
+        <div class="ct-tick">21:00</div>
+        <div class="ct-tick">22:00</div>
+        <div class="ct-tick">23:00</div>
+        <div class="ct-tick">00:00</div>
+        <div class="ct-tick">01:00</div>
+      </div>
+      <div class="cascade">
+        <div class="cascade-row">
+          <div class="cas-label">S1 — Sabalenka</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block delay" style="left:44.8%;width:16.7%">
+              <div class="cb-name">Sabalenka (delayed)</div>
+              <div class="cb-time">22:30 UTC</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">S2 — Mboko</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block actual" style="left:0%;width:14.6%">
+              <div class="cb-name">Mboko match</div>
+              <div class="cb-time">19:00–20:10</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">S2 — Shelton</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block actual" style="left:18.8%;width:20.8%">
+              <div class="cb-name">Shelton match</div>
+              <div class="cb-time">20:25–22:05</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label">S2 — Brooksby/Tiafoe</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block walkover-b" style="left:42.7%;width:16.7%">
+              <div class="cb-name">WALKOVER (Brooksby w/d)</div>
+              <div class="cb-time">Slot voided — court free</div>
+            </div>
+          </div>
+        </div>
+        <div class="cascade-row">
+          <div class="cas-label" style="color:var(--purple)">→ S2 Court Switch</div>
+          <div class="cas-track" style="height:40px;position:relative">
+            <div class="cas-block switch" style="left:42.7%;width:18.8%">
+              <div class="cb-name">Gauff MOVED to S2 ← Court Switch</div>
+              <div class="cb-time">~22:00 UTC — 90 min earlier than S1 cascade</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--purple);padding:8px;background:rgba(167,139,250,0.06);border-radius:3px;margin-top:4px">
+        → Court switch recovers ~90 min for Gauff broadcast. System must: (1) update Gauff match.court_id to S2, (2) re-sequence order_on_court, (3) recompute estimated_start_utc, (4) update broadcast_slot with new court reference, (5) fire slot-changed event to downstream EPG/playout, (6) alert scheduler with diff. Audit reason required: "Walkover on S2 — court switch to recover cascade delay."
+      </div>
+    </div>
+  </div>
+
+  <!-- RAIN SUSPENSION -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Scenario D — Rain / Heat suspension (Indian Wells: no roof)</span>
+      <span class="tag tag-err">Tournament-wide event</span>
+    </div>
+    <div class="card-body">
+      <div class="info-box">
+        <div class="ib-title">Suspension differs fundamentally from a single-match delay</div>
+        A football rain delay affects one match. At Indian Wells, a rain event <strong>suspends all 9 courts simultaneously</strong>. The system must handle a <code>TournamentSuspensionEvent</code> — a new entity not needed in football — that propagates a cascade reset across every active match and all queued matches on all courts. A 2-hour rain break at 20:00 UTC pushes every single remaining match of the day by ≥2 hours. For a European broadcaster, this can turn a midnight finish into a 2am finish with zero warning.
+      </div>
+      <table class="ent">
+        <thead><tr><th>Entity</th><th>Field</th><th>Football?</th><th>Tennis reason</th></tr></thead>
+        <tbody>
+          <tr><td class="val">TournamentSuspensionEvent</td><td class="warn">suspended_at_utc, reason, all_courts</td><td class="bad">No equivalent</td><td class="dim">Single event propagates to all matches on all courts</td></tr>
+          <tr><td class="val">Match.suspension_log</td><td class="warn">JSONB array of start/resume times</td><td class="bad">No equivalent</td><td class="dim">Match can be suspended mid-set, resumed hours later</td></tr>
+          <tr><td class="val">Court.surface_playable</td><td class="warn">bool — updated by ops</td><td class="bad">No equivalent</td><td class="dim">Per-court playability may differ (drainage varies)</td></tr>
+          <tr><td class="val">BroadcastSlot.suspension_status</td><td class="warn">ACTIVE / SUSPENDED / RESUMED</td><td class="bad">No equivalent</td><td class="dim">Slot may be live when suspension hits mid-broadcast</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TAB 4: FOOTBALL VS TENNIS
+═══════════════════════════════════════════════════ -->
+<div id="tab-compare" class="panel">
+
+  <div class="two-col" style="margin-bottom:0">
+    <div class="info-box">
+      <div class="ib-title">Football scheduling model</div>
+      Fixed kickoff times. Predictable 90±15 min duration. Teams as entities. League round as time window. One match per broadcast slot. Clashes are cross-match conflicts (two matches at 15:00 on different channels). The hard problem is rights management and regional overlays.
+    </div>
+    <div class="info-box" style="border-color:rgba(181,232,83,0.3)">
+      <div class="ib-title">Tennis scheduling model</div>
+      No fixed times — order-based scheduling. Duration 45–300+ min with no ceiling. Individual players as entities. Draw stage as round. Multiple matches per court per day in cascade dependency. The hard problem is duration uncertainty propagation and live slot management.
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-header"><span class="card-title">Full comparison — Football vs Tennis in the middleware</span></div>
+    <div class="card-body scrollable">
+      <table class="compare nowrap">
+        <thead>
+          <tr>
+            <th class="label" style="width:200px">Dimension</th>
+            <th class="football">⚽ Football</th>
+            <th class="tennis">🎾 Tennis</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">Primary time field</td>
+            <td class="football">scheduled_kickoff_utc (precise)</td>
+            <td class="tennis">not_before_utc + estimated_start_utc (range)</td>
+          </tr>
+          <tr>
+            <td class="label">Duration model</td>
+            <td class="football">scheduled_broadcast_duration_min (90+25 = 115 min, predictable)</td>
+            <td class="tennis">est_duration_short_min / est_duration_long_min (45–300 range)</td>
+          </tr>
+          <tr>
+            <td class="label">Duration certainty</td>
+            <td class="football">High — 85% of matches within 100–125 min broadcast</td>
+            <td class="tennis">Low — Sd dev of ~30–40 min per match, no hard ceiling</td>
+          </tr>
+          <tr>
+            <td class="label">Scheduling unit</td>
+            <td class="football">Fixture (has its own UTC time)</td>
+            <td class="tennis">Court × OrderOfPlay position (time is derived)</td>
+          </tr>
+          <tr>
+            <td class="label">Participant entity</td>
+            <td class="football">Team (home + away, persists across seasons)</td>
+            <td class="tennis">Player (individual, ranking updated weekly, seed per tournament)</td>
+          </tr>
+          <tr>
+            <td class="label">TBD participants</td>
+            <td class="football">Rare (cup draws occasionally)</td>
+            <td class="tennis">Normal — player2 unknown until previous round completes</td>
+          </tr>
+          <tr>
+            <td class="label">Broadcast slot type</td>
+            <td class="football">Fixed — start and end are known at planning time</td>
+            <td class="tennis">Always floating — start estimated, end unknown until complete</td>
+          </tr>
+          <tr>
+            <td class="label">Cascade dependency</td>
+            <td class="football">None — each match is independent</td>
+            <td class="tennis">Strong — every match on a court depends on all prior matches</td>
+          </tr>
+          <tr>
+            <td class="label">Delay propagation</td>
+            <td class="football">Affects one match only</td>
+            <td class="tennis">Affects all subsequent matches on same court for rest of day</td>
+          </tr>
+          <tr>
+            <td class="label">Weather events</td>
+            <td class="football">Single match suspension</td>
+            <td class="tennis">Tournament-wide suspension (all courts, all matches)</td>
+          </tr>
+          <tr>
+            <td class="label">Early finish</td>
+            <td class="football">Rare (abandonments), handled as special case</td>
+            <td class="tennis">Common — walkover voids slot, creates scheduling opportunity</td>
+          </tr>
+          <tr>
+            <td class="label">Early finish response</td>
+            <td class="football">Gap filler / replacement content</td>
+            <td class="tennis">Court switch — move delayed match from another court</td>
+          </tr>
+          <tr>
+            <td class="label">Retirement mid-match</td>
+            <td class="football">Extremely rare</td>
+            <td class="tennis">Regular occurrence — broadcast ends 30–90 min early with no warning</td>
+          </tr>
+          <tr>
+            <td class="label">Simultaneous matches</td>
+            <td class="football">Different channels (conflict if same channel)</td>
+            <td class="tennis">Many courts live simultaneously — broadcaster chooses which to show</td>
+          </tr>
+          <tr>
+            <td class="label">European prime time</td>
+            <td class="football">Matches scheduled for European audiences (19:00–21:00 CET)</td>
+            <td class="tennis">US tournaments: prime matches start 02:00–04:00 CET — night ops</td>
+          </tr>
+          <tr>
+            <td class="label">Rights model</td>
+            <td class="football">Per-fixture rights (team + competition territory)</td>
+            <td class="tennis">Per-tournament rights — all matches covered by tournament deal</td>
+          </tr>
+          <tr>
+            <td class="label">EPG challenge</td>
+            <td class="football">Fixed start/end — EPG straightforward</td>
+            <td class="tennis">EPG must publish "estimated" times with wide error bars</td>
+          </tr>
+          <tr>
+            <td class="label">New middleware entities needed</td>
+            <td class="football">SportEvent, Fixture, Team, Venue</td>
+            <td class="tennis">+ Player, Court, OrderOfPlay, CascadeEvent, TournamentSuspensionEvent</td>
+          </tr>
+          <tr>
+            <td class="label">Playout system challenge</td>
+            <td class="football">Fixed rundown — predictable for automation</td>
+            <td class="tennis">Dynamic rundown — playout must handle live overrides in real time</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:16px">
+    <div class="card">
+      <div class="card-header"><span class="card-title">What the middleware must add for tennis</span></div>
+      <div class="card-body">
+        <div class="status-flow">
+          <div class="sf-step"><div class="sf-dot" style="background:var(--tennis)"></div><div class="sf-text"><strong>CascadeEngine</strong> — a continuous worker that listens to match completions and recomputes estimated_start_utc for all downstream matches on the same court. Fires slot-changed events to EPG/playout adapters in real time.</div></div>
+          <div class="sf-step"><div class="sf-dot" style="background:var(--amber)"></div><div class="sf-text"><strong>OrderOfPlay ingest adapter</strong> — daily feed from ATP/WTA/tournament provider. Published ~18:00 local the day before. Creates Match records with order_on_court and not_before constraints.</div></div>
+          <div class="sf-step"><div class="sf-dot" style="background:var(--cyan)"></div><div class="sf-text"><strong>FloatingSlot model</strong> — BroadcastSlot.is_floating = true, anchor_type = FOLLOWS_MATCH. The slot's start time updates continuously as the cascade engine fires. EPG adapters receive range updates, not single timestamps.</div></div>
+          <div class="sf-step"><div class="sf-dot" style="background:var(--purple)"></div><div class="sf-text"><strong>CourtSwitch workflow</strong> — when a walkover voids a court slot, the system proposes moving a delayed match from another court. Requires scheduler confirmation + audit reason.</div></div>
+          <div class="sf-step"><div class="sf-dot" style="background:var(--red)"></div><div class="sf-text"><strong>TournamentSuspensionEvent</strong> — a tournament-scoped status event that sets all active matches to SUSPENDED and all queued matches to delayed by suspension_duration. A single ops action, not per-match.</div></div>
+          <div class="sf-step"><div class="sf-dot" style="background:var(--orange)"></div><div class="sf-text"><strong>TBD player binding</strong> — player2_id may be null until the previous round match completes. Broadcast slot shows "Winner of [match X]" until binding resolves. Validation blocks publish of any slot with unresolved TBD participants after a configurable deadline.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">What stays the same</span></div>
+      <div class="card-body">
+        <div class="info-box" style="border-color:rgba(34,197,94,0.2)">
+          Despite the differences, the core middleware architecture holds. The outbox pattern, idempotency model, optimistic locking, audit trail, and validation pipeline all apply unchanged. The adapter pattern absorbs the new provider (ATP/WTA live scoring feed). The delta-based draft model still works — schedulers make planning decisions, the cascade engine updates estimates, humans confirm actions. What changes is the <strong>timing model within the domain layer</strong>, not the infrastructure.
+        </div>
+        <div class="status-flow">
+          <div class="sf-step"><div class="sf-dot" style="background:var(--green)"></div><div class="sf-text"><strong>Player entity</strong> is evergreen like Team — created once, referenced forever across all tournaments. Ranking updated weekly via provider feed. Seed is tournament-specific (same as how a team's ground/kit varies per season).</div></div>
+          <div class="sf-step"><div class="sf-dot" style="background:var(--green)"></div><div class="sf-text"><strong>Rights model</strong> is simpler — tournament deal covers all matches. Per-match rights evaluation (as in football) is replaced by a single tournament-level rights check. The rights pipeline still runs, just with coarser granularity.</div></div>
+          <div class="sf-step"><div class="sf-dot" style="background:var(--green)"></div><div class="sf-text"><strong>Season-start workflow</strong> equivalent exists — each year a new Tournament record is created, the draw is seeded, courts are configured. Player records persist. The only new annual task: seed the draw bracket once the draw ceremony happens.</div></div>
+          <div class="sf-step"><div class="sf-dot" style="background:var(--green)"></div><div class="sf-text"><strong>UTC canonical truth</strong> still applies — all times stored as UTC, displayed in venue timezone (America/Los_Angeles for Indian Wells). DST handling still matters — US spring-forward is March 8, 2026, during this very tournament.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+const matchDetails = {
+  m1: {
+    title: 'Berrettini vs [4] Zverev',
+    tour: 'ATP', round: 'R32', court: 'Stadium 1',
+    order: '1st match (FIXED start)',
+    not_before: 'None — first match of day',
+    start_utc: '19:00 UTC (11:00 PST)',
+    est_short: '60 min (6-3 6-2 straight sets)',
+    est_long: '140 min (7-6 5-7 7-6 three sets)',
+    status: 'SCHEDULED',
+    status_color: '#38bdf8',
+    broadcast_slot: 'bs_iw_s1_m1 · is_floating: FALSE (fixed open)',
+    note: 'Opener — only match with a guaranteed start time. If this goes long, the entire court cascade shifts.',
+    note_color: '#f59e0b'
+  },
+  m2: {
+    title: '[1] Sabalenka vs Sakatsume',
+    tour: 'WTA', round: 'R32', court: 'Stadium 1',
+    order: '2nd match',
+    not_before: '13:00 PST / 21:00 UTC',
+    start_utc: 'Estimated ~20:40–21:15 UTC (depends on M1)',
+    est_short: '55 min (dominant straight sets expected)',
+    est_long: '120 min (unlikely — heavy favourite)',
+    status: 'SCHEDULED',
+    status_color: '#38bdf8',
+    broadcast_slot: 'bs_iw_s1_m2 · is_floating: TRUE · anchor: NOT_BEFORE 21:00 UTC',
+    note: 'Not Before 21:00 = hard floor. Match cannot start before this even if S1 is free. Sabalenka likely wins quickly — one of the most watched slots of the day.',
+    note_color: '#a78bfa'
+  },
+  m4: {
+    title: '[Q] Svrcina vs [2] Sinner',
+    tour: 'ATP', round: 'R32', court: 'Stadium 1',
+    order: '4th match',
+    not_before: '18:00 PST / 02:00 UTC (next day for Europe)',
+    start_utc: 'Estimated 02:00–03:00 UTC (CET: 03:00–04:00)',
+    est_short: '75 min (Sinner wins easily)',
+    est_long: '200 min (if Svrcina causes upset, could go long)',
+    status: 'SCHEDULED',
+    status_color: '#38bdf8',
+    broadcast_slot: 'bs_iw_s1_m4 · is_floating: TRUE · anchor: NOT_BEFORE 02:00 UTC',
+    note: 'Prime match for US prime time. For European broadcasters: starts 03:00–04:00 CET. Typical approach: tape delay for next morning, or overnight live for dedicated sports channels.',
+    note_color: '#f59e0b'
+  },
+  m8: {
+    title: 'Brooksby vs [21] Tiafoe — WALKOVER',
+    tour: 'ATP', round: 'R32', court: 'Stadium 2',
+    order: '3rd match',
+    not_before: 'Follows Shelton match',
+    start_utc: 'VOIDED',
+    est_short: 'N/A',
+    est_long: 'N/A',
+    status: 'WALKOVER',
+    status_color: '#ef4444',
+    broadcast_slot: 'bs_iw_s2_m3 · VOIDED — content slot freed',
+    note: 'Brooksby withdraws before match. Tiafoe advances without playing. Broadcast slot is freed ~22:00 UTC. CascadeEngine detects opportunity: Stadium 2 free earlier than expected — court switch proposal generated for delayed S1 matches.',
+    note_color: '#ef4444'
+  },
+  m6: {
+    title: '[10] Mboko vs Birrell',
+    tour: 'WTA', round: 'R32', court: 'Stadium 2',
+    order: '1st match',
+    not_before: 'None — fixed start 11:00 PST',
+    start_utc: '19:00 UTC',
+    est_short: '50 min',
+    est_long: '100 min',
+    status: 'SCHEDULED',
+    status_color: '#38bdf8',
+    broadcast_slot: 'bs_iw_s2_m1 · is_floating: FALSE',
+    note: 'S2 opener. Likely covered on secondary broadcast channel. Duration estimate: moderate — both players are solid but Mboko is clear favourite.',
+    note_color: '#22c55e'
+  }
+};
+
+function selectMatch(el, id) {
+  document.querySelectorAll('.match-card').forEach(m => m.classList.remove('selected'));
+  el.classList.add('selected');
+  const d = matchDetails[id];
+  if (!d) {
+    document.getElementById('match-detail').innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);padding:10px 0">No detail for this match yet.</div>';
+    return;
+  }
+  const tourTag = d.tour === 'ATP' ? 'tag-atp' : 'tag-wta';
+  document.getElementById('match-detail').innerHTML = `
+    <div style="font-size:13px;font-weight:700;color:var(--text-bright);margin-bottom:10px">${d.title}</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <span class="tag ${tourTag}">${d.tour}</span>
+      <span class="tag tag-s1">${d.court}</span>
+      <span class="tag" style="background:rgba(80,96,112,0.2);border:1px solid var(--border2);color:var(--text-dim)">${d.round}</span>
+    </div>
+    <div class="kv"><span class="k">order_on_court</span><span class="v">${d.order}</span></div>
+    <div class="kv"><span class="k">not_before_local</span><span class="v amber">${d.not_before}</span></div>
+    <div class="kv"><span class="k">estimated_start_utc</span><span class="v cyan">${d.start_utc}</span></div>
+    <div class="kv"><span class="k">est_dur_short</span><span class="v green">${d.est_short}</span></div>
+    <div class="kv"><span class="k">est_dur_long</span><span class="v amber">${d.est_long}</span></div>
+    <div class="kv"><span class="k">status</span><span class="v" style="color:${d.status_color}">${d.status}</span></div>
+    <div class="kv"><span class="k">broadcast_slot</span><span class="v tennis" style="font-size:9px">${d.broadcast_slot}</span></div>
+    <div style="margin-top:10px;padding:8px;background:rgba(80,96,112,0.1);border-radius:3px;border:1px solid var(--border);font-size:11px;color:${d.note_color};line-height:1.5">${d.note}</div>
+  `;
+}
+</script>
+</body>
+</html>

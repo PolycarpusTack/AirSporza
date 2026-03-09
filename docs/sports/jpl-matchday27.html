@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JPL Matchday 27 — Data Model Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #090b10;
+  --surface: #0f1118;
+  --surface2: #161923;
+  --surface3: #1d2230;
+  --border: #1f2538;
+  --border2: #2a3249;
+  --accent: #FFD200;
+  --accent-dim: rgba(255,210,0,0.1);
+  --red: #e63946;
+  --green: #2dc78a;
+  --blue: #4f8ef7;
+  --orange: #f4813a;
+  --purple: #a78bfa;
+  --text: #c8d0e8;
+  --text-muted: #5a6480;
+  --text-dim: #2e374f;
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --display: 'Bebas Neue', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+/* TOP BANNER */
+.banner {
+  background: var(--accent);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 28px;
+}
+.banner-left { display: flex; align-items: center; gap: 14px; }
+.banner-league {
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+.banner-badge {
+  background: rgba(0,0,0,0.15);
+  padding: 3px 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  border-radius: 2px;
+}
+.banner-right {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+/* BREADCRUMB */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.bc-item { color: var(--text-muted); }
+.bc-active { color: var(--accent); }
+.bc-sep { color: var(--text-dim); }
+
+/* HIERARCHY STRIP */
+.hierarchy {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+.hier-cell {
+  padding: 14px 20px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.hier-cell:last-child { border-right: none; }
+.hier-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.hier-value {
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+}
+.hier-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* MAIN LAYOUT */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  min-height: calc(100vh - 130px);
+}
+
+/* FIXTURES LIST */
+.fixtures-col {
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.fixtures-day {
+  border-bottom: 1px solid var(--border);
+}
+.day-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.day-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.day-date {
+  font-family: var(--display);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+/* FIXTURE ROW */
+.fixture-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 80px 1fr 60px;
+  align-items: center;
+  gap: 0;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+}
+.fixture-row:hover { background: var(--surface2); }
+.fixture-row.active {
+  background: var(--accent-dim);
+  border-left: 3px solid var(--accent);
+}
+.fixture-row.active .fx-kickoff { color: var(--accent); }
+.fx-kickoff {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+}
+.fx-kickoff .utc { font-size: 9px; color: var(--text-dim); }
+.fx-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fx-team.away { justify-content: flex-end; flex-direction: row-reverse; }
+.fx-badge {
+  width: 30px; height: 30px;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.fx-name {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.fx-abbr {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.fx-score {
+  text-align: center;
+}
+.fx-score-main {
+  font-family: var(--display);
+  font-size: 24px;
+  letter-spacing: 0.1em;
+  line-height: 1;
+}
+.fx-score-ht {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.fx-status-dot {
+  position: absolute;
+  right: 14px; top: 50%;
+  transform: translateY(-50%);
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+
+/* DETAIL PANEL */
+.detail-col {
+  background: var(--surface);
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+  height: calc(100vh - 130px);
+}
+.detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  gap: 10px;
+}
+.detail-empty-icon { font-size: 36px; }
+.detail-empty-text { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.detail-inner { display: none; }
+.detail-inner.visible { display: block; animation: slideIn 0.2s ease; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+
+/* DETAIL HEADER */
+.detail-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  position: relative;
+  overflow: hidden;
+}
+.detail-header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.detail-match {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.dm-team {
+  text-align: center;
+  min-width: 90px;
+}
+.dm-badge {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 4px;
+}
+.dm-name {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+}
+.dm-score {
+  font-family: var(--display);
+  font-size: 44px;
+  letter-spacing: 0.15em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dm-sep { color: var(--text-dim); font-size: 32px; }
+.dm-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.dm-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* DETAIL SECTIONS */
+.detail-sections { padding: 0; }
+.ds-section {
+  border-bottom: 1px solid var(--border);
+}
+.ds-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface2);
+}
+.ds-header:hover { background: var(--surface3); }
+.ds-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  flex: 1;
+}
+.ds-arrow { color: var(--text-dim); font-size: 10px; transition: transform 0.15s; }
+.ds-section.collapsed .ds-arrow { transform: rotate(-90deg); }
+.ds-section.collapsed .ds-body { display: none; }
+.ds-body { padding: 12px 16px; }
+
+/* ENTITY DISPLAY */
+.entity-block {
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.entity-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border);
+}
+.eb-entity {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  font-weight: 500;
+}
+.eb-id {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+.field-list { padding: 6px 0; }
+.field-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.field-item:hover { background: rgba(255,255,255,0.02); }
+.fi-key { color: #7ec8e3; min-width: 160px; flex-shrink: 0; }
+.fi-val { color: #a8d8a0; word-break: break-all; }
+.fi-val.num { color: #f4a261; }
+.fi-val.null { color: var(--text-dim); font-style: italic; }
+.fi-val.bool { color: #c084fc; }
+.fi-val.id { color: #94a3b8; font-size: 10px; }
+.fi-val.status { }
+.fi-val.warning { color: #fbbf24; }
+.fi-note {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* JSON BLOCK */
+.json-block {
+  background: #0a0d14;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+  overflow-x: auto;
+  white-space: pre;
+  margin-bottom: 10px;
+}
+.jk { color: #7ec8e3; }
+.js { color: #a8d8a0; }
+.jn { color: #f4a261; }
+.jb { color: #c084fc; }
+.jnull { color: var(--text-dim); }
+
+/* BROADCAST TIMELINE */
+.bcast-timeline {
+  margin: 8px 0;
+  border-radius: 4px;
+  overflow: hidden;
+  height: 32px;
+  display: flex;
+}
+.bt-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.bt-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: 4px;
+  padding: 0 2px;
+}
+
+/* STATUS badge colors */
+.s-completed { color: var(--green); border-color: rgba(45,199,138,0.35); background: rgba(45,199,138,0.08); }
+.s-live { color: var(--orange); border-color: rgba(244,129,58,0.5); background: rgba(244,129,58,0.1); }
+.s-scheduled { color: var(--blue); border-color: rgba(79,142,247,0.35); background: rgba(79,142,247,0.08); }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .detail-col { height: auto; position: static; }
+}
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <div class="banner-left">
+    <span style="font-size:22px">🇧🇪</span>
+    <span class="banner-league">Jupiler Pro League</span>
+    <span class="banner-badge">2025–26 · Regular Season</span>
+  </div>
+  <span class="banner-right">DATA MODEL EXPLORER · MATCHDAY 27</span>
+</div>
+
+<div class="breadcrumb">
+  <span class="bc-item">Competition: JPL</span>
+  <span class="bc-sep">›</span>
+  <span class="bc-item">Season: 2025–26</span>
+  <span class="bc-sep">›</span>
+  <span class="bc-active">Round 27 · "Speeldag 27" · 27 Feb – 1 Mar 2026</span>
+</div>
+
+<div class="hierarchy">
+  <div class="hier-cell">
+    <div class="hier-label">competition</div>
+    <div class="hier-value" style="color:var(--accent)">Jupiler Pro League</div>
+    <div class="hier-sub">comp_jpl_be · football · Belgium · UEFA</div>
+  </div>
+  <div class="hier-cell">
+    <div class="hier-label">season</div>
+    <div class="hier-value">2025 – 26</div>
+    <div class="hier-sub">ACTIVE · 30 rounds · 16 teams</div>
+  </div>
+  <div class="hier-cell">
+    <div class="hier-label">round</div>
+    <div class="hier-value">Speeldag 27</div>
+    <div class="hier-sub">REGULAR · 8 fixtures · 27 Feb–1 Mar</div>
+  </div>
+  <div class="hier-cell">
+    <div class="hier-label">venue timezone</div>
+    <div class="hier-value">Europe/Brussels</div>
+    <div class="hier-sub">CET = UTC+1 (winter) · all kickoffs stored in UTC</div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT: FIXTURES -->
+  <div class="fixtures-col">
+
+    <!-- FRIDAY -->
+    <div class="fixtures-day">
+      <div class="day-header">
+        <span class="day-date">Friday 27 Feb 2026</span>
+        <span class="day-label">· 1 fixture</span>
+      </div>
+      <div class="fixture-row" id="row-0" onclick="showDetail(0)">
+        <div class="fx-kickoff">19:45<div class="utc">18:45 UTC</div></div>
+        <div class="fx-team">
+          <div class="fx-badge" style="background:rgba(231,57,70,0.12)">🦁</div>
+          <div><div class="fx-name">Standard Liège</div><div class="fx-abbr">STD · Stade Maurice Dufrasne</div></div>
+        </div>
+        <div class="fx-score">
+          <div class="fx-score-main">1 – 1</div>
+          <div class="fx-score-ht">HT 1–1</div>
+        </div>
+        <div class="fx-team away">
+          <div class="fx-badge" style="background:rgba(255,210,0,0.1)">⚜️</div>
+          <div><div class="fx-name">RAAL La Louvière</div><div class="fx-abbr">LAL · Stade du Tivoli</div></div>
+        </div>
+        <div></div>
+        <div class="fx-status-dot" style="background:var(--green)"></div>
+      </div>
+    </div>
+
+    <!-- SATURDAY -->
+    <div class="fixtures-day">
+      <div class="day-header">
+        <span class="day-date">Saturday 28 Feb 2026</span>
+        <span class="day-label">· 3 fixtures</span>
+      </div>
+      <div class="fixture-row" id="row-1" onclick="showDetail(1)">
+        <div class="fx-kickoff">15:00<div class="utc">14:00 UTC</div></div>
+        <div class="fx-team">
+          <div class="fx-badge" style="background:rgba(255,210,0,0.12)">🟡</div>
+          <div><div class="fx-name">KV Mechelen</div><div class="fx-abbr">MEC · AFAS Stadion</div></div>
+        </div>
+        <div class="fx-score">
+          <div class="fx-score-main">2 – 1</div>
+          <div class="fx-score-ht">HT 1–0</div>
+        </div>
+        <div class="fx-team away">
+          <div class="fx-badge" style="background:rgba(30,80,150,0.15)">🔵</div>
+          <div><div class="fx-name">Zulte Waregem</div><div class="fx-abbr">WAR · Regenboogstadion</div></div>
+        </div>
+        <div></div>
+        <div class="fx-status-dot" style="background:var(--green)"></div>
+      </div>
+      <div class="fixture-row" id="row-2" onclick="showDetail(2)">
+        <div class="fx-kickoff">17:15<div class="utc">16:15 UTC</div></div>
+        <div class="fx-team">
+          <div class="fx-badge" style="background:rgba(231,57,70,0.12)">💎</div>
+          <div><div class="fx-name">Royal Antwerp</div><div class="fx-abbr">ANT · Bosuilstadion</div></div>
+        </div>
+        <div class="fx-score">
+          <div class="fx-score-main">1 – 0</div>
+          <div class="fx-score-ht">HT 0–0</div>
+        </div>
+        <div class="fx-team away">
+          <div class="fx-badge" style="background:rgba(255,255,255,0.06)">⚪</div>
+          <div><div class="fx-name">Sint-Truiden</div><div class="fx-abbr">STR · Stayen</div></div>
+        </div>
+        <div></div>
+        <div class="fx-status-dot" style="background:var(--green)"></div>
+      </div>
+      <div class="fixture-row" id="row-3" onclick="showDetail(3)">
+        <div class="fx-kickoff">19:45<div class="utc">18:45 UTC</div></div>
+        <div class="fx-team">
+          <div class="fx-badge" style="background:rgba(108,178,122,0.12)">💜</div>
+          <div><div class="fx-name">RSC Anderlecht</div><div class="fx-abbr">AND · Lotto Park</div></div>
+        </div>
+        <div class="fx-score">
+          <div class="fx-score-main" style="color:var(--accent)">5 – 1</div>
+          <div class="fx-score-ht">HT 1–1</div>
+        </div>
+        <div class="fx-team away">
+          <div class="fx-badge" style="background:rgba(0,100,200,0.12)">🔷</div>
+          <div><div class="fx-name">OH Leuven</div><div class="fx-abbr">OHL · Den Dreef</div></div>
+        </div>
+        <div></div>
+        <div class="fx-status-dot" style="background:var(--green)"></div>
+      </div>
+    </div>
+
+    <!-- SUNDAY -->
+    <div class="fixtures-day">
+      <div class="day-header">
+        <span class="day-date">Sunday 1 Mar 2026</span>
+        <span class="day-label">· 4 fixtures</span>
+      </div>
+      <div class="fixture-row" id="row-4" onclick="showDetail(4)">
+        <div class="fx-kickoff">12:30<div class="utc">11:30 UTC</div></div>
+        <div class="fx-team">
+          <div class="fx-badge" style="background:rgba(0,150,100,0.12)">💙</div>
+          <div><div class="fx-name">Racing Genk</div><div class="fx-abbr">GNK · Cegeka Arena</div></div>
+        </div>
+        <div class="fx-score">
+          <div class="fx-score-main">1 – 1</div>
+          <div class="fx-score-ht">HT ?–?</div>
+        </div>
+        <div class="fx-team away">
+          <div class="fx-badge" style="background:rgba(0,100,160,0.12)">🦬</div>
+          <div><div class="fx-name">KAA Gent</div><div class="fx-abbr">GNT · Ghelamco Arena</div></div>
+        </div>
+        <div></div>
+        <div class="fx-status-dot" style="background:var(--green)"></div>
+      </div>
+      <div class="fixture-row" id="row-5" onclick="showDetail(5)">
+        <div class="fx-kickoff">16:00<div class="utc">15:00 UTC</div></div>
+        <div class="fx-team">
+          <div class="fx-badge" style="background:rgba(255,140,0,0.1)">🟠</div>
+          <div><div class="fx-name">KVC Westerlo</div><div class="fx-abbr">WES · Het Kuipje</div></div>
+        </div>
+        <div class="fx-score">
+          <div class="fx-score-main">1 – 2</div>
+          <div class="fx-score-ht">HT ?–?</div>
+        </div>
+        <div class="fx-team away">
+          <div class="fx-badge" style="background:rgba(255,210,0,0.1)">🟡</div>
+          <div><div class="fx-name">Union SG</div><div class="fx-abbr">USG · Stade J. Marien</div></div>
+        </div>
+        <div></div>
+        <div class="fx-status-dot" style="background:var(--green)"></div>
+      </div>
+      <div class="fixture-row" id="row-6" onclick="showDetail(6)">
+        <div class="fx-kickoff">17:30<div class="utc">16:30 UTC</div></div>
+        <div class="fx-team">
+          <div class="fx-badge" style="background:rgba(0,100,0,0.15)">🟢</div>
+          <div><div class="fx-name">Sporting Charleroi</div><div class="fx-abbr">CHA · Stade du Pays</div></div>
+        </div>
+        <div class="fx-score">
+          <div class="fx-score-main">1 – 2</div>
+          <div class="fx-score-ht">HT ?–?</div>
+        </div>
+        <div class="fx-team away">
+          <div class="fx-badge" style="background:rgba(0,100,200,0.15)">🔵</div>
+          <div><div class="fx-name">Club Brugge</div><div class="fx-abbr">BRU · Jan Breydel</div></div>
+        </div>
+        <div></div>
+        <div class="fx-status-dot" style="background:var(--green)"></div>
+      </div>
+      <div class="fixture-row" id="row-7" onclick="showDetail(7)">
+        <div class="fx-kickoff">19:15<div class="utc">18:15 UTC</div></div>
+        <div class="fx-team">
+          <div class="fx-badge" style="background:rgba(0,200,100,0.1)">🟩</div>
+          <div><div class="fx-name">Cercle Brugge</div><div class="fx-abbr">CER · Jan Breydel</div></div>
+        </div>
+        <div class="fx-score">
+          <div class="fx-score-main">0 – 0</div>
+          <div class="fx-score-ht">HT 0–0</div>
+        </div>
+        <div class="fx-team away">
+          <div class="fx-badge" style="background:rgba(255,160,0,0.1)">🟧</div>
+          <div><div class="fx-name">FCV Dender</div><div class="fx-abbr">DEN · Tonneaustraat</div></div>
+        </div>
+        <div></div>
+        <div class="fx-status-dot" style="background:var(--green)"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: DETAIL PANEL -->
+  <div class="detail-col" id="detailCol">
+    <div id="detailEmpty" class="detail-empty">
+      <div class="detail-empty-icon">←</div>
+      <div class="detail-empty-text">Select a fixture to inspect its data model</div>
+    </div>
+    <div id="detailInner" class="detail-inner"></div>
+  </div>
+</div>
+
+<script>
+const FIXTURES = [
+  {
+    id: 'fix_jpl27_std_lal',
+    home: { name: 'Standard Liège', abbr: 'STD', badge: '🦁', color: '#e73946', city: 'Liège', ext: { opta: '1105', statsperform: 'p6ahywpxzyjy8oy3qjknld4r3' } },
+    away: { name: 'RAAL La Louvière', abbr: 'LAL', badge: '⚜️', color: '#f0c040', city: 'La Louvière', ext: { opta: '2561' } },
+    venue: { name: 'Stade Maurice Dufrasne', city: 'Liège', tz: 'Europe/Brussels', capacity: 27670, surface: 'GRASS' },
+    kickoff_local: '27 Feb 2026 19:45 CET',
+    kickoff_utc: '2026-02-27T18:45:00Z',
+    score: { home: 1, away: 1 }, ht: { home: 1, away: 0 },
+    status: 'COMPLETED', period: 'COMPLETED',
+    broadcast_min: 110, pre: 15, post: 10, buffer: 5,
+    broadcast_start_utc: '2026-02-27T18:30:00Z',
+    broadcast_end_utc: '2026-02-27T20:25:00Z',
+    content_item_id: 'ci_std_lal_jpl27_2026',
+    delay: 0,
+    note: 'Standard drop 2 more points in title race. La Louvière fighting relegation.'
+  },
+  {
+    id: 'fix_jpl27_mec_war',
+    home: { name: 'KV Mechelen', abbr: 'MEC', badge: '🟡', color: '#f5c800', city: 'Mechelen', ext: { opta: '1102' } },
+    away: { name: 'Zulte Waregem', abbr: 'WAR', badge: '🔵', color: '#1e50a0', city: 'Waregem', ext: { opta: '2025' } },
+    venue: { name: 'AFAS Stadion', city: 'Mechelen', tz: 'Europe/Brussels', capacity: 16672, surface: 'GRASS' },
+    kickoff_local: '28 Feb 2026 15:00 CET',
+    kickoff_utc: '2026-02-28T14:00:00Z',
+    score: { home: 2, away: 1 }, ht: { home: 1, away: 0 },
+    status: 'COMPLETED', period: 'COMPLETED',
+    broadcast_min: 115, pre: 20, post: 10, buffer: 5,
+    broadcast_start_utc: '2026-02-28T13:40:00Z',
+    broadcast_end_utc: '2026-02-28T15:55:00Z',
+    content_item_id: 'ci_mec_war_jpl27_2026',
+    delay: 0,
+    note: 'Mechelen consolidate top-6 spot. Waregem newly promoted, struggling.'
+  },
+  {
+    id: 'fix_jpl27_ant_str',
+    home: { name: 'Royal Antwerp', abbr: 'ANT', badge: '💎', color: '#c0392b', city: 'Antwerp', ext: { opta: '1096', statsperform: 'q78jplqj62w89aw9lzqbqubso' } },
+    away: { name: 'Sint-Truiden', abbr: 'STR', badge: '⚪', color: '#f0f0f0', city: 'Sint-Truiden', ext: { opta: '1097' } },
+    venue: { name: 'Bosuilstadion', city: 'Deurne, Antwerp', tz: 'Europe/Brussels', capacity: 23057, surface: 'GRASS' },
+    kickoff_local: '28 Feb 2026 17:15 CET',
+    kickoff_utc: '2026-02-28T16:15:00Z',
+    score: { home: 1, away: 0 }, ht: { home: 0, away: 0 },
+    status: 'COMPLETED', period: 'COMPLETED',
+    broadcast_min: 115, pre: 20, post: 10, buffer: 5,
+    broadcast_start_utc: '2026-02-28T15:55:00Z',
+    broadcast_end_utc: '2026-02-28T18:10:00Z',
+    content_item_id: 'ci_ant_str_jpl27_2026',
+    delay: 0,
+    note: 'Antwerp grinding out results under Oosting. STVV surprise package this season.'
+  },
+  {
+    id: 'fix_jpl27_and_ohl',
+    home: { name: 'RSC Anderlecht', abbr: 'AND', badge: '💜', color: '#6cb27a', city: 'Brussels', ext: { opta: '58', statsperform: 'aklbqwz7lgimqt1tl5pbfj7ys' } },
+    away: { name: 'OH Leuven', abbr: 'OHL', badge: '🔷', color: '#0064c8', city: 'Leuven', ext: { opta: '2217' } },
+    venue: { name: 'Lotto Park', city: 'Anderlecht, Brussels', tz: 'Europe/Brussels', capacity: 21500, surface: 'GRASS' },
+    kickoff_local: '28 Feb 2026 19:45 CET',
+    kickoff_utc: '2026-02-28T18:45:00Z',
+    score: { home: 5, away: 1 }, ht: { home: 1, away: 1 },
+    status: 'COMPLETED', period: 'COMPLETED',
+    broadcast_min: 125, pre: 25, post: 15, buffer: 10,
+    broadcast_start_utc: '2026-02-28T18:20:00Z',
+    broadcast_end_utc: '2026-02-28T21:25:00Z',
+    content_item_id: 'ci_and_ohl_jpl27_2026',
+    delay: 0,
+    note: 'Anderlecht 5-1 thriller. HT was 1-1 — massive second-half performance locks in top-6.'
+  },
+  {
+    id: 'fix_jpl27_gnk_gnt',
+    home: { name: 'Racing Genk', abbr: 'GNK', badge: '💙', color: '#009664', city: 'Genk', ext: { opta: '1184', statsperform: 'abn2oqmb4gat7hyd48yt8xptc' } },
+    away: { name: 'KAA Gent', abbr: 'GNT', badge: '🦬', color: '#0064a0', city: 'Gent', ext: { opta: '157' } },
+    venue: { name: 'Cegeka Arena', city: 'Genk', tz: 'Europe/Brussels', capacity: 23718, surface: 'GRASS' },
+    kickoff_local: '1 Mar 2026 12:30 CET',
+    kickoff_utc: '2026-03-01T11:30:00Z',
+    score: { home: 1, away: 1 }, ht: null,
+    status: 'COMPLETED', period: 'COMPLETED',
+    broadcast_min: 110, pre: 15, post: 10, buffer: 5,
+    broadcast_start_utc: '2026-03-01T11:15:00Z',
+    broadcast_end_utc: '2026-03-01T13:05:00Z',
+    content_item_id: 'ci_gnk_gnt_jpl27_2026',
+    delay: 0,
+    note: 'Top-6 battle. Genk and Gent both need points for Champions Play-offs.'
+  },
+  {
+    id: 'fix_jpl27_wes_usg',
+    home: { name: 'KVC Westerlo', abbr: 'WES', badge: '🟠', color: '#f08000', city: 'Westerlo', ext: { opta: '968' } },
+    away: { name: 'Union SG', abbr: 'USG', badge: '🟡', color: '#f5d000', city: 'Brussels', ext: { opta: '3948', statsperform: 'u4n7q3qrvbkc1v03tfxhbig2h' } },
+    venue: { name: 'Het Kuipje', city: 'Westerlo', tz: 'Europe/Brussels', capacity: 8000, surface: 'GRASS' },
+    kickoff_local: '1 Mar 2026 16:00 CET',
+    kickoff_utc: '2026-03-01T15:00:00Z',
+    score: { home: 1, away: 2 }, ht: null,
+    status: 'COMPLETED', period: 'COMPLETED',
+    broadcast_min: 110, pre: 15, post: 10, buffer: 5,
+    broadcast_start_utc: '2026-03-01T14:45:00Z',
+    broadcast_end_utc: '2026-03-01T16:35:00Z',
+    content_item_id: 'ci_wes_usg_jpl27_2026',
+    delay: 0,
+    note: 'Union bounce back. Westerlo slip out of top-8 contention.'
+  },
+  {
+    id: 'fix_jpl27_cha_bru',
+    home: { name: 'Sporting Charleroi', abbr: 'CHA', badge: '🟢', color: '#006400', city: 'Charleroi', ext: { opta: '172' } },
+    away: { name: 'Club Brugge', abbr: 'BRU', badge: '🔵', color: '#1e78c8', city: 'Bruges', ext: { opta: '2282', statsperform: 'q78jplqj62w89aw9lzqbqubso' } },
+    venue: { name: 'Stade du Pays de Charleroi', city: 'Charleroi', tz: 'Europe/Brussels', capacity: 15000, surface: 'GRASS' },
+    kickoff_local: '1 Mar 2026 17:30 CET',
+    kickoff_utc: '2026-03-01T16:30:00Z',
+    score: { home: 1, away: 2 }, ht: null,
+    status: 'COMPLETED', period: 'COMPLETED',
+    broadcast_min: 120, pre: 20, post: 15, buffer: 5,
+    broadcast_start_utc: '2026-03-01T16:10:00Z',
+    broadcast_end_utc: '2026-03-01T18:30:00Z',
+    content_item_id: null,
+    delay: 0,
+    note: 'Club Brugge extend lead at top. content_item_id null — broadcast rights TBC for this slot.'
+  },
+  {
+    id: 'fix_jpl27_cer_den',
+    home: { name: 'Cercle Brugge', abbr: 'CER', badge: '🟩', color: '#00c864', city: 'Bruges', ext: { opta: '2283' } },
+    away: { name: 'FCV Dender', abbr: 'DEN', badge: '🟧', color: '#f09000', city: 'Denderleeuw', ext: { opta: '2566' } },
+    venue: { name: 'Jan Breydel Stadium', city: 'Bruges', tz: 'Europe/Brussels', capacity: 29062, surface: 'GRASS' },
+    kickoff_local: '1 Mar 2026 19:15 CET',
+    kickoff_utc: '2026-03-01T18:15:00Z',
+    score: { home: 0, away: 0 }, ht: { home: 0, away: 0 },
+    status: 'COMPLETED', period: 'COMPLETED',
+    broadcast_min: 110, pre: 15, post: 10, buffer: 5,
+    broadcast_start_utc: '2026-03-01T18:00:00Z',
+    broadcast_end_utc: '2026-03-01T20:05:00Z',
+    content_item_id: 'ci_cer_den_jpl27_2026',
+    delay: 0,
+    note: 'Relegation six-pointer. Cercle 14th, Dender 16th. 0-0 does little for either.'
+  }
+];
+
+let activeRow = null;
+
+function showDetail(idx) {
+  const f = FIXTURES[idx];
+  
+  // Update row highlight
+  document.querySelectorAll('.fixture-row').forEach((r,i) => {
+    r.classList.toggle('active', i === idx);
+  });
+  activeRow = idx;
+
+  const htScore = f.ht ? `${f.ht.home}–${f.ht.away}` : 'N/A';
+  const htLine = f.ht ? `"half_time": { "home": ${f.ht.home}, "away": ${f.ht.away} },` : '"half_time": null,';
+  const contentLine = f.content_item_id
+    ? `<span class="jk">"content_item_id"</span>: <span class="js">"${f.content_item_id}"</span>,`
+    : `<span class="jk">"content_item_id"</span>: <span class="jnull">null</span>, <span style="color:#fbbf24;font-size:10px">// ⚠ unbound — publish blocked</span>`;
+  
+  const bcastEnd = f.score.home + f.score.away > 3 ? 'Overrun buffer partially consumed' : 'Within scheduled window';
+  const bufPct = Math.round((f.broadcast_min - f.pre - 105 - f.post) / f.broadcast_min * 100);
+  const prePct = Math.round(f.pre / f.broadcast_min * 100);
+  const matchPct = Math.round(105 / f.broadcast_min * 100);
+  const postPct = Math.round(f.post / f.broadcast_min * 100);
+  const bufferPct = 100 - prePct - matchPct - postPct;
+
+  document.getElementById('detailEmpty').style.display = 'none';
+  const di = document.getElementById('detailInner');
+  di.className = 'detail-inner visible';
+  di.innerHTML = `
+    <div class="detail-header" style="border-top:3px solid ${f.home.color}">
+      <div class="detail-match">
+        <div class="dm-team">
+          <span class="dm-badge">${f.home.badge}</span>
+          <div class="dm-name">${f.home.name}</div>
+        </div>
+        <div class="dm-score">
+          <span style="color:${f.score.home > f.score.away ? 'white' : 'var(--text-muted)'}">${f.score.home}</span>
+          <span class="dm-sep">–</span>
+          <span style="color:${f.score.away > f.score.home ? 'white' : 'var(--text-muted)'}">${f.score.away}</span>
+        </div>
+        <div class="dm-team">
+          <span class="dm-badge">${f.away.badge}</span>
+          <div class="dm-name">${f.away.name}</div>
+        </div>
+      </div>
+      <div class="dm-meta">
+        <span class="dm-status-pill s-completed">✓ COMPLETED</span>
+        <span>${f.kickoff_local}</span>
+        <span>HT ${htScore}</span>
+      </div>
+      <div style="margin-top:10px; font-family:var(--mono); font-size:10px; color:var(--text-muted); text-align:center; padding: 0 8px; line-height:1.4;">${f.note}</div>
+    </div>
+
+    <div class="detail-sections">
+
+      <!-- FIXTURE ENTITY -->
+      <div class="ds-section" id="sec-fixture">
+        <div class="ds-header" onclick="toggleSec('sec-fixture')">
+          <span class="ds-title">fixture entity</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--text-dim)">${f.id}</span>
+          <span class="ds-arrow">▾</span>
+        </div>
+        <div class="ds-body">
+          <div class="entity-block">
+            <div class="entity-block-header">
+              <span class="eb-entity">fixture</span>
+              <span class="eb-id">${f.id}</span>
+            </div>
+            <div class="field-list">
+              <div class="field-item"><span class="fi-key">round_id</span><span class="fi-val id">round_jpl27_2025_26</span></div>
+              <div class="field-item"><span class="fi-key">home_team_id</span><span class="fi-val id">team_${f.home.abbr.toLowerCase()}_be</span><span class="fi-note">FK→team</span></div>
+              <div class="field-item"><span class="fi-key">away_team_id</span><span class="fi-val id">team_${f.away.abbr.toLowerCase()}_be</span><span class="fi-note">FK→team</span></div>
+              <div class="field-item"><span class="fi-key">venue_id</span><span class="fi-val id">venue_${f.venue.name.toLowerCase().replace(/[^a-z]/g,'_').replace(/_+/g,'_')}</span><span class="fi-note">FK→venue</span></div>
+              <div class="field-item"><span class="fi-key">status</span><span class="fi-val" style="color:var(--green)">COMPLETED</span></div>
+              <div class="field-item"><span class="fi-key">scheduled_kickoff_utc</span><span class="fi-val">${f.kickoff_utc}</span><span class="fi-note">canonical</span></div>
+              <div class="field-item"><span class="fi-key">venue_timezone</span><span class="fi-val">${f.venue.tz}</span><span class="fi-note">snapshotted</span></div>
+              <div class="field-item"><span class="fi-key">kickoff_delay_minutes</span><span class="fi-val num">0</span></div>
+              <div class="field-item"><span class="fi-key">estimated_end_utc</span><span class="fi-val">${f.broadcast_end_utc}</span></div>
+              <div class="field-item"><span class="fi-key">content_item_id</span><span class="fi-val ${f.content_item_id ? '' : 'warning'}">${f.content_item_id || '⚠ NULL — publish blocked'}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIMING -->
+      <div class="ds-section" id="sec-timing">
+        <div class="ds-header" onclick="toggleSec('sec-timing')">
+          <span class="ds-title">timing & timezone</span>
+          <span class="ds-arrow">▾</span>
+        </div>
+        <div class="ds-body">
+          <div class="entity-block">
+            <div class="entity-block-header"><span class="eb-entity">time model</span></div>
+            <div class="field-list">
+              <div class="field-item"><span class="fi-key">scheduled_kickoff_utc</span><span class="fi-val">${f.kickoff_utc}</span></div>
+              <div class="field-item"><span class="fi-key">local (CET = UTC+1)</span><span class="fi-val">${f.kickoff_local}</span></div>
+              <div class="field-item"><span class="fi-key">venue_timezone</span><span class="fi-val">Europe/Brussels</span></div>
+              <div class="field-item"><span class="fi-key">dst_disambiguation</span><span class="fi-val null">null — unambiguous in Feb</span></div>
+              <div class="field-item"><span class="fi-key">actual_kickoff_utc</span><span class="fi-val">${f.kickoff_utc}</span><span class="fi-note">from as-run</span></div>
+              <div class="field-item"><span class="fi-key">actual_broadcast_start_utc</span><span class="fi-val">${f.broadcast_start_utc}</span></div>
+              <div class="field-item"><span class="fi-key">actual_broadcast_end_utc</span><span class="fi-val">${f.broadcast_end_utc}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BROADCAST -->
+      <div class="ds-section" id="sec-broadcast">
+        <div class="ds-header" onclick="toggleSec('sec-broadcast')">
+          <span class="ds-title">broadcast duration model</span>
+          <span class="ds-arrow">▾</span>
+        </div>
+        <div class="ds-body">
+          <div class="entity-block">
+            <div class="entity-block-header"><span class="eb-entity">broadcast fields</span></div>
+            <div class="field-list">
+              <div class="field-item"><span class="fi-key">scheduled_broadcast_min</span><span class="fi-val num">${f.broadcast_min}</span><span class="fi-note">total block</span></div>
+              <div class="field-item"><span class="fi-key">pre_show_minutes</span><span class="fi-val num">${f.pre}</span></div>
+              <div class="field-item"><span class="fi-key">post_show_minutes</span><span class="fi-val num">${f.post}</span></div>
+              <div class="field-item"><span class="fi-key">overrun_buffer_minutes</span><span class="fi-val num">${f.buffer}</span></div>
+            </div>
+          </div>
+          <div class="bcast-timeline">
+            <div class="bt-seg" style="flex:${prePct};background:rgba(79,142,247,0.4);color:#93c5fd">PRE</div>
+            <div class="bt-seg" style="flex:${matchPct};background:rgba(240,130,26,0.5);color:#fdba74">MATCH 90+15</div>
+            <div class="bt-seg" style="flex:${bufferPct > 0 ? bufferPct : 0};background:rgba(45,199,138,0.3);color:#86efac;font-size:9px">${f.buffer}m</div>
+            <div class="bt-seg" style="flex:${postPct};background:rgba(167,139,250,0.3);color:#c4b5fd">POST</div>
+          </div>
+          <div class="bt-labels">
+            <span>${f.broadcast_start_utc.slice(11,16)} UTC</span>
+            <span>← ${f.broadcast_min} min total block →</span>
+            <span>${f.broadcast_end_utc.slice(11,16)} UTC</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCORES JSONB -->
+      <div class="ds-section" id="sec-scores">
+        <div class="ds-header" onclick="toggleSec('sec-scores')">
+          <span class="ds-title">scores jsonb</span>
+          <span class="ds-arrow">▾</span>
+        </div>
+        <div class="ds-body">
+          <div class="json-block"><span class="jk">"scores"</span>: {
+  <span class="jk">"home"</span>:       <span class="jn">${f.score.home}</span>,
+  <span class="jk">"away"</span>:       <span class="jn">${f.score.away}</span>,
+  ${htLine}
+  <span class="jk">"extra_time"</span>: <span class="jnull">null</span>,
+  <span class="jk">"penalties"</span>:  <span class="jnull">null</span>,
+  <span class="jk">"period"</span>:     <span class="js">"COMPLETED"</span>,
+  <span class="jk">"clock_min"</span>:  <span class="jn">90</span>,
+  <span class="jk">"added_min"</span>:  <span class="jn">5</span>
+}</div>
+        </div>
+      </div>
+
+      <!-- VENUE & TEAMS -->
+      <div class="ds-section" id="sec-venue" class="collapsed">
+        <div class="ds-header" onclick="toggleSec('sec-venue')">
+          <span class="ds-title">venue entity</span>
+          <span class="ds-arrow">▾</span>
+        </div>
+        <div class="ds-body">
+          <div class="entity-block">
+            <div class="entity-block-header"><span class="eb-entity">venue</span><span class="eb-id">${f.venue.name}</span></div>
+            <div class="field-list">
+              <div class="field-item"><span class="fi-key">name</span><span class="fi-val">"${f.venue.name}"</span></div>
+              <div class="field-item"><span class="fi-key">city</span><span class="fi-val">"${f.venue.city}"</span></div>
+              <div class="field-item"><span class="fi-key">country</span><span class="fi-val">"BE"</span></div>
+              <div class="field-item"><span class="fi-key">timezone</span><span class="fi-val" style="color:var(--accent)">"${f.venue.tz}"</span><span class="fi-note">authoritative tz</span></div>
+              <div class="field-item"><span class="fi-key">capacity</span><span class="fi-val num">${f.venue.capacity.toLocaleString()}</span></div>
+              <div class="field-item"><span class="fi-key">surface</span><span class="fi-val">"${f.venue.surface}"</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TEAMS -->
+      <div class="ds-section" id="sec-teams">
+        <div class="ds-header" onclick="toggleSec('sec-teams')">
+          <span class="ds-title">team entities</span>
+          <span class="ds-arrow">▾</span>
+        </div>
+        <div class="ds-body">
+          <div class="entity-block" style="margin-bottom:8px">
+            <div class="entity-block-header"><span class="eb-entity">team (home)</span><span class="eb-id">${f.home.abbr}</span></div>
+            <div class="field-list">
+              <div class="field-item"><span class="fi-key">name</span><span class="fi-val">"${f.home.name}"</span></div>
+              <div class="field-item"><span class="fi-key">abbreviation</span><span class="fi-val">"${f.home.abbr}"</span></div>
+              <div class="field-item"><span class="fi-key">city</span><span class="fi-val">"${f.home.city}"</span></div>
+              <div class="field-item"><span class="fi-key">primary_color</span><span class="fi-val">"${f.home.color}" <span style="display:inline-block;width:10px;height:10px;background:${f.home.color};border-radius:2px;vertical-align:middle"></span></span></div>
+              <div class="field-item"><span class="fi-key">external_refs</span><span class="fi-val id">${JSON.stringify(f.home.ext)}</span></div>
+            </div>
+          </div>
+          <div class="entity-block">
+            <div class="entity-block-header"><span class="eb-entity">team (away)</span><span class="eb-id">${f.away.abbr}</span></div>
+            <div class="field-list">
+              <div class="field-item"><span class="fi-key">name</span><span class="fi-val">"${f.away.name}"</span></div>
+              <div class="field-item"><span class="fi-key">abbreviation</span><span class="fi-val">"${f.away.abbr}"</span></div>
+              <div class="field-item"><span class="fi-key">city</span><span class="fi-val">"${f.away.city}"</span></div>
+              <div class="field-item"><span class="fi-key">primary_color</span><span class="fi-val">"${f.away.color}" <span style="display:inline-block;width:10px;height:10px;background:${f.away.color};border-radius:2px;vertical-align:middle"></span></span></div>
+              <div class="field-item"><span class="fi-key">external_refs</span><span class="fi-val id">${JSON.stringify(f.away.ext)}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HIERARCHY CHAIN -->
+      <div class="ds-section" id="sec-hier">
+        <div class="ds-header" onclick="toggleSec('sec-hier')">
+          <span class="ds-title">full hierarchy chain</span>
+          <span class="ds-arrow">▾</span>
+        </div>
+        <div class="ds-body">
+          <div class="json-block"><span class="jk">"competition"</span>: {
+  <span class="jk">"id"</span>:           <span class="js">"comp_jpl_be"</span>,
+  <span class="jk">"name"</span>:         <span class="js">"Jupiler Pro League"</span>,
+  <span class="jk">"short_code"</span>:   <span class="js">"JPL"</span>,
+  <span class="jk">"country"</span>:      <span class="js">"BE"</span>,
+  <span class="jk">"confederation"</span>: <span class="js">"UEFA"</span>,
+  <span class="jk">"level"</span>:         <span class="jn">1</span>
+},
+<span class="jk">"season"</span>: {
+  <span class="jk">"name"</span>:            <span class="js">"2025–26"</span>,
+  <span class="jk">"number_of_rounds"</span>: <span class="jn">30</span>,
+  <span class="jk">"status"</span>:          <span class="js">"ACTIVE"</span>
+},
+<span class="jk">"round"</span>: {
+  <span class="jk">"round_number"</span>:   <span class="jn">27</span>,
+  <span class="jk">"label"</span>:          <span class="js">"Speeldag 27"</span>,
+  <span class="jk">"round_type"</span>:    <span class="js">"REGULAR"</span>,
+  <span class="jk">"window_start"</span>:  <span class="js">"2026-02-27"</span>,
+  <span class="jk">"window_end"</span>:    <span class="js">"2026-03-01"</span>,
+  <span class="jk">"fixture_count"</span>: <span class="jn">8</span>
+},
+<span class="jk">"fixture_id"</span>: <span class="js">"${f.id}"</span></div>
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+function toggleSec(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+</script>
+</body>
+</html>
