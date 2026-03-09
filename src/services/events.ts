@@ -85,7 +85,7 @@ export const eventsApi = {
 
   bulkAssign: (
     ids: number[],
-    field: 'linearChannel' | 'sportId' | 'competitionId',
+    field: 'channelId' | 'linearChannel' | 'sportId' | 'competitionId',
     value: string | number
   ): Promise<{ updated: number }> =>
     api.patch<{ updated: number }>('/events/bulk/assign', { ids, field, value }),

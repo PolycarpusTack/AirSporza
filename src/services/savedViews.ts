@@ -1,7 +1,7 @@
 import { api } from '../utils/api'
 
 export interface PlannerFilterState {
-  channelFilter?: string
+  channelFilter?: number | string  // number (channelId) or legacy string name
   calendarMode?: 'calendar' | 'list'
   sportFilter?: number
   competitionFilter?: number

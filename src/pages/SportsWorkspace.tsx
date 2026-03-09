@@ -56,7 +56,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [templateName, setTemplateName] = useState('')
   const [templateShared, setTemplateShared] = useState(false)
   const toast = useToast()
-  const { orgConfig, handleSaveEvent } = useApp()
+  const { handleSaveEvent } = useApp()
 
   const { on } = useSocket()
 
@@ -234,7 +234,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     }
   }, [setTechPlans, toast])
 
-  const handleUpdateChannels = useCallback(async (eventId: number, channels: { linearChannel?: string; linearStartTime?: string; onDemandChannel?: string; radioChannel?: string }) => {
+  const handleUpdateChannels = useCallback(async (eventId: number, channels: { channelId?: number | null; radioChannelId?: number | null; onDemandChannelId?: number | null; linearStartTime?: string }) => {
     const event = events.find(e => e.id === eventId)
     if (!event) return
     try {
@@ -391,7 +391,6 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                     event={selEvent}
                     sport={sports.find(s => s.id === selEvent.sportId)}
                     competition={competitions.find(c => c.id === selEvent.competitionId)}
-                    orgConfig={orgConfig}
                     canEdit={canEdit}
                     onUpdateChannels={handleUpdateChannels}
                   />

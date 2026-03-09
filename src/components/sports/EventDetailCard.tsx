@@ -1,35 +1,41 @@
 import { useState } from 'react'
 import { Tv, Radio, MonitorPlay, Clock } from 'lucide-react'
 import { Badge, Btn } from '../ui'
-import type { Event, Sport, Competition, OrgConfig } from '../../data/types'
+import { ChannelSelect, useChannelLookup } from '../ui/ChannelSelect'
+import type { Event, Sport, Competition } from '../../data/types'
 import { fmtDate } from '../../utils'
 
 interface ChannelUpdate {
-  linearChannel?: string
+  channelId?: number | null
+  radioChannelId?: number | null
+  onDemandChannelId?: number | null
   linearStartTime?: string
-  onDemandChannel?: string
-  radioChannel?: string
 }
 
 interface EventDetailCardProps {
   event: Event
   sport?: Sport
   competition?: Competition
-  orgConfig?: OrgConfig
   canEdit?: boolean
   onUpdateChannels?: (eventId: number, channels: ChannelUpdate) => void
 }
 
-export function EventDetailCard({ event, sport, competition, orgConfig, canEdit, onUpdateChannels }: EventDetailCardProps) {
+export function EventDetailCard({ event, sport, competition, canEdit, onUpdateChannels }: EventDetailCardProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [form, setForm] = useState<ChannelUpdate>({
-    linearChannel: event.linearChannel ?? '',
+    channelId: event.channelId ?? null,
+    radioChannelId: event.radioChannelId ?? null,
+    onDemandChannelId: event.onDemandChannelId ?? null,
     linearStartTime: event.linearStartTime ?? '',
-    onDemandChannel: event.onDemandChannel ?? '',
-    radioChannel: event.radioChannel ?? '',
   })
 
-  const hasChannels = event.linearChannel || event.onDemandChannel || event.radioChannel
+  const { getChannel } = useChannelLookup()
+
+  const linearCh = event.channel ?? getChannel(event.channelId)
+  const radioCh = getChannel(event.radioChannelId)
+  const onDemandCh = getChannel(event.onDemandChannelId)
+
+  const hasChannels = linearCh || radioCh || onDemandCh
 
   const handleSave = () => {
     onUpdateChannels?.(event.id, form)
@@ -38,12 +44,30 @@ export function EventDetailCard({ event, sport, competition, orgConfig, canEdit,
 
   const handleOpen = () => {
     setForm({
-      linearChannel: event.linearChannel ?? '',
+      channelId: event.channelId ?? null,
+      radioChannelId: event.radioChannelId ?? null,
+      onDemandChannelId: event.onDemandChannelId ?? null,
       linearStartTime: event.linearStartTime ?? '',
-      onDemandChannel: event.onDemandChannel ?? '',
-      radioChannel: event.radioChannel ?? '',
     })
     setShowPicker(true)
+  }
+
+  const channelPill = (icon: React.ReactNode, name: string | undefined, color?: string) => {
+    if (name) {
+      return (
+        <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-1">
+          {color && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />}
+          {icon}
+          <span className="text-xs font-medium">{name}</span>
+        </div>
+      )
+    }
+    return (
+      <div className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-1">
+        {icon}
+        <span className="text-xs text-text-3">Not assigned</span>
+      </div>
+    )
   }
 
   return (
@@ -65,8 +89,8 @@ export function EventDetailCard({ event, sport, competition, orgConfig, canEdit,
       <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
         <div><div className="text-xs uppercase tracking-wide text-text-2">Date (BE)</div><div className="text-sm font-medium">{fmtDate(event.startDateBE)}</div></div>
         <div><div className="text-xs uppercase tracking-wide text-text-2">Time (BE)</div><div className="font-mono text-sm font-semibold">{event.startTimeBE}</div></div>
-        <div><div className="text-xs uppercase tracking-wide text-text-2">Channel</div><div className="text-sm font-medium">{event.linearChannel || '—'}</div></div>
-        <div><div className="text-xs uppercase tracking-wide text-text-2">Radio</div><div className="text-sm font-medium">{event.radioChannel || '—'}</div></div>
+        <div><div className="text-xs uppercase tracking-wide text-text-2">Channel</div><div className="text-sm font-medium">{linearCh?.name || '—'}</div></div>
+        <div><div className="text-xs uppercase tracking-wide text-text-2">Radio</div><div className="text-sm font-medium">{radioCh?.name || '—'}</div></div>
       </div>
 
       {/* Channel assignment section */}
@@ -80,63 +104,32 @@ export function EventDetailCard({ event, sport, competition, orgConfig, canEdit,
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          {event.linearChannel ? (
-            <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-1">
-              <Tv className="w-3 h-3 text-text-2" />
-              <span className="text-xs font-medium">{event.linearChannel}</span>
-              {event.linearStartTime && (
-                <span className="text-xs text-text-3 font-mono ml-1">{event.linearStartTime}</span>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-1">
-              <Tv className="w-3 h-3 text-text-3" />
-              <span className="text-xs text-text-3">No linear channel</span>
+          {channelPill(<Tv className="w-3 h-3 text-text-2" />, linearCh?.name, linearCh?.color)}
+          {event.linearStartTime && linearCh && (
+            <div className="flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-1">
+              <Clock className="w-3 h-3 text-text-3" />
+              <span className="text-xs text-text-3 font-mono">{event.linearStartTime}</span>
             </div>
           )}
-          {event.onDemandChannel ? (
-            <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-1">
-              <MonitorPlay className="w-3 h-3 text-text-2" />
-              <span className="text-xs font-medium">{event.onDemandChannel}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-1">
-              <MonitorPlay className="w-3 h-3 text-text-3" />
-              <span className="text-xs text-text-3">No on-demand</span>
-            </div>
-          )}
-          {event.radioChannel ? (
-            <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-1">
-              <Radio className="w-3 h-3 text-text-2" />
-              <span className="text-xs font-medium">{event.radioChannel}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-1">
-              <Radio className="w-3 h-3 text-text-3" />
-              <span className="text-xs text-text-3">No radio</span>
-            </div>
-          )}
+          {channelPill(<MonitorPlay className="w-3 h-3 text-text-2" />, onDemandCh?.name, onDemandCh?.color)}
+          {channelPill(<Radio className="w-3 h-3 text-text-2" />, radioCh?.name, radioCh?.color)}
         </div>
       </div>
 
       {/* Channel picker popover */}
-      {showPicker && orgConfig && (
+      {showPicker && (
         <div className="mt-3 rounded-lg border border-border bg-surface-2 p-4 animate-fade-in">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium uppercase tracking-wide text-text-2 mb-1 block">
                 <Tv className="w-3 h-3 inline mr-1" />Linear Channel
               </label>
-              <select
-                value={form.linearChannel}
-                onChange={e => setForm(f => ({ ...f, linearChannel: e.target.value }))}
-                className="inp w-full"
-              >
-                <option value="">— None —</option>
-                {orgConfig.channels.map(ch => (
-                  <option key={ch.name} value={ch.name}>{ch.name}</option>
-                ))}
-              </select>
+              <ChannelSelect
+                value={form.channelId}
+                onChange={(id) => setForm(f => ({ ...f, channelId: id }))}
+                type="linear"
+                placeholder="— None —"
+              />
             </div>
             <div>
               <label className="text-xs font-medium uppercase tracking-wide text-text-2 mb-1 block">
@@ -153,31 +146,23 @@ export function EventDetailCard({ event, sport, competition, orgConfig, canEdit,
               <label className="text-xs font-medium uppercase tracking-wide text-text-2 mb-1 block">
                 <MonitorPlay className="w-3 h-3 inline mr-1" />On-demand Platform
               </label>
-              <select
-                value={form.onDemandChannel}
-                onChange={e => setForm(f => ({ ...f, onDemandChannel: e.target.value }))}
-                className="inp w-full"
-              >
-                <option value="">— None —</option>
-                {orgConfig.onDemandChannels.map(ch => (
-                  <option key={ch.name} value={ch.name}>{ch.name}</option>
-                ))}
-              </select>
+              <ChannelSelect
+                value={form.onDemandChannelId}
+                onChange={(id) => setForm(f => ({ ...f, onDemandChannelId: id }))}
+                type="on-demand"
+                placeholder="— None —"
+              />
             </div>
             <div>
               <label className="text-xs font-medium uppercase tracking-wide text-text-2 mb-1 block">
                 <Radio className="w-3 h-3 inline mr-1" />Radio Channel
               </label>
-              <select
-                value={form.radioChannel}
-                onChange={e => setForm(f => ({ ...f, radioChannel: e.target.value }))}
-                className="inp w-full"
-              >
-                <option value="">— None —</option>
-                {orgConfig.radioChannels.map(ch => (
-                  <option key={ch} value={ch}>{ch}</option>
-                ))}
-              </select>
+              <ChannelSelect
+                value={form.radioChannelId}
+                onChange={(id) => setForm(f => ({ ...f, radioChannelId: id }))}
+                type="radio"
+                placeholder="— None —"
+              />
             </div>
           </div>
           <div className="flex gap-2 mt-3">

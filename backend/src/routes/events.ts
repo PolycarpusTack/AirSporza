@@ -60,7 +60,7 @@ const bulkRescheduleSchema = Joi.object({
 
 const bulkAssignSchema = Joi.object({
   ids: bulkIdsSchema,
-  field: Joi.string().valid('linearChannel', 'sportId', 'competitionId').required(),
+  field: Joi.string().valid('linearChannel', 'channelId', 'sportId', 'competitionId').required(),
   value: Joi.alternatives().try(Joi.string().allow(''), Joi.number()).required(),
 })
 
@@ -78,10 +78,14 @@ const eventSchema = Joi.object({
   complex: Joi.string().allow(''),
   livestreamDate: Joi.string().isoDate().allow(''),
   livestreamTime: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(''),
+  channelId: Joi.number().integer().min(1).allow(null),
+  radioChannelId: Joi.number().integer().min(1).allow(null),
+  onDemandChannelId: Joi.number().integer().min(1).allow(null),
   linearChannel: Joi.string().allow(''),
   radioChannel: Joi.string().allow(''),
   onDemandChannel: Joi.string().allow(''),
   linearStartTime: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(''),
+  durationMin: Joi.number().integer().min(1).allow(null),
   isLive: Joi.boolean(),
   isDelayedLive: Joi.boolean(),
   videoRef: Joi.string().allow(''),
@@ -98,13 +102,23 @@ const eventSchema = Joi.object({
 
 router.get('/', async (req, res, next) => {
   try {
-    const { sportId, competitionId, channel, from, to, search } = req.query
-    
+    const { sportId, competitionId, channel, channelId: chId, from, to, search } = req.query
+
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (sportId) where.sportId = Number(sportId)
     if (competitionId) where.competitionId = Number(competitionId)
-    if (channel) where.linearChannel = channel
+    if (chId) {
+      where.channelId = Number(chId)
+    } else if (channel) {
+      // Support both channelId (int) and channel name (string) for backwards compat
+      const parsed = Number(channel)
+      if (!isNaN(parsed) && parsed > 0) {
+        where.channelId = parsed
+      } else {
+        where.linearChannel = channel
+      }
+    }
     
     if (from || to) {
       where.startDateBE = {}
@@ -124,6 +138,7 @@ router.get('/', async (req, res, next) => {
       include: {
         sport: true,
         competition: true,
+        channel: { select: { id: true, name: true, color: true, types: true } },
       },
       orderBy: [
         { startDateBE: 'asc' },
@@ -371,6 +386,7 @@ router.get('/:id', async (req, res, next) => {
       include: {
         sport: true,
         competition: true,
+        channel: { select: { id: true, name: true, color: true, types: true } },
         techPlans: {
           include: {
             createdBy: { select: { id: true, name: true, email: true } }
@@ -422,6 +438,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
         include: {
           sport: true,
           competition: true,
+          channel: { select: { id: true, name: true, color: true, types: true } },
         }
       })
 
@@ -496,7 +513,7 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
             livestreamDate: eventData.livestreamDate ? new Date(eventData.livestreamDate) : null,
             createdById: user.id,
           },
-          include: { sport: true, competition: true },
+          include: { sport: true, competition: true, channel: { select: { id: true, name: true, color: true, types: true } } },
         })
 
         const cvList = customValues as { fieldId: string; fieldValue: string }[]

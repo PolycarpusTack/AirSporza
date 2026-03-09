@@ -61,16 +61,20 @@ export interface Event {
   complex?: string
   livestreamDate?: Date | string
   livestreamTime?: string
-  linearChannel?: string
-  radioChannel?: string
-  onDemandChannel?: string
+  channelId?: number | null
+  radioChannelId?: number | null
+  onDemandChannelId?: number | null
+  linearChannel?: string    // @deprecated — use channelId
+  radioChannel?: string     // @deprecated — use radioChannelId
+  onDemandChannel?: string  // @deprecated — use onDemandChannelId
   linearStartTime?: string
+  durationMin?: number | null
   isLive: boolean
   isDelayedLive: boolean
   videoRef?: string
   winner?: string
   score?: string
-  duration?: string
+  duration?: string         // @deprecated — use durationMin
   status?: EventStatus
   seriesId?: string
   customFields: Record<string, unknown>
@@ -79,6 +83,7 @@ export interface Event {
   updatedAt?: Date
   sport?: Sport
   competition?: Competition
+  channel?: { id: number; name: string; color: string; types: string[] } | null
   techPlans?: TechPlan[]
 }
 

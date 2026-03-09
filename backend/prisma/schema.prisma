@@ -212,10 +212,14 @@ model Event {
   livestreamDate    DateTime?
   livestreamTime    String?
 
-  linearChannel     String?
-  radioChannel      String?
+  channelId         Int?
+  radioChannelId    Int?
+  onDemandChannelId Int?
+  linearChannel     String?   // @deprecated — use channelId
+  radioChannel      String?   // @deprecated — use radioChannelId
   linearStartTime   String?
-  onDemandChannel   String?
+  onDemandChannel   String?   // @deprecated — use onDemandChannelId
+  durationMin       Int?
 
   isLive            Boolean   @default(false)
   isDelayedLive     Boolean   @default(false)
@@ -223,7 +227,7 @@ model Event {
   videoRef          String?
   winner            String?
   score             String?
-  duration          String?
+  duration          String?   // @deprecated — use durationMin
 
   customFields      Json      @default("{}")
   status            EventStatus @default(draft)
@@ -244,6 +248,9 @@ model Event {
   sport             Sport         @relation(fields: [sportId], references: [id])
   competition       Competition   @relation(fields: [competitionId], references: [id])
   createdBy         User?         @relation(fields: [createdById], references: [id])
+  channel           Channel?      @relation("EventLinearChannel", fields: [channelId], references: [id])
+  radioChannelRef   Channel?      @relation("EventRadioChannel", fields: [radioChannelId], references: [id])
+  onDemandChannelRef Channel?     @relation("EventOnDemandChannel", fields: [onDemandChannelId], references: [id])
   venue             Venue?        @relation(fields: [venueId], references: [id])
   season            Season?       @relation(fields: [seasonId], references: [id])
   stage             Stage?        @relation(fields: [stageId], references: [id])
@@ -255,6 +262,7 @@ model Event {
   @@index([sportId])
   @@index([competitionId])
   @@index([startDateBE])
+  @@index([channelId])
   @@index([linearChannel])
   @@index([status])
   @@index([seriesId])
@@ -1221,6 +1229,9 @@ model Channel {
   tenant                 Tenant            @relation(fields: [tenantId], references: [id])
   parent                 Channel?          @relation("ChannelTree", fields: [parentId], references: [id])
   children               Channel[]         @relation("ChannelTree")
+  eventsLinear           Event[]           @relation("EventLinearChannel")
+  eventsRadio            Event[]           @relation("EventRadioChannel")
+  eventsOnDemand         Event[]           @relation("EventOnDemandChannel")
   broadcastSlots         BroadcastSlot[]
   scheduleDrafts         ScheduleDraft[]
   scheduleVersions       ScheduleVersion[]

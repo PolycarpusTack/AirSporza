@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChannelSelect } from '../ui/ChannelSelect'
 import type { EventStatus, Sport, Competition } from '../../data/types'
 
 interface BulkActionBarProps {
@@ -6,10 +7,9 @@ interface BulkActionBarProps {
   onDelete: () => void
   onStatusChange: (status: EventStatus) => void
   onReschedule: (shiftDays: number) => void
-  onAssignChannel: (channel: string) => void
+  onAssignChannel: (channelId: number) => void
   onAssignSport: (sportId: number) => void
   onAssignCompetition: (competitionId: number) => void
-  channels: string[]
   sports: Sport[]
   competitions: Competition[]
   loading: boolean
@@ -27,12 +27,12 @@ export function BulkActionBar({
   onAssignChannel,
   onAssignSport,
   onAssignCompetition,
-  channels,
   sports,
   competitions,
   loading,
 }: BulkActionBarProps) {
   const [shiftDays, setShiftDays] = useState(1)
+  const [pendingChannelId, setPendingChannelId] = useState<number | null>(null)
 
   if (count === 0) return null
 
@@ -92,22 +92,19 @@ export function BulkActionBar({
       </div>
 
       {/* Assign channel */}
-      {channels.length > 0 && (
-        <select
-          className="inp text-sm py-1 px-2"
-          disabled={loading}
-          defaultValue=""
-          onChange={e => {
-            if (e.target.value) onAssignChannel(e.target.value)
-            e.target.value = ''
+      <div className="flex items-center gap-1">
+        <ChannelSelect
+          value={pendingChannelId}
+          onChange={(id) => {
+            setPendingChannelId(id)
+            if (id != null) onAssignChannel(id)
           }}
-        >
-          <option value="" disabled>Channel...</option>
-          {channels.map(ch => (
-            <option key={ch} value={ch}>{ch}</option>
-          ))}
-        </select>
-      )}
+          type="linear"
+          placeholder="Channel..."
+          className="text-sm py-1 px-2"
+          disabled={loading}
+        />
+      </div>
 
       {/* Assign sport */}
       <select

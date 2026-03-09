@@ -14,6 +14,7 @@ import { contractsApi } from '../services/contracts'
 import { eventsApi, type ConflictWarning } from '../services'
 import { savedViewsApi, type SavedView, type PlannerFilterState } from '../services/savedViews'
 import { useToast } from '../components/Toast'
+import { useChannelLookup } from '../components/ui/ChannelSelect'
 import { BulkActionBar } from '../components/planner/BulkActionBar'
 import { UndoBar } from '../components/planner/UndoBar'
 import { EventDetailPanel } from '../components/planner/EventDetailPanel'
@@ -179,10 +180,10 @@ function hexToChannelColor(hex: string): { border: string; bg: string; text: str
   return { border: hex, bg: `rgba(${r},${g},${b},0.1)`, text: `#${lr}${lg}${lb}` }
 }
 
-function buildColorMap(channels: { name: string; color: string }[]): Record<string, { border: string; bg: string; text: string }> {
-  const map: Record<string, { border: string; bg: string; text: string }> = {}
+function buildColorMapById(channels: { id: number; color: string }[]): Record<number, { border: string; bg: string; text: string }> {
+  const map: Record<number, { border: string; bg: string; text: string }> = {}
   for (const ch of channels) {
-    map[ch.name] = hexToChannelColor(ch.color)
+    map[ch.id] = hexToChannelColor(ch.color)
   }
   return map
 }
@@ -232,7 +233,7 @@ function DroppableDayColumn({ date, children }: { date: string; children: ReactN
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDrawCreate, onMultiDayCreate }: PlannerViewProps) {
-  const [channelFilter, setChannelFilter] = useState('all')
+  const [channelFilter, setChannelFilter] = useState<number | 'all'>('all')
   const [sportFilter, setSportFilter] = useState<number | undefined>()
   const [competitionFilter, setCompetitionFilter] = useState<number | undefined>()
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
@@ -303,7 +304,15 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
 
   const handleLoadView = (view: SavedView) => {
     const fs = view.filterState as PlannerFilterState
-    if (fs.channelFilter) setChannelFilter(fs.channelFilter)
+    if (fs.channelFilter != null) {
+      // Support legacy string-based filters — match by name to ID
+      if (typeof fs.channelFilter === 'string') {
+        const ch = apiChannels.find(c => c.name === fs.channelFilter)
+        setChannelFilter(ch ? ch.id : 'all')
+      } else {
+        setChannelFilter(fs.channelFilter)
+      }
+    }
     if (fs.calendarMode === 'calendar') setCalendarMode(true)
     if (fs.calendarMode === 'list') setCalendarMode(false)
     setSportFilter(fs.sportFilter)
@@ -322,9 +331,10 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     }
   }
 
-  const channelColorMap = useMemo(() => buildColorMap(orgConfig.channels), [orgConfig.channels])
+  const { channels: apiChannels, getChannel } = useChannelLookup()
+  const channelColorMap = useMemo(() => buildColorMapById(apiChannels), [apiChannels])
   const getChannelColor = useCallback(
-    (channel?: string | null) => channel ? (channelColorMap[channel] ?? FALLBACK_COLOR) : FALLBACK_COLOR,
+    (channelId?: number | null) => channelId ? (channelColorMap[channelId] ?? FALLBACK_COLOR) : FALLBACK_COLOR,
     [channelColorMap]
   )
 
@@ -434,7 +444,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
 
   const filteredWeekEvents = useMemo(() => {
     let result = weekEvents
-    if (channelFilter !== 'all') result = result.filter(e => e.linearChannel === channelFilter)
+    if (channelFilter !== 'all') result = result.filter(e => e.channelId === channelFilter)
     if (sportFilter) result = result.filter(e => e.sportId === sportFilter)
     if (competitionFilter) result = result.filter(e => e.competitionId === competitionFilter)
     if (statusFilter) result = result.filter(e => (e.status ?? 'draft') === statusFilter)
@@ -442,7 +452,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
       const q = localSearch.toLowerCase()
       result = result.filter(ev =>
         ev.participants?.toLowerCase().includes(q) ||
-        ev.linearChannel?.toLowerCase().includes(q) ||
+        (ev.channel?.name ?? ev.linearChannel)?.toLowerCase().includes(q) ||
         sportsMap.get(ev.sportId)?.name?.toLowerCase().includes(q) ||
         compsMap.get(ev.competitionId)?.name?.toLowerCase().includes(q)
       )
@@ -698,19 +708,20 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     }
   }, [selectedIds, setEvents, toast, filterLockedForBulk])
 
-  const handleBulkAssignChannel = useCallback(async (channel: string) => {
+  const handleBulkAssignChannel = useCallback(async (channelId: number) => {
     const ids = Array.from(selectedIds)
     setBulkLoading(true)
     try {
-      await eventsApi.bulkAssign(ids, 'linearChannel', channel)
-      setEvents(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, linearChannel: channel } : e))
+      await eventsApi.bulkAssign(ids, 'channelId', channelId)
+      const ch = getChannel(channelId)
+      setEvents(prev => prev.map(e => selectedIds.has(e.id) ? { ...e, channelId, channel: ch ? { id: ch.id, name: ch.name, color: ch.color, types: ch.types } : e.channel } : e))
       toast.success(`Assigned channel to ${ids.length} event(s)`)
     } catch {
       toast.error('Bulk assign failed')
     } finally {
       setBulkLoading(false)
     }
-  }, [selectedIds, setEvents, toast])
+  }, [selectedIds, setEvents, toast, getChannel])
 
   const handleBulkAssignSport = useCallback(async (sportId: number) => {
     const ids = Array.from(selectedIds)
@@ -790,6 +801,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     startDateBE: e.startDateBE, startTimeBE: e.startTimeBE,
     startDateOrigin: e.startDateOrigin, startTimeOrigin: e.startTimeOrigin,
     complex: e.complex, livestreamDate: e.livestreamDate, livestreamTime: e.livestreamTime,
+    channelId: e.channelId, radioChannelId: e.radioChannelId, onDemandChannelId: e.onDemandChannelId,
     linearChannel: e.linearChannel, radioChannel: e.radioChannel, onDemandChannel: e.onDemandChannel,
     linearStartTime: e.linearStartTime, isLive: e.isLive, isDelayedLive: e.isDelayedLive,
     videoRef: e.videoRef, winner: e.winner, score: e.score, duration: e.duration,
@@ -886,9 +898,9 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
 
   // Event counts per channel (for filter chips)
   const channelCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
+    const counts: Record<number, number> = {}
     weekEvents.forEach(e => {
-      if (e.linearChannel) counts[e.linearChannel] = (counts[e.linearChannel] ?? 0) + 1
+      if (e.channelId) counts[e.channelId] = (counts[e.channelId] ?? 0) + 1
     })
     return counts
   }, [weekEvents])
@@ -1093,14 +1105,14 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                 <span className="ml-1.5 opacity-60">{weekEvents.length}</span>
               )}
             </button>
-            {orgConfig.channels.map(({ name: ch }: { name: string; color: string }) => {
-              const col = getChannelColor(ch)
-              const isActive = channelFilter === ch
-              const count = channelCounts[ch] ?? 0
+            {apiChannels.filter(ch => !ch.parentId).map(ch => {
+              const col = getChannelColor(ch.id)
+              const isActive = channelFilter === ch.id
+              const count = channelCounts[ch.id] ?? 0
               return (
                 <button
-                  key={ch}
-                  onClick={() => setChannelFilter(ch)}
+                  key={ch.id}
+                  onClick={() => setChannelFilter(ch.id)}
                   className="px-3 py-1 rounded-full text-xs font-medium border transition"
                   style={{
                     borderColor: isActive ? col.border : undefined,
@@ -1109,7 +1121,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                   }}
                 >
                   {isActive && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ background: col.border }} />}
-                  {ch}
+                  {ch.name}
                   {count > 0 && (
                     <span className="ml-1.5 opacity-60">{count}</span>
                   )}
@@ -1180,13 +1192,14 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                   </div>
                   {Object.entries(
                     dayEvs.reduce((acc: Record<string, Event[]>, e) => {
-                      const channel = e.linearChannel || 'Unassigned'
+                      const channel = e.channel?.name || e.linearChannel || 'Unassigned'
                       if (!acc[channel]) acc[channel] = []
                       acc[channel].push(e)
                       return acc
                     }, {})
                   ).map(([channel, chEvs]) => {
-                    const col = getChannelColor(channel)
+                    const firstEv = (chEvs as Event[])[0]
+                    const col = getChannelColor(firstEv?.channelId)
                     return (
                       <div key={channel} className="card overflow-hidden mb-3">
                         <div
@@ -1289,7 +1302,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
           onAssignChannel={handleBulkAssignChannel}
           onAssignSport={handleBulkAssignSport}
           onAssignCompetition={handleBulkAssignCompetition}
-          channels={orgConfig.channels.map((c: { name: string }) => c.name)}
           sports={sports}
           competitions={competitions}
           loading={bulkLoading}
@@ -1345,7 +1357,7 @@ interface CalendarGridProps {
   todayStr: string
   events: Event[]
   onEventClick?: (event: Event) => void
-  getChannelColor: (channel?: string | null) => { border: string; bg: string; text: string }
+  getChannelColor: (channelId?: number | null) => { border: string; bg: string; text: string }
   conflictMap: Record<number, ConflictWarning[]>
   selectionMode: boolean
   selectedIds: Set<number>
@@ -1603,7 +1615,7 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                 const top = eventTopPx(time)
                 const durationMin = parseDurationMin(ev.duration)
                 const height = eventHeightPx(durationMin)
-                const col = getChannelColor(ev.linearChannel)
+                const col = getChannelColor(ev.channelId)
                 const sp = sportsMap.get(ev.sportId)
                 const layout = overlapLayout.get(ev.id) ?? { col: 0, totalCols: 1 }
                 const evLock = isEventLocked(ev, freezeWindowHours, userRole)
@@ -1681,12 +1693,12 @@ function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChannelColo
                           </span>
                         )}
                       </span>
-                      {height > 50 && ev.linearChannel && (
+                      {height > 50 && (ev.channel?.name || ev.linearChannel) && (
                         <span
                           className="block text-xs font-mono uppercase tracking-wide leading-none mt-0.5"
                           style={{ color: col.text, opacity: 0.65, fontSize: '10px' }}
                         >
-                          {ev.linearChannel}
+                          {ev.channel?.name || ev.linearChannel}
                         </span>
                       )}
                       {ev.isLive && (

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Lock } from 'lucide-react'
 import { Modal, Btn } from '../ui'
-import type { FieldConfig, Event, MandatoryFieldConfig } from '../../data/types'
+import { ChannelSelect } from '../ui/ChannelSelect'
+import type { FieldConfig, Event, MandatoryFieldConfig, ChannelType } from '../../data/types'
 import { SPORTS, COMPETITIONS } from '../../data'
 import { genId } from '../../utils'
 import { api } from '../../utils/api'
@@ -11,6 +12,13 @@ import { LinkFromImport } from './LinkFromImport'
 import { useApp } from '../../context/AppProvider'
 import { conflictsApi, type ConflictResult } from '../../services/conflicts'
 import { fieldsApi } from '../../services'
+
+/** Maps dropdown option keys to Channel FK fields and type filters */
+const CHANNEL_FIELD_MAP: Record<string, { fkField: keyof Event; typeFilter?: ChannelType }> = {
+  channels:          { fkField: 'channelId',         typeFilter: 'linear' },
+  radioChannels:     { fkField: 'radioChannelId',    typeFilter: 'radio' },
+  onDemandChannels:  { fkField: 'onDemandChannelId', typeFilter: 'on-demand' },
+}
 
 type ApiFieldDef = {
   id: string
@@ -69,6 +77,15 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
         const key = field.id === 'sport' ? 'sportId' : 'competitionId'
         if (editEvent && editEvent[key as keyof Event] !== undefined) {
           f[field.id] = String(editEvent[key as keyof Event])
+        } else {
+          f[field.id] = ''
+        }
+      } else if (field.type === 'dropdown' && field.options && CHANNEL_FIELD_MAP[field.options]) {
+        // Channel FK fields: store the numeric ID as a string
+        const { fkField } = CHANNEL_FIELD_MAP[field.options]
+        const fkVal = editEvent?.[fkField]
+        if (fkVal != null) {
+          f[field.id] = String(fkVal)
         } else {
           f[field.id] = ''
         }
@@ -189,6 +206,10 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
       }
     })
 
+    const channelId = form.linearChannel ? Number(form.linearChannel) || null : null
+    const radioChannelId = form.radioChannel ? Number(form.radioChannel) || null : null
+    const onDemandChannelId = form.onDemandChannel ? Number(form.onDemandChannel) || null : null
+
     const event: Event = {
       id: editEvent?.id || genId(),
       sportId: parseInt(form.sport as string) || 0,
@@ -204,10 +225,13 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
       complex: form.complex as string,
       livestreamDate: form.livestreamDate as string,
       livestreamTime: form.livestreamTime as string,
-      linearChannel: form.linearChannel as string,
-      radioChannel: form.radioChannel as string,
+      channelId,
+      radioChannelId,
+      onDemandChannelId,
+      linearChannel: form.linearChannel as string,   // @deprecated — kept for backwards compat
+      radioChannel: form.radioChannel as string,      // @deprecated — kept for backwards compat
       linearStartTime: form.linearStartTime as string,
-      onDemandChannel: form.onDemandChannel as string,
+      onDemandChannel: form.onDemandChannel as string, // @deprecated — kept for backwards compat
       isLive: form.isLive as boolean,
       isDelayedLive: form.isDelayedLive as boolean,
       videoRef: form.videoRef as string,
@@ -223,6 +247,9 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
       const result = await conflictsApi.check({
         id: editEvent?.id,
         competitionId: Number(form.competition),
+        channelId: channelId ?? undefined,
+        radioChannelId: radioChannelId ?? undefined,
+        onDemandChannelId: onDemandChannelId ?? undefined,
         linearChannel: form.linearChannel as string | undefined,
         onDemandChannel: form.onDemandChannel as string | undefined,
         radioChannel: form.radioChannel as string | undefined,
@@ -291,6 +318,20 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
     const hasErr = errors[field.id]
     const cls = `${inputCls} ${hasErr ? errCls : 'border-border'}`
 
+    // Channel FK dropdowns — render ChannelSelect with type filter + hierarchy
+    if (field.type === 'dropdown' && field.options && CHANNEL_FIELD_MAP[field.options]) {
+      const { typeFilter } = CHANNEL_FIELD_MAP[field.options]
+      const numVal = form[field.id] ? Number(form[field.id]) : null
+      return (
+        <ChannelSelect
+          value={numVal}
+          onChange={(id) => update(field.id, id != null ? String(id) : '')}
+          type={typeFilter}
+          placeholder={`Select ${field.label.toLowerCase()}...`}
+          className={hasErr ? errCls : ''}
+        />
+      )
+    }
     if (field.type === 'dropdown' && field.options && optionsMap[field.options]) {
       return (
         <select

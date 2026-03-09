@@ -23,6 +23,11 @@ function formatEventForPublish(event: Record<string, unknown>) {
       }
     : null
 
+  // Resolve channel names from FK relations (backwards compat: fallback to legacy string fields)
+  const channel = event.channel as Record<string, unknown> | null | undefined
+  const radioChannelRef = event.radioChannelRef as Record<string, unknown> | null | undefined
+  const onDemandChannelRef = event.onDemandChannelRef as Record<string, unknown> | null | undefined
+
   return {
     id: event.id,
     sport: event.sport,
@@ -40,15 +45,22 @@ function formatEventForPublish(event: Record<string, unknown>) {
     complex: event.complex,
     livestreamDate: event.livestreamDate,
     livestreamTime: event.livestreamTime,
-    linearChannel: event.linearChannel,
+    // Backwards compat: resolve FK → name, fallback to legacy string
+    linearChannel: (channel?.name as string) ?? event.linearChannel,
     linearStartTime: event.linearStartTime,
-    radioChannel: event.radioChannel,
+    radioChannel: (radioChannelRef?.name as string) ?? event.radioChannel,
+    onDemandChannel: (onDemandChannelRef?.name as string) ?? event.onDemandChannel,
+    // New FK-based fields for modern consumers
+    channelId: event.channelId,
+    radioChannelId: event.radioChannelId,
+    onDemandChannelId: event.onDemandChannelId,
     isLive: event.isLive,
     isDelayedLive: event.isDelayedLive,
     videoRef: event.videoRef,
     winner: event.winner,
     score: event.score,
     duration: event.duration,
+    durationMin: event.durationMin,
     rights,
   }
 }
@@ -111,7 +123,15 @@ router.get('/events', async (req, res, next) => {
 
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
-    if (channel) where.linearChannel = channel
+    // Support both channelId (number) and channel name (string) query params
+    if (channel) {
+      const chId = Number(channel)
+      if (!isNaN(chId) && chId > 0) {
+        where.channelId = chId
+      } else {
+        where.linearChannel = channel
+      }
+    }
     if (sport) where.sportId = Number(sport)
 
     if (from || to) {
@@ -151,6 +171,9 @@ router.get('/events', async (req, res, next) => {
       take: limit + 1,
       include: {
         sport: true,
+        channel: { select: { id: true, name: true, color: true } },
+        radioChannelRef: { select: { id: true, name: true } },
+        onDemandChannelRef: { select: { id: true, name: true } },
         competition: {
           include: {
             contracts: {
@@ -202,6 +225,9 @@ router.get('/events/:id', async (req, res, next) => {
       where: { id, tenantId: req.tenantId },
       include: {
         sport: true,
+        channel: { select: { id: true, name: true, color: true } },
+        radioChannelRef: { select: { id: true, name: true } },
+        onDemandChannelRef: { select: { id: true, name: true } },
         competition: {
           include: {
             contracts: {
@@ -231,7 +257,12 @@ router.get('/live', async (req, res, next) => {
     const events = await prisma.event.findMany({
       where: { tenantId: req.tenantId, isLive: true },
       orderBy: { startTimeBE: 'asc' },
-      include: { sport: true, competition: true },
+      include: {
+        sport: true, competition: true,
+        channel: { select: { id: true, name: true, color: true } },
+        radioChannelRef: { select: { id: true, name: true } },
+        onDemandChannelRef: { select: { id: true, name: true } },
+      },
     })
     res.json(events.map(e => formatEventForPublish(e as unknown as Record<string, unknown>)))
   } catch (err) {
@@ -246,16 +277,22 @@ router.get('/schedule', async (req, res, next) => {
 
     const events = await prisma.event.findMany({
       where: { tenantId: req.tenantId, startDateBE: targetDate },
-      orderBy: [{ linearChannel: 'asc' }, { linearStartTime: 'asc' }],
-      include: { sport: true, competition: true },
+      orderBy: [{ channelId: 'asc' }, { linearStartTime: 'asc' }],
+      include: {
+        sport: true, competition: true,
+        channel: { select: { id: true, name: true, color: true } },
+        radioChannelRef: { select: { id: true, name: true } },
+        onDemandChannelRef: { select: { id: true, name: true } },
+      },
     })
 
-    // Group by channel
+    // Group by channel (resolved from FK, fallback to legacy string)
+    const formatted = events.map(e => formatEventForPublish(e as unknown as Record<string, unknown>))
     const byChannel: Record<string, ReturnType<typeof formatEventForPublish>[]> = {}
-    for (const ev of events) {
-      const channel = String((ev as unknown as Record<string, unknown>).linearChannel ?? 'Unknown')
+    for (const ev of formatted) {
+      const channel = String(ev.linearChannel ?? 'Unknown')
       if (!byChannel[channel]) byChannel[channel] = []
-      byChannel[channel].push(formatEventForPublish(ev as unknown as Record<string, unknown>))
+      byChannel[channel].push(ev)
     }
 
     res.json({ date: targetDate, channels: byChannel })

@@ -9,9 +9,12 @@ export const conflictsApi = {
   check: (draft: {
     id?: number
     competitionId?: number
-    linearChannel?: string
-    onDemandChannel?: string
-    radioChannel?: string
+    channelId?: number
+    radioChannelId?: number
+    onDemandChannelId?: number
+    linearChannel?: string      // @deprecated — kept for backwards compat
+    onDemandChannel?: string    // @deprecated — kept for backwards compat
+    radioChannel?: string       // @deprecated — kept for backwards compat
     startDateBE?: string
     startTimeBE?: string
     status?: EventStatus
