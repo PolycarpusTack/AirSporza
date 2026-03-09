@@ -73,8 +73,9 @@ export async function recordFieldProvenance(params: {
   sourceId: string
   sourceRecordId: string
   sourceUpdatedAt?: Date | null
+  tenantId?: string
 }) {
-  const { entityType, entityId, fieldNames, sourceId, sourceRecordId, sourceUpdatedAt } = params
+  const { entityType, entityId, fieldNames, sourceId, sourceRecordId, sourceUpdatedAt, tenantId } = params
 
   await Promise.all(fieldNames.map(fieldName =>
     prisma.fieldProvenance.upsert({
@@ -86,6 +87,7 @@ export async function recordFieldProvenance(params: {
         }
       },
       create: {
+        tenantId: tenantId || '',
         entityType,
         entityId,
         fieldName,

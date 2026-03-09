@@ -6,9 +6,10 @@ import { parseId } from '../utils/parseId.js'
 
 const router = Router()
 
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const sports = await prisma.sport.findMany({
+      where: { tenantId: req.tenantId },
       include: {
         _count: { select: { competitions: true, events: true } }
       },
@@ -22,8 +23,8 @@ router.get('/', async (_req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const sport = await prisma.sport.findUnique({
-      where: { id: parseId(req.params.id) },
+    const sport = await prisma.sport.findFirst({
+      where: { id: parseId(req.params.id), tenantId: req.tenantId },
       include: {
         competitions: {
           include: {
@@ -52,7 +53,7 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
     }
     
     const sport = await prisma.sport.create({
-      data: { name, icon, federation }
+      data: { name, icon, federation, tenantId: req.tenantId! }
     })
     
     res.status(201).json(sport)
@@ -65,8 +66,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const { name, icon, federation } = req.body
     
+    const existing = await prisma.sport.findFirst({ where: { id: parseId(req.params.id), tenantId: req.tenantId } })
+    if (!existing) return next(createError(404, 'Sport not found'))
     const sport = await prisma.sport.update({
-      where: { id: parseId(req.params.id) },
+      where: { id: existing.id },
       data: { name, icon, federation }
     })
     
@@ -78,8 +81,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
 
 router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
+    const toDelete = await prisma.sport.findFirst({ where: { id: parseId(req.params.id), tenantId: req.tenantId } })
+    if (!toDelete) return next(createError(404, 'Sport not found'))
     await prisma.sport.delete({
-      where: { id: parseId(req.params.id) }
+      where: { id: toDelete.id }
     })
     
     res.json({ message: 'Sport deleted successfully' })

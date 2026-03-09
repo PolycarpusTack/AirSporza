@@ -11,6 +11,7 @@ type WebhookEndpoint = {
   isActive: boolean
   createdAt: Date
   createdById: string | null
+  tenantId: string
 }
 
 type WebhookDelivery = {
@@ -151,6 +152,7 @@ async function dispatch(eventType: PublishEventType, data: object): Promise<void
     try {
       delivery = await prisma.webhookDelivery.create({
         data: {
+          tenantId: webhook.tenantId,
           webhookId: webhook.id,
           eventType,
           payload: payload as object,

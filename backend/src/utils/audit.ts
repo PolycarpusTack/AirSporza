@@ -10,8 +10,9 @@ export async function writeAuditLog(params: {
   newValue?: unknown
   ipAddress?: string | null
   userAgent?: string | null
+  tenantId?: string | null
 }): Promise<void> {
-  const { userId, action, entityType, entityId, oldValue, newValue, ipAddress, userAgent } = params
+  const { userId, action, entityType, entityId, oldValue, newValue, ipAddress, userAgent, tenantId } = params
   await prisma.auditLog.create({
     data: {
       userId: userId ?? null,
@@ -22,6 +23,7 @@ export async function writeAuditLog(params: {
       newValue: newValue == null ? undefined : (newValue as never),
       ipAddress: ipAddress ?? null,
       userAgent: userAgent ?? null,
+      tenantId: tenantId ?? '',
     },
   })
 }

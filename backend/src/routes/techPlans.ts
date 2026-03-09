@@ -27,8 +27,9 @@ router.get('/', authenticate, async (req, res, next) => {
   try {
     const { eventId } = req.query
     
-    const where = eventId ? { eventId: Number(eventId) } : {}
-    
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
+    if (eventId) where.eventId = Number(eventId)
+
     const plans = await prisma.techPlan.findMany({
       where,
       include: {
@@ -48,8 +49,8 @@ router.get('/', authenticate, async (req, res, next) => {
 
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
-    const plan = await prisma.techPlan.findUnique({
-      where: { id: Number(req.params.id) },
+    const plan = await prisma.techPlan.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include: {
         event: {
           include: { sport: true, competition: true }
@@ -81,7 +82,7 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
     let crew = value.crew || {}
     if (Object.keys(crew).length === 0 && value.planType) {
       const defaultTemplate = await prisma.crewTemplate.findFirst({
-        where: { planType: value.planType, createdById: null },
+        where: { tenantId: req.tenantId, planType: value.planType, createdById: null },
       })
       if (defaultTemplate) {
         crew = defaultTemplate.crewData as Record<string, unknown>
@@ -91,6 +92,7 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
     const plan = await prisma.techPlan.create({
       data: {
         ...value,
+        tenantId: req.tenantId!,
         crew,
         createdById: user.id
       },
@@ -109,6 +111,7 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
       newValue: plan,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.status(201).json(plan)
@@ -124,16 +127,16 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
       return next(createError(400, error.details[0].message))
     }
     
-    const existing = await prisma.techPlan.findUnique({
-      where: { id: Number(req.params.id) }
+    const existing = await prisma.techPlan.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
-    
+
     if (!existing) {
       return next(createError(404, 'Tech plan not found'))
     }
-    
+
     const plan = await prisma.techPlan.update({
-      where: { id: Number(req.params.id) },
+      where: { id: existing.id },
       data: value,
       include: {
         event: { include: { sport: true, competition: true } }
@@ -152,6 +155,7 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
       newValue: plan,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json(plan)
@@ -168,11 +172,11 @@ router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), async (
     const planId = Number(req.params.id)
     const user = req.user as { id: string }
 
-    const existing = await prisma.techPlan.findUnique({ where: { id: planId } })
+    const existing = await prisma.techPlan.findFirst({ where: { id: planId, tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Tech plan not found'))
 
     // Check for an active lock held by someone else
-    const lock = await prisma.encoderLock.findUnique({ where: { encoderName: encoder } })
+    const lock = await prisma.encoderLock.findFirst({ where: { encoderName: encoder, tenantId: req.tenantId } })
     if (lock && !isLockExpired(lock.expiresAt) && lock.lockedById !== user.id) {
       return next(createError(409, `Encoder "${encoder}" is currently locked by another user`))
     }
@@ -180,7 +184,7 @@ router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), async (
     // Upsert lock with 30-second TTL
     await prisma.encoderLock.upsert({
       where: { encoderName: encoder },
-      create: { encoderName: encoder, lockedById: user.id, planId, expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
+      create: { tenantId: req.tenantId!, encoderName: encoder, lockedById: user.id, planId, expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
       update: { lockedById: user.id, planId, expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
     })
 
@@ -203,6 +207,7 @@ router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), async (
       newValue: updatedCrew,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json(plan)
@@ -214,7 +219,7 @@ router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), async (
 router.delete('/:id', authenticate, authorize('sports', 'admin'), async (req, res, next) => {
   try {
     const planId = Number(req.params.id)
-    const existing = await prisma.techPlan.findUnique({ where: { id: planId } })
+    const existing = await prisma.techPlan.findFirst({ where: { id: planId, tenantId: req.tenantId } })
     if (!existing) {
       return next(createError(404, 'Tech plan not found'))
     }
@@ -232,6 +237,7 @@ router.delete('/:id', authenticate, authorize('sports', 'admin'), async (req, re
       oldValue: existing ?? undefined,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json({ message: 'Tech plan deleted successfully' })

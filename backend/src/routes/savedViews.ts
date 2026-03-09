@@ -18,7 +18,7 @@ router.get('/', authenticate, async (req, res, next) => {
     const { context } = req.query
     const contextStr = Array.isArray(context) ? context[0] : context
     const views = await prisma.savedView.findMany({
-      where: { userId: user.id, ...(contextStr ? { context: contextStr } : {}) },
+      where: { tenantId: req.tenantId, userId: user.id, ...(contextStr ? { context: contextStr } : {}) },
       orderBy: { createdAt: 'asc' },
     })
     res.json(views)
@@ -30,7 +30,7 @@ router.post('/', authenticate, async (req, res, next) => {
     const { error, value } = schema.validate(req.body)
     if (error) return next(createError(400, error.details[0].message))
     const user = req.user as { id: string }
-    const view = await prisma.savedView.create({ data: { userId: user.id, ...value } })
+    const view = await prisma.savedView.create({ data: { tenantId: req.tenantId!, userId: user.id, ...value } })
     res.status(201).json(view)
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -44,7 +44,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const user = req.user as { id: string }
     const id = String(req.params.id)
-    const view = await prisma.savedView.findUnique({ where: { id } })
+    const view = await prisma.savedView.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!view) return next(createError(404, 'Saved view not found'))
     if (view.userId !== user.id) return next(createError(403, 'Forbidden'))
     await prisma.savedView.delete({ where: { id: view.id } })

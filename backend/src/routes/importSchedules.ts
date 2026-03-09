@@ -22,6 +22,7 @@ const patchSchema = Joi.object({
 router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const schedules = await prisma.importSchedule.findMany({
+      where: { tenantId: req.tenantId },
       include: { source: { select: { code: true, name: true } } },
     })
     res.json(schedules)
@@ -36,7 +37,7 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
     if (error) return next(createError(400, error.details[0].message))
     if (!cron.validate(value.cronExpr)) return next(createError(400, 'Invalid cron expression'))
 
-    const schedule = await prisma.importSchedule.create({ data: value })
+    const schedule = await prisma.importSchedule.create({ data: { ...value, tenantId: req.tenantId! } })
     if (value.isEnabled !== false) {
       const src = await prisma.importSource.findUnique({ where: { id: value.sourceId }, select: { code: true } })
       if (!src) return next(createError(500, 'Import source not found after creation'))
@@ -57,8 +58,8 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res, next) =>
       return next(createError(400, 'Invalid cron expression'))
     }
 
-    const schedule = await prisma.importSchedule.findUnique({
-      where: { id },
+    const schedule = await prisma.importSchedule.findFirst({
+      where: { id, tenantId: req.tenantId },
       include: { source: true },
     })
     if (!schedule) return next(createError(404, 'Schedule not found'))
@@ -82,7 +83,7 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res, next) =>
 router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const id = String(req.params.id)
-    const schedule = await prisma.importSchedule.findUnique({ where: { id } })
+    const schedule = await prisma.importSchedule.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!schedule) return next(createError(404, 'Schedule not found'))
     stopJob(schedule.id)
     await prisma.importSchedule.delete({ where: { id: schedule.id } })

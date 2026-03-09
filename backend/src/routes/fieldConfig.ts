@@ -32,7 +32,7 @@ router.get('/', async (req, res, next) => {
   try {
     const section = typeof req.query.section === 'string' ? req.query.section : undefined
     const fields = await prisma.fieldDefinition.findMany({
-      where: section ? { section: section as 'event' | 'crew' | 'contract' } : undefined,
+      where: { tenantId: req.tenantId, ...(section ? { section: section as 'event' | 'crew' | 'contract' } : {}) },
       orderBy: [{ section: 'asc' }, { sortOrder: 'asc' }],
     })
     res.json(fields)
@@ -50,13 +50,13 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
     const id = generateFieldId(value.section, value.name)
 
     if (value.dropdownSourceId) {
-      const list = await prisma.dropdownList.findUnique({ where: { id: value.dropdownSourceId } })
+      const list = await prisma.dropdownList.findFirst({ where: { id: value.dropdownSourceId, tenantId: req.tenantId } })
       if (!list) return next(createError(400, `Dropdown list '${value.dropdownSourceId}' not found`))
     }
 
     const user = req.user as { id: string }
     const field = await prisma.fieldDefinition.create({
-      data: { ...value, id, isSystem: false, isCustom: true, createdById: user.id },
+      data: { ...value, id, isSystem: false, isCustom: true, createdById: user.id, tenantId: req.tenantId! },
     })
 
     await writeAuditLog({
@@ -67,6 +67,7 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
       newValue: field,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.status(201).json(field)
@@ -99,7 +100,7 @@ router.put('/order', authenticate, authorize('admin'), async (req, res, next) =>
 // PUT /api/fields/:id — admin only
 router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const existing = await prisma.fieldDefinition.findUnique({ where: { id: String(req.params.id) } })
+    const existing = await prisma.fieldDefinition.findFirst({ where: { id: String(req.params.id), tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Field not found'))
 
     const updateSchema = Joi.object({
@@ -127,6 +128,7 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
       newValue: field,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json(field)
@@ -138,7 +140,7 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
 // DELETE /api/fields/:id — admin only, cannot delete system fields
 router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const field = await prisma.fieldDefinition.findUnique({ where: { id: String(req.params.id) } })
+    const field = await prisma.fieldDefinition.findFirst({ where: { id: String(req.params.id), tenantId: req.tenantId } })
     if (!field) return next(createError(404, 'Field not found'))
     if (field.isSystem) return next(createError(400, 'Cannot delete system fields'))
 
@@ -153,6 +155,7 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) =
       oldValue: field,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json({ message: 'Field deleted' })
@@ -164,9 +167,10 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) =
 
 // ── Dropdown Lists ──────────────────────────────────────────────────────────
 
-router.get('/dropdowns', async (_req, res, next) => {
+router.get('/dropdowns', async (req, res, next) => {
   try {
     const lists = await prisma.dropdownList.findMany({
+      where: { tenantId: req.tenantId },
       include: { options: { where: { active: true }, orderBy: { sortOrder: 'asc' } } },
       orderBy: { name: 'asc' },
     })
@@ -187,7 +191,7 @@ router.post('/dropdowns', authenticate, authorize('admin'), async (req, res, nex
     const { error, value } = schema.validate(req.body)
     if (error) return next(createError(400, error.details[0].message))
 
-    const list = await prisma.dropdownList.create({ data: value })
+    const list = await prisma.dropdownList.create({ data: { ...value, tenantId: req.tenantId! } })
     res.status(201).json(list)
   } catch (error) {
     next(error)
@@ -196,7 +200,7 @@ router.post('/dropdowns', authenticate, authorize('admin'), async (req, res, nex
 
 router.post('/dropdowns/:listId/options', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const list = await prisma.dropdownList.findUnique({ where: { id: String(req.params.listId) } })
+    const list = await prisma.dropdownList.findFirst({ where: { id: String(req.params.listId), tenantId: req.tenantId } })
     if (!list) return next(createError(404, 'Dropdown list not found'))
 
     const schema = Joi.object({
@@ -210,7 +214,7 @@ router.post('/dropdowns/:listId/options', authenticate, authorize('admin'), asyn
     if (error) return next(createError(400, error.details[0].message))
 
     const option = await prisma.dropdownOption.create({
-      data: { ...value, listId: String(req.params.listId) },
+      data: { ...value, listId: String(req.params.listId), tenantId: req.tenantId! },
     })
     res.status(201).json(option)
   } catch (error) {
@@ -222,8 +226,8 @@ router.post('/dropdowns/:listId/options', authenticate, authorize('admin'), asyn
 
 router.get('/mandatory/:sportId', async (req, res, next) => {
   try {
-    const config = await prisma.mandatoryFieldConfig.findUnique({
-      where: { sportId: Number(req.params.sportId) },
+    const config = await prisma.mandatoryFieldConfig.findFirst({
+      where: { sportId: Number(req.params.sportId), tenantId: req.tenantId },
     })
     res.json(config ?? { sportId: Number(req.params.sportId), fieldIds: [], conditionalRequired: [] })
   } catch (error) {
@@ -242,7 +246,7 @@ router.put('/mandatory/:sportId', authenticate, authorize('admin'), async (req, 
 
     const config = await prisma.mandatoryFieldConfig.upsert({
       where: { sportId: Number(req.params.sportId) },
-      create: { sportId: Number(req.params.sportId), ...value },
+      create: { sportId: Number(req.params.sportId), tenantId: req.tenantId!, ...value },
       update: value,
     })
     res.json(config)

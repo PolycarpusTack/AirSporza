@@ -6,13 +6,15 @@ import { parseId } from '../utils/parseId.js'
 
 const router = Router()
 
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const encoders = await prisma.encoder.findMany({
+      where: { tenantId: req.tenantId },
       orderBy: { name: 'asc' }
     })
-    
+
     const plans = await prisma.techPlan.findMany({
+      where: { tenantId: req.tenantId },
       select: { id: true, crew: true, planType: true, eventId: true }
     })
     
@@ -48,7 +50,7 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
     }
     
     const encoder = await prisma.encoder.create({
-      data: { name, location, notes }
+      data: { name, location, notes, tenantId: req.tenantId! }
     })
     
     res.status(201).json(encoder)
@@ -59,8 +61,10 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
 
 router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
+    const existing = await prisma.encoder.findFirst({ where: { id: parseId(req.params.id), tenantId: req.tenantId } })
+    if (!existing) return next(createError(404, 'Encoder not found'))
     const encoder = await prisma.encoder.update({
-      where: { id: parseId(req.params.id) },
+      where: { id: existing.id },
       data: req.body
     })
     

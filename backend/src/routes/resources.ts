@@ -22,9 +22,9 @@ const resourceSchema = Joi.object({
 })
 
 // GET /api/resources — list all resources
-router.get('/', authenticate, async (_req, res, next) => {
+router.get('/', authenticate, async (req, res, next) => {
   try {
-    const resources = await prisma.resource.findMany({ orderBy: { name: 'asc' } })
+    const resources = await prisma.resource.findMany({ where: { tenantId: req.tenantId }, orderBy: { name: 'asc' } })
     res.json(resources)
   } catch (error) { next(error) }
 })
@@ -34,7 +34,7 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const { error, value } = resourceSchema.validate(req.body)
     if (error) return next(createError(400, error.details[0].message))
-    const resource = await prisma.resource.create({ data: value })
+    const resource = await prisma.resource.create({ data: { ...value, tenantId: req.tenantId! } })
     res.status(201).json(resource)
   } catch (error) { next(error) }
 })
@@ -44,11 +44,11 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const id = Number(req.params.id)
     if (!Number.isFinite(id)) return next(createError(400, 'Invalid id'))
-    const existing = await prisma.resource.findUnique({ where: { id } })
+    const existing = await prisma.resource.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Resource not found'))
     const { error, value } = resourceSchema.validate(req.body)
     if (error) return next(createError(400, error.details[0].message))
-    const resource = await prisma.resource.update({ where: { id }, data: value })
+    const resource = await prisma.resource.update({ where: { id: existing.id }, data: value })
     res.json(resource)
   } catch (error) { next(error) }
 })
@@ -59,7 +59,7 @@ router.get('/:id/assignments', authenticate, async (req, res, next) => {
     const resourceId = Number(req.params.id)
     if (!Number.isFinite(resourceId)) return next(createError(400, 'Invalid resource ID'))
     const assignments = await prisma.resourceAssignment.findMany({
-      where: { resourceId },
+      where: { tenantId: req.tenantId, resourceId },
       include: { techPlan: { include: { event: true } } },
     })
     res.json(assignments)
@@ -75,10 +75,10 @@ router.post('/:id/assign', authenticate, authorize('sports', 'admin'), async (re
     if (valErr) return next(createError(400, valErr.details[0].message))
 
     // Enforce capacity
-    const resource = await prisma.resource.findUnique({ where: { id: resourceId } })
+    const resource = await prisma.resource.findFirst({ where: { id: resourceId, tenantId: req.tenantId } })
     if (!resource) return next(createError(404, 'Resource not found'))
     const currentUsage = await prisma.resourceAssignment.aggregate({
-      where: { resourceId },
+      where: { tenantId: req.tenantId, resourceId },
       _sum: { quantity: true },
     })
     const used = currentUsage._sum.quantity ?? 0
@@ -87,7 +87,7 @@ router.post('/:id/assign', authenticate, authorize('sports', 'admin'), async (re
     }
 
     const assignment = await prisma.resourceAssignment.create({
-      data: { resourceId, techPlanId: value.techPlanId, quantity: value.quantity, notes: value.notes },
+      data: { tenantId: req.tenantId!, resourceId, techPlanId: value.techPlanId, quantity: value.quantity, notes: value.notes },
     })
     res.status(201).json(assignment)
   } catch (error) { next(error) }

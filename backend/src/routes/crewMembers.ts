@@ -33,7 +33,7 @@ router.get('/', authenticate, async (req, res, next) => {
   try {
     const { search, role, active } = req.query
 
-    const where: Prisma.CrewMemberWhereInput = {}
+    const where: Prisma.CrewMemberWhereInput = { tenantId: req.tenantId }
 
     if (typeof search === 'string' && search.trim()) {
       where.name = { contains: search.trim(), mode: 'insensitive' }
@@ -72,6 +72,7 @@ router.get('/autocomplete', authenticate, async (req, res, next) => {
 
     const members = await prisma.crewMember.findMany({
       where: {
+        tenantId: req.tenantId,
         isActive: true,
         name: { contains: q, mode: 'insensitive' },
       },
@@ -102,7 +103,7 @@ router.post('/', authenticate, async (req, res, next) => {
     const { error, value } = crewMemberSchema.validate(req.body)
     if (error) return next(createError(400, error.details[0].message))
 
-    const member = await prisma.crewMember.create({ data: value })
+    const member = await prisma.crewMember.create({ data: { ...value, tenantId: req.tenantId! } })
     res.status(201).json(member)
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -116,6 +117,7 @@ router.post('/', authenticate, async (req, res, next) => {
 router.post('/extract', authenticate, async (req, res, next) => {
   try {
     const techPlans = await prisma.techPlan.findMany({
+      where: { tenantId: req.tenantId },
       select: { crew: true },
     })
 
@@ -145,26 +147,26 @@ router.post('/extract', authenticate, async (req, res, next) => {
 
     for (const [name, roles] of nameRoles) {
       const rolesArray = Array.from(roles)
-      const existing = await prisma.crewMember.findUnique({ where: { name } })
+      const existing = await prisma.crewMember.findFirst({ where: { name, tenantId: req.tenantId } })
       if (existing) {
         const existingRoles = existing.roles as string[]
         const merged = Array.from(new Set([...existingRoles, ...rolesArray]))
         if (merged.length !== existingRoles.length || !merged.every((r) => existingRoles.includes(r))) {
           await prisma.crewMember.update({
-            where: { name },
+            where: { id: existing.id },
             data: { roles: merged },
           })
           updated++
         }
       } else {
         await prisma.crewMember.create({
-          data: { name, roles: rolesArray },
+          data: { name, roles: rolesArray, tenantId: req.tenantId! },
         })
         created++
       }
     }
 
-    const total = await prisma.crewMember.count()
+    const total = await prisma.crewMember.count({ where: { tenantId: req.tenantId } })
     res.json({ created, updated, total })
   } catch (error) {
     next(error)
@@ -181,8 +183,8 @@ router.post('/merge', authenticate, async (req, res, next) => {
     if (sourceId === targetId) return next(createError(400, 'Source and target must be different'))
 
     const [source, target] = await Promise.all([
-      prisma.crewMember.findUnique({ where: { id: sourceId } }),
-      prisma.crewMember.findUnique({ where: { id: targetId } }),
+      prisma.crewMember.findFirst({ where: { id: sourceId, tenantId: req.tenantId } }),
+      prisma.crewMember.findFirst({ where: { id: targetId, tenantId: req.tenantId } }),
     ])
 
     if (!source) return next(createError(404, 'Source crew member not found'))
@@ -194,7 +196,7 @@ router.post('/merge', authenticate, async (req, res, next) => {
     const mergedRoles = Array.from(new Set([...targetRoles, ...sourceRoles]))
 
     // Update all tech plans that reference source.name -> target.name
-    const techPlans = await prisma.techPlan.findMany({ select: { id: true, crew: true } })
+    const techPlans = await prisma.techPlan.findMany({ where: { tenantId: req.tenantId }, select: { id: true, crew: true } })
     let planUpdates = 0
 
     for (const tp of techPlans) {
@@ -245,13 +247,13 @@ router.put('/:id', authenticate, async (req, res, next) => {
     const id = Number(req.params.id)
     if (!Number.isFinite(id)) return next(createError(400, 'Invalid id'))
 
-    const existing = await prisma.crewMember.findUnique({ where: { id } })
+    const existing = await prisma.crewMember.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Crew member not found'))
 
     const { error, value } = crewMemberUpdateSchema.validate(req.body)
     if (error) return next(createError(400, error.details[0].message))
 
-    const member = await prisma.crewMember.update({ where: { id }, data: value })
+    const member = await prisma.crewMember.update({ where: { id: existing.id }, data: value })
     res.json(member)
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -267,7 +269,9 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     const id = Number(req.params.id)
     if (!Number.isFinite(id)) return next(createError(400, 'Invalid id'))
 
-    await prisma.crewMember.delete({ where: { id } })
+    const toDelete = await prisma.crewMember.findFirst({ where: { id, tenantId: req.tenantId } })
+    if (!toDelete) return next(createError(404, 'Crew member not found'))
+    await prisma.crewMember.delete({ where: { id: toDelete.id } })
     res.json({ ok: true })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {

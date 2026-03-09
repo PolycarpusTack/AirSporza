@@ -9,7 +9,7 @@ router.get('/', authenticate, async (req, res, next) => {
   try {
     const user = req.user as { id: string }
     const items = await prisma.notification.findMany({
-      where: { userId: user.id },
+      where: { tenantId: req.tenantId, userId: user.id },
       orderBy: [{ isRead: 'asc' }, { createdAt: 'desc' }],
       take: 50,
     })
@@ -21,7 +21,7 @@ router.patch('/read-all', authenticate, async (req, res, next) => {
   try {
     const user = req.user as { id: string }
     const result = await prisma.notification.updateMany({
-      where: { userId: user.id, isRead: false },
+      where: { tenantId: req.tenantId, userId: user.id, isRead: false },
       data: { isRead: true },
     })
     res.json({ count: result.count })
@@ -31,7 +31,7 @@ router.patch('/read-all', authenticate, async (req, res, next) => {
 router.patch('/:id/read', authenticate, async (req, res, next) => {
   try {
     const user = req.user as { id: string }
-    const note = await prisma.notification.findUnique({ where: { id: String(req.params.id) } })
+    const note = await prisma.notification.findFirst({ where: { id: String(req.params.id), tenantId: req.tenantId } })
     if (!note) return next(createError(404, 'Notification not found'))
     if (note.userId !== user.id) return next(createError(403, 'Forbidden'))
     await prisma.notification.update({ where: { id: note.id }, data: { isRead: true } })

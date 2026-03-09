@@ -109,7 +109,7 @@ router.get('/events', async (req, res, next) => {
 
     const limit = Math.min(parseInt(String(limitStr ?? '100')), 500)
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (channel) where.linearChannel = channel
     if (sport) where.sportId = Number(sport)
@@ -198,8 +198,8 @@ router.get('/events/:id', async (req, res, next) => {
     const id = parseInt(req.params.id)
     if (!id) return next(createError(400, 'Invalid event id'))
 
-    const event = await prisma.event.findUnique({
-      where: { id },
+    const event = await prisma.event.findFirst({
+      where: { id, tenantId: req.tenantId },
       include: {
         sport: true,
         competition: {
@@ -226,10 +226,10 @@ router.get('/events/:id', async (req, res, next) => {
   }
 })
 
-router.get('/live', async (_req, res, next) => {
+router.get('/live', async (req, res, next) => {
   try {
     const events = await prisma.event.findMany({
-      where: { isLive: true },
+      where: { tenantId: req.tenantId, isLive: true },
       orderBy: { startTimeBE: 'asc' },
       include: { sport: true, competition: true },
     })
@@ -245,7 +245,7 @@ router.get('/schedule', async (req, res, next) => {
     const targetDate = String(date ?? new Date().toISOString().slice(0, 10))
 
     const events = await prisma.event.findMany({
-      where: { startDateBE: targetDate },
+      where: { tenantId: req.tenantId, startDateBE: targetDate },
       orderBy: [{ linearChannel: 'asc' }, { linearStartTime: 'asc' }],
       include: { sport: true, competition: true },
     })
@@ -266,9 +266,10 @@ router.get('/schedule', async (req, res, next) => {
 
 // ─── Webhook CRUD (admin only) ───────────────────────────────────────────────
 
-router.get('/webhooks', authenticate, authorize('admin'), async (_req, res, next) => {
+router.get('/webhooks', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const webhooks = await prisma.webhookEndpoint.findMany({
+      where: { tenantId: req.tenantId },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { deliveries: true } },
@@ -305,7 +306,7 @@ router.post('/webhooks', authenticate, authorize('admin'), async (req, res, next
 
     const user = req.user as { id: string }
     const webhook = await prisma.webhookEndpoint.create({
-      data: { url, secret, events: eventTypes, createdById: user.id },
+      data: { url, secret, events: eventTypes, createdById: user.id, tenantId: req.tenantId! },
     })
 
     logger.info('Webhook registered', { id: webhook.id, url: webhook.url })
@@ -318,10 +319,10 @@ router.post('/webhooks', authenticate, authorize('admin'), async (req, res, next
 router.delete('/webhooks/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const id = String(req.params.id)
-    const webhook = await prisma.webhookEndpoint.findUnique({ where: { id } })
+    const webhook = await prisma.webhookEndpoint.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!webhook) return next(createError(404, 'Webhook not found'))
 
-    await prisma.webhookEndpoint.delete({ where: { id } })
+    await prisma.webhookEndpoint.delete({ where: { id: webhook.id } })
     res.json({ message: 'Webhook deleted' })
   } catch (err) {
     next(err)
@@ -334,11 +335,12 @@ router.get('/webhooks/:id/log', authenticate, authorize('admin'), async (req, re
     const { cursor, limit: limitStr } = req.query
     const limit = Math.min(parseInt(String(limitStr ?? '50')), 200)
 
-    const webhook = await prisma.webhookEndpoint.findUnique({ where: { id } })
+    const webhook = await prisma.webhookEndpoint.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!webhook) return next(createError(404, 'Webhook not found'))
 
     const deliveries = await prisma.webhookDelivery.findMany({
       where: {
+        tenantId: req.tenantId,
         webhookId: id,
         ...(cursor ? { createdAt: { lt: new Date(String(cursor)) } } : {}),
       },
@@ -364,6 +366,7 @@ router.get('/deliveries', authenticate, authorize('admin'), async (req, res, nex
 
     const deliveries = await prisma.webhookDelivery.findMany({
       where: {
+        tenantId: req.tenantId,
         ...(webhookId ? { webhookId: String(webhookId) } : {}),
         ...(status === 'failed' ? { deliveredAt: null } : {}),
         ...(status === 'delivered' ? { deliveredAt: { not: null } } : {}),
@@ -382,8 +385,8 @@ router.get('/deliveries', authenticate, authorize('admin'), async (req, res, nex
 router.post('/deliveries/:id/retry', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const id = String(req.params.id)
-    const delivery = await prisma.webhookDelivery.findUnique({
-      where: { id },
+    const delivery = await prisma.webhookDelivery.findFirst({
+      where: { id, tenantId: req.tenantId },
       include: { webhook: true },
     })
     if (!delivery) return next(createError(404, 'Delivery not found'))

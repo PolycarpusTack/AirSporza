@@ -2,6 +2,14 @@ import { Request, Response, NextFunction } from 'express'
 import { prisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
 
+declare global {
+  namespace Express {
+    interface Request {
+      tenantId?: string
+    }
+  }
+}
+
 // Cache the default tenant ID to avoid repeated queries
 let defaultTenantId: string | null = null
 
@@ -20,7 +28,7 @@ export async function setTenantContext(req: Request, _res: Response, next: NextF
     if (defaultTenantId) {
       // Set PostgreSQL session variable for RLS
       await prisma.$executeRawUnsafe(`SELECT set_tenant_context('${defaultTenantId}')`)
-      ;(req as any).tenantId = defaultTenantId
+      req.tenantId = defaultTenantId
     } else {
       logger.warn('No default tenant found — tenant context not set')
     }

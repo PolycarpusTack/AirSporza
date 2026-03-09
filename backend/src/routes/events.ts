@@ -99,8 +99,8 @@ router.get('/', async (req, res, next) => {
   try {
     const { sportId, competitionId, channel, from, to, search } = req.query
     
-    const where: Record<string, unknown> = {}
-    
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
+
     if (sportId) where.sportId = Number(sportId)
     if (competitionId) where.competitionId = Number(competitionId)
     if (channel) where.linearChannel = channel
@@ -132,7 +132,7 @@ router.get('/', async (req, res, next) => {
 
     const eventIds = events.map(e => String(e.id))
     const customValues = eventIds.length > 0
-      ? await prisma.customFieldValue.findMany({ where: { entityType: 'event', entityId: { in: eventIds } } })
+      ? await prisma.customFieldValue.findMany({ where: { tenantId: req.tenantId, entityType: 'event', entityId: { in: eventIds } } })
       : []
 
     const valuesByEvent = new Map<string, typeof customValues>()
@@ -175,7 +175,7 @@ router.post('/conflicts/bulk', authenticate, async (req, res, next) => {
     const { eventIds } = value as { eventIds: number[] }
 
     const events = await prisma.event.findMany({
-      where: { id: { in: eventIds } },
+      where: { tenantId: req.tenantId, id: { in: eventIds } },
       select: {
         id: true,
         competitionId: true,
@@ -227,7 +227,7 @@ router.get('/fixtures/:competitionId', authenticate, async (req, res, next) => {
     }
 
     const events = await prisma.event.findMany({
-      where: { competitionId },
+      where: { tenantId: req.tenantId, competitionId },
       select: {
         startDateBE: true,
         phase: true,
@@ -261,9 +261,9 @@ router.delete('/bulk', authenticate, authorize('planner', 'admin'), async (req, 
 
     await prisma.$transaction(async (tx) => {
       await tx.customFieldValue.deleteMany({
-        where: { entityType: 'event', entityId: { in: ids.map(String) } },
+        where: { tenantId: req.tenantId, entityType: 'event', entityId: { in: ids.map(String) } },
       })
-      await tx.event.deleteMany({ where: { id: { in: ids } } })
+      await tx.event.deleteMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
     })
 
     for (const id of ids) {
@@ -284,10 +284,10 @@ router.patch('/bulk/status', authenticate, authorize('planner', 'admin'), async 
 
     const updatedEvents = await prisma.$transaction(async (tx) => {
       await tx.event.updateMany({
-        where: { id: { in: ids } },
+        where: { tenantId: req.tenantId, id: { in: ids } },
         data: { status },
       })
-      return tx.event.findMany({ where: { id: { in: ids } } })
+      return tx.event.findMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
     })
 
     for (const ev of updatedEvents) {
@@ -307,7 +307,7 @@ router.patch('/bulk/reschedule', authenticate, authorize('planner', 'admin'), as
     const { ids, shiftDays } = value as { ids: number[]; shiftDays: number }
 
     const currentEvents = await prisma.event.findMany({
-      where: { id: { in: ids } },
+      where: { tenantId: req.tenantId, id: { in: ids } },
       select: { id: true, startDateBE: true },
     })
 
@@ -349,8 +349,8 @@ router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), async 
     const data: Record<string, unknown> = { [field]: fieldValue }
 
     const updatedEvents = await prisma.$transaction(async (tx) => {
-      await tx.event.updateMany({ where: { id: { in: ids } }, data })
-      return tx.event.findMany({ where: { id: { in: ids } } })
+      await tx.event.updateMany({ where: { tenantId: req.tenantId, id: { in: ids } }, data })
+      return tx.event.findMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
     })
 
     for (const ev of updatedEvents) {
@@ -365,8 +365,8 @@ router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), async 
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const event = await prisma.event.findUnique({
-      where: { id: Number(req.params.id) },
+    const event = await prisma.event.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include: {
         sport: true,
         competition: true,
@@ -384,7 +384,7 @@ router.get('/:id', async (req, res, next) => {
     }
 
     const customValues = await prisma.customFieldValue.findMany({
-      where: { entityType: 'event', entityId: String(event.id) }
+      where: { tenantId: req.tenantId, entityType: 'event', entityId: String(event.id) }
     })
 
     res.json({ ...event, customValues })
@@ -411,6 +411,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
     const event = await prisma.event.create({
       data: {
         ...eventData,
+        tenantId: req.tenantId!,
         startDateBE: new Date(eventData.startDateBE),
         startDateOrigin: eventData.startDateOrigin ? new Date(eventData.startDateOrigin) : null,
         livestreamDate: eventData.livestreamDate ? new Date(eventData.livestreamDate) : null,
@@ -428,7 +429,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
         customValuesList.map(({ fieldId, fieldValue }) =>
           prisma.customFieldValue.upsert({
             where: { entityType_entityId_fieldId: { entityType: 'event', entityId: String(event.id), fieldId } },
-            create: { entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
+            create: { tenantId: req.tenantId!, entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
             update: { fieldValue },
           })
         )
@@ -446,6 +447,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
       newValue: event,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.status(201).json(event)
@@ -474,6 +476,7 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
         const event = await tx.event.create({
           data: {
             ...eventData,
+            tenantId: req.tenantId!,
             seriesId: seriesId || null,
             startDateBE: new Date(eventData.startDateBE),
             startDateOrigin: eventData.startDateOrigin ? new Date(eventData.startDateOrigin) : null,
@@ -489,7 +492,7 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
             cvList.map(({ fieldId, fieldValue }) =>
               tx.customFieldValue.upsert({
                 where: { entityType_entityId_fieldId: { entityType: 'event', entityId: String(event.id), fieldId } },
-                create: { entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
+                create: { tenantId: req.tenantId!, entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
                 update: { fieldValue },
               })
             )
@@ -513,6 +516,7 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
       newValue: { count: created.length, seriesId },
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.status(201).json(created)
@@ -528,7 +532,7 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
     if (vErr) return next(createError(400, vErr.details[0].message))
     const { status } = vBody as { status: EventStatus }
 
-    const event = await prisma.event.findUnique({ where: { id } })
+    const event = await prisma.event.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!event) return next(createError(404, 'Event not found'))
 
     const user = req.user as { id: string; role: string }
@@ -547,6 +551,7 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
       newValue: { status },
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     if (status === 'approved' && event.createdById) {
@@ -573,8 +578,8 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
       return next(createError(400, error.details[0].message))
     }
 
-    const existing = await prisma.event.findUnique({
-      where: { id: Number(req.params.id) }
+    const existing = await prisma.event.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
 
     if (!existing) {
@@ -608,7 +613,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
         customValuesList.map(({ fieldId, fieldValue }) =>
           prisma.customFieldValue.upsert({
             where: { entityType_entityId_fieldId: { entityType: 'event', entityId: String(event.id), fieldId } },
-            create: { entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
+            create: { tenantId: req.tenantId!, entityType: 'event', entityId: String(event.id), fieldId, fieldValue },
             update: { fieldValue },
           })
         )
@@ -628,6 +633,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
       newValue: event,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json(event)
@@ -638,17 +644,17 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
 
 router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
   try {
-    const event = await prisma.event.findUnique({
-      where: { id: Number(req.params.id) }
+    const event = await prisma.event.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
-    
+
     if (!event) {
       return next(createError(404, 'Event not found'))
     }
-    
+
     await prisma.$transaction([
       prisma.customFieldValue.deleteMany({
-        where: { entityType: 'event', entityId: String(req.params.id) }
+        where: { tenantId: req.tenantId, entityType: 'event', entityId: String(req.params.id) }
       }),
       prisma.event.delete({
         where: { id: Number(req.params.id) }
@@ -667,6 +673,7 @@ router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, r
       oldValue: event,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json({ message: 'Event deleted successfully' })

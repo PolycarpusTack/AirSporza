@@ -288,6 +288,7 @@ router.get('/records/unlinked', authenticate, async (req, res, next) => {
       ]
     }
 
+    where.tenantId = req.tenantId
     const records = await prisma.importRecord.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -309,9 +310,10 @@ router.get('/records/unlinked', authenticate, async (req, res, next) => {
   }
 })
 
-router.get('/sources', authenticate, authorize('planner', 'sports', 'admin'), async (_req, res, next) => {
+router.get('/sources', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
     const sources = await prisma.importSource.findMany({
+      where: { tenantId: req.tenantId },
       include: {
         rateLimits: true,
         _count: {
@@ -366,7 +368,7 @@ router.patch('/sources/:id', authenticate, authorize('admin'), async (req, res, 
 router.get('/jobs', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 10, 50)
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (req.query.status) {
       where.status = req.query.status
@@ -409,8 +411,8 @@ router.get('/jobs', authenticate, authorize('planner', 'sports', 'admin'), async
 
 router.get('/jobs/:id', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
-    const job = await prisma.importJob.findUnique({
-      where: { id: String(req.params.id) },
+    const job = await prisma.importJob.findFirst({
+      where: { id: String(req.params.id), tenantId: req.tenantId },
       include: {
         source: {
           select: {
@@ -443,7 +445,7 @@ router.get('/jobs/:id', authenticate, authorize('planner', 'sports', 'admin'), a
 router.get('/merge-candidates', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 20, 100)
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (req.query.status) {
       where.status = req.query.status
@@ -485,8 +487,8 @@ router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('plan
       return next(createError(400, error.details[0].message))
     }
 
-    const candidate = await prisma.mergeCandidate.findUnique({
-      where: { id: String(req.params.id) },
+    const candidate = await prisma.mergeCandidate.findFirst({
+      where: { id: String(req.params.id), tenantId: req.tenantId },
       include: {
         importRecord: true,
       }
@@ -521,6 +523,7 @@ router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('plan
       sourceUpdatedAt: candidate.importRecord.sourceUpdatedAt,
       normalized,
       targetEventId: targetEntityId,
+      tenantId: req.tenantId,
     })
 
     const user = req.user as { email?: string; id: string }
@@ -548,8 +551,8 @@ router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('plan
 
 router.post('/merge-candidates/:id/create-new', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
-    const candidate = await prisma.mergeCandidate.findUnique({
-      where: { id: String(req.params.id) },
+    const candidate = await prisma.mergeCandidate.findFirst({
+      where: { id: String(req.params.id), tenantId: req.tenantId },
       include: {
         importRecord: true,
       }
@@ -573,6 +576,7 @@ router.post('/merge-candidates/:id/create-new', authenticate, authorize('planner
       sourceRecordId: candidate.importRecord.sourceRecordId,
       sourceUpdatedAt: candidate.importRecord.sourceUpdatedAt,
       normalized,
+      tenantId: req.tenantId,
     })
 
     const user = req.user as { email?: string; id: string }
@@ -600,8 +604,8 @@ router.post('/merge-candidates/:id/create-new', authenticate, authorize('planner
 
 router.post('/merge-candidates/:id/ignore', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
-    const existing = await prisma.mergeCandidate.findUnique({
-      where: { id: String(req.params.id) },
+    const existing = await prisma.mergeCandidate.findFirst({
+      where: { id: String(req.params.id), tenantId: req.tenantId },
     })
 
     if (!existing) {
@@ -676,6 +680,7 @@ router.post('/jobs', authenticate, authorize('planner', 'sports', 'admin'), asyn
 
     const result = await prisma.importJob.create({
       data: {
+        tenantId: req.tenantId!,
         sourceId: source.id,
         entityScope: value.entityScope,
         mode: value.mode,
@@ -718,8 +723,8 @@ router.post('/jobs', authenticate, authorize('planner', 'sports', 'admin'), asyn
 
 router.post('/jobs/:id/cancel', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
-    const existing = await prisma.importJob.findUnique({
-      where: { id: String(req.params.id) },
+    const existing = await prisma.importJob.findFirst({
+      where: { id: String(req.params.id), tenantId: req.tenantId },
       include: {
         source: {
           select: {
@@ -800,6 +805,7 @@ router.post('/jobs/:id/cancel', authenticate, authorize('planner', 'sports', 'ad
     if (existing.status === 'queued') {
       await prisma.syncHistory.create({
         data: {
+          tenantId: req.tenantId!,
           entityType: existing.entityScope,
           entityId: null,
           sourceCode: existing.source.code,
@@ -828,8 +834,8 @@ router.post('/jobs/:id/cancel', authenticate, authorize('planner', 'sports', 'ad
 
 router.post('/jobs/:id/retry', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
-    const existing = await prisma.importJob.findUnique({
-      where: { id: String(req.params.id) },
+    const existing = await prisma.importJob.findFirst({
+      where: { id: String(req.params.id), tenantId: req.tenantId },
       include: {
         source: {
           select: {
@@ -855,6 +861,7 @@ router.post('/jobs/:id/retry', authenticate, authorize('planner', 'sports', 'adm
 
     const job = await prisma.importJob.create({
       data: {
+        tenantId: req.tenantId!,
         sourceId: existing.sourceId,
         entityScope: existing.entityScope,
         mode: existing.mode,
@@ -900,7 +907,7 @@ router.post('/jobs/:id/retry', authenticate, authorize('planner', 'sports', 'adm
 router.get('/dead-letters', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 20, 100)
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (req.query.sourceCode) {
       where.source = { code: req.query.sourceCode }
@@ -942,8 +949,8 @@ router.get('/dead-letters', authenticate, authorize('planner', 'sports', 'admin'
 
 router.post('/dead-letters/:id/replay', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
-    const deadLetter = await prisma.importDeadLetter.findUnique({
-      where: { id: String(req.params.id) },
+    const deadLetter = await prisma.importDeadLetter.findFirst({
+      where: { id: String(req.params.id), tenantId: req.tenantId },
       include: {
         job: {
           select: {
@@ -997,6 +1004,7 @@ router.post('/dead-letters/:id/replay', authenticate, authorize('planner', 'spor
     const requestedBy = user.email || user.id
     const job = await prisma.importJob.create({
       data: {
+        tenantId: req.tenantId!,
         sourceId: deadLetter.sourceId,
         entityScope: deadLetter.job.entityScope,
         mode: deadLetter.job.mode,
@@ -1106,6 +1114,7 @@ router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admi
           }
         },
         create: {
+          tenantId: req.tenantId!,
           canonicalTeamId: value.canonicalId,
           sourceId: value.sourceId || null,
           alias: value.alias,
@@ -1129,6 +1138,7 @@ router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admi
           }
         },
         create: {
+          tenantId: req.tenantId!,
           canonicalCompetitionId: value.canonicalId,
           sourceId: value.sourceId || null,
           alias: value.alias,
@@ -1151,6 +1161,7 @@ router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admi
         }
       },
       create: {
+        tenantId: req.tenantId!,
         canonicalVenueId: value.canonicalId,
         sourceId: value.sourceId || null,
         alias: value.alias,
@@ -1227,8 +1238,9 @@ router.get('/provenance/:entityType/:entityId', authenticate, authorize('planner
   }
 })
 
-router.get('/metrics', authenticate, authorize('planner', 'sports', 'admin'), async (_req, res, next) => {
+router.get('/metrics', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
+    const tid = req.tenantId
     const [
       sources,
       pendingJobs,
@@ -1240,6 +1252,7 @@ router.get('/metrics', authenticate, authorize('planner', 'sports', 'admin'), as
       totalLinkedRecords,
     ] = await Promise.all([
       prisma.importSource.findMany({
+        where: { tenantId: tid },
         orderBy: [{ priority: 'asc' }, { name: 'asc' }],
         include: {
           rateLimits: true,
@@ -1254,28 +1267,30 @@ router.get('/metrics', authenticate, authorize('planner', 'sports', 'admin'), as
         }
       }),
       prisma.importJob.count({
-        where: { status: { in: ['queued', 'running'] } }
+        where: { tenantId: tid, status: { in: ['queued', 'running'] } }
       }),
       prisma.importJob.count({
         where: {
+          tenantId: tid,
           status: { in: ['completed', 'partial'] },
           createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
         }
       }),
       prisma.mergeCandidate.count({
-        where: { status: 'pending' }
+        where: { tenantId: tid, status: 'pending' }
       }),
       prisma.importDeadLetter.count({
-        where: { resolvedAt: null }
+        where: { tenantId: tid, resolvedAt: null }
       }),
       prisma.syncHistory.count({
         where: {
+          tenantId: tid,
           syncType: 'manual',
           createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
         }
       }),
-      prisma.importRecord.count(),
-      prisma.importSourceLink.count(),
+      prisma.importRecord.count({ where: { tenantId: tid } }),
+      prisma.importSourceLink.count({ where: { tenantId: tid } }),
     ])
 
     const overallLinkCoverage = totalImportRecords > 0

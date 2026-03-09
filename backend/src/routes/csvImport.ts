@@ -44,6 +44,7 @@ router.post(
         try {
           await prisma.event.create({
             data: {
+              tenantId: req.tenantId!,
               sportId,
               competitionId,
               participants: String(parsed.participants ?? ''),

@@ -7,9 +7,10 @@ import { createError } from '../middleware/errorHandler.js'
 const router = Router()
 
 // List all users
-router.get('/', authenticate, authorize('admin'), async (_req, res, next) => {
+router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const users = await prisma.user.findMany({
+      where: { tenantId: req.tenantId },
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -41,6 +42,8 @@ router.put('/:id/role', authenticate, authorize('admin'), async (req, res, next)
     if (error) return next(createError(400, error.details[0].message))
 
     const userId = req.params.id as string
+    const existingUser = await prisma.user.findFirst({ where: { id: userId, tenantId: req.tenantId } })
+    if (!existingUser) return next(createError(404, 'User not found'))
     const user = await prisma.user.update({
       where: { id: userId },
       data: { role: value.role },
@@ -56,8 +59,8 @@ router.put('/:id/role', authenticate, authorize('admin'), async (req, res, next)
 router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const userId = req.params.id as string
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+    const user = await prisma.user.findFirst({
+      where: { id: userId, tenantId: req.tenantId },
       include: {
         _count: { select: { events: true, techPlans: true } }
       }

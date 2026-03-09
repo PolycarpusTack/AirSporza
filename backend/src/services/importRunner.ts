@@ -22,6 +22,7 @@ export async function runImport(sourceCode: string): Promise<void> {
   try {
     await prisma.importJob.create({
       data: {
+        tenantId: source.tenantId,
         sourceId: source.id,
         entityScope: 'fixtures',
         mode: 'incremental',

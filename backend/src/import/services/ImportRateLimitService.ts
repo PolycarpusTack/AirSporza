@@ -16,6 +16,7 @@ type SourceRateConfig = {
   code: string
   rateLimitPerMinute: number | null
   rateLimitPerDay: number | null
+  tenantId?: string
 }
 
 type AdapterRateConfig = {
@@ -59,6 +60,7 @@ export async function acquireRateLimitSlot(
       const state = await tx.importRateLimit.upsert({
         where: { sourceId: source.id },
         create: {
+          tenantId: source.tenantId || '',
           sourceId: source.id,
           requestsThisMinute: 0,
           requestsThisDay: 0,

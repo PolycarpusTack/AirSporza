@@ -11,7 +11,7 @@ router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const { action, userId, entityType, from, to, limit = '50', offset = '0' } = req.query as Record<string, string>
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
     if (action) where.action = { contains: action }
     if (userId) where.userId = userId
     if (entityType) where.entityType = entityType
@@ -42,7 +42,7 @@ router.get('/:entityType/:entityId', authenticate, authorize('admin'), async (re
     const entityType = String(req.params.entityType)
     const entityId = String(req.params.entityId)
     const entries = await prisma.auditLog.findMany({
-      where: { entityType, entityId },
+      where: { tenantId: req.tenantId, entityType, entityId },
       orderBy: { createdAt: 'desc' },
       take: 100,
     })
@@ -65,7 +65,7 @@ const RESTORABLE: Record<string, (id: number, data: object) => Promise<unknown>>
 
 router.post('/:logId/restore', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const log = await prisma.auditLog.findUnique({ where: { id: String(req.params.logId) } })
+    const log = await prisma.auditLog.findFirst({ where: { id: String(req.params.logId), tenantId: req.tenantId } })
     if (!log) return next(createError(404, 'Audit log entry not found'))
     if (!log.oldValue) return next(createError(400, 'No previous value to restore'))
 
@@ -84,6 +84,7 @@ router.post('/:logId/restore', authenticate, authorize('admin'), async (req, res
       newValue: log.oldValue ?? undefined,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json(restored)

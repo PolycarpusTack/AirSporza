@@ -91,6 +91,7 @@ export async function runImportJob(jobId: string, options: RunImportJobOptions =
         code: job.source.code,
         rateLimitPerMinute: job.source.rateLimitPerMinute,
         rateLimitPerDay: job.source.rateLimitPerDay,
+        tenantId: job.tenantId,
       },
       adapter.rateLimitConfig
     )
@@ -134,6 +135,7 @@ export async function runImportJob(jobId: string, options: RunImportJobOptions =
 
     await prisma.syncHistory.create({
       data: {
+        tenantId: job.tenantId,
         entityType: job.entityScope,
         entityId: null,
         sourceCode: job.source.code,
@@ -355,14 +357,14 @@ async function processCompetitionRecord(
 
   try {
     const normalized = adapter.normalizeCompetition(rawRecord)
-    await upsertImportRecord(job.id, job.sourceId, rawRecord, normalized)
+    await upsertImportRecord(job.id, job.sourceId, job.tenantId, rawRecord, normalized)
 
     if (!normalized) {
       await progress.increment({ recordsProcessed: 1, recordsSkipped: 1 })
       return 'partial' as const
     }
 
-    const result = await upsertCompetition(job.sourceId, normalized)
+    const result = await upsertCompetition(job.sourceId, job.tenantId, normalized)
     await progress.increment({
       recordsProcessed: 1,
       recordsCreated: result === 'created' ? 1 : 0,
@@ -390,14 +392,14 @@ async function processTeamRecord(
     }
 
     const normalized = adapter.normalizeTeam(rawRecord)
-    await upsertImportRecord(job.id, job.sourceId, rawRecord, normalized)
+    await upsertImportRecord(job.id, job.sourceId, job.tenantId, rawRecord, normalized)
 
     if (!normalized) {
       await progress.increment({ recordsProcessed: 1, recordsSkipped: 1 })
       return 'partial' as const
     }
 
-    const result = await upsertTeam(job.sourceId, normalized)
+    const result = await upsertTeam(job.sourceId, job.tenantId, normalized)
     await progress.increment({
       recordsProcessed: 1,
       recordsCreated: result === 'created' ? 1 : 0,
@@ -421,17 +423,18 @@ async function processEventRecord(
 
   try {
     const normalized = adapter.normalizeFixture(rawRecord)
-    const importRecord = await upsertImportRecord(job.id, job.sourceId, rawRecord, normalized)
+    const importRecord = await upsertImportRecord(job.id, job.sourceId, job.tenantId, rawRecord, normalized)
 
     if (!normalized) {
       await progress.increment({ recordsProcessed: 1, recordsSkipped: 1 })
       return 'partial' as const
     }
 
-    const eventResult = await upsertEvent(job.sourceId, rawRecord, normalized)
+    const eventResult = await upsertEvent(job.sourceId, job.tenantId, rawRecord, normalized)
     if (eventResult.kind === 'review') {
       await prisma.mergeCandidate.create({
         data: {
+          tenantId: job.tenantId,
           importRecordId: importRecord.id,
           entityType: 'event',
           suggestedEntityId: eventResult.suggestedEntityId,
@@ -664,6 +667,7 @@ async function handleJobFailure(
 
   await prisma.importDeadLetter.create({
     data: {
+      tenantId: job.tenantId,
       jobId: job.id,
       sourceId: job.sourceId,
       sourceRecordId: null,
@@ -688,6 +692,7 @@ async function writeSyncHistory(
 ) {
   await prisma.syncHistory.create({
     data: {
+      tenantId: job.tenantId,
       entityType: job.entityScope,
       entityId: null,
       sourceCode: job.source.code,
@@ -708,7 +713,7 @@ async function writeSyncHistory(
   })
 }
 
-async function upsertCompetition(sourceId: string, normalized: NormalizedCompetition) {
+async function upsertCompetition(sourceId: string, tenantId: string, normalized: NormalizedCompetition) {
   const sport = await prisma.sport.findFirst({
     where: { name: { equals: normalized.sport, mode: 'insensitive' } }
   })
@@ -725,6 +730,7 @@ async function upsertCompetition(sourceId: string, normalized: NormalizedCompeti
       }
     },
     create: {
+      tenantId,
       sportId: sport.id,
       primaryName: normalized.name,
       countryCode: normalized.country || null,
@@ -756,6 +762,7 @@ async function upsertCompetition(sourceId: string, normalized: NormalizedCompeti
       })
     : await prisma.competition.create({
         data: {
+          tenantId,
           sportId: sport.id,
           name: normalized.name,
           season,
@@ -771,6 +778,7 @@ async function upsertCompetition(sourceId: string, normalized: NormalizedCompeti
       }
     },
     create: {
+      tenantId,
       sourceId,
       alias: normalized.name,
       normalizedAlias: normalizeName(normalized.name),
@@ -790,6 +798,7 @@ async function upsertCompetition(sourceId: string, normalized: NormalizedCompeti
       }
     },
     create: {
+      tenantId,
       sourceId,
       sourceRecordId: normalized.sourceId,
       entityType: 'competition',
@@ -817,7 +826,7 @@ async function upsertCompetition(sourceId: string, normalized: NormalizedCompeti
   return existing ? 'updated' as const : 'created' as const
 }
 
-async function upsertTeam(sourceId: string, normalized: NormalizedTeam) {
+async function upsertTeam(sourceId: string, tenantId: string, normalized: NormalizedTeam) {
   const sport = await prisma.sport.findFirst({
     where: { name: { equals: normalized.sport, mode: 'insensitive' } }
   })
@@ -834,6 +843,7 @@ async function upsertTeam(sourceId: string, normalized: NormalizedTeam) {
       }
     },
     create: {
+      tenantId,
       sportId: sport.id,
       primaryName: normalized.name,
       countryCode: normalized.country || null,
@@ -855,6 +865,7 @@ async function upsertTeam(sourceId: string, normalized: NormalizedTeam) {
       }
     },
     create: {
+      tenantId,
       sourceId,
       alias: normalized.name,
       normalizedAlias: normalizeName(normalized.name),
@@ -885,6 +896,7 @@ async function upsertTeam(sourceId: string, normalized: NormalizedTeam) {
       }
     },
     create: {
+      tenantId,
       sourceId,
       sourceRecordId: normalized.sourceId,
       entityType: 'team',
@@ -912,7 +924,7 @@ async function upsertTeam(sourceId: string, normalized: NormalizedTeam) {
   return existingLink ? 'updated' as const : 'created' as const
 }
 
-async function upsertEvent(sourceId: string, rawRecord: RawSourceRecord, normalized: CanonicalImportEvent) {
+async function upsertEvent(sourceId: string, tenantId: string, rawRecord: RawSourceRecord, normalized: CanonicalImportEvent) {
   const sport = await prisma.sport.findFirst({
     where: { name: { equals: normalized.sportName, mode: 'insensitive' } }
   })
@@ -921,7 +933,7 @@ async function upsertEvent(sourceId: string, rawRecord: RawSourceRecord, normali
     throw new Error(`Sport '${normalized.sportName}' not found.`)
   }
 
-  await upsertCompetition(sourceId, {
+  await upsertCompetition(sourceId, tenantId, {
     sourceCode: normalized.externalKeys[0]?.source || 'football_data',
     sourceId: normalized.externalKeys[0]?.id || rawRecord.id,
     name: normalized.competitionName,
@@ -969,7 +981,7 @@ async function upsertEvent(sourceId: string, rawRecord: RawSourceRecord, normali
       rawRecord.id,
       rawRecord.sourceUpdatedAt || null
     )
-    await upsertEventSourceLink(sourceId, rawRecord.id, updated.id, fingerprintMatch.confidence, fingerprintMatch.method)
+    await upsertEventSourceLink(sourceId, tenantId, rawRecord.id, updated.id, fingerprintMatch.confidence, fingerprintMatch.method)
     emit('event:updated', updated)
     return { kind: 'updated' as const }
   }
@@ -995,7 +1007,7 @@ async function upsertEvent(sourceId: string, rawRecord: RawSourceRecord, normali
       rawRecord.id,
       rawRecord.sourceUpdatedAt || null
     )
-    await upsertEventSourceLink(sourceId, rawRecord.id, updated.id, strongestFuzzy.confidence, strongestFuzzy.method)
+    await upsertEventSourceLink(sourceId, tenantId, rawRecord.id, updated.id, strongestFuzzy.confidence, strongestFuzzy.method)
     emit('event:updated', updated)
     return { kind: 'updated' as const }
   }
@@ -1009,14 +1021,14 @@ async function upsertEvent(sourceId: string, rawRecord: RawSourceRecord, normali
     createdSourceCode
   )
   const created = await prisma.event.create({
-    data: createdPatch.data,
+    data: { ...createdPatch.data, tenantId },
     include: {
       sport: true,
       competition: true,
     }
   })
 
-  await upsertEventSourceLink(sourceId, rawRecord.id, created.id, 100, 'exact')
+  await upsertEventSourceLink(sourceId, tenantId, rawRecord.id, created.id, 100, 'exact')
   await recordFieldProvenance({
     entityType: 'event',
     entityId: String(created.id),
@@ -1036,8 +1048,9 @@ export async function manualMergeNormalizedEvent(params: {
   sourceUpdatedAt?: Date | null
   normalized: CanonicalImportEvent
   targetEventId: number
+  tenantId?: string
 }) {
-  const { sourceId, sourceRecordId, sourceUpdatedAt, normalized, targetEventId } = params
+  const { sourceId, sourceRecordId, sourceUpdatedAt, normalized, targetEventId, tenantId } = params
 
   const sport = await prisma.sport.findFirst({
     where: { name: { equals: normalized.sportName, mode: 'insensitive' } }
@@ -1047,7 +1060,7 @@ export async function manualMergeNormalizedEvent(params: {
     throw new Error(`Sport '${normalized.sportName}' not found.`)
   }
 
-  await upsertCompetition(sourceId, {
+  await upsertCompetition(sourceId, tenantId || '', {
     sourceCode: normalized.externalKeys[0]?.source || 'football_data',
     sourceId: normalized.externalKeys[0]?.id || sourceRecordId,
     name: normalized.competitionName,
@@ -1079,7 +1092,7 @@ export async function manualMergeNormalizedEvent(params: {
     sourceUpdatedAt || null
   )
 
-  await upsertEventSourceLink(sourceId, sourceRecordId, updated.id, 100, 'manual')
+  await upsertEventSourceLink(sourceId, tenantId || '', sourceRecordId, updated.id, 100, 'manual')
   emit('event:updated', updated)
   return updated
 }
@@ -1089,8 +1102,9 @@ export async function manualCreateNormalizedEvent(params: {
   sourceRecordId: string
   sourceUpdatedAt?: Date | null
   normalized: CanonicalImportEvent
+  tenantId?: string
 }) {
-  const { sourceId, sourceRecordId, sourceUpdatedAt, normalized } = params
+  const { sourceId, sourceRecordId, sourceUpdatedAt, normalized, tenantId } = params
 
   const sport = await prisma.sport.findFirst({
     where: { name: { equals: normalized.sportName, mode: 'insensitive' } }
@@ -1100,7 +1114,7 @@ export async function manualCreateNormalizedEvent(params: {
     throw new Error(`Sport '${normalized.sportName}' not found.`)
   }
 
-  await upsertCompetition(sourceId, {
+  await upsertCompetition(sourceId, tenantId || '', {
     sourceCode: normalized.externalKeys[0]?.source || 'football_data',
     sourceId: normalized.externalKeys[0]?.id || sourceRecordId,
     name: normalized.competitionName,
@@ -1132,14 +1146,14 @@ export async function manualCreateNormalizedEvent(params: {
   )
 
   const created = await prisma.event.create({
-    data: createdPatch.data,
+    data: { ...createdPatch.data, tenantId: tenantId || '' },
     include: {
       sport: true,
       competition: true,
     }
   })
 
-  await upsertEventSourceLink(sourceId, sourceRecordId, created.id, 100, 'manual')
+  await upsertEventSourceLink(sourceId, tenantId || '', sourceRecordId, created.id, 100, 'manual')
   await recordFieldProvenance({
     entityType: 'event',
     entityId: String(created.id),
@@ -1198,7 +1212,7 @@ async function updateImportedEvent(
   })
 }
 
-async function upsertEventSourceLink(sourceId: string, sourceRecordId: string, eventId: number, confidence: number, method: 'exact' | 'fingerprint' | 'fuzzy' | 'manual') {
+async function upsertEventSourceLink(sourceId: string, tenantId: string, sourceRecordId: string, eventId: number, confidence: number, method: 'exact' | 'fingerprint' | 'fuzzy' | 'manual') {
   await prisma.importSourceLink.upsert({
     where: {
       sourceId_sourceRecordId_entityType: {
@@ -1208,6 +1222,7 @@ async function upsertEventSourceLink(sourceId: string, sourceRecordId: string, e
       }
     },
     create: {
+      tenantId,
       sourceId,
       sourceRecordId,
       entityType: 'event',
@@ -1322,6 +1337,7 @@ async function buildImportedEventData(normalized: CanonicalImportEvent, sportId:
 async function upsertImportRecord(
   jobId: string,
   sourceId: string,
+  tenantId: string,
   rawRecord: RawSourceRecord,
   normalized: unknown
 ) {
@@ -1337,6 +1353,7 @@ async function upsertImportRecord(
       }
     },
     create: {
+      tenantId,
       jobId,
       sourceId,
       sourceRecordId: rawRecord.id,
@@ -1369,6 +1386,7 @@ async function writeDeadLetter(job: NonNullable<JobWithSource>, rawRecord: RawSo
 
   await prisma.importDeadLetter.create({
     data: {
+      tenantId: job.tenantId,
       jobId: job.id,
       sourceId: job.sourceId,
       sourceRecordId: rawRecord.id,

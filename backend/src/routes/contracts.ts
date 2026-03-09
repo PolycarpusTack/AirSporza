@@ -43,8 +43,9 @@ router.get('/', authenticate, async (req, res, next) => {
     const { status } = req.query
     const normalizedStatus = typeof status === 'string' && contractStatuses.has(status) ? status as ContractStatus : undefined
     
-    const where = normalizedStatus ? { status: normalizedStatus } : {}
-    
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
+    if (normalizedStatus) where.status = normalizedStatus
+
     const contracts = await prisma.contract.findMany({
       where,
       include: {
@@ -71,6 +72,7 @@ router.get('/expiring', authenticate, async (req, res, next) => {
     
     const contracts = await prisma.contract.findMany({
       where: {
+        tenantId: req.tenantId,
         validUntil: {
           gte: new Date(),
           lte: expiryDate
@@ -94,8 +96,8 @@ router.get('/expiring', authenticate, async (req, res, next) => {
 
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
-    const contract = await prisma.contract.findUnique({
-      where: { id: parseId(req.params.id) },
+    const contract = await prisma.contract.findFirst({
+      where: { id: parseId(req.params.id), tenantId: req.tenantId },
       include: {
         competition: {
           include: { sport: true }
@@ -120,7 +122,7 @@ router.post('/', authenticate, authorize('contracts', 'admin'), async (req, res,
     if (error) return next(createError(400, error.details[0].message))
 
     const contract = await prisma.contract.create({
-      data: value,
+      data: { ...value, tenantId: req.tenantId! },
       include: { competition: { include: { sport: true } } }
     })
 
@@ -133,6 +135,7 @@ router.post('/', authenticate, authorize('contracts', 'admin'), async (req, res,
       newValue: contract,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.status(201).json(contract)
@@ -144,7 +147,7 @@ router.post('/', authenticate, authorize('contracts', 'admin'), async (req, res,
 router.put('/:id', authenticate, authorize('contracts', 'admin'), async (req, res, next) => {
   try {
     const contractId = parseId(req.params.id)
-    const existing = await prisma.contract.findUnique({ where: { id: contractId } })
+    const existing = await prisma.contract.findFirst({ where: { id: contractId, tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Contract not found'))
 
     const { error, value } = contractSchema.validate(req.body)
@@ -166,6 +169,7 @@ router.put('/:id', authenticate, authorize('contracts', 'admin'), async (req, re
       newValue: contract,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.json(contract)

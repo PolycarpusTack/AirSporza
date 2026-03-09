@@ -36,7 +36,8 @@ function getCurrentUser(req: Parameters<typeof authenticate>[0]) {
 }
 
 
-async function getSetting(key: string, scopeKind: 'global' | 'role' | 'user' | 'user_role', scopeId: string) {
+async function getSetting(key: string, scopeKind: 'global' | 'role' | 'user' | 'user_role', scopeId: string, tenantId?: string) {
+  const tid = tenantId ?? null
   const results = await prisma.$queryRaw<Array<{
     id: string
     key: string
@@ -50,6 +51,7 @@ async function getSetting(key: string, scopeKind: 'global' | 'role' | 'user' | '
     SELECT "id", "key", "scopeKind"::text, "scopeId", "userId", "value", "createdAt", "updatedAt"
     FROM "AppSetting"
     WHERE "key" = ${key} AND "scopeKind"::text = ${scopeKind} AND "scopeId" = ${scopeId}
+      AND (${tid}::uuid IS NULL OR "tenantId" = ${tid}::uuid)
     LIMIT 1
   `)
 
@@ -62,14 +64,15 @@ async function upsertSetting(params: {
   scopeId: string
   userId?: string | null
   value: unknown
+  tenantId?: string
 }) {
-  const { key, scopeKind, scopeId, userId, value } = params
+  const { key, scopeKind, scopeId, userId, value, tenantId } = params
   const rows = await prisma.$queryRaw<Array<{
     id: string
     value: Prisma.JsonValue
   }>>(Prisma.sql`
-    INSERT INTO "AppSetting" ("id", "key", "scopeKind", "scopeId", "userId", "value", "createdAt", "updatedAt")
-    VALUES (gen_random_uuid(), ${key}, ${scopeKind}::"SettingScopeKind", ${scopeId}, ${userId || null}, ${JSON.stringify(value)}::jsonb, NOW(), NOW())
+    INSERT INTO "AppSetting" ("id", "key", "scopeKind", "scopeId", "userId", "tenantId", "value", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), ${key}, ${scopeKind}::"SettingScopeKind", ${scopeId}, ${userId || null}, ${tenantId ?? null}::uuid, ${JSON.stringify(value)}::jsonb, NOW(), NOW())
     ON CONFLICT ("key", "scopeKind", "scopeId")
     DO UPDATE SET
       "userId" = EXCLUDED."userId",
@@ -82,14 +85,15 @@ async function upsertSetting(params: {
 }
 
 // Admin stats
-router.get('/stats', authenticate, authorize('admin'), async (_req, res, next) => {
+router.get('/stats', authenticate, authorize('admin'), async (req, res, next) => {
   try {
+    const tid = { tenantId: req.tenantId }
     const [userCount, eventCount, techPlanCount, crewMemberCount, notificationCount] = await Promise.all([
-      prisma.user.count(),
-      prisma.event.count(),
-      prisma.techPlan.count(),
-      prisma.crewMember.count(),
-      prisma.notification.count({ where: { isRead: false } }),
+      prisma.user.count({ where: tid }),
+      prisma.event.count({ where: tid }),
+      prisma.techPlan.count({ where: tid }),
+      prisma.crewMember.count({ where: tid }),
+      prisma.notification.count({ where: { ...tid, isRead: false } }),
     ])
     res.json({
       users: userCount,
@@ -104,9 +108,9 @@ router.get('/stats', authenticate, authorize('admin'), async (_req, res, next) =
 })
 
 // Get auto-fill rules
-router.get('/autofill', authenticate, async (_req, res, next) => {
+router.get('/autofill', authenticate, async (req, res, next) => {
   try {
-    const setting = await getSetting('autofill_rules', 'global', 'global')
+    const setting = await getSetting('autofill_rules', 'global', 'global', req.tenantId)
     res.json(setting?.value ?? { rules: [] })
   } catch (error) {
     next(error)
@@ -124,6 +128,7 @@ router.put('/autofill', authenticate, authorize('admin'), async (req, res, next)
       scopeId: 'global',
       userId: user.id,
       value: { rules },
+      tenantId: req.tenantId,
     })
     res.json(setting?.value ?? { rules })
   } catch (error) {
@@ -140,12 +145,13 @@ router.get('/app', authenticate, async (req, res, next) => {
     }
 
     const user = getCurrentUser(req)
+    const tid = req.tenantId
     const [eventFields, crewFields, roleDashboard, userDashboard, orgConfig] = await Promise.all([
-      getSetting('event_fields', 'global', 'global'),
-      getSetting('crew_fields', 'global', 'global'),
-      getSetting('dashboard_widgets', 'role', role),
-      getSetting('dashboard_widgets', 'user_role', `${user.id}:${role}`),
-      getSetting('org_config', 'global', 'global'),
+      getSetting('event_fields', 'global', 'global', tid),
+      getSetting('crew_fields', 'global', 'global', tid),
+      getSetting('dashboard_widgets', 'role', role, tid),
+      getSetting('dashboard_widgets', 'user_role', `${user.id}:${role}`, tid),
+      getSetting('org_config', 'global', 'global', tid),
     ])
 
     res.json({
@@ -193,13 +199,14 @@ router.put('/app/org', authenticate, authorize('admin'), async (req, res, next) 
     }
 
     const user = getCurrentUser(req)
-    const existing = await getSetting('org_config', 'global', 'global')
+    const existing = await getSetting('org_config', 'global', 'global', req.tenantId)
     const setting = await upsertSetting({
       key: 'org_config',
       scopeKind: 'global',
       scopeId: 'global',
       userId: user.id,
       value,
+      tenantId: req.tenantId,
     })
 
     await writeAuditLog({
@@ -211,6 +218,7 @@ router.put('/app/org', authenticate, authorize('admin'), async (req, res, next) 
       newValue: value,
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || null,
+      tenantId: req.tenantId,
     })
 
     res.json({ config: setting.value })
@@ -227,13 +235,14 @@ router.put('/app/fields/event', authenticate, authorize('admin'), async (req, re
     }
 
     const user = getCurrentUser(req)
-    const existing = await getSetting('event_fields', 'global', 'global')
+    const existing = await getSetting('event_fields', 'global', 'global', req.tenantId)
     const setting = await upsertSetting({
       key: 'event_fields',
       scopeKind: 'global',
       scopeId: 'global',
       userId: user.id,
       value,
+      tenantId: req.tenantId,
     })
 
     await writeAuditLog({
@@ -245,6 +254,7 @@ router.put('/app/fields/event', authenticate, authorize('admin'), async (req, re
       newValue: value,
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || null,
+      tenantId: req.tenantId,
     })
 
     res.json({ fields: setting.value })
@@ -261,13 +271,14 @@ router.put('/app/fields/crew', authenticate, authorize('admin'), async (req, res
     }
 
     const user = getCurrentUser(req)
-    const existing = await getSetting('crew_fields', 'global', 'global')
+    const existing = await getSetting('crew_fields', 'global', 'global', req.tenantId)
     const setting = await upsertSetting({
       key: 'crew_fields',
       scopeKind: 'global',
       scopeId: 'global',
       userId: user.id,
       value,
+      tenantId: req.tenantId,
     })
 
     await writeAuditLog({
@@ -279,6 +290,7 @@ router.put('/app/fields/crew', authenticate, authorize('admin'), async (req, res
       newValue: value,
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || null,
+      tenantId: req.tenantId,
     })
 
     res.json({ fields: setting.value })
@@ -308,13 +320,14 @@ router.put('/app/dashboard/:role', authenticate, async (req, res, next) => {
     }
 
     const scopeId = scope === 'role' ? role : `${user.id}:${role}`
-    const existing = await getSetting('dashboard_widgets', scope, scopeId)
+    const existing = await getSetting('dashboard_widgets', scope, scopeId, req.tenantId)
     const setting = await upsertSetting({
       key: 'dashboard_widgets',
       scopeKind: scope,
       scopeId,
       userId: user.id,
       value,
+      tenantId: req.tenantId,
     })
 
     await writeAuditLog({
@@ -326,6 +339,7 @@ router.put('/app/dashboard/:role', authenticate, async (req, res, next) => {
       newValue: value,
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || null,
+      tenantId: req.tenantId,
     })
 
     res.json({

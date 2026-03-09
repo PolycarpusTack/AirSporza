@@ -30,11 +30,15 @@ if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
       })
       
       if (!user) {
+        // For OAuth, use the tenant from the request context (set by middleware)
+        // Note: req is not available here; new users inherit from default tenant
+        const defaultTenant = await prisma.tenant.findFirst({ where: { slug: 'default' } })
         user = await prisma.user.create({
           data: {
             email: profile.email,
             name: profile.name || profile.email.split('@')[0],
-            externalId: profile.sub
+            externalId: profile.sub,
+            tenantId: defaultTenant?.id ?? '',
           }
         })
       }
@@ -99,7 +103,8 @@ router.post('/dev-login', async (req, res, next) => {
         data: {
           email,
           name: email.split('@')[0],
-          role: role || 'planner'
+          role: role || 'planner',
+          tenantId: req.tenantId!,
         }
       })
     } else if (role && user.role !== role) {

@@ -10,8 +10,9 @@ router.get('/', async (req, res, next) => {
   try {
     const { sportId } = req.query
     
-    const where = sportId ? { sportId: parseId(sportId as string) } : {}
-    
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
+    if (sportId) where.sportId = parseId(sportId as string)
+
     const competitions = await prisma.competition.findMany({
       where,
       include: {
@@ -32,8 +33,8 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const competition = await prisma.competition.findUnique({
-      where: { id: parseId(req.params.id) },
+    const competition = await prisma.competition.findFirst({
+      where: { id: parseId(req.params.id), tenantId: req.tenantId },
       include: {
         sport: true,
         contracts: {
@@ -69,7 +70,7 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
     }
     
     const competition = await prisma.competition.create({
-      data: { sportId, name, matches: matches || 0, season }
+      data: { sportId, name, matches: matches || 0, season, tenantId: req.tenantId! }
     })
     
     res.status(201).json(competition)

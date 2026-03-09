@@ -13,6 +13,7 @@ type EventDraft = {
   startDateBE: string
   startTimeBE: string
   status?: EventStatus
+  tenantId?: string
 }
 
 function timeToMin(t: string): number {
@@ -35,6 +36,7 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
   if (draft.linearChannel) {
     const sameDay = await prisma.event.findMany({
       where: {
+        ...(draft.tenantId ? { tenantId: draft.tenantId } : {}),
         linearChannel: draft.linearChannel,
         startDateBE: { gte: dayStart, lte: dayEnd },
         ...(draft.id ? { NOT: { id: draft.id } } : {}),
@@ -55,6 +57,7 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
   // 2. Rights window
   const contract = await prisma.contract.findFirst({
     where: {
+      ...(draft.tenantId ? { tenantId: draft.tenantId } : {}),
       competitionId: draft.competitionId,
       status: { in: ['valid', 'expiring'] },
       validFrom: { lte: dayEnd },
