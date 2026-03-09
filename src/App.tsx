@@ -256,7 +256,8 @@ function AppContent() {
               const saved = await handleSaveEvent(ev)
               if (isCreate && saved) {
                 const rawDate = saved.startDateBE
-                const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0] : (rawDate as Date).toISOString().split('T')[0]
+                const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0]
+                  : `${(rawDate as Date).getFullYear()}-${String((rawDate as Date).getMonth() + 1).padStart(2, '0')}-${String((rawDate as Date).getDate()).padStart(2, '0')}`
                 setScrollToDate(dateStr)
                 // Clear after a tick so re-creates still trigger
                 setTimeout(() => setScrollToDate(null), 100)
@@ -271,9 +272,9 @@ function AppContent() {
                   return newEvents.length > 0 ? [...prev, ...newEvents] : prev
                 })
                 if (created.length > 0) {
-                  const firstDate = typeof created[0].startDateBE === 'string'
-                    ? created[0].startDateBE.split('T')[0]
-                    : (created[0].startDateBE as Date).toISOString().split('T')[0]
+                  const firstRaw = created[0].startDateBE
+                  const firstDate = typeof firstRaw === 'string' ? firstRaw.split('T')[0]
+                    : `${(firstRaw as Date).getFullYear()}-${String((firstRaw as Date).getMonth() + 1).padStart(2, '0')}-${String((firstRaw as Date).getDate()).padStart(2, '0')}`
                   setScrollToDate(firstDate)
                   setTimeout(() => setScrollToDate(null), 100)
                 }

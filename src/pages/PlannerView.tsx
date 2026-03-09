@@ -508,7 +508,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     }
     const currentDateStr = typeof event.startDateBE === 'string'
       ? event.startDateBE.slice(0, 10)
-      : (event.startDateBE as Date).toISOString().slice(0, 10)
+      : dateStr(event.startDateBE as Date)
     if (newDate === currentDateStr) return  // same day, no-op
     // Optimistic: apply patch immediately
     applyOptimisticEvent({ id: eventId, startDateBE: newDate })
