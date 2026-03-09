@@ -1206,21 +1206,28 @@ enum ContentSegment {
 model Channel {
   id                     Int      @id @default(autoincrement())
   tenantId               String   @db.Uuid
+  parentId               Int?
   name                   String
+  types                  String[] @default(["linear"])
   timezone               String   @default("Europe/Brussels")
   broadcastDayStartLocal String   @default("06:00")
+  platformConfig         Json     @default("{}")
   epgConfig              Json     @default("{}")
   color                  String   @default("#3B82F6")
+  sortOrder              Int      @default(0)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   tenant                 Tenant            @relation(fields: [tenantId], references: [id])
+  parent                 Channel?          @relation("ChannelTree", fields: [parentId], references: [id])
+  children               Channel[]         @relation("ChannelTree")
   broadcastSlots         BroadcastSlot[]
   scheduleDrafts         ScheduleDraft[]
   scheduleVersions       ScheduleVersion[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
+  @@index([parentId])
 }
 
 model BroadcastSlot {

@@ -273,14 +273,23 @@ export interface Round {
   scheduledDateEnd?: string
 }
 
+export type ChannelType = 'linear' | 'on-demand' | 'radio' | 'fast' | 'pop-up'
+
 export interface Channel {
   id: number
   tenantId: string
+  parentId: number | null
   name: string
+  types: ChannelType[]
   timezone: string
   broadcastDayStartLocal: string
+  platformConfig: Record<string, unknown>
   epgConfig: Record<string, unknown>
   color: string
+  sortOrder: number
+  parent?: { id: number; name: string } | null
+  children?: Channel[]
+  _count?: { broadcastSlots: number }
 }
 
 export interface BroadcastSlot {
