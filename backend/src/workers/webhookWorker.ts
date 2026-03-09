@@ -35,18 +35,32 @@ export function startWebhookWorker() {
     const body = JSON.stringify(envelope)
 
     let delivered = 0
+    const errors: string[] = []
+
     for (const webhook of webhooks) {
       const signature = 'sha256=' + createHmac('sha256', webhook.secret).update(body, 'utf8').digest('hex')
 
-      const delivery = await prisma.webhookDelivery.create({
-        data: {
-          tenantId: webhook.tenantId,
+      // Upsert delivery record to avoid duplicates on BullMQ retry
+      const existingDelivery = await prisma.webhookDelivery.findFirst({
+        where: {
           webhookId: webhook.id,
           eventType,
-          payload: envelope as object,
-          attempts: 0,
+          payload: { path: ['data'], equals: payload as any },
         },
+        orderBy: { createdAt: 'desc' },
       })
+
+      const delivery = existingDelivery
+        ? existingDelivery
+        : await prisma.webhookDelivery.create({
+            data: {
+              tenantId: webhook.tenantId,
+              webhookId: webhook.id,
+              eventType,
+              payload: envelope as object,
+              attempts: 0,
+            },
+          })
 
       let statusCode: number | null = null
       let error: string | null = null
@@ -75,7 +89,7 @@ export function startWebhookWorker() {
         where: { id: delivery.id },
         data: {
           statusCode,
-          attempts: 1,
+          attempts: { increment: 1 },
           deliveredAt: succeeded ? new Date() : undefined,
           error: succeeded ? null : error,
         },
@@ -84,12 +98,15 @@ export function startWebhookWorker() {
       if (succeeded) {
         delivered++
       } else {
+        const msg = `Webhook ${webhook.id} delivery failed: ${error}`
         logger.warn('Webhook delivery failed', { webhookId: webhook.id, deliveryId: delivery.id, error })
-        // BullMQ will retry the entire job — failed deliveries will be re-attempted
-        if (webhooks.length === 1) {
-          throw new Error(`Webhook delivery failed: ${error}`)
-        }
+        errors.push(msg)
       }
+    }
+
+    // If any webhooks failed, throw so BullMQ retries
+    if (errors.length > 0) {
+      throw new Error(`${errors.length}/${webhooks.length} webhook(s) failed: ${errors.join('; ')}`)
     }
 
     return { delivered, total: webhooks.length }

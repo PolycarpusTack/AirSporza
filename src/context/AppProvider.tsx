@@ -178,6 +178,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setCrewFields(settingsData.crewFields)
         }
         if (settingsData.orgConfig) {
+          // NOTE: orgConfig.channels is deprecated — ChannelSelect fetches directly from the Channel API.
+          // Other consumers (AutoFillRulesPanel, etc.) should use channelsApi instead.
           setOrgConfig(settingsData.orgConfig)
         }
         setDashWidgets(prev => ({

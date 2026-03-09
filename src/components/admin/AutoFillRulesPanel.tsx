@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { settingsApi, type AutoFillRule } from '../../services/settings'
+import { channelsApi } from '../../services/channels'
+import type { Channel } from '../../data/types'
 import { useApp } from '../../context/AppProvider'
 import { useToast } from '../Toast'
 
 export function AutoFillRulesPanel() {
   const [rules, setRules] = useState<AutoFillRule[]>([])
   const [loading, setLoading] = useState(true)
-  const { sports, competitions, orgConfig } = useApp()
+  const { sports, competitions } = useApp()
   const toast = useToast()
+  const [channelList, setChannelList] = useState<Channel[]>([])
+
+  useEffect(() => {
+    channelsApi.list().then(setChannelList).catch(() => {})
+  }, [])
 
   useEffect(() => {
     settingsApi.getAutoFillRules()
@@ -48,7 +55,7 @@ export function AutoFillRulesPanel() {
     save(updated)
   }
 
-  const channels = orgConfig?.channels?.map((ch: { name: string }) => ch.name) ?? []
+  const channels = channelList
 
   if (loading) return <div className="text-sm text-muted py-4">Loading...</div>
 
@@ -114,10 +121,10 @@ export function AutoFillRulesPanel() {
             </div>
             <div>
               <label className="block text-xs text-muted mb-1">To value</label>
-              {rule.field === 'linearChannel' ? (
+              {(rule.field === 'linearChannel' || rule.field === 'radioChannel' || rule.field === 'onDemandChannel') ? (
                 <select className="inp text-sm w-full" value={rule.value} onChange={e => updateRule(rule.id, { value: e.target.value })}>
                   <option value="">Select...</option>
-                  {channels.map((ch: string) => <option key={ch} value={ch}>{ch}</option>)}
+                  {channels.map((ch) => <option key={ch.id} value={String(ch.id)}>{ch.name}</option>)}
                 </select>
               ) : (
                 <input

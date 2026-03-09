@@ -135,10 +135,11 @@ router.get('/', async (req, res, next) => {
       if (to) (where.startDateBE as Record<string, unknown>).lte = new Date(to as string)
     }
 
-    if (search) {
+    const searchTerm = search ? String(search).slice(0, 200) : undefined
+    if (searchTerm) {
       where.OR = [
-        { participants: { contains: search as string, mode: 'insensitive' } },
-        { content: { contains: search as string, mode: 'insensitive' } }
+        { participants: { contains: searchTerm, mode: 'insensitive' } },
+        { content: { contains: searchTerm, mode: 'insensitive' } }
       ]
     }
 
@@ -291,6 +292,12 @@ router.delete('/bulk', authenticate, authorize('planner', 'admin'), async (req, 
     const { ids } = value as { ids: number[] }
 
     await prisma.$transaction(async (tx) => {
+      // Void any linked BroadcastSlots before deleting events
+      await tx.broadcastSlot.updateMany({
+        where: { eventId: { in: ids }, tenantId: req.tenantId },
+        data: { status: 'VOIDED', eventId: null }
+      })
+
       await tx.customFieldValue.deleteMany({
         where: { tenantId: req.tenantId, entityType: 'event', entityId: { in: ids.map(String) } },
       })
@@ -773,6 +780,12 @@ router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, r
     }
 
     await prisma.$transaction(async (tx) => {
+      // Void any linked BroadcastSlots before deleting the event
+      await tx.broadcastSlot.updateMany({
+        where: { eventId: event.id, tenantId: req.tenantId },
+        data: { status: 'VOIDED', eventId: null }
+      })
+
       await tx.customFieldValue.deleteMany({
         where: { tenantId: req.tenantId, entityType: 'event', entityId: String(req.params.id) }
       })

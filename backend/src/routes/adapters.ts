@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
+import { authenticate, authorize } from '../middleware/auth.js'
 import { liveScoreAdapter } from '../adapters/liveScore.js'
 import { logger } from '../utils/logger.js'
 
@@ -10,7 +11,7 @@ const router = Router()
 // ===========================================================================
 
 // GET /api/adapters/configs — list configs for tenant
-router.get('/configs', async (req, res, next) => {
+router.get('/configs', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
     const configs = await prisma.adapterConfig.findMany({
@@ -22,7 +23,7 @@ router.get('/configs', async (req, res, next) => {
 })
 
 // POST /api/adapters/configs — create config (admin)
-router.post('/configs', async (req, res, next) => {
+router.post('/configs', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
     const { adapterType, direction, providerName, config, isActive } = req.body
@@ -41,10 +42,10 @@ router.post('/configs', async (req, res, next) => {
 })
 
 // PUT /api/adapters/configs/:id — update
-router.put('/configs/:id', async (req, res, next) => {
+router.put('/configs/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
-    const { id } = req.params
+    const id = String(req.params.id)
     const { config, isActive, providerName } = req.body
     const updated = await prisma.adapterConfig.update({
       where: { id, tenantId },
@@ -59,10 +60,10 @@ router.put('/configs/:id', async (req, res, next) => {
 })
 
 // DELETE /api/adapters/configs/:id — delete
-router.delete('/configs/:id', async (req, res, next) => {
+router.delete('/configs/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
-    const { id } = req.params
+    const id = String(req.params.id)
     await prisma.adapterConfig.delete({ where: { id, tenantId } })
     res.status(204).end()
   } catch (err) { next(err) }
@@ -75,8 +76,16 @@ router.delete('/configs/:id', async (req, res, next) => {
 // POST /api/adapters/live-score/webhook
 router.post('/live-score/webhook', async (req, res, next) => {
   try {
-    // Webhook endpoints use a tenant header or API key for identification
-    const tenantId = req.headers['x-tenant-id'] as string || req.tenantId!
+    // Look up the adapter config to determine the tenant
+    const configId = req.body.configId || req.query.configId
+    if (!configId) {
+      return res.status(400).json({ error: 'configId is required' })
+    }
+    const adapterConfig = await prisma.adapterConfig.findUnique({ where: { id: String(configId) } })
+    if (!adapterConfig) {
+      return res.status(404).json({ error: 'Adapter config not found' })
+    }
+    const tenantId = adapterConfig.tenantId
     await liveScoreAdapter.processWebhook(req.body, tenantId)
     res.json({ ok: true })
   } catch (err) {

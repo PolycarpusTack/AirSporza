@@ -144,6 +144,16 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
       return next(createError(404, 'Tech plan not found'))
     }
 
+    // Validate that eventId belongs to the same tenant
+    if (value.eventId) {
+      const event = await prisma.event.findFirst({
+        where: { id: value.eventId, tenantId: req.tenantId },
+      })
+      if (!event) {
+        return next(createError(400, 'eventId does not belong to this tenant'))
+      }
+    }
+
     const plan = await prisma.$transaction(async (tx) => {
       const updated = await tx.techPlan.update({
         where: { id: existing.id },

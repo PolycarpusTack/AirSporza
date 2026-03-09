@@ -56,7 +56,7 @@ function toUtc(dateStr: string, timeStr: string, timezone: string): Date {
     const offsetMs = utcMs - localDate.getTime()
 
     // Now convert the actual local time to UTC by subtracting the offset
-    const actualLocal = new Date(dtString)
+    const actualLocal = new Date(dtString + 'Z')
     return new Date(actualLocal.getTime() - offsetMs)
   } catch {
     // Fallback: treat as UTC if timezone is invalid

@@ -30,7 +30,7 @@ export interface LiveScore {
 export const heuristicEstimator: DurationEstimator = {
   shortDuration(event: CascadeEvent): number {
     // If event has an explicit duration, use it with 10% under padding
-    if (event.durationMin) return Math.round(event.durationMin * 0.9)
+    if (event.durationMin != null) return Math.round(event.durationMin * 0.9)
 
     const meta = event.sportMetadata || {}
     const sport = (event.sport?.name ?? '').toLowerCase()
@@ -53,7 +53,7 @@ export const heuristicEstimator: DurationEstimator = {
 
   longDuration(event: CascadeEvent): number {
     // If event has an explicit duration, use it with 20% over padding
-    if (event.durationMin) return Math.round(event.durationMin * 1.2)
+    if (event.durationMin != null) return Math.round(event.durationMin * 1.2)
 
     const meta = event.sportMetadata || {}
     const sport = (event.sport?.name ?? '').toLowerCase()

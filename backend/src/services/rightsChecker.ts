@@ -28,7 +28,7 @@ export function checkRights(
 ): ValidationResult[] {
   const results: ValidationResult[] = []
 
-  if (!input.channelId || contracts.length === 0) return results
+  if (contracts.length === 0) return results
 
   // Find applicable contracts (valid or expiring)
   const applicable = contracts.filter(c =>
@@ -46,8 +46,8 @@ export function checkRights(
   }
 
   for (const contract of applicable) {
-    // 1. Platform coverage check
-    if (input.channelTypes && input.channelTypes.length > 0) {
+    // 1. Platform coverage check (skip if no channel known)
+    if (input.channelId && input.channelTypes && input.channelTypes.length > 0) {
       const platforms = contract.platforms.length > 0
         ? contract.platforms
         : derivePlatformsFromLegacy(contract)

@@ -66,84 +66,84 @@ model Tenant {
   updatedAt DateTime @updatedAt
 
   // Relation arrays for all tenant-scoped models
-  users                  User[]
-  sports                 Sport[]
-  competitions           Competition[]
-  events                 Event[]
-  techPlans              TechPlan[]
-  contracts              Contract[]
-  encoders               Encoder[]
-  encoderLocks           EncoderLock[]
-  notifications          Notification[]
-  savedViews             SavedView[]
-  resources              Resource[]
-  resourceAssignments    ResourceAssignment[]
-  crewMembers            CrewMember[]
-  crewTemplates          CrewTemplate[]
-  auditLogs              AuditLog[]
-  appSettings            AppSetting[]
-  webhookEndpoints       WebhookEndpoint[]
-  webhookDeliveries      WebhookDelivery[]
-  fieldDefinitions       FieldDefinition[]
-  dropdownLists          DropdownList[]
-  dropdownOptions        DropdownOption[]
-  customFieldValues      CustomFieldValue[]
-  mandatoryFieldConfigs  MandatoryFieldConfig[]
-  importSources          ImportSource[]
-  importJobs             ImportJob[]
-  importRecords          ImportRecord[]
-  importSourceLinks      ImportSourceLink[]
-  mergeCandidates        MergeCandidate[]
-  importDeadLetters      ImportDeadLetter[]
-  importRateLimits       ImportRateLimit[]
-  fieldProvenances       FieldProvenance[]
-  canonicalTeams         CanonicalTeam[]
-  canonicalCompetitions  CanonicalCompetition[]
-  canonicalVenues        CanonicalVenue[]
-  teamAliases            TeamAlias[]
-  competitionAliases     CompetitionAlias[]
-  venueAliases           VenueAlias[]
-  syncHistories          SyncHistory[]
-  importSchedules        ImportSchedule[]
-  venues                 Venue[]
-  teams                  Team[]
-  courts                 Court[]
-  seasons                Season[]
-  stages                 Stage[]
-  rounds                 Round[]
-  channels               Channel[]
-  broadcastSlots         BroadcastSlot[]
-  scheduleDrafts         ScheduleDraft[]
-  scheduleVersions       ScheduleVersion[]
-  rightsPolicies         RightsPolicy[]
-  runLedgerEntries       RunLedger[]
-  outboxEvents           OutboxEvent[]
-  cascadeEstimates       CascadeEstimate[]
-  channelSwitchActions   ChannelSwitchAction[]
-  adapterConfigs         AdapterConfig[]
+  users                 User[]
+  sports                Sport[]
+  competitions          Competition[]
+  events                Event[]
+  techPlans             TechPlan[]
+  contracts             Contract[]
+  encoders              Encoder[]
+  encoderLocks          EncoderLock[]
+  notifications         Notification[]
+  savedViews            SavedView[]
+  resources             Resource[]
+  resourceAssignments   ResourceAssignment[]
+  crewMembers           CrewMember[]
+  crewTemplates         CrewTemplate[]
+  auditLogs             AuditLog[]
+  appSettings           AppSetting[]
+  webhookEndpoints      WebhookEndpoint[]
+  webhookDeliveries     WebhookDelivery[]
+  fieldDefinitions      FieldDefinition[]
+  dropdownLists         DropdownList[]
+  dropdownOptions       DropdownOption[]
+  customFieldValues     CustomFieldValue[]
+  mandatoryFieldConfigs MandatoryFieldConfig[]
+  importSources         ImportSource[]
+  importJobs            ImportJob[]
+  importRecords         ImportRecord[]
+  importSourceLinks     ImportSourceLink[]
+  mergeCandidates       MergeCandidate[]
+  importDeadLetters     ImportDeadLetter[]
+  importRateLimits      ImportRateLimit[]
+  fieldProvenances      FieldProvenance[]
+  canonicalTeams        CanonicalTeam[]
+  canonicalCompetitions CanonicalCompetition[]
+  canonicalVenues       CanonicalVenue[]
+  teamAliases           TeamAlias[]
+  competitionAliases    CompetitionAlias[]
+  venueAliases          VenueAlias[]
+  syncHistories         SyncHistory[]
+  importSchedules       ImportSchedule[]
+  venues                Venue[]
+  teams                 Team[]
+  courts                Court[]
+  seasons               Season[]
+  stages                Stage[]
+  rounds                Round[]
+  channels              Channel[]
+  broadcastSlots        BroadcastSlot[]
+  scheduleDrafts        ScheduleDraft[]
+  scheduleVersions      ScheduleVersion[]
+  rightsPolicies        RightsPolicy[]
+  runLedgerEntries      RunLedger[]
+  outboxEvents          OutboxEvent[]
+  cascadeEstimates      CascadeEstimate[]
+  channelSwitchActions  ChannelSwitchAction[]
+  adapterConfigs        AdapterConfig[]
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  name          String?
-  avatar        String?
-  role          Role     @default(planner)
-  externalId    String?  @unique
-  tenantId      String   @db.Uuid
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id         String   @id @default(uuid())
+  email      String   @unique
+  name       String?
+  avatar     String?
+  role       Role     @default(planner)
+  externalId String?  @unique
+  tenantId   String   @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  tenant            Tenant   @relation(fields: [tenantId], references: [id])
-  events            Event[]
-  techPlans         TechPlan[]
-  appSettings       AppSetting[]
-  encoderLocks      EncoderLock[]
-  fieldDefinitions  FieldDefinition[]
-  webhookEndpoints  WebhookEndpoint[]
-  notifications     Notification[]
-  savedViews        SavedView[]
-  crewTemplates     CrewTemplate[] @relation("UserCrewTemplates")
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  events           Event[]
+  techPlans        TechPlan[]
+  appSettings      AppSetting[]
+  encoderLocks     EncoderLock[]
+  fieldDefinitions FieldDefinition[]
+  webhookEndpoints WebhookEndpoint[]
+  notifications    Notification[]
+  savedViews       SavedView[]
+  crewTemplates    CrewTemplate[]    @relation("UserCrewTemplates")
 
   @@index([email])
   @@index([externalId])
@@ -151,40 +151,41 @@ model User {
 }
 
 model Sport {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
-  icon        String
-  federation  String
-  tenantId    String        @db.Uuid
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id         Int      @id @default(autoincrement())
+  name       String
+  icon       String
+  federation String
+  tenantId   String   @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  tenant                Tenant       @relation(fields: [tenantId], references: [id])
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
   competitions          Competition[]
   events                Event[]
   canonicalTeams        CanonicalTeam[]
   canonicalCompetitions CanonicalCompetition[]
   mandatoryFieldConfig  MandatoryFieldConfig?
 
+  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
 model Competition {
-  id        Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   sportId   Int
   name      String
   matches   Int
   season    String
-  tenantId  String    @db.Uuid
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  tenantId  String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant     Tenant       @relation(fields: [tenantId], references: [id])
-  sport      Sport        @relation(fields: [sportId], references: [id], onDelete: Cascade)
-  events     Event[]
-  contracts       Contract[]
-  seasons         Season[]
-  rightsPolicies  RightsPolicy[]
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  sport          Sport          @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  events         Event[]
+  contracts      Contract[]
+  seasons        Season[]
+  rightsPolicies RightsPolicy[]
 
   @@unique([sportId, name, season])
   @@index([sportId])
@@ -192,78 +193,78 @@ model Competition {
 }
 
 model Event {
-  id                Int       @id @default(autoincrement())
-  sportId           Int
-  competitionId     Int
-  createdById       String?
-  tenantId          String    @db.Uuid
+  id            Int     @id @default(autoincrement())
+  sportId       Int
+  competitionId Int
+  createdById   String?
+  tenantId      String  @db.Uuid
 
-  phase             String?
-  category          String?
-  participants      String
-  content           String?
+  phase        String?
+  category     String?
+  participants String
+  content      String?
 
-  startDateBE       DateTime
-  startTimeBE       String
-  startDateOrigin   DateTime?
-  startTimeOrigin   String?
+  startDateBE     DateTime
+  startTimeBE     String
+  startDateOrigin DateTime?
+  startTimeOrigin String?
 
-  complex           String?
-  livestreamDate    DateTime?
-  livestreamTime    String?
+  complex        String?
+  livestreamDate DateTime?
+  livestreamTime String?
 
   channelId         Int?
   radioChannelId    Int?
   onDemandChannelId Int?
-  linearChannel     String?   // @deprecated — use channelId
-  radioChannel      String?   // @deprecated — use radioChannelId
+  linearChannel     String? // @deprecated — use channelId
+  radioChannel      String? // @deprecated — use radioChannelId
   linearStartTime   String?
-  onDemandChannel   String?   // @deprecated — use onDemandChannelId
+  onDemandChannel   String? // @deprecated — use onDemandChannelId
   durationMin       Int?
 
-  isLive            Boolean   @default(false)
-  isDelayedLive     Boolean   @default(false)
+  isLive        Boolean @default(false)
+  isDelayedLive Boolean @default(false)
 
-  videoRef          String?
-  winner            String?
-  score             String?
-  duration          String?   // @deprecated — use durationMin
+  videoRef String?
+  winner   String?
+  score    String?
+  duration String? // @deprecated — use durationMin
 
-  customFields      Json      @default("{}")
-  status            EventStatus @default(draft)
-  seriesId          String?
+  customFields Json        @default("{}")
+  status       EventStatus @default(draft)
+  seriesId     String?
 
-  venueId           Int?
-  seasonId          Int?
-  stageId           Int?
-  roundId           Int?
-  schedulingMode    SchedulingMode @default(FIXED)
-  sportMetadata     Json           @default("{}")
-  externalRefs      Json           @default("{}")
+  venueId        Int?
+  seasonId       Int?
+  stageId        Int?
+  roundId        Int?
+  schedulingMode SchedulingMode @default(FIXED)
+  sportMetadata  Json           @default("{}")
+  externalRefs   Json           @default("{}")
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant            Tenant        @relation(fields: [tenantId], references: [id])
-  sport             Sport         @relation(fields: [sportId], references: [id])
-  competition       Competition   @relation(fields: [competitionId], references: [id])
-  createdBy         User?         @relation(fields: [createdById], references: [id])
-  channel           Channel?      @relation("EventLinearChannel", fields: [channelId], references: [id])
-  radioChannelRef   Channel?      @relation("EventRadioChannel", fields: [radioChannelId], references: [id])
-  onDemandChannelRef Channel?     @relation("EventOnDemandChannel", fields: [onDemandChannelId], references: [id])
-  venue             Venue?        @relation(fields: [venueId], references: [id])
-  season            Season?       @relation(fields: [seasonId], references: [id])
-  stage             Stage?        @relation(fields: [stageId], references: [id])
-  round             Round?        @relation(fields: [roundId], references: [id])
-  techPlans         TechPlan[]
-  broadcastSlots    BroadcastSlot[]
-  cascadeEstimates  CascadeEstimate[]
+  tenant                 Tenant            @relation(fields: [tenantId], references: [id])
+  sport                  Sport             @relation(fields: [sportId], references: [id])
+  competition            Competition       @relation(fields: [competitionId], references: [id])
+  createdBy              User?             @relation(fields: [createdById], references: [id])
+  channel                Channel?          @relation("EventLinearChannel", fields: [channelId], references: [id])
+  radioChannelRef        Channel?          @relation("EventRadioChannel", fields: [radioChannelId], references: [id])
+  onDemandChannelRef     Channel?          @relation("EventOnDemandChannel", fields: [onDemandChannelId], references: [id])
+  venue                  Venue?            @relation(fields: [venueId], references: [id])
+  season                 Season?           @relation(fields: [seasonId], references: [id])
+  stage                  Stage?            @relation(fields: [stageId], references: [id])
+  round                  Round?            @relation(fields: [roundId], references: [id])
+  techPlans              TechPlan[]
+  broadcastSlots         BroadcastSlot[]
+  broadcastSlotsFallback BroadcastSlot[]   @relation("BroadcastSlotFallback")
+  cascadeEstimates       CascadeEstimate[]
 
   @@index([sportId])
   @@index([competitionId])
   @@index([startDateBE])
   @@index([channelId])
-  @@index([linearChannel])
   @@index([status])
   @@index([seriesId])
   @@index([venueId])
@@ -274,65 +275,65 @@ model Event {
 }
 
 model TechPlan {
-  id            Int       @id @default(autoincrement())
-  eventId       Int
-  planType      String
-  crew          Json      @default("{}")
-  isLivestream  Boolean   @default(false)
-  customFields  Json      @default("[]")
-  createdById   String?
-  tenantId      String    @db.Uuid
+  id           Int     @id @default(autoincrement())
+  eventId      Int
+  planType     String
+  crew         Json    @default("{}")
+  isLivestream Boolean @default(false)
+  customFields Json    @default("[]")
+  createdById  String?
+  tenantId     String  @db.Uuid
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  event         Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  createdBy     User?     @relation(fields: [createdById], references: [id])
-  encoderLocks  EncoderLock[]
-  assignments   ResourceAssignment[]
+  tenant       Tenant               @relation(fields: [tenantId], references: [id])
+  event        Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy    User?                @relation(fields: [createdById], references: [id])
+  encoderLocks EncoderLock[]
+  assignments  ResourceAssignment[]
 
   @@index([eventId])
   @@index([tenantId])
 }
 
 model Contract {
-  id                    Int             @id @default(autoincrement())
-  competitionId         Int
-  status                ContractStatus  @default(none)
-  tenantId              String          @db.Uuid
+  id            Int            @id @default(autoincrement())
+  competitionId Int
+  status        ContractStatus @default(none)
+  tenantId      String         @db.Uuid
 
-  validFrom             DateTime?
-  validUntil            DateTime?
+  validFrom  DateTime?
+  validUntil DateTime?
 
   // Legacy boolean rights (deprecated — use platforms[])
-  linearRights          Boolean         @default(false)
-  maxRights             Boolean         @default(false)
-  radioRights           Boolean         @default(false)
-  sublicensing          Boolean         @default(false)
+  linearRights Boolean @default(false)
+  maxRights    Boolean @default(false)
+  radioRights  Boolean @default(false)
+  sublicensing Boolean @default(false)
 
   // Enriched rights fields (unified from RightsPolicy)
-  seasonId              Int?
-  territory             String[]        @default([])
-  platforms             String[]        @default([])
-  coverageType          String          @default("LIVE")
-  maxLiveRuns           Int?
-  maxPickRunsPerRound   Int?
-  windowStartUtc        DateTime?       @db.Timestamptz
-  windowEndUtc          DateTime?       @db.Timestamptz
-  tapeDelayHoursMin     Int?
+  seasonId            Int?
+  territory           String[]  @default([])
+  platforms           String[]  @default([])
+  coverageType        String    @default("LIVE")
+  maxLiveRuns         Int?
+  maxPickRunsPerRound Int?
+  windowStartUtc      DateTime? @db.Timestamptz
+  windowEndUtc        DateTime? @db.Timestamptz
+  tapeDelayHoursMin   Int?
 
-  geoRestriction        String?
-  fee                   String?
-  notes                 String?
+  geoRestriction String?
+  fee            String?
+  notes          String?
 
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant                Tenant          @relation(fields: [tenantId], references: [id])
-  competition           Competition     @relation(fields: [competitionId], references: [id])
-  season                Season?         @relation(fields: [seasonId], references: [id])
-  runLedgerEntries      RunLedger[]
+  tenant           Tenant      @relation(fields: [tenantId], references: [id])
+  competition      Competition @relation(fields: [competitionId], references: [id])
+  season           Season?     @relation(fields: [seasonId], references: [id])
+  runLedgerEntries RunLedger[]
 
   @@index([competitionId])
   @@index([status])
@@ -342,36 +343,37 @@ model Contract {
 }
 
 model Encoder {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
-  location    String?
-  isActive    Boolean   @default(true)
-  notes       String?
-  tenantId    String    @db.Uuid
+  id       Int     @id @default(autoincrement())
+  name     String
+  location String?
+  isActive Boolean @default(true)
+  notes    String?
+  tenantId String  @db.Uuid
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
+  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
 model AuditLog {
-  id          String    @id @default(uuid())
-  userId      String?
-  action      String
-  entityType  String
-  entityId    String
-  oldValue    Json?
-  newValue    Json?
-  ipAddress   String?
-  userAgent   String?
-  tenantId    String    @db.Uuid
+  id         String  @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  userAgent  String?
+  tenantId   String  @db.Uuid
 
-  createdAt   DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([userId])
   @@index([entityType, entityId])
@@ -380,18 +382,18 @@ model AuditLog {
 }
 
 model AppSetting {
-  id          String           @id @default(uuid())
-  key         String
-  scopeKind   SettingScopeKind
-  scopeId     String
-  userId      String?
-  value       Json
-  tenantId    String           @db.Uuid
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id        String           @id @default(uuid())
+  key       String
+  scopeKind SettingScopeKind
+  scopeId   String
+  userId    String?
+  value     Json
+  tenantId  String           @db.Uuid
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
-  tenant      Tenant           @relation(fields: [tenantId], references: [id])
-  user        User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@unique([key, scopeKind, scopeId])
   @@index([scopeKind, scopeId])
@@ -420,26 +422,26 @@ enum FieldSection {
 }
 
 model FieldDefinition {
-  id               String        @id
-  name             String        @unique
+  id               String       @id
+  name             String       @unique
   label            String
   fieldType        FieldType
   section          FieldSection
-  required         Boolean       @default(false)
-  sortOrder        Int           @default(0)
+  required         Boolean      @default(false)
+  sortOrder        Int          @default(0)
   options          String[]
   dropdownSourceId String?
   defaultValue     String?
-  conditionalRules Json          @default("[]")
+  conditionalRules Json         @default("[]")
   visibleByRoles   Role[]
-  isSystem         Boolean       @default(false)
-  isCustom         Boolean       @default(true)
-  visible          Boolean       @default(true)
+  isSystem         Boolean      @default(false)
+  isCustom         Boolean      @default(true)
+  visible          Boolean      @default(true)
   createdById      String?
-  tenantId         String        @db.Uuid
+  tenantId         String       @db.Uuid
 
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   tenant           Tenant                 @relation(fields: [tenantId], references: [id])
   dropdownSource   DropdownList?          @relation(fields: [dropdownSourceId], references: [id])
@@ -452,15 +454,15 @@ model FieldDefinition {
 }
 
 model CustomFieldValue {
-  id          String   @id @default(uuid())
-  entityType  String
-  entityId    String
-  fieldId     String
-  fieldValue  String
-  tenantId    String   @db.Uuid
+  id         String @id @default(uuid())
+  entityType String
+  entityId   String
+  fieldId    String
+  fieldValue String
+  tenantId   String @db.Uuid
 
-  tenant      Tenant          @relation(fields: [tenantId], references: [id])
-  field       FieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  tenant Tenant          @relation(fields: [tenantId], references: [id])
+  field  FieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
 
   @@unique([entityType, entityId, fieldId])
   @@index([entityType, entityId])
@@ -475,29 +477,29 @@ model DropdownList {
   tenantId    String   @db.Uuid
   createdAt   DateTime @default(now())
 
-  tenant      Tenant          @relation(fields: [tenantId], references: [id])
-  options     DropdownOption[]
-  fields      FieldDefinition[]
+  tenant  Tenant            @relation(fields: [tenantId], references: [id])
+  options DropdownOption[]
+  fields  FieldDefinition[]
 
   @@index([tenantId])
 }
 
 model DropdownOption {
-  id          String   @id @default(uuid())
-  listId      String
-  value       String
-  label       String
-  parentId    String?
-  sortOrder   Int      @default(0)
-  active      Boolean  @default(true)
-  metadata    Json     @default("{}")
-  tenantId    String   @db.Uuid
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  listId    String
+  value     String
+  label     String
+  parentId  String?
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  metadata  Json     @default("{}")
+  tenantId  String   @db.Uuid
+  createdAt DateTime @default(now())
 
-  tenant      Tenant          @relation(fields: [tenantId], references: [id])
-  list        DropdownList    @relation(fields: [listId], references: [id], onDelete: Cascade)
-  parent      DropdownOption? @relation("DropdownOptionChildren", fields: [parentId], references: [id])
-  children    DropdownOption[] @relation("DropdownOptionChildren")
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  list     DropdownList     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  parent   DropdownOption?  @relation("DropdownOptionChildren", fields: [parentId], references: [id])
+  children DropdownOption[] @relation("DropdownOptionChildren")
 
   @@unique([listId, value])
   @@index([listId, sortOrder])
@@ -513,9 +515,9 @@ model MandatoryFieldConfig {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  tenant              Tenant            @relation(fields: [tenantId], references: [id])
-  sport               Sport             @relation(fields: [sportId], references: [id], onDelete: Cascade)
-  fields              FieldDefinition[]
+  tenant Tenant            @relation(fields: [tenantId], references: [id])
+  sport  Sport             @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  fields FieldDefinition[]
 
   @@index([sportId])
   @@index([tenantId])
@@ -565,55 +567,55 @@ enum SyncStatus {
 }
 
 model ImportSource {
-  id                  String            @id @default(uuid())
-  code                String            @unique
-  name                String
-  kind                ImportSourceKind
-  priority            Int               @default(100)
-  isEnabled           Boolean           @default(true)
-  configJson          Json              @default("{}")
-  rateLimitPerMinute  Int?
-  rateLimitPerDay     Int?
-  lastFetchAt         DateTime?
-  tenantId            String            @db.Uuid
-  createdAt           DateTime          @default(now())
+  id                 String           @id @default(uuid())
+  code               String           @unique
+  name               String
+  kind               ImportSourceKind
+  priority           Int              @default(100)
+  isEnabled          Boolean          @default(true)
+  configJson         Json             @default("{}")
+  rateLimitPerMinute Int?
+  rateLimitPerDay    Int?
+  lastFetchAt        DateTime?
+  tenantId           String           @db.Uuid
+  createdAt          DateTime         @default(now())
 
-  tenant              Tenant            @relation(fields: [tenantId], references: [id])
-  jobs                ImportJob[]
-  records             ImportRecord[]
-  sourceLinks         ImportSourceLink[]
-  deadLetters         ImportDeadLetter[]
-  rateLimits          ImportRateLimit?
-  teamAliases         TeamAlias[]
-  competitionAliases  CompetitionAlias[]
-  venueAliases        VenueAlias[]
-  canonicalTeams      CanonicalTeam[]   @relation("CanonicalTeamSource")
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
+  jobs                  ImportJob[]
+  records               ImportRecord[]
+  sourceLinks           ImportSourceLink[]
+  deadLetters           ImportDeadLetter[]
+  rateLimits            ImportRateLimit?
+  teamAliases           TeamAlias[]
+  competitionAliases    CompetitionAlias[]
+  venueAliases          VenueAlias[]
+  canonicalTeams        CanonicalTeam[]        @relation("CanonicalTeamSource")
   canonicalCompetitions CanonicalCompetition[] @relation("CanonicalCompetitionSource")
-  canonicalVenues     CanonicalVenue[]  @relation("CanonicalVenueSource")
-  schedule            ImportSchedule?
+  canonicalVenues       CanonicalVenue[]       @relation("CanonicalVenueSource")
+  schedule              ImportSchedule?
 
   @@index([tenantId])
 }
 
 model ImportJob {
-  id              String          @id @default(uuid())
-  sourceId        String
-  entityScope     String
-  mode            ImportJobMode
-  status          ImportJobStatus @default(queued)
-  idempotencyKey  String?         @unique
-  cursor          String?
-  startedAt       DateTime?
-  finishedAt      DateTime?
-  statsJson       Json            @default("{}")
-  errorLog        String?
-  tenantId        String          @db.Uuid
-  createdAt       DateTime        @default(now())
+  id             String          @id @default(uuid())
+  sourceId       String
+  entityScope    String
+  mode           ImportJobMode
+  status         ImportJobStatus @default(queued)
+  idempotencyKey String?         @unique
+  cursor         String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  statsJson      Json            @default("{}")
+  errorLog       String?
+  tenantId       String          @db.Uuid
+  createdAt      DateTime        @default(now())
 
-  tenant          Tenant          @relation(fields: [tenantId], references: [id])
-  source          ImportSource    @relation(fields: [sourceId], references: [id])
-  records         ImportRecord[]
-  deadLetters     ImportDeadLetter[]
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  source      ImportSource       @relation(fields: [sourceId], references: [id])
+  records     ImportRecord[]
+  deadLetters ImportDeadLetter[]
 
   @@index([sourceId])
   @@index([status])
@@ -622,7 +624,7 @@ model ImportJob {
 }
 
 model ImportRecord {
-  id                String            @id @default(uuid())
+  id                String           @id @default(uuid())
   jobId             String
   sourceId          String
   sourceRecordId    String
@@ -632,17 +634,17 @@ model ImportRecord {
   payloadHash       String
   normalizedJson    Json?
   normalizedHash    String?
-  validationStatus  ValidationStatus  @default(pending)
-  validationErrors  Json              @default("[]")
-  isSuperseded      Boolean           @default(false)
+  validationStatus  ValidationStatus @default(pending)
+  validationErrors  Json             @default("[]")
+  isSuperseded      Boolean          @default(false)
   supersededByJobId String?
-  tenantId          String            @db.Uuid
-  createdAt         DateTime          @default(now())
+  tenantId          String           @db.Uuid
+  createdAt         DateTime         @default(now())
 
-  tenant            Tenant            @relation(fields: [tenantId], references: [id])
-  job               ImportJob         @relation(fields: [jobId], references: [id])
-  source            ImportSource      @relation(fields: [sourceId], references: [id])
-  mergeCandidates   MergeCandidate[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  job             ImportJob        @relation(fields: [jobId], references: [id])
+  source          ImportSource     @relation(fields: [sourceId], references: [id])
+  mergeCandidates MergeCandidate[]
 
   @@unique([sourceId, sourceRecordId, entityType])
   @@index([jobId])
@@ -652,20 +654,20 @@ model ImportRecord {
 }
 
 model ImportSourceLink {
-  id              String    @id @default(uuid())
-  sourceId        String
-  sourceRecordId  String
-  entityType      String
-  entityId        String
-  confidence      Decimal   @db.Decimal(5, 2)
-  matchMethod     String
-  isManual        Boolean   @default(false)
-  tenantId        String    @db.Uuid
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String   @id @default(uuid())
+  sourceId       String
+  sourceRecordId String
+  entityType     String
+  entityId       String
+  confidence     Decimal  @db.Decimal(5, 2)
+  matchMethod    String
+  isManual       Boolean  @default(false)
+  tenantId       String   @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  tenant          Tenant       @relation(fields: [tenantId], references: [id])
-  source          ImportSource @relation(fields: [sourceId], references: [id])
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  source ImportSource @relation(fields: [sourceId], references: [id])
 
   @@unique([sourceId, sourceRecordId, entityType])
   @@index([entityType, entityId])
@@ -674,43 +676,43 @@ model ImportSourceLink {
 }
 
 model MergeCandidate {
-  id                  String                @id @default(uuid())
-  importRecordId      String
-  entityType          String
-  suggestedEntityId  String?
-  confidence          Decimal               @db.Decimal(5, 2)
-  reasonCodes         Json                  @default("[]")
-  status              MergeCandidateStatus  @default(pending)
-  reviewedBy          String?
-  reviewedAt          DateTime?
-  tenantId            String                @db.Uuid
-  createdAt           DateTime              @default(now())
+  id                String               @id @default(uuid())
+  importRecordId    String
+  entityType        String
+  suggestedEntityId String?
+  confidence        Decimal              @db.Decimal(5, 2)
+  reasonCodes       Json                 @default("[]")
+  status            MergeCandidateStatus @default(pending)
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  tenantId          String               @db.Uuid
+  createdAt         DateTime             @default(now())
 
-  tenant              Tenant       @relation(fields: [tenantId], references: [id])
-  importRecord        ImportRecord @relation(fields: [importRecordId], references: [id])
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  importRecord ImportRecord @relation(fields: [importRecordId], references: [id])
 
   @@index([entityType, status])
   @@index([tenantId])
 }
 
 model ImportDeadLetter {
-  id              String    @id @default(uuid())
-  jobId           String?
-  sourceId        String
-  sourceRecordId  String?
-  rawPayload      Json
-  errorMessage    String
-  errorType       String
-  retryCount      Int       @default(0)
-  lastRetryAt     DateTime?
-  nextRetryAt     DateTime?
-  resolvedAt      DateTime?
-  tenantId        String    @db.Uuid
-  createdAt       DateTime  @default(now())
+  id             String    @id @default(uuid())
+  jobId          String?
+  sourceId       String
+  sourceRecordId String?
+  rawPayload     Json
+  errorMessage   String
+  errorType      String
+  retryCount     Int       @default(0)
+  lastRetryAt    DateTime?
+  nextRetryAt    DateTime?
+  resolvedAt     DateTime?
+  tenantId       String    @db.Uuid
+  createdAt      DateTime  @default(now())
 
-  tenant          Tenant       @relation(fields: [tenantId], references: [id])
-  job             ImportJob?   @relation(fields: [jobId], references: [id])
-  source          ImportSource @relation(fields: [sourceId], references: [id])
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  job    ImportJob?   @relation(fields: [jobId], references: [id])
+  source ImportSource @relation(fields: [sourceId], references: [id])
 
   @@index([nextRetryAt])
   @@index([sourceId, errorType])
@@ -718,16 +720,16 @@ model ImportDeadLetter {
 }
 
 model ImportRateLimit {
-  sourceId            String    @id
-  requestsThisMinute  Int       @default(0)
-  requestsThisDay     Int       @default(0)
-  minuteWindowStart   DateTime  @default(now())
-  dayWindowStart      DateTime  @default(now())
-  lastRequestAt       DateTime?
-  tenantId            String    @db.Uuid
+  sourceId           String    @id
+  requestsThisMinute Int       @default(0)
+  requestsThisDay    Int       @default(0)
+  minuteWindowStart  DateTime  @default(now())
+  dayWindowStart     DateTime  @default(now())
+  lastRequestAt      DateTime?
+  tenantId           String    @db.Uuid
 
-  tenant              Tenant       @relation(fields: [tenantId], references: [id])
-  source              ImportSource @relation(fields: [sourceId], references: [id])
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  source ImportSource @relation(fields: [sourceId], references: [id])
 
   @@index([tenantId])
 }
@@ -743,7 +745,7 @@ model FieldProvenance {
   tenantId        String    @db.Uuid
   importedAt      DateTime  @default(now())
 
-  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([entityType, entityId, fieldName])
   @@index([entityType, entityId])
@@ -751,75 +753,75 @@ model FieldProvenance {
 }
 
 model CanonicalTeam {
-  id              String    @id @default(uuid())
+  id              String   @id @default(uuid())
   primaryName     String
   countryCode     String?
   sportId         Int
   logoUrl         String?
   primarySourceId String?
-  tenantId        String    @db.Uuid
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  tenantId        String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  tenant          Tenant       @relation(fields: [tenantId], references: [id])
-  sport           Sport        @relation(fields: [sportId], references: [id])
-  primarySource   ImportSource? @relation("CanonicalTeamSource", fields: [primarySourceId], references: [id])
-  aliases         TeamAlias[]
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  sport         Sport         @relation(fields: [sportId], references: [id])
+  primarySource ImportSource? @relation("CanonicalTeamSource", fields: [primarySourceId], references: [id])
+  aliases       TeamAlias[]
 
   @@unique([sportId, primaryName])
   @@index([tenantId])
 }
 
 model CanonicalCompetition {
-  id              String    @id @default(uuid())
+  id              String   @id @default(uuid())
   primaryName     String
   sportId         Int
   countryCode     String?
   logoUrl         String?
   primarySourceId String?
-  tenantId        String    @db.Uuid
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  tenantId        String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  tenant          Tenant       @relation(fields: [tenantId], references: [id])
-  sport           Sport        @relation(fields: [sportId], references: [id])
-  primarySource   ImportSource? @relation("CanonicalCompetitionSource", fields: [primarySourceId], references: [id])
-  aliases         CompetitionAlias[]
+  tenant        Tenant             @relation(fields: [tenantId], references: [id])
+  sport         Sport              @relation(fields: [sportId], references: [id])
+  primarySource ImportSource?      @relation("CanonicalCompetitionSource", fields: [primarySourceId], references: [id])
+  aliases       CompetitionAlias[]
 
   @@unique([sportId, primaryName])
   @@index([tenantId])
 }
 
 model CanonicalVenue {
-  id              String    @id @default(uuid())
+  id              String   @id @default(uuid())
   primaryName     String
   city            String?
   countryCode     String?
   capacity        Int?
   primarySourceId String?
-  tenantId        String    @db.Uuid
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  tenantId        String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  tenant          Tenant       @relation(fields: [tenantId], references: [id])
-  primarySource   ImportSource? @relation("CanonicalVenueSource", fields: [primarySourceId], references: [id])
-  aliases         VenueAlias[]
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  primarySource ImportSource? @relation("CanonicalVenueSource", fields: [primarySourceId], references: [id])
+  aliases       VenueAlias[]
 
   @@unique([primaryName, city])
   @@index([tenantId])
 }
 
 model TeamAlias {
-  id                String        @id @default(uuid())
-  canonicalTeamId   String
-  sourceId          String?
-  alias             String
-  normalizedAlias   String
-  tenantId          String        @db.Uuid
+  id              String  @id @default(uuid())
+  canonicalTeamId String
+  sourceId        String?
+  alias           String
+  normalizedAlias String
+  tenantId        String  @db.Uuid
 
-  tenant            Tenant        @relation(fields: [tenantId], references: [id])
-  canonicalTeam     CanonicalTeam @relation(fields: [canonicalTeamId], references: [id])
-  source            ImportSource? @relation(fields: [sourceId], references: [id])
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  canonicalTeam CanonicalTeam @relation(fields: [canonicalTeamId], references: [id])
+  source        ImportSource? @relation(fields: [sourceId], references: [id])
 
   @@unique([sourceId, normalizedAlias])
   @@index([normalizedAlias])
@@ -827,16 +829,16 @@ model TeamAlias {
 }
 
 model CompetitionAlias {
-  id                      String              @id @default(uuid())
-  canonicalCompetitionId  String
-  sourceId                String?
-  alias                   String
-  normalizedAlias         String
-  tenantId                String              @db.Uuid
+  id                     String  @id @default(uuid())
+  canonicalCompetitionId String
+  sourceId               String?
+  alias                  String
+  normalizedAlias        String
+  tenantId               String  @db.Uuid
 
-  tenant                  Tenant              @relation(fields: [tenantId], references: [id])
-  canonicalCompetition    CanonicalCompetition @relation(fields: [canonicalCompetitionId], references: [id])
-  source                  ImportSource?       @relation(fields: [sourceId], references: [id])
+  tenant               Tenant               @relation(fields: [tenantId], references: [id])
+  canonicalCompetition CanonicalCompetition @relation(fields: [canonicalCompetitionId], references: [id])
+  source               ImportSource?        @relation(fields: [sourceId], references: [id])
 
   @@unique([sourceId, normalizedAlias])
   @@index([normalizedAlias])
@@ -844,16 +846,16 @@ model CompetitionAlias {
 }
 
 model VenueAlias {
-  id                String        @id @default(uuid())
-  canonicalVenueId  String
-  sourceId          String?
-  alias             String
-  normalizedAlias   String
-  tenantId          String        @db.Uuid
+  id               String  @id @default(uuid())
+  canonicalVenueId String
+  sourceId         String?
+  alias            String
+  normalizedAlias  String
+  tenantId         String  @db.Uuid
 
-  tenant            Tenant        @relation(fields: [tenantId], references: [id])
-  canonicalVenue    CanonicalVenue @relation(fields: [canonicalVenueId], references: [id])
-  source            ImportSource? @relation(fields: [sourceId], references: [id])
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  canonicalVenue CanonicalVenue @relation(fields: [canonicalVenueId], references: [id])
+  source         ImportSource?  @relation(fields: [sourceId], references: [id])
 
   @@unique([sourceId, normalizedAlias])
   @@index([normalizedAlias])
@@ -861,22 +863,22 @@ model VenueAlias {
 }
 
 model SyncHistory {
-  id                String      @id @default(uuid())
-  entityType        String
-  entityId          String?
-  sourceCode        String
-  syncType          String
-  triggeredBy       String?
-  status            SyncStatus
-  recordsProcessed  Int         @default(0)
-  recordsCreated    Int         @default(0)
-  recordsUpdated    Int         @default(0)
-  recordsSkipped    Int         @default(0)
-  errorMessage      String?
-  tenantId          String      @db.Uuid
-  createdAt         DateTime    @default(now())
+  id               String     @id @default(uuid())
+  entityType       String
+  entityId         String?
+  sourceCode       String
+  syncType         String
+  triggeredBy      String?
+  status           SyncStatus
+  recordsProcessed Int        @default(0)
+  recordsCreated   Int        @default(0)
+  recordsUpdated   Int        @default(0)
+  recordsSkipped   Int        @default(0)
+  errorMessage     String?
+  tenantId         String     @db.Uuid
+  createdAt        DateTime   @default(now())
 
-  tenant            Tenant      @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([entityType, createdAt])
   @@index([triggeredBy])
@@ -890,27 +892,27 @@ model EncoderLock {
   expiresAt   DateTime
   tenantId    String   @db.Uuid
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  lockedBy    User     @relation(fields: [lockedById], references: [id], onDelete: Cascade)
-  plan        TechPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  lockedBy User     @relation(fields: [lockedById], references: [id], onDelete: Cascade)
+  plan     TechPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
   @@index([tenantId])
 }
 
 model WebhookEndpoint {
-  id          String            @id @default(uuid())
+  id          String   @id @default(uuid())
   url         String
   secret      String
   events      String[]
-  isActive    Boolean           @default(true)
-  createdAt   DateTime          @default(now())
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
   createdById String?
-  tenantId    String            @db.Uuid
+  tenantId    String   @db.Uuid
 
-  tenant      Tenant            @relation(fields: [tenantId], references: [id])
-  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  deliveries  WebhookDelivery[]
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  createdBy  User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries WebhookDelivery[]
 
   @@index([isActive])
   @@index([tenantId])
@@ -928,8 +930,8 @@ model WebhookDelivery {
   tenantId    String    @db.Uuid
   createdAt   DateTime  @default(now())
 
-  tenant      Tenant          @relation(fields: [tenantId], references: [id])
-  webhook     WebhookEndpoint @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  tenant  Tenant          @relation(fields: [tenantId], references: [id])
+  webhook WebhookEndpoint @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
   @@index([webhookId, createdAt])
   @@index([eventType])
@@ -938,19 +940,19 @@ model WebhookDelivery {
 }
 
 model Notification {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String
-  title       String
-  body        String?
-  entityType  String?
-  entityId    String?
-  isRead      Boolean  @default(false)
-  tenantId    String   @db.Uuid
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  type       String
+  title      String
+  body       String?
+  entityType String?
+  entityId   String?
+  isRead     Boolean  @default(false)
+  tenantId   String   @db.Uuid
+  createdAt  DateTime @default(now())
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([createdAt])
@@ -958,16 +960,16 @@ model Notification {
 }
 
 model SavedView {
-  id           String   @id @default(uuid())
-  userId       String
-  name         String
-  context      String
-  filterState  Json     @default("{}")
-  tenantId     String   @db.Uuid
-  createdAt    DateTime @default(now())
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  context     String
+  filterState Json     @default("{}")
+  tenantId    String   @db.Uuid
+  createdAt   DateTime @default(now())
 
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, name])
   @@index([userId, context])
@@ -985,8 +987,8 @@ model ImportSchedule {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  tenant    Tenant       @relation(fields: [tenantId], references: [id])
-  source    ImportSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  source ImportSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
 }
@@ -996,34 +998,35 @@ model ImportSchedule {
 // =============================================================================
 
 model Resource {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  type        String
-  capacity    Int      @default(1)
-  isActive    Boolean  @default(true)
-  notes       String?
-  tenantId    String   @db.Uuid
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String
+  capacity  Int      @default(1)
+  isActive  Boolean  @default(true)
+  notes     String?
+  tenantId  String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant      Tenant               @relation(fields: [tenantId], references: [id])
   assignments ResourceAssignment[]
 
+  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
 model ResourceAssignment {
-  id          Int      @id @default(autoincrement())
-  resourceId  Int
-  techPlanId  Int
-  quantity    Int      @default(1)
-  notes       String?
-  tenantId    String   @db.Uuid
-  createdAt   DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  resourceId Int
+  techPlanId Int
+  quantity   Int      @default(1)
+  notes      String?
+  tenantId   String   @db.Uuid
+  createdAt  DateTime @default(now())
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  resource    Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-  techPlan    TechPlan @relation(fields: [techPlanId], references: [id], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  techPlan TechPlan @relation(fields: [techPlanId], references: [id], onDelete: Cascade)
 
   @@unique([resourceId, techPlanId])
   @@index([techPlanId])
@@ -1046,7 +1049,7 @@ model CrewMember {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([name])
   @@index([tenantId])
@@ -1065,7 +1068,7 @@ model CrewTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([planType, createdById])
   @@index([tenantId])
@@ -1087,9 +1090,9 @@ model Venue {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  courts    Court[]
-  events    Event[]
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  courts Court[]
+  events Event[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1106,7 +1109,7 @@ model Team {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1124,8 +1127,8 @@ model Court {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  tenant            Tenant   @relation(fields: [tenantId], references: [id])
-  venue             Venue    @relation(fields: [venueId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  venue  Venue  @relation(fields: [venueId], references: [id])
 
   @@unique([venueId, name])
   @@index([tenantId])
@@ -1136,21 +1139,22 @@ model Court {
 // =============================================================================
 
 model Season {
-  id            Int         @id @default(autoincrement())
-  tenantId      String      @db.Uuid
+  id            Int      @id @default(autoincrement())
+  tenantId      String   @db.Uuid
   competitionId Int
   name          String
-  startDate     DateTime    @db.Date
-  endDate       DateTime    @db.Date
-  sportMetadata Json        @default("{}")
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  startDate     DateTime @db.Date
+  endDate       DateTime @db.Date
+  sportMetadata Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  tenant        Tenant      @relation(fields: [tenantId], references: [id])
-  competition   Competition @relation(fields: [competitionId], references: [id])
-  stages        Stage[]
-  events        Event[]
-  contracts     Contract[]
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  competition    Competition    @relation(fields: [competitionId], references: [id])
+  stages         Stage[]
+  events         Event[]
+  contracts      Contract[]
+  rightsPolicies RightsPolicy[]
 
   @@unique([tenantId, competitionId, name])
   @@index([tenantId])
@@ -1168,10 +1172,10 @@ model Stage {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  tenant           Tenant    @relation(fields: [tenantId], references: [id])
-  season           Season    @relation(fields: [seasonId], references: [id])
-  rounds           Round[]
-  events           Event[]
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  season Season  @relation(fields: [seasonId], references: [id])
+  rounds Round[]
+  events Event[]
 
   @@index([tenantId])
 }
@@ -1187,9 +1191,9 @@ model Round {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  tenant             Tenant    @relation(fields: [tenantId], references: [id])
-  stage              Stage     @relation(fields: [stageId], references: [id])
-  events             Event[]
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  stage  Stage   @relation(fields: [stageId], references: [id])
+  events Event[]
 
   @@index([tenantId])
 }
@@ -1242,15 +1246,18 @@ model Channel {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  tenant                 Tenant            @relation(fields: [tenantId], references: [id])
-  parent                 Channel?          @relation("ChannelTree", fields: [parentId], references: [id])
-  children               Channel[]         @relation("ChannelTree")
-  eventsLinear           Event[]           @relation("EventLinearChannel")
-  eventsRadio            Event[]           @relation("EventRadioChannel")
-  eventsOnDemand         Event[]           @relation("EventOnDemandChannel")
-  broadcastSlots         BroadcastSlot[]
-  scheduleDrafts         ScheduleDraft[]
-  scheduleVersions       ScheduleVersion[]
+  tenant                    Tenant                @relation(fields: [tenantId], references: [id])
+  parent                    Channel?              @relation("ChannelTree", fields: [parentId], references: [id])
+  children                  Channel[]             @relation("ChannelTree")
+  eventsLinear              Event[]               @relation("EventLinearChannel")
+  eventsRadio               Event[]               @relation("EventRadioChannel")
+  eventsOnDemand            Event[]               @relation("EventOnDemandChannel")
+  broadcastSlots            BroadcastSlot[]
+  broadcastSlotsConditional BroadcastSlot[]       @relation("BroadcastSlotConditionalChannel")
+  scheduleDrafts            ScheduleDraft[]
+  scheduleVersions          ScheduleVersion[]
+  runLedgerEntries          RunLedger[]
+  switchActionsTo           ChannelSwitchAction[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1258,42 +1265,44 @@ model Channel {
 }
 
 model BroadcastSlot {
-  id                         String               @id @default(uuid()) @db.Uuid
-  tenantId                   String               @db.Uuid
-  channelId                  Int
+  id                         String              @id @default(uuid()) @db.Uuid
+  tenantId                   String              @db.Uuid
+  channelId                  Int?
   eventId                    Int?
-  schedulingMode             SchedulingMode       @default(FIXED)
-  plannedStartUtc            DateTime?            @db.Timestamptz
-  plannedEndUtc              DateTime?            @db.Timestamptz
-  estimatedStartUtc          DateTime?            @db.Timestamptz
-  estimatedEndUtc            DateTime?            @db.Timestamptz
-  earliestStartUtc           DateTime?            @db.Timestamptz
-  latestStartUtc             DateTime?            @db.Timestamptz
-  actualStartUtc             DateTime?            @db.Timestamptz
-  actualEndUtc               DateTime?            @db.Timestamptz
-  bufferBeforeMin            Int                  @default(15)
-  bufferAfterMin             Int                  @default(25)
+  schedulingMode             SchedulingMode      @default(FIXED)
+  plannedStartUtc            DateTime?           @db.Timestamptz
+  plannedEndUtc              DateTime?           @db.Timestamptz
+  estimatedStartUtc          DateTime?           @db.Timestamptz
+  estimatedEndUtc            DateTime?           @db.Timestamptz
+  earliestStartUtc           DateTime?           @db.Timestamptz
+  latestStartUtc             DateTime?           @db.Timestamptz
+  actualStartUtc             DateTime?           @db.Timestamptz
+  actualEndUtc               DateTime?           @db.Timestamptz
+  bufferBeforeMin            Int                 @default(15)
+  bufferAfterMin             Int                 @default(25)
   expectedDurationMin        Int?
-  overrunStrategy            OverrunStrategy      @default(EXTEND)
-  conditionalTriggerUtc      DateTime?            @db.Timestamptz
+  overrunStrategy            OverrunStrategy     @default(EXTEND)
+  conditionalTriggerUtc      DateTime?           @db.Timestamptz
   conditionalTargetChannelId Int?
-  anchorType                 AnchorType           @default(FIXED_TIME)
-  coveragePriority           Int                  @default(1)
+  anchorType                 AnchorType          @default(FIXED_TIME)
+  coveragePriority           Int                 @default(1)
   fallbackEventId            Int?
-  status                     BroadcastSlotStatus  @default(PLANNED)
-  contentSegment             ContentSegment       @default(FULL)
-  scheduleVersionId          String?              @db.Uuid
-  sportMetadata              Json                 @default("{}")
-  createdAt                  DateTime             @default(now())
-  updatedAt                  DateTime             @updatedAt
+  status                     BroadcastSlotStatus @default(PLANNED)
+  contentSegment             ContentSegment      @default(FULL)
+  scheduleVersionId          String?             @db.Uuid
+  sportMetadata              Json                @default("{}")
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
 
-  tenant                     Tenant               @relation(fields: [tenantId], references: [id])
-  channel                    Channel              @relation(fields: [channelId], references: [id])
-  event                      Event?               @relation(fields: [eventId], references: [id])
-  scheduleVersion            ScheduleVersion?     @relation(fields: [scheduleVersionId], references: [id])
-  runLedgerEntries           RunLedger[]
-  switchesFrom               ChannelSwitchAction[] @relation("SwitchFrom")
-  switchesTo                 ChannelSwitchAction[] @relation("SwitchTo")
+  tenant                   Tenant                @relation(fields: [tenantId], references: [id])
+  channel                  Channel?              @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  event                    Event?                @relation(fields: [eventId], references: [id])
+  conditionalTargetChannel Channel?              @relation("BroadcastSlotConditionalChannel", fields: [conditionalTargetChannelId], references: [id], onDelete: SetNull)
+  fallbackEvent            Event?                @relation("BroadcastSlotFallback", fields: [fallbackEventId], references: [id], onDelete: SetNull)
+  scheduleVersion          ScheduleVersion?      @relation(fields: [scheduleVersionId], references: [id])
+  runLedgerEntries         RunLedger[]
+  switchesFrom             ChannelSwitchAction[] @relation("SwitchFrom")
+  switchesTo               ChannelSwitchAction[] @relation("SwitchTo")
 
   @@index([tenantId])
   @@index([channelId, plannedStartUtc])
@@ -1313,7 +1322,7 @@ enum DraftStatus {
 model ScheduleDraft {
   id             String      @id @default(uuid()) @db.Uuid
   tenantId       String      @db.Uuid
-  channelId      Int
+  channelId      Int?
   dateRangeStart DateTime    @db.Date
   dateRangeEnd   DateTime    @db.Date
   operations     Json        @default("[]")
@@ -1322,32 +1331,33 @@ model ScheduleDraft {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  tenant         Tenant      @relation(fields: [tenantId], references: [id])
-  channel        Channel     @relation(fields: [channelId], references: [id])
-  versions       ScheduleVersion[]
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  channel  Channel?          @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  versions ScheduleVersion[]
 
   @@unique([tenantId, channelId, dateRangeStart, dateRangeEnd])
   @@index([tenantId])
 }
 
 model ScheduleVersion {
-  id                   String    @id @default(uuid()) @db.Uuid
-  tenantId             String    @db.Uuid
-  channelId            Int
-  draftId              String    @db.Uuid
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenantId             String   @db.Uuid
+  channelId            Int?
+  draftId              String   @db.Uuid
   versionNumber        Int
   snapshot             Json
-  publishedAt          DateTime  @default(now()) @db.Timestamptz
+  publishedAt          DateTime @default(now()) @db.Timestamptz
   publishedBy          String
-  isEmergency          Boolean   @default(false)
+  isEmergency          Boolean  @default(false)
   reasonCode           String?
-  acknowledgedWarnings Json      @default("[]")
+  acknowledgedWarnings Json     @default("[]")
 
-  tenant               Tenant    @relation(fields: [tenantId], references: [id])
-  channel              Channel   @relation(fields: [channelId], references: [id])
-  draft                ScheduleDraft @relation(fields: [draftId], references: [id])
-  broadcastSlots       BroadcastSlot[]
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  channel        Channel?        @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  draft          ScheduleDraft   @relation(fields: [draftId], references: [id])
+  broadcastSlots BroadcastSlot[]
 
+  @@unique([draftId, versionNumber])
   @@index([tenantId])
 }
 
@@ -1387,25 +1397,27 @@ enum RunStatus {
 }
 
 model RightsPolicy {
-  id                   String       @id @default(uuid()) @db.Uuid
-  tenantId             String       @db.Uuid
-  competitionId        Int
-  seasonId             Int?
-  territory            String[]
-  platforms            Platform[]
-  coverageType         CoverageType @default(LIVE)
-  maxLiveRuns          Int?
-  maxPickRunsPerRound  Int?
-  windowStartUtc       DateTime?    @db.Timestamptz
-  windowEndUtc         DateTime?    @db.Timestamptz
-  tapeDelayHoursMin    Int?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  id                  String       @id @default(uuid()) @db.Uuid
+  tenantId            String       @db.Uuid
+  competitionId       Int
+  seasonId            Int?
+  territory           String[]
+  platforms           Platform[]
+  coverageType        CoverageType @default(LIVE)
+  maxLiveRuns         Int?
+  maxPickRunsPerRound Int?
+  windowStartUtc      DateTime?    @db.Timestamptz
+  windowEndUtc        DateTime?    @db.Timestamptz
+  tapeDelayHoursMin   Int?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
-  tenant               Tenant       @relation(fields: [tenantId], references: [id])
-  competition          Competition  @relation(fields: [competitionId], references: [id])
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  competition Competition @relation(fields: [competitionId], references: [id])
+  season      Season?     @relation(fields: [seasonId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
+  @@index([seasonId])
 }
 
 model RunLedger {
@@ -1423,15 +1435,17 @@ model RunLedger {
   status          RunStatus @default(PENDING)
   createdAt       DateTime  @default(now())
 
-  tenant          Tenant        @relation(fields: [tenantId], references: [id])
-  broadcastSlot   BroadcastSlot @relation(fields: [broadcastSlotId], references: [id])
-  contract        Contract?     @relation(fields: [contractId], references: [id])
-  parentRun       RunLedger?    @relation("RunChain", fields: [parentRunId], references: [id])
-  childRuns       RunLedger[]   @relation("RunChain")
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  broadcastSlot BroadcastSlot @relation(fields: [broadcastSlotId], references: [id])
+  channel       Channel       @relation(fields: [channelId], references: [id])
+  contract      Contract?     @relation(fields: [contractId], references: [id])
+  parentRun     RunLedger?    @relation("RunChain", fields: [parentRunId], references: [id])
+  childRuns     RunLedger[]   @relation("RunChain")
 
   @@unique([tenantId, broadcastSlotId, runType])
   @@index([tenantId])
   @@index([eventId])
+  @@index([channelId])
   @@index([contractId])
 }
 
@@ -1462,7 +1476,7 @@ model OutboxEvent {
   maxRetries     Int            @default(5)
   deadLetteredAt DateTime?      @db.Timestamptz
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
   @@index([processedAt, deadLetteredAt, priority, createdAt])
@@ -1473,20 +1487,20 @@ model OutboxEvent {
 // =============================================================================
 
 model CascadeEstimate {
-  id                 String   @id @default(uuid()) @db.Uuid
-  tenantId           String   @db.Uuid
-  eventId            Int
-  estimatedStartUtc  DateTime? @db.Timestamptz
-  earliestStartUtc   DateTime? @db.Timestamptz
-  latestStartUtc     DateTime? @db.Timestamptz
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenantId            String    @db.Uuid
+  eventId             Int
+  estimatedStartUtc   DateTime? @db.Timestamptz
+  earliestStartUtc    DateTime? @db.Timestamptz
+  latestStartUtc      DateTime? @db.Timestamptz
   estDurationShortMin Int?
   estDurationLongMin  Int?
-  confidenceScore    Float    @default(0.5)
-  inputsUsed         Json     @default("{}")
-  computedAt         DateTime @default(now()) @db.Timestamptz
+  confidenceScore     Float     @default(0.5)
+  inputsUsed          Json      @default("{}")
+  computedAt          DateTime  @default(now()) @db.Timestamptz
 
-  tenant             Tenant   @relation(fields: [tenantId], references: [id])
-  event              Event    @relation(fields: [eventId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  event  Event  @relation(fields: [eventId], references: [id])
 
   @@unique([tenantId, eventId])
   @@index([tenantId])
@@ -1512,28 +1526,30 @@ enum SwitchExecutionStatus {
 }
 
 model ChannelSwitchAction {
-  id              String               @id @default(uuid()) @db.Uuid
-  tenantId        String               @db.Uuid
-  fromSlotId      String               @db.Uuid
+  id              String                @id @default(uuid()) @db.Uuid
+  tenantId        String                @db.Uuid
+  fromSlotId      String                @db.Uuid
   toChannelId     Int
-  toSlotId        String?              @db.Uuid
+  toSlotId        String?               @db.Uuid
   triggerType     SwitchTriggerType
-  switchAtUtc     DateTime?            @db.Timestamptz
+  switchAtUtc     DateTime?             @db.Timestamptz
   reasonCode      String
   reasonText      String?
   confirmedBy     String?
-  confirmedAt     DateTime?            @db.Timestamptz
+  confirmedAt     DateTime?             @db.Timestamptz
   executionStatus SwitchExecutionStatus @default(PENDING)
-  autoConfirmed   Boolean              @default(false)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  autoConfirmed   Boolean               @default(false)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
-  tenant          Tenant               @relation(fields: [tenantId], references: [id])
-  fromSlot        BroadcastSlot        @relation("SwitchFrom", fields: [fromSlotId], references: [id])
-  toSlot          BroadcastSlot?       @relation("SwitchTo", fields: [toSlotId], references: [id])
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  fromSlot  BroadcastSlot  @relation("SwitchFrom", fields: [fromSlotId], references: [id])
+  toChannel Channel        @relation(fields: [toChannelId], references: [id])
+  toSlot    BroadcastSlot? @relation("SwitchTo", fields: [toSlotId], references: [id])
 
   @@index([tenantId])
   @@index([fromSlotId])
+  @@index([toChannelId])
 }
 
 // =============================================================================
@@ -1569,7 +1585,7 @@ model AdapterConfig {
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
-  tenant              Tenant           @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, adapterType, providerName])
   @@index([tenantId])

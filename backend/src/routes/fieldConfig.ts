@@ -85,8 +85,18 @@ router.put('/order', authenticate, authorize('admin'), async (req, res, next) =>
     const { error, value } = schema.validate(req.body)
     if (error) return next(createError(400, error.details[0].message))
 
+    // Pre-fetch all field IDs belonging to this tenant
+    const tenantFields = await prisma.fieldDefinition.findMany({
+      where: { tenantId: req.tenantId },
+      select: { id: true },
+    })
+    const tenantFieldIds = new Set(tenantFields.map(f => f.id))
+
+    // Filter client-supplied IDs to only those belonging to the tenant
+    const filtered = (value as { id: string; sortOrder: number }[]).filter(({ id }) => tenantFieldIds.has(id))
+
     await prisma.$transaction(
-      (value as { id: string; sortOrder: number }[]).map(({ id, sortOrder }) =>
+      filtered.map(({ id, sortOrder }) =>
         prisma.fieldDefinition.update({ where: { id }, data: { sortOrder } })
       )
     )

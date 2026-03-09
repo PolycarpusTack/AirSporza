@@ -1,6 +1,7 @@
 import { createHmac } from 'crypto'
 import { ContractStatus } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
+import { writeOutboxEvent } from './outbox.js'
 import { logger } from '../utils/logger.js'
 
 type WebhookEndpoint = {
@@ -206,11 +207,19 @@ async function checkExpiringContracts(): Promise<void> {
       })
 
       for (const contract of contracts) {
-        await dispatch('contract.expiring', {
-          contractId: contract.id,
-          competition: contract.competition,
-          validUntil: contract.validUntil,
-          daysRemaining: days,
+        await prisma.$transaction(async (tx) => {
+          await writeOutboxEvent(tx, {
+            tenantId: contract.tenantId,
+            eventType: 'contract.expiring',
+            aggregateType: 'contract',
+            aggregateId: String(contract.id),
+            payload: {
+              contractId: contract.id,
+              competition: contract.competition,
+              validUntil: contract.validUntil,
+              daysRemaining: days,
+            },
+          })
         })
       }
     } catch (err) {

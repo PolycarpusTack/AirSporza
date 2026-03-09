@@ -344,8 +344,15 @@ router.patch('/sources/:id', authenticate, authorize('admin'), async (req, res, 
       return next(createError(400, error.details[0].message))
     }
 
+    const existing = await prisma.importSource.findFirst({
+      where: { id: String(req.params.id), tenantId: req.tenantId },
+    })
+    if (!existing) {
+      return next(createError(404, 'Import source not found'))
+    }
+
     const source = await prisma.importSource.update({
-      where: { id: String(req.params.id) },
+      where: { id: existing.id },
       data: value,
       include: {
         _count: {
@@ -1183,13 +1190,20 @@ router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admi
 router.delete('/aliases/:type/:id', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
     const type = String(req.params.type)
+    const aliasId = String(req.params.id)
 
     if (type === 'team') {
-      await prisma.teamAlias.delete({ where: { id: String(req.params.id) } })
+      const alias = await prisma.teamAlias.findFirst({ where: { id: aliasId, tenantId: req.tenantId } })
+      if (!alias) return next(createError(404, 'Alias not found'))
+      await prisma.teamAlias.delete({ where: { id: alias.id } })
     } else if (type === 'competition') {
-      await prisma.competitionAlias.delete({ where: { id: String(req.params.id) } })
+      const alias = await prisma.competitionAlias.findFirst({ where: { id: aliasId, tenantId: req.tenantId } })
+      if (!alias) return next(createError(404, 'Alias not found'))
+      await prisma.competitionAlias.delete({ where: { id: alias.id } })
     } else if (type === 'venue') {
-      await prisma.venueAlias.delete({ where: { id: String(req.params.id) } })
+      const alias = await prisma.venueAlias.findFirst({ where: { id: aliasId, tenantId: req.tenantId } })
+      if (!alias) return next(createError(404, 'Alias not found'))
+      await prisma.venueAlias.delete({ where: { id: alias.id } })
     } else {
       return next(createError(400, 'Alias type must be team, competition, or venue'))
     }

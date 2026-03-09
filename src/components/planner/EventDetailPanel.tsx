@@ -144,25 +144,25 @@ export function EventDetailPanel({ event, onClose, onEdit, sports, competitions,
             </Badge>
           </div>
 
-          {(event.linearChannel || event.radioChannel || event.onDemandChannel) && (
+          {(event.channelId || event.radioChannelId || event.onDemandChannelId || event.linearChannel || event.radioChannel || event.onDemandChannel) && (
             <div className="space-y-1 text-sm">
               <p className="text-text-3 text-xs uppercase tracking-wider font-semibold">Channels</p>
-              {event.linearChannel && (
+              {(event.channelId || event.linearChannel) && (
                 <div className="flex gap-2">
                   <span className="text-text-3 w-20 shrink-0">Linear</span>
-                  <span className="text-text-2">{event.linearChannel}</span>
+                  <span className="text-text-2">{(event as any).channel?.name || event.linearChannel || `Channel #${event.channelId}`}</span>
                 </div>
               )}
-              {event.radioChannel && (
+              {(event.radioChannelId || event.radioChannel) && (
                 <div className="flex gap-2">
                   <span className="text-text-3 w-20 shrink-0">Radio</span>
-                  <span className="text-text-2">{event.radioChannel}</span>
+                  <span className="text-text-2">{(event as any).radioChannelRel?.name || event.radioChannel || `Channel #${event.radioChannelId}`}</span>
                 </div>
               )}
-              {event.onDemandChannel && (
+              {(event.onDemandChannelId || event.onDemandChannel) && (
                 <div className="flex gap-2">
                   <span className="text-text-3 w-20 shrink-0">On Demand</span>
-                  <span className="text-text-2">{event.onDemandChannel}</span>
+                  <span className="text-text-2">{(event as any).onDemandChannelRel?.name || event.onDemandChannel || `Channel #${event.onDemandChannelId}`}</span>
                 </div>
               )}
             </div>

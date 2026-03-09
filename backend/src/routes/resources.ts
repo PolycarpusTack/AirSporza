@@ -74,21 +74,29 @@ router.post('/:id/assign', authenticate, authorize('sports', 'admin'), async (re
     const { error: valErr, value } = assignSchema.validate(req.body)
     if (valErr) return next(createError(400, valErr.details[0].message))
 
-    // Enforce capacity
+    // Enforce capacity and create assignment in a single transaction
     const resource = await prisma.resource.findFirst({ where: { id: resourceId, tenantId: req.tenantId } })
     if (!resource) return next(createError(404, 'Resource not found'))
-    const currentUsage = await prisma.resourceAssignment.aggregate({
-      where: { tenantId: req.tenantId, resourceId },
-      _sum: { quantity: true },
-    })
-    const used = currentUsage._sum.quantity ?? 0
-    if (used + value.quantity > resource.capacity) {
-      return next(createError(409, `Resource "${resource.name}" is at capacity (${used}/${resource.capacity})`))
-    }
 
-    const assignment = await prisma.resourceAssignment.create({
-      data: { tenantId: req.tenantId!, resourceId, techPlanId: value.techPlanId, quantity: value.quantity, notes: value.notes },
+    const assignment = await prisma.$transaction(async (tx) => {
+      const currentUsage = await tx.resourceAssignment.aggregate({
+        where: { tenantId: req.tenantId, resourceId },
+        _sum: { quantity: true },
+      })
+      const used = currentUsage._sum.quantity ?? 0
+      if (used + value.quantity > resource.capacity) {
+        throw Object.assign(new Error(`Resource "${resource.name}" is at capacity (${used}/${resource.capacity})`), { isCapacity: true })
+      }
+
+      return tx.resourceAssignment.create({
+        data: { tenantId: req.tenantId!, resourceId, techPlanId: value.techPlanId, quantity: value.quantity, notes: value.notes },
+      })
+    }).catch((err) => {
+      if (err.isCapacity) return null
+      throw err
     })
+
+    if (!assignment) return next(createError(409, `Resource "${resource.name}" is at capacity`))
     res.status(201).json(assignment)
   } catch (error) { next(error) }
 })

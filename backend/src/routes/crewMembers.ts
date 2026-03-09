@@ -195,45 +195,49 @@ router.post('/merge', authenticate, async (req, res, next) => {
     const targetRoles = target.roles as string[]
     const mergedRoles = Array.from(new Set([...targetRoles, ...sourceRoles]))
 
-    // Update all tech plans that reference source.name -> target.name
-    const techPlans = await prisma.techPlan.findMany({ where: { tenantId: req.tenantId }, select: { id: true, crew: true } })
-    let planUpdates = 0
+    // Perform merge in a single transaction
+    const planUpdates = await prisma.$transaction(async (tx) => {
+      const techPlans = await tx.techPlan.findMany({ where: { tenantId: req.tenantId }, select: { id: true, crew: true } })
+      let updates = 0
 
-    for (const tp of techPlans) {
-      const crew = tp.crew as Record<string, unknown>
-      let changed = false
-      const updatedCrew: Record<string, unknown> = {}
+      for (const tp of techPlans) {
+        const crew = tp.crew as Record<string, unknown>
+        let changed = false
+        const updatedCrew: Record<string, unknown> = {}
 
-      for (const [role, val] of Object.entries(crew)) {
-        if (typeof val === 'string' && val.trim() === source.name) {
-          updatedCrew[role] = target.name
-          changed = true
-        } else if (Array.isArray(val)) {
-          const newArr = val.map((v: unknown) =>
-            typeof v === 'string' && v.trim() === source.name ? target.name : v
-          )
-          updatedCrew[role] = newArr
-          if (JSON.stringify(newArr) !== JSON.stringify(val)) changed = true
-        } else {
-          updatedCrew[role] = val
+        for (const [role, val] of Object.entries(crew)) {
+          if (typeof val === 'string' && val.trim() === source.name) {
+            updatedCrew[role] = target.name
+            changed = true
+          } else if (Array.isArray(val)) {
+            const newArr = val.map((v: unknown) =>
+              typeof v === 'string' && v.trim() === source.name ? target.name : v
+            )
+            updatedCrew[role] = newArr
+            if (JSON.stringify(newArr) !== JSON.stringify(val)) changed = true
+          } else {
+            updatedCrew[role] = val
+          }
+        }
+
+        if (changed) {
+          await tx.techPlan.update({
+            where: { id: tp.id },
+            data: { crew: updatedCrew as Prisma.InputJsonValue },
+          })
+          updates++
         }
       }
 
-      if (changed) {
-        await prisma.techPlan.update({
-          where: { id: tp.id },
-          data: { crew: updatedCrew as Prisma.InputJsonValue },
-        })
-        planUpdates++
-      }
-    }
+      // Update target roles and delete source
+      await tx.crewMember.update({
+        where: { id: targetId },
+        data: { roles: mergedRoles },
+      })
+      await tx.crewMember.delete({ where: { id: sourceId } })
 
-    // Update target roles and delete source
-    await prisma.crewMember.update({
-      where: { id: targetId },
-      data: { roles: mergedRoles },
+      return updates
     })
-    await prisma.crewMember.delete({ where: { id: sourceId } })
 
     res.json({ merged: true, targetId, planUpdates })
   } catch (error) {

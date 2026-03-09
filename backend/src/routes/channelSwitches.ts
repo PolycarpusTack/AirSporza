@@ -1,11 +1,12 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
+import { authenticate, authorize } from '../middleware/auth.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 
 const router = Router()
 
 // POST /api/channel-switches — initiate a channel switch
-router.post('/', async (req, res, next) => {
+router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
   try {
     const { fromSlotId, toChannelId, toSlotId, triggerType, switchAtUtc, reasonCode, reasonText } = req.body
     const tenantId = req.tenantId!
@@ -42,10 +43,10 @@ router.post('/', async (req, res, next) => {
 })
 
 // POST /api/channel-switches/:id/confirm — planner confirms a switch
-router.post('/:id/confirm', async (req, res, next) => {
+router.post('/:id/confirm', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
-    const { id } = req.params
+    const id = String(req.params.id)
 
     const action = await prisma.$transaction(async (tx) => {
       const confirmed = await tx.channelSwitchAction.update({

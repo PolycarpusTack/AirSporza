@@ -162,9 +162,7 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
     phases: orgConfig.phases.map(p => ({ value: p, label: p })),
     categories: orgConfig.categories.map(c => ({ value: c, label: c })),
     complexes: orgConfig.complexes.map(c => ({ value: c, label: c })),
-    channels: orgConfig.channels.map(c => ({ value: c.name, label: c.name })),
-    onDemandChannels: orgConfig.onDemandChannels.map(c => ({ value: c.name, label: c.name })),
-    radioChannels: orgConfig.radioChannels.map(c => ({ value: c, label: c })),
+    // channels, onDemandChannels, radioChannels removed — CHANNEL_FIELD_MAP intercepts these fields first
   }
 
   const visibleFields = eventFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
@@ -228,10 +226,10 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
       channelId,
       radioChannelId,
       onDemandChannelId,
-      linearChannel: form.linearChannel as string,   // @deprecated — kept for backwards compat
-      radioChannel: form.radioChannel as string,      // @deprecated — kept for backwards compat
+      linearChannel: undefined,   // @deprecated — channelId FK is source of truth
+      radioChannel: undefined,    // @deprecated — radioChannelId FK is source of truth
       linearStartTime: form.linearStartTime as string,
-      onDemandChannel: form.onDemandChannel as string, // @deprecated — kept for backwards compat
+      onDemandChannel: undefined, // @deprecated — onDemandChannelId FK is source of truth
       isLive: form.isLive as boolean,
       isDelayedLive: form.isDelayedLive as boolean,
       videoRef: form.videoRef as string,
@@ -250,9 +248,9 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
         channelId: channelId ?? undefined,
         radioChannelId: radioChannelId ?? undefined,
         onDemandChannelId: onDemandChannelId ?? undefined,
-        linearChannel: form.linearChannel as string | undefined,
-        onDemandChannel: form.onDemandChannel as string | undefined,
-        radioChannel: form.radioChannel as string | undefined,
+        linearChannel: undefined,
+        onDemandChannel: undefined,
+        radioChannel: undefined,
         startDateBE: form.startDateBE as string,
         startTimeBE: form.startTimeBE as string,
         status: editEvent?.status,

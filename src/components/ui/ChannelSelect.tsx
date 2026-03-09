@@ -19,6 +19,7 @@ export function ChannelSelect({
   placeholder = 'Select channel...',
   className = '',
   disabled = false,
+  allowClear = false,
 }: ChannelSelectProps) {
   const [channels, setChannels] = useState<Channel[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,7 +72,7 @@ export function ChannelSelect({
       className={`field-input border-border ${className}`}
       disabled={disabled || loading}
     >
-      <option value="">{loading ? 'Loading...' : placeholder}</option>
+      <option value="">{loading ? 'Loading...' : (allowClear ? '— None —' : placeholder)}</option>
       {options.map(opt => (
         <option key={opt.id} value={opt.id}>
           {'  '.repeat(opt.depth)}{opt.depth > 0 ? '└ ' : ''}{opt.label}

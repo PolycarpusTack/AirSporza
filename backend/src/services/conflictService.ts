@@ -47,11 +47,23 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
         startDateBE: { gte: dayStart, lte: dayEnd },
         ...(draft.id ? { NOT: { id: draft.id } } : {}),
       },
-      select: { id: true, startTimeBE: true, participants: true },
+      select: { id: true, startTimeBE: true, durationMin: true, participants: true },
     })
     const draftMin = timeToMin(draft.startTimeBE)
+    const draftDuration = (draft as any).durationMin as number | null | undefined
     for (const ev of sameDay) {
-      if (Math.abs(timeToMin(ev.startTimeBE) - draftMin) < 30) {
+      const evMin = timeToMin(ev.startTimeBE)
+      if (draftDuration && ev.durationMin) {
+        // Real overlap check using actual durations
+        const draftEnd = draftMin + draftDuration
+        const evEnd = evMin + ev.durationMin
+        if (draftMin < evEnd && evMin < draftEnd) {
+          warnings.push({
+            type: 'channel_overlap',
+            message: `Channel already has "${ev.participants ?? 'an event'}" with overlapping time`,
+          })
+        }
+      } else if (Math.abs(evMin - draftMin) < 30) {
         warnings.push({
           type: 'channel_overlap',
           message: `Channel already has "${ev.participants ?? 'an event'}" within 30 min`,
@@ -67,11 +79,22 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
         startDateBE: { gte: dayStart, lte: dayEnd },
         ...(draft.id ? { NOT: { id: draft.id } } : {}),
       },
-      select: { id: true, startTimeBE: true, participants: true },
+      select: { id: true, startTimeBE: true, durationMin: true, participants: true },
     })
     const draftMin = timeToMin(draft.startTimeBE)
+    const draftDuration = (draft as any).durationMin as number | null | undefined
     for (const ev of sameDay) {
-      if (Math.abs(timeToMin(ev.startTimeBE) - draftMin) < 30) {
+      const evMin = timeToMin(ev.startTimeBE)
+      if (draftDuration && ev.durationMin) {
+        const draftEnd = draftMin + draftDuration
+        const evEnd = evMin + ev.durationMin
+        if (draftMin < evEnd && evMin < draftEnd) {
+          warnings.push({
+            type: 'channel_overlap',
+            message: `Channel ${draft.linearChannel} already has "${ev.participants ?? 'an event'}" with overlapping time`,
+          })
+        }
+      } else if (Math.abs(evMin - draftMin) < 30) {
         warnings.push({
           type: 'channel_overlap',
           message: `Channel ${draft.linearChannel} already has "${ev.participants ?? 'an event'}" within 30 min`,

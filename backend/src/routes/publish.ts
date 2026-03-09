@@ -142,7 +142,15 @@ router.get('/events', async (req, res, next) => {
 
     if (cursor) {
       const decoded = Buffer.from(String(cursor), 'base64url').toString()
-      where.startDateBE = { ...(where.startDateBE as object || {}), gte: decoded }
+      const existing = (where.startDateBE as Record<string, string>) || {}
+      // When both cursor and `from` filter provide gte, use the later date
+      const cursorGte = decoded
+      const existingGte = existing.gte
+      if (existingGte && existingGte > cursorGte) {
+        where.startDateBE = { ...existing }
+      } else {
+        where.startDateBE = { ...existing, gte: cursorGte }
+      }
     }
 
     // Rights filter: event's competition must have a matching contract

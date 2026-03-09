@@ -134,25 +134,25 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) =
     })
     if (!existing) return next(createError(404, 'Season not found'))
 
-    // Cascade delete: rounds -> stages -> season
-    const stageIds = (await prisma.stage.findMany({
-      where: { seasonId: existing.id },
-      select: { id: true }
-    })).map(s => s.id)
+    // Cascade delete: rounds -> stages -> season (all in one transaction)
+    await prisma.$transaction(async (tx) => {
+      const stageIds = (await tx.stage.findMany({
+        where: { seasonId: existing.id },
+        select: { id: true }
+      })).map(s => s.id)
 
-    await prisma.$transaction([
       // Unlink events from rounds/stages/season
-      prisma.event.updateMany({
+      await tx.event.updateMany({
         where: { seasonId: existing.id },
         data: { seasonId: null, stageId: null, roundId: null }
-      }),
+      })
       // Delete rounds for all stages
-      prisma.round.deleteMany({ where: { stageId: { in: stageIds } } }),
+      await tx.round.deleteMany({ where: { stageId: { in: stageIds } } })
       // Delete stages
-      prisma.stage.deleteMany({ where: { seasonId: existing.id } }),
+      await tx.stage.deleteMany({ where: { seasonId: existing.id } })
       // Delete season
-      prisma.season.delete({ where: { id: existing.id } })
-    ])
+      await tx.season.delete({ where: { id: existing.id } })
+    })
 
     res.json({ message: 'Season deleted successfully' })
   } catch (error) {

@@ -1,10 +1,18 @@
 import { Router } from 'express'
+import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { parseId } from '../utils/parseId.js'
 
 const router = Router()
+
+const encoderUpdateSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(200).optional(),
+  location: Joi.string().allow('', null).optional(),
+  notes: Joi.string().allow('', null).optional(),
+  isActive: Joi.boolean().optional(),
+})
 
 router.get('/', async (req, res, next) => {
   try {
@@ -63,9 +71,11 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const existing = await prisma.encoder.findFirst({ where: { id: parseId(req.params.id), tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Encoder not found'))
+    const { error: valErr, value } = encoderUpdateSchema.validate(req.body)
+    if (valErr) return next(createError(400, valErr.details[0].message))
     const encoder = await prisma.encoder.update({
       where: { id: existing.id },
-      data: req.body
+      data: value
     })
     
     res.json(encoder)

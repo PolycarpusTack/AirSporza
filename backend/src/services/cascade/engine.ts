@@ -30,146 +30,149 @@ export async function runCascade(
 
   // Acquire advisory lock for this court+date to prevent concurrent cascade runs
   const lockKey = hashCode(`cascade:${courtId}:${dateStr}`)
-  await prisma.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${lockKey})`)
 
-  // Find all events on this court for this date, ordered by court position
-  const events = await prisma.event.findMany({
-    where: {
-      tenantId,
-      startDateBE: new Date(dateStr),
-      sportMetadata: {
-        path: ['court_id'],
-        equals: courtId,
+  return await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${lockKey})`)
+
+    // Find all events on this court for this date, ordered by court position
+    const events = await tx.event.findMany({
+      where: {
+        tenantId,
+        startDateBE: new Date(dateStr),
+        sportMetadata: {
+          path: ['court_id'],
+          equals: courtId,
+        },
       },
-    },
-    include: { sport: true },
-    orderBy: { id: 'asc' }, // fallback ordering; sportMetadata.order_on_court is in JSONB
-  })
+      include: { sport: true },
+      orderBy: { id: 'asc' }, // fallback ordering; sportMetadata.order_on_court is in JSONB
+    })
 
-  // Sort by order_on_court from sportMetadata
-  events.sort((a, b) => {
-    const orderA = (a.sportMetadata as any)?.order_on_court ?? 999
-    const orderB = (b.sportMetadata as any)?.order_on_court ?? 999
-    return orderA - orderB
-  })
+    // Sort by order_on_court from sportMetadata
+    events.sort((a, b) => {
+      const orderA = (a.sportMetadata as any)?.order_on_court ?? 999
+      const orderB = (b.sportMetadata as any)?.order_on_court ?? 999
+      return orderA - orderB
+    })
 
-  // Pre-load actual times from BroadcastSlots for completed events
-  const completedEventIds = events
-    .filter(e => e.status === 'completed' || e.status === 'live')
-    .map(e => e.id)
-  const actualSlots = completedEventIds.length > 0
-    ? await prisma.broadcastSlot.findMany({
-        where: { tenantId, eventId: { in: completedEventIds } },
-        select: { eventId: true, actualStartUtc: true, actualEndUtc: true },
-      })
-    : []
-  const actualTimesByEvent = new Map(
-    actualSlots.filter(s => s.eventId != null).map(s => [s.eventId!, s])
-  )
+    // Pre-load actual times from BroadcastSlots for completed events
+    const completedEventIds = events
+      .filter(e => e.status === 'completed' || e.status === 'live')
+      .map(e => e.id)
+    const actualSlots = completedEventIds.length > 0
+      ? await tx.broadcastSlot.findMany({
+          where: { tenantId, eventId: { in: completedEventIds } },
+          select: { eventId: true, actualStartUtc: true, actualEndUtc: true },
+        })
+      : []
+    const actualTimesByEvent = new Map(
+      actualSlots.filter(s => s.eventId != null).map(s => [s.eventId!, s])
+    )
 
-  const results: CascadeResult[] = []
-  let prevEnd: { earliest: Date | null; estimated: Date | null; latest: Date | null } = {
-    earliest: null,
-    estimated: null,
-    latest: null,
-  }
-  let prevConfidence = 1.0
+    const results: CascadeResult[] = []
+    let prevEnd: { earliest: Date | null; estimated: Date | null; latest: Date | null } = {
+      earliest: null,
+      estimated: null,
+      latest: null,
+    }
+    let prevConfidence = 1.0
 
-  for (const event of events) {
-    const castEvent = event as unknown as CascadeEvent
-    const meta = (event.sportMetadata as any) || {}
-    const status = event.status
+    for (const event of events) {
+      const castEvent = event as unknown as CascadeEvent
+      const meta = (event.sportMetadata as any) || {}
+      const status = event.status
 
-    if (status === 'completed' || status === 'live') {
-      // Use actual BroadcastSlot times if available, fall back to event start date
-      const actuals = actualTimesByEvent.get(event.id)
-      const startTime = actuals?.actualStartUtc
-        ? new Date(actuals.actualStartUtc)
-        : new Date(event.startDateBE)
+      if (status === 'completed' || status === 'live') {
+        // Use actual BroadcastSlot times if available, fall back to event start date
+        const actuals = actualTimesByEvent.get(event.id)
+        const startTime = actuals?.actualStartUtc
+          ? new Date(actuals.actualStartUtc)
+          : new Date(event.startDateBE)
+
+        const shortMin = estimator.shortDuration(castEvent)
+        const longMin = estimator.longDuration(castEvent)
+
+        const est: CascadeResult = {
+          eventId: event.id,
+          estimatedStartUtc: startTime,
+          earliestStartUtc: startTime,
+          latestStartUtc: startTime,
+          estDurationShortMin: status === 'completed' && actuals?.actualEndUtc ? 0 : shortMin,
+          estDurationLongMin: status === 'completed' && actuals?.actualEndUtc ? 0 : longMin,
+          confidenceScore: 1.0,
+          computedAt: new Date(),
+        }
+
+        // Use actual end time if completed, otherwise estimate
+        if (status === 'completed' && actuals?.actualEndUtc) {
+          const actualEnd = new Date(actuals.actualEndUtc)
+          prevEnd = { earliest: actualEnd, estimated: actualEnd, latest: actualEnd }
+        } else {
+          prevEnd = {
+            earliest: addMinutes(startTime, shortMin),
+            estimated: addMinutes(startTime, shortMin),
+            latest: addMinutes(startTime, shortMin),
+          }
+        }
+        prevConfidence = 1.0
+        results.push(est)
+        continue
+      }
 
       const shortMin = estimator.shortDuration(castEvent)
+      const longMin = estimator.longDuration(castEvent)
+      const midMin = (shortMin + longMin) / 2
+      const confidence = prevConfidence * CONFIDENCE_DECAY
+
+      const notBefore = meta.not_before_utc ? new Date(meta.not_before_utc) : null
+
+      let earliest: Date
+      let estimated: Date
+      let latest: Date
+
+      if (!prevEnd.earliest) {
+        // First match — use event start time
+        const courtOpen = new Date(event.startDateBE)
+        earliest = notBefore ? maxDate(courtOpen, notBefore) : courtOpen
+        estimated = earliest
+        latest = earliest
+      } else {
+        const changeover = CHANGEOVER_MIN * 60 * 1000
+        earliest = maxDate(
+          new Date(prevEnd.earliest.getTime() + changeover),
+          notBefore || new Date(0)
+        )
+        estimated = maxDate(
+          new Date(prevEnd.estimated!.getTime() + changeover),
+          notBefore || new Date(0)
+        )
+        latest = maxDate(
+          new Date(prevEnd.latest!.getTime() + changeover),
+          notBefore || new Date(0)
+        )
+      }
+
       const est: CascadeResult = {
         eventId: event.id,
-        estimatedStartUtc: startTime,
-        earliestStartUtc: startTime,
-        latestStartUtc: startTime,
-        estDurationShortMin: 0,
-        estDurationLongMin: 0,
-        confidenceScore: 1.0,
+        estimatedStartUtc: estimated,
+        earliestStartUtc: earliest,
+        latestStartUtc: latest,
+        estDurationShortMin: shortMin,
+        estDurationLongMin: longMin,
+        confidenceScore: Math.round(confidence * 100) / 100,
         computedAt: new Date(),
       }
 
-      // Use actual end time if completed, otherwise estimate
-      if (status === 'completed' && actuals?.actualEndUtc) {
-        const actualEnd = new Date(actuals.actualEndUtc)
-        prevEnd = { earliest: actualEnd, estimated: actualEnd, latest: actualEnd }
-      } else {
-        prevEnd = {
-          earliest: addMinutes(startTime, shortMin),
-          estimated: addMinutes(startTime, shortMin),
-          latest: addMinutes(startTime, shortMin),
-        }
+      prevEnd = {
+        earliest: addMinutes(earliest, shortMin),
+        estimated: addMinutes(estimated, midMin),
+        latest: addMinutes(latest, longMin),
       }
-      prevConfidence = 1.0
+      prevConfidence = confidence
       results.push(est)
-      continue
     }
 
-    const shortMin = estimator.shortDuration(castEvent)
-    const longMin = estimator.longDuration(castEvent)
-    const midMin = (shortMin + longMin) / 2
-    const confidence = prevConfidence * CONFIDENCE_DECAY
-
-    const notBefore = meta.not_before_utc ? new Date(meta.not_before_utc) : null
-
-    let earliest: Date
-    let estimated: Date
-    let latest: Date
-
-    if (!prevEnd.earliest) {
-      // First match — use event start time
-      const courtOpen = new Date(event.startDateBE)
-      earliest = notBefore ? maxDate(courtOpen, notBefore) : courtOpen
-      estimated = earliest
-      latest = earliest
-    } else {
-      const changeover = CHANGEOVER_MIN * 60 * 1000
-      earliest = maxDate(
-        new Date(prevEnd.earliest.getTime() + changeover),
-        notBefore || new Date(0)
-      )
-      estimated = maxDate(
-        new Date(prevEnd.estimated!.getTime() + changeover),
-        notBefore || new Date(0)
-      )
-      latest = maxDate(
-        new Date(prevEnd.latest!.getTime() + changeover),
-        notBefore || new Date(0)
-      )
-    }
-
-    const est: CascadeResult = {
-      eventId: event.id,
-      estimatedStartUtc: estimated,
-      earliestStartUtc: earliest,
-      latestStartUtc: latest,
-      estDurationShortMin: shortMin,
-      estDurationLongMin: longMin,
-      confidenceScore: Math.round(confidence * 100) / 100,
-      computedAt: new Date(),
-    }
-
-    prevEnd = {
-      earliest: addMinutes(earliest, shortMin),
-      estimated: addMinutes(estimated, midMin),
-      latest: addMinutes(latest, longMin),
-    }
-    prevConfidence = confidence
-    results.push(est)
-  }
-
-  // Batch all DB writes in a single transaction
-  await prisma.$transaction(async (tx) => {
+    // Batch all DB writes
     for (const est of results) {
       await tx.cascadeEstimate.upsert({
         where: { tenantId_eventId: { tenantId, eventId: est.eventId } },
@@ -188,9 +191,9 @@ export async function runCascade(
         },
       })
     }
-  })
 
-  return results
+    return results
+  })
 }
 
 function addMinutes(date: Date, min: number): Date {

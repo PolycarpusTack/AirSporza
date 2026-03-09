@@ -38,8 +38,8 @@ export const bracketWorker = createWorker(
     }
 
     // Determine winner
-    const winner = event.winner
-    if (!winner) {
+    let advanceWinner = event.winner
+    if (!advanceWinner) {
       logger.warn(`Event ${eventId} completed but no winner set`)
       return { skipped: true }
     }
@@ -77,9 +77,10 @@ export const bracketWorker = createWorker(
         ? meta.home_team_name
         : awayAgg > homeAgg
           ? meta.away_team_name
-          : winner // Fallback to the last match winner (penalties/ET)
+          : advanceWinner // Fallback to the last match winner (penalties/ET)
 
       logger.info(`Tie ${tieId} resolved: ${tieWinner} (agg ${homeAgg}-${awayAgg})`)
+      advanceWinner = tieWinner
     }
 
     // Find next round event
@@ -95,7 +96,7 @@ export const bracketWorker = createWorker(
 
     if (!nextRound) {
       logger.info(`No next round — this was the final`)
-      return { final: true, winner }
+      return { final: true, winner: advanceWinner }
     }
 
     // Find the next round event with matching bracket position
@@ -120,11 +121,11 @@ export const bracketWorker = createWorker(
 
     const updatedMeta = {
       ...nextMeta,
-      [isHomeSlot ? 'home_team_name' : 'away_team_name']: winner,
+      [isHomeSlot ? 'home_team_name' : 'away_team_name']: advanceWinner,
     }
     const updatedParticipants = isHomeSlot
-      ? `${winner} vs ${participantParts[1] || 'TBD'}`
-      : `${participantParts[0] || 'TBD'} vs ${winner}`
+      ? `${advanceWinner} vs ${participantParts[1] || 'TBD'}`
+      : `${participantParts[0] || 'TBD'} vs ${advanceWinner}`
 
     await prisma.event.update({
       where: { id: nextEvent.id },
@@ -134,8 +135,8 @@ export const bracketWorker = createWorker(
       },
     })
 
-    logger.info(`Bracket advanced: ${winner} → event ${nextEvent.id} (pos ${nextBracketPos})`)
-    return { nextEventId: nextEvent.id, winner, bracketPosition: nextBracketPos }
+    logger.info(`Bracket advanced: ${advanceWinner} → event ${nextEvent.id} (pos ${nextBracketPos})`)
+    return { nextEventId: nextEvent.id, winner: advanceWinner, bracketPosition: nextBracketPos }
   },
   { concurrency: 2 }
 )

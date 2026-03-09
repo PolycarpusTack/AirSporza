@@ -1,3 +1,7 @@
+-- HISTORICAL REFERENCE ONLY — DO NOT RUN alongside Prisma migrations.
+-- Prisma manages these tables via PascalCase naming (ImportSource, CanonicalTeam, etc.)
+-- This file used snake_case (import_sources, canonical_teams) and is incompatible.
+
 -- Import System Schema for SporzaPlanner
 -- Run after main schema is applied
 

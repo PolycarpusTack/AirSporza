@@ -8,7 +8,7 @@ const router = Router()
 // ─── RIGHTS POLICIES ────────────────────────────────────────────────────────
 
 // GET /policies — list rights policies (filter by competitionId, territory)
-router.get('/policies', async (req, res, next) => {
+router.get('/policies', authenticate, async (req, res, next) => {
   try {
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
@@ -148,7 +148,7 @@ router.delete('/policies/:id', authenticate, authorize('admin'), async (req, res
 // ─── RUN LEDGER ─────────────────────────────────────────────────────────────
 
 // GET /run-ledger — list runs (filter by eventId, channelId, date range)
-router.get('/run-ledger', async (req, res, next) => {
+router.get('/run-ledger', authenticate, async (req, res, next) => {
   try {
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
@@ -261,7 +261,7 @@ router.post('/run-ledger', authenticate, authorize('planner', 'admin'), async (r
 // GET /run-ledger/count/:eventId — get effective run count
 // LIVE = 1 each, TAPE_DELAY = 1 each, HIGHLIGHTS = 1 each, CLIP = 1 each
 // CONTINUATION runs linked to a parent do NOT count separately
-router.get('/run-ledger/count/:eventId', async (req, res, next) => {
+router.get('/run-ledger/count/:eventId', authenticate, async (req, res, next) => {
   try {
     const eventId = Number(req.params.eventId)
 

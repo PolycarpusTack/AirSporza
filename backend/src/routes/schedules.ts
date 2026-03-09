@@ -161,24 +161,30 @@ router.patch('/:id', authenticate, authorize('planner', 'admin'), async (req, re
       return next(createError(400, 'Cannot modify a published draft'))
     }
 
-    // Optimistic locking: client must send current version
-    if (draft.version !== version) {
+    // Atomic optimistic lock: version check + update in one query
+    const existingOps = (draft.operations as any[]) || []
+    const result = await prisma.scheduleDraft.updateMany({
+      where: { id: draft.id, version },
+      data: {
+        operations: [...existingOps, ...operations] as any,
+        version: { increment: 1 },
+        status: 'EDITING'
+      }
+    })
+
+    if (result.count === 0) {
+      // Re-fetch to get current version for the error response
+      const current = await prisma.scheduleDraft.findFirst({ where: { id: draft.id } })
       return res.status(409).json({
         error: 'Version conflict',
-        message: `Expected version ${version}, but current version is ${draft.version}`,
-        currentVersion: draft.version,
-        currentDraft: draft
+        message: `Expected version ${version}, but current version is ${current?.version}`,
+        currentVersion: current?.version,
+        currentDraft: current
       })
     }
 
-    const existingOps = (draft.operations as any[]) || []
-    const updated = await prisma.scheduleDraft.update({
+    const updated = await prisma.scheduleDraft.findFirst({
       where: { id: draft.id },
-      data: {
-        operations: [...existingOps, ...operations],
-        version: draft.version + 1,
-        status: 'EDITING'
-      },
       include: {
         channel: { select: { id: true, name: true, color: true } }
       }

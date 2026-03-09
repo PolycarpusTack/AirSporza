@@ -245,13 +245,25 @@ router.put('/:id', authenticate, authorize('planner', 'admin'), async (req, res,
     if (scheduleVersionId !== undefined) data.scheduleVersionId = scheduleVersionId
     if (sportMetadata !== undefined) data.sportMetadata = sportMetadata
 
-    const slot = await prisma.broadcastSlot.update({
-      where: { id: existing.id },
-      data,
-      include: {
-        channel: { select: { id: true, name: true, color: true } },
-        event: { select: { id: true, participants: true, sportId: true } }
-      }
+    const slot = await prisma.$transaction(async (tx) => {
+      const updated = await tx.broadcastSlot.update({
+        where: { id: existing.id },
+        data,
+        include: {
+          channel: { select: { id: true, name: true, color: true } },
+          event: { select: { id: true, participants: true, sportId: true } }
+        }
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'slot.updated',
+        aggregateType: 'BroadcastSlot',
+        aggregateId: updated.id,
+        payload: updated,
+      })
+
+      return updated
     })
 
     res.json(slot)

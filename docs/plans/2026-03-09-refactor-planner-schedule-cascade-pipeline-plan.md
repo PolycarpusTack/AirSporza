@@ -654,29 +654,29 @@ Once all data is migrated and verified:
 
 ### Functional Requirements
 
-- [ ] Channels are managed in a single tree UI (Admin → Channels) with parent/child support
-- [ ] All channel dropdowns across the app (Planner, Sports, Schedule) use ChannelSelect from Channel table
-- [ ] Creating an Event with a channel + time auto-creates a linked BroadcastSlot
-- [ ] Updating Event time/channel/duration syncs the linked BroadcastSlot
+- [x] Channels are managed in a single tree UI (Admin → Channels) with parent/child support
+- [x] All channel dropdowns across the app (Planner, Sports, Schedule) use ChannelSelect from Channel table
+- [x] Creating an Event with a channel + time auto-creates a linked BroadcastSlot
+- [x] Updating Event time/channel/duration syncs the linked BroadcastSlot
 - [x] Contracts include territory, platforms, run limits, time windows (enriched model)
 - [x] Single rights validation pipeline used by both Planner conflict check and Schedule validation
 - [x] All event mutations flow through transactional outbox (no direct Socket.IO emit in routes)
 - [x] Cascade engine uses BroadcastSlot.actualStartUtc for completed events
-- [ ] External API (published feeds, webhooks) continues returning channel names as strings (backwards compat)
-- [ ] Existing events migrated: linearChannel → channelId, duration → durationMin
+- [x] External API (published feeds, webhooks) continues returning channel names as strings (backwards compat)
+- [x] Existing events migrated: linearChannel → channelId, duration → durationMin
 
 ### Non-Functional Requirements
 
 - [x] Outbox processing latency < 2s (LISTEN/NOTIFY)
 - [x] Cascade batch writes in single transaction
 - [x] Alert worker scoped to affected courts (not entire tenant)
-- [ ] All migrations have dry-run mode and rollback scripts
+- [x] All migrations have dry-run mode and rollback scripts
 
 ### Quality Gates
 
 - [x] `npx tsc --noEmit` passes (frontend + backend)
 - [ ] Migration scripts run successfully on test data with dry-run verification
-- [ ] No breaking changes to `/publish/events` or webhook payload shapes
+- [x] No breaking changes to `/publish/events` or webhook payload shapes
 
 ## Dependencies & Prerequisites
 

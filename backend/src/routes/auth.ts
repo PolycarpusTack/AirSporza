@@ -33,12 +33,15 @@ if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
         // For OAuth, use the tenant from the request context (set by middleware)
         // Note: req is not available here; new users inherit from default tenant
         const defaultTenant = await prisma.tenant.findFirst({ where: { slug: 'default' } })
+        if (!defaultTenant) {
+          return done(new Error('No default tenant configured'), false)
+        }
         user = await prisma.user.create({
           data: {
             email: profile.email,
             name: profile.name || profile.email.split('@')[0],
             externalId: profile.sub,
-            tenantId: defaultTenant?.id ?? '',
+            tenantId: defaultTenant.id,
           }
         })
       }

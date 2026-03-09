@@ -223,9 +223,9 @@ export function ContractsView({ widgets }: ContractsViewProps) {
                 {data.map(c => (
                   <tr key={c.id} className="border-t border-border/60">
                     <td className="py-2 font-medium">{c.sport?.icon} {c.competition?.name}</td>
-                    <td className="text-center py-2">{c.linearRights ? '✅' : '❌'}</td>
-                    <td className="text-center py-2">{c.maxRights ? '✅' : '❌'}</td>
-                    <td className="text-center py-2">{c.radioRights ? '✅' : '❌'}</td>
+                    <td className="text-center py-2">{(c as any).platforms?.includes('linear') ?? c.linearRights ? '✅' : '❌'}</td>
+                    <td className="text-center py-2">{(c as any).platforms?.includes('max') ?? c.maxRights ? '✅' : '❌'}</td>
+                    <td className="text-center py-2">{(c as any).platforms?.includes('radio') ?? c.radioRights ? '✅' : '❌'}</td>
                     <td className="text-center py-2">{c.sublicensing ? '✅' : '❌'}</td>
                   </tr>
                 ))}
@@ -295,9 +295,9 @@ export function ContractsView({ widgets }: ContractsViewProps) {
                               {days < 180 && days > 0 && <div className="text-xs font-medium text-warning">{days}d left</div>}
                             </div>
                             <div className="px-4 py-3 hidden lg:flex gap-1">
-                              {c.linearRights && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-success/15 text-xs font-bold text-success">L</span>}
-                              {c.maxRights && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-xs font-bold text-primary">M</span>}
-                              {c.radioRights && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-brand/10 text-xs font-bold text-foreground">R</span>}
+                              {((c as any).platforms?.includes('linear') ?? c.linearRights) && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-success/15 text-xs font-bold text-success">L</span>}
+                              {((c as any).platforms?.includes('max') ?? c.maxRights) && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-xs font-bold text-primary">M</span>}
+                              {((c as any).platforms?.includes('radio') ?? c.radioRights) && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-brand/10 text-xs font-bold text-foreground">R</span>}
                             </div>
                             {canManageContracts && (
                               <div className="px-4 py-3 hidden lg:block text-muted text-xs">{c.fee ?? '—'}</div>
