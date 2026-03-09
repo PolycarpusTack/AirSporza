@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ScheduleGrid } from '../components/schedule/ScheduleGrid'
 import { DraftToolbar } from '../components/schedule/DraftToolbar'
+import { SwitchConfirmModal } from '../components/schedule/SwitchConfirmModal'
 import { schedulesApi } from '../services/schedules'
 import { useToast } from '../components/Toast'
-import type { Channel, BroadcastSlot, ScheduleDraft } from '../data/types'
+import type { Channel, BroadcastSlot, ScheduleDraft, Alert } from '../data/types'
 import { CascadeDashboard } from '../components/schedule/CascadeDashboard'
 import { ChevronLeft, ChevronRight, Grid2X2, Activity } from 'lucide-react'
 
@@ -17,6 +18,7 @@ export function ScheduleView() {
   const [loading, setLoading] = useState(true)
   const [selectedSlot, setSelectedSlot] = useState<BroadcastSlot | null>(null)
   const [activeTab, setActiveTab] = useState<'grid' | 'cascade'>('grid')
+  const [switchAlert, setSwitchAlert] = useState<Alert | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -126,6 +128,16 @@ export function ScheduleView() {
         <CascadeDashboard
           date={date}
           onDateChange={setDate}
+          onSwitchAction={setSwitchAlert}
+        />
+      )}
+
+      {/* Channel switch confirmation modal */}
+      {switchAlert && (
+        <SwitchConfirmModal
+          alert={switchAlert}
+          onClose={() => setSwitchAlert(null)}
+          onConfirmed={fetchData}
         />
       )}
 
