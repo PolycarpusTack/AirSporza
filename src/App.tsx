@@ -35,6 +35,9 @@ const ImportView = lazy(() =>
 const SettingsView = lazy(() =>
   import('./pages/SettingsView').then((m) => ({ default: m.SettingsView }))
 )
+const ScheduleView = lazy(() =>
+  import('./pages/ScheduleView').then((m) => ({ default: m.ScheduleView }))
+)
 
 function PageSkeleton() {
   return (
@@ -208,6 +211,14 @@ function AppContent() {
                 element={
                   <RequireRole roles={['admin']}>
                     <SettingsView widgets={currentWidgets} />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/schedule"
+                element={
+                  <RequireRole roles={['admin', 'planner', 'sports']}>
+                    <ScheduleView />
                   </RequireRole>
                 }
               />
