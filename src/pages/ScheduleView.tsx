@@ -4,7 +4,8 @@ import { DraftToolbar } from '../components/schedule/DraftToolbar'
 import { schedulesApi } from '../services/schedules'
 import { useToast } from '../components/Toast'
 import type { Channel, BroadcastSlot, ScheduleDraft } from '../data/types'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CascadeDashboard } from '../components/schedule/CascadeDashboard'
+import { ChevronLeft, ChevronRight, Grid2X2, Activity } from 'lucide-react'
 
 export function ScheduleView() {
   const toast = useToast()
@@ -15,6 +16,7 @@ export function ScheduleView() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(true)
   const [selectedSlot, setSelectedSlot] = useState<BroadcastSlot | null>(null)
+  const [activeTab, setActiveTab] = useState<'grid' | 'cascade'>('grid')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -83,20 +85,47 @@ export function ScheduleView() {
         }}
       />
 
-      {/* Grid */}
-      {loading ? (
-        <div className="h-96 bg-surface-2 rounded-xl animate-pulse" />
-      ) : channels.length === 0 ? (
-        <div className="text-center py-20 text-text-3">
-          <p className="text-sm">No channels configured yet.</p>
-          <p className="text-xs mt-1">Add channels in Settings &rarr; Organisation</p>
-        </div>
+      {/* View tabs */}
+      <div className="flex gap-1 border border-border rounded-lg p-0.5 bg-surface-2 w-fit">
+        <button
+          onClick={() => setActiveTab('grid')}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
+            activeTab === 'grid' ? 'bg-surface text-text shadow-sm' : 'text-text-3 hover:text-text-2'
+          }`}
+        >
+          <Grid2X2 className="w-3.5 h-3.5" /> Grid
+        </button>
+        <button
+          onClick={() => setActiveTab('cascade')}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
+            activeTab === 'cascade' ? 'bg-surface text-text shadow-sm' : 'text-text-3 hover:text-text-2'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" /> Cascade
+        </button>
+      </div>
+
+      {/* Grid / Cascade */}
+      {activeTab === 'grid' ? (
+        loading ? (
+          <div className="h-96 bg-surface-2 rounded-xl animate-pulse" />
+        ) : channels.length === 0 ? (
+          <div className="text-center py-20 text-text-3">
+            <p className="text-sm">No channels configured yet.</p>
+            <p className="text-xs mt-1">Add channels in Settings &rarr; Organisation</p>
+          </div>
+        ) : (
+          <ScheduleGrid
+            channels={channels}
+            slots={slots}
+            date={date}
+            onSlotClick={setSelectedSlot}
+          />
+        )
       ) : (
-        <ScheduleGrid
-          channels={channels}
-          slots={slots}
+        <CascadeDashboard
           date={date}
-          onSlotClick={setSelectedSlot}
+          onDateChange={setDate}
         />
       )}
 
