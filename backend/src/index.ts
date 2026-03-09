@@ -39,6 +39,7 @@ import broadcastSlotRoutes from './routes/broadcastSlots.js'
 import scheduleRoutes from './routes/schedules.js'
 import rightsRoutes from './routes/rights.js'
 import channelSwitchRoutes from './routes/channelSwitches.js'
+import adapterRoutes from './routes/adapters.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -154,6 +155,7 @@ app.use('/api/broadcast-slots', authenticate, broadcastSlotRoutes)
 app.use('/api/schedule-drafts', authenticate, scheduleRoutes)
 app.use('/api/rights', authenticate, rightsRoutes)
 app.use('/api/channel-switches', authenticate, channelSwitchRoutes)
+app.use('/api/adapters', adapterRoutes)
 
 app.use(errorHandler)
 
