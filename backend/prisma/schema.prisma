@@ -91,6 +91,9 @@ model Tenant {
   venueAliases           VenueAlias[]
   syncHistories          SyncHistory[]
   importSchedules        ImportSchedule[]
+  venues                 Venue[]
+  teams                  Team[]
+  courts                 Court[]
 }
 
 model User {
@@ -197,6 +200,8 @@ model Event {
   status            EventStatus @default(draft)
   seriesId          String?
 
+  venueId           Int?
+
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -204,6 +209,7 @@ model Event {
   sport             Sport         @relation(fields: [sportId], references: [id])
   competition       Competition   @relation(fields: [competitionId], references: [id])
   createdBy         User?         @relation(fields: [createdById], references: [id])
+  venue             Venue?        @relation(fields: [venueId], references: [id])
   techPlans         TechPlan[]
 
   @@index([sportId])
@@ -212,6 +218,7 @@ model Event {
   @@index([linearChannel])
   @@index([status])
   @@index([seriesId])
+  @@index([venueId])
   @@index([tenantId])
 }
 
@@ -997,4 +1004,63 @@ model CrewTemplate {
   @@unique([planType, createdById])
   @@index([tenantId])
   @@map("crew_templates")
+}
+
+// =============================================================================
+// BROADCAST MIDDLEWARE — VENUE, TEAM, COURT
+// =============================================================================
+
+model Venue {
+  id        Int      @id @default(autoincrement())
+  tenantId  String   @db.Uuid
+  name      String
+  timezone  String   @default("Europe/Brussels")
+  country   String?
+  address   String?
+  capacity  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  courts    Court[]
+  events    Event[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Team {
+  id           Int      @id @default(autoincrement())
+  tenantId     String   @db.Uuid
+  name         String
+  shortName    String?
+  country      String?
+  logoUrl      String?
+  externalRefs Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Court {
+  id                Int      @id @default(autoincrement())
+  tenantId          String   @db.Uuid
+  venueId           Int
+  name              String
+  capacity          Int?
+  hasRoof           Boolean  @default(false)
+  isShowCourt       Boolean  @default(false)
+  broadcastPriority Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  venue             Venue    @relation(fields: [venueId], references: [id])
+
+  @@unique([venueId, name])
+  @@index([tenantId])
 }

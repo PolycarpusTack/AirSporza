@@ -30,6 +30,9 @@ import resourcesRoutes from './routes/resources.js'
 import crewMembersRoutes from './routes/crewMembers.js'
 import crewTemplatesRoutes from './routes/crewTemplates.js'
 import usersRouter from './routes/users.js'
+import venueRoutes from './routes/venues.js'
+import teamRoutes from './routes/teams.js'
+import courtRoutes from './routes/courts.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -136,6 +139,9 @@ app.use('/api/resources', resourcesRoutes)
 app.use('/api/crew-members', crewMembersRoutes)
 app.use('/api/crew-templates', crewTemplatesRoutes)
 app.use('/api/users', usersRouter)
+app.use('/api/venues', venueRoutes)
+app.use('/api/teams', teamRoutes)
+app.use('/api/courts', courtRoutes)
 
 app.use(errorHandler)
 
