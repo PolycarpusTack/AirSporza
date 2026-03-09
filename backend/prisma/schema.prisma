@@ -115,6 +115,9 @@ model Tenant {
   broadcastSlots         BroadcastSlot[]
   scheduleDrafts         ScheduleDraft[]
   scheduleVersions       ScheduleVersion[]
+  rightsPolicies         RightsPolicy[]
+  runLedgerEntries       RunLedger[]
+  outboxEvents           OutboxEvent[]
 }
 
 model User {
@@ -176,8 +179,9 @@ model Competition {
   tenant     Tenant       @relation(fields: [tenantId], references: [id])
   sport      Sport        @relation(fields: [sportId], references: [id], onDelete: Cascade)
   events     Event[]
-  contracts  Contract[]
-  seasons    Season[]
+  contracts       Contract[]
+  seasons         Season[]
+  rightsPolicies  RightsPolicy[]
 
   @@unique([sportId, name, season])
   @@index([sportId])
@@ -1249,6 +1253,7 @@ model BroadcastSlot {
   channel                    Channel              @relation(fields: [channelId], references: [id])
   event                      Event?               @relation(fields: [eventId], references: [id])
   scheduleVersion            ScheduleVersion?     @relation(fields: [scheduleVersionId], references: [id])
+  runLedgerEntries           RunLedger[]
 
   @@index([tenantId])
   @@index([channelId, plannedStartUtc])
@@ -1304,4 +1309,118 @@ model ScheduleVersion {
   broadcastSlots       BroadcastSlot[]
 
   @@index([tenantId])
+}
+
+// =============================================================================
+// BROADCAST MIDDLEWARE — RIGHTS & RUN LEDGER
+// =============================================================================
+
+enum CoverageType {
+  LIVE
+  HIGHLIGHTS
+  DELAYED
+  CLIP
+}
+
+enum Platform {
+  LINEAR
+  OTT
+  SVOD
+  AVOD
+  PPV
+  STREAMING
+}
+
+enum RunType {
+  LIVE
+  CONTINUATION
+  TAPE_DELAY
+  HIGHLIGHTS
+  CLIP
+}
+
+enum RunStatus {
+  PENDING
+  CONFIRMED
+  RECONCILED
+  DISPUTED
+}
+
+model RightsPolicy {
+  id                   String       @id @default(uuid()) @db.Uuid
+  tenantId             String       @db.Uuid
+  competitionId        Int
+  seasonId             Int?
+  territory            String[]
+  platforms            Platform[]
+  coverageType         CoverageType @default(LIVE)
+  maxLiveRuns          Int?
+  maxPickRunsPerRound  Int?
+  windowStartUtc       DateTime?    @db.Timestamptz
+  windowEndUtc         DateTime?    @db.Timestamptz
+  tapeDelayHoursMin    Int?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  tenant               Tenant       @relation(fields: [tenantId], references: [id])
+  competition          Competition  @relation(fields: [competitionId], references: [id])
+
+  @@index([tenantId])
+}
+
+model RunLedger {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  broadcastSlotId String    @db.Uuid
+  eventId         Int
+  channelId       Int
+  runType         RunType   @default(LIVE)
+  parentRunId     String?   @db.Uuid
+  startedAtUtc    DateTime? @db.Timestamptz
+  endedAtUtc      DateTime? @db.Timestamptz
+  durationMin     Int?
+  status          RunStatus @default(PENDING)
+  createdAt       DateTime  @default(now())
+
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  broadcastSlot   BroadcastSlot @relation(fields: [broadcastSlotId], references: [id])
+  parentRun       RunLedger?    @relation("RunChain", fields: [parentRunId], references: [id])
+  childRuns       RunLedger[]   @relation("RunChain")
+
+  @@unique([tenantId, broadcastSlotId, runType])
+  @@index([tenantId])
+  @@index([eventId])
+}
+
+// =============================================================================
+// BROADCAST MIDDLEWARE — TRANSACTIONAL OUTBOX
+// =============================================================================
+
+enum OutboxPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model OutboxEvent {
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @db.Uuid
+  eventType      String
+  aggregateType  String
+  aggregateId    String
+  payload        Json
+  idempotencyKey String         @unique
+  priority       OutboxPriority @default(NORMAL)
+  createdAt      DateTime       @default(now()) @db.Timestamptz
+  processedAt    DateTime?      @db.Timestamptz
+  failedAt       DateTime?      @db.Timestamptz
+  retryCount     Int            @default(0)
+  maxRetries     Int            @default(5)
+  deadLetteredAt DateTime?      @db.Timestamptz
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([processedAt, deadLetteredAt, priority, createdAt])
 }
