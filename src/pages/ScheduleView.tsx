@@ -14,7 +14,10 @@ export function ScheduleView() {
   const [slots, setSlots] = useState<BroadcastSlot[]>([])
   const [, setDrafts] = useState<ScheduleDraft[]>([])
   const [activeDraft, setActiveDraft] = useState<ScheduleDraft | null>(null)
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
   const [loading, setLoading] = useState(true)
   const [selectedSlot, setSelectedSlot] = useState<BroadcastSlot | null>(null)
   const [activeTab, setActiveTab] = useState<'grid' | 'cascade'>('grid')
@@ -43,19 +46,22 @@ export function ScheduleView() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const localDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
   const prevDay = () => {
-    const d = new Date(date)
+    const d = new Date(date + 'T12:00:00') // noon avoids DST edge
     d.setDate(d.getDate() - 1)
-    setDate(d.toISOString().slice(0, 10))
+    setDate(localDateStr(d))
   }
 
   const nextDay = () => {
-    const d = new Date(date)
+    const d = new Date(date + 'T12:00:00')
     d.setDate(d.getDate() + 1)
-    setDate(d.toISOString().slice(0, 10))
+    setDate(localDateStr(d))
   }
 
-  const today = () => setDate(new Date().toISOString().slice(0, 10))
+  const today = () => setDate(localDateStr(new Date()))
 
   return (
     <div className="p-4 sm:p-5 space-y-4">

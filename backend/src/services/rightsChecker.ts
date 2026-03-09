@@ -28,7 +28,16 @@ export function checkRights(
 ): ValidationResult[] {
   const results: ValidationResult[] = []
 
-  if (contracts.length === 0) return results
+  // No contracts at all — flag missing coverage
+  if (contracts.length === 0) {
+    results.push({
+      code: 'NO_VALID_CONTRACT',
+      severity: 'ERROR',
+      scope: ['rights'],
+      message: 'No contract found for this competition',
+    })
+    return results
+  }
 
   // Find applicable contracts (valid or expiring)
   const applicable = contracts.filter(c =>

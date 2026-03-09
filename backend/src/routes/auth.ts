@@ -102,12 +102,18 @@ router.post('/dev-login', async (req, res, next) => {
     let user = await prisma.user.findUnique({ where: { email } })
     
     if (!user) {
+      // Auth routes are mounted before tenant context middleware,
+      // so req.tenantId may not be set. Look up the default tenant directly.
+      const defaultTenant = await prisma.tenant.findFirst({ where: { slug: 'default' } })
+      if (!defaultTenant) {
+        return res.status(500).json({ error: 'No default tenant configured' })
+      }
       user = await prisma.user.create({
         data: {
           email,
           name: email.split('@')[0],
           role: role || 'planner',
-          tenantId: req.tenantId!,
+          tenantId: defaultTenant.id,
         }
       })
     } else if (role && user.role !== role) {

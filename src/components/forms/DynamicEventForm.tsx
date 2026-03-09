@@ -116,7 +116,16 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
 
   useEffect(() => {
     setForm(initForm())
-    setCustomValues({})
+    // Prefill custom values from editEvent if available
+    if (editEvent?.customValues && editEvent.customValues.length > 0) {
+      const map: Record<string, string> = {}
+      for (const cv of editEvent.customValues) {
+        map[cv.fieldId] = cv.fieldValue
+      }
+      setCustomValues(map)
+    } else {
+      setCustomValues({})
+    }
     setConflicts(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editEvent?.id, prefill])

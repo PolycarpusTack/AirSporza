@@ -717,6 +717,18 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
       })
 
       const customValuesList = customValues as { fieldId: string; fieldValue: string }[]
+      // Delete custom field values not in the submitted list, then upsert the rest
+      const submittedFieldIds = customValuesList.map(cv => cv.fieldId)
+      await tx.customFieldValue.deleteMany({
+        where: {
+          entityType: 'event',
+          entityId: String(updated.id),
+          tenantId: req.tenantId!,
+          ...(submittedFieldIds.length > 0
+            ? { fieldId: { notIn: submittedFieldIds } }
+            : {}),
+        },
+      })
       if (customValuesList.length > 0) {
         await Promise.all(
           customValuesList.map(({ fieldId, fieldValue }) =>

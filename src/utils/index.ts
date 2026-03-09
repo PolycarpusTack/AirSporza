@@ -1,7 +1,11 @@
 function toDateStr(d: Date | string | undefined): string {
   if (!d) return ''
   if (typeof d === 'string') return d
-  return d.toISOString().split('T')[0]
+  // Use local date components to avoid UTC shift around midnight
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export const fmtDate = (d: Date | string | undefined): string => {
