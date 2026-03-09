@@ -1,5 +1,5 @@
 import { config } from 'dotenv'
-import { PrismaClient, ContractStatus, Role, EventStatus } from '@prisma/client'
+import { PrismaClient, ContractStatus, Role, EventStatus, SchedulingMode, OverrunStrategy, AnchorType } from '@prisma/client'
 
 config()
 
@@ -9,26 +9,23 @@ async function main() {
   console.log('Seeding database...')
 
   // ── Tenant ────────────────────────────────────────────────────────────────
-  try {
-    await prisma.tenant.upsert({
-      where: { slug: 'default' },
-      update: {},
-      create: { name: 'Default', slug: 'default', config: {} },
-    })
-    console.log('Created default tenant')
-  } catch {
-    console.log('Tenant table not available (migration may not be applied yet)')
-  }
+  const tenant = await prisma.tenant.upsert({
+    where: { slug: 'default' },
+    update: {},
+    create: { name: 'Sporza', slug: 'default', config: {} },
+  })
+  const T = tenant.id // shorthand for tenantId
+  console.log(`Tenant: ${tenant.name} (${T})`)
 
   // ── Sports ──────────────────────────────────────────────────────────────────
   const sports = await prisma.sport.createMany({
     data: [
-      { id: 1, name: "Football", icon: "⚽", federation: "FIFA" },
-      { id: 2, name: "Tennis", icon: "🎾", federation: "ITF" },
-      { id: 3, name: "Cycling", icon: "🚴", federation: "UCI" },
-      { id: 4, name: "Formula 1", icon: "🏎️", federation: "FIA" },
-      { id: 5, name: "Athletics", icon: "🏃", federation: "World Athletics" },
-      { id: 6, name: "Swimming", icon: "🏊", federation: "FINA" },
+      { id: 1, name: "Football", icon: "⚽", federation: "FIFA", tenantId: T },
+      { id: 2, name: "Tennis", icon: "🎾", federation: "ITF", tenantId: T },
+      { id: 3, name: "Cycling", icon: "🚴", federation: "UCI", tenantId: T },
+      { id: 4, name: "Formula 1", icon: "🏎️", federation: "FIA", tenantId: T },
+      { id: 5, name: "Athletics", icon: "🏃", federation: "World Athletics", tenantId: T },
+      { id: 6, name: "Swimming", icon: "🏊", federation: "FINA", tenantId: T },
     ],
     skipDuplicates: true
   })
@@ -37,13 +34,13 @@ async function main() {
   // ── Competitions ────────────────────────────────────────────────────────────
   const competitions = await prisma.competition.createMany({
     data: [
-      { id: 1, sportId: 1, name: "Jupiler Pro League", matches: 34, season: "2025-26" },
-      { id: 2, sportId: 1, name: "Champions League", matches: 13, season: "2025-26" },
-      { id: 3, sportId: 2, name: "US Open", matches: 127, season: "2026" },
-      { id: 4, sportId: 2, name: "Roland Garros", matches: 127, season: "2026" },
-      { id: 5, sportId: 3, name: "Tour de France", matches: 21, season: "2026" },
-      { id: 6, sportId: 4, name: "F1 World Championship", matches: 24, season: "2026" },
-      { id: 7, sportId: 5, name: "European Championships", matches: 48, season: "2026" },
+      { id: 1, sportId: 1, name: "Jupiler Pro League", matches: 34, season: "2025-26", tenantId: T },
+      { id: 2, sportId: 1, name: "Champions League", matches: 13, season: "2025-26", tenantId: T },
+      { id: 3, sportId: 2, name: "US Open", matches: 127, season: "2026", tenantId: T },
+      { id: 4, sportId: 2, name: "Roland Garros", matches: 127, season: "2026", tenantId: T },
+      { id: 5, sportId: 3, name: "Tour de France", matches: 21, season: "2026", tenantId: T },
+      { id: 6, sportId: 4, name: "F1 World Championship", matches: 24, season: "2026", tenantId: T },
+      { id: 7, sportId: 5, name: "European Championships", matches: 48, season: "2026", tenantId: T },
     ],
     skipDuplicates: true
   })
@@ -52,14 +49,14 @@ async function main() {
   // ── Encoders ────────────────────────────────────────────────────────────────
   const encoders = await prisma.encoder.createMany({
     data: [
-      { name: "ENC-01", location: "Brussels" },
-      { name: "ENC-02", location: "Brussels" },
-      { name: "ENC-03", location: "Antwerp" },
-      { name: "ENC-04", location: "Antwerp" },
-      { name: "ENC-05", location: "Ghent" },
-      { name: "ENC-06", location: "Ghent" },
-      { name: "ENC-07", location: "Liège" },
-      { name: "ENC-08", location: "Liège" },
+      { name: "ENC-01", location: "Brussels", tenantId: T },
+      { name: "ENC-02", location: "Brussels", tenantId: T },
+      { name: "ENC-03", location: "Antwerp", tenantId: T },
+      { name: "ENC-04", location: "Antwerp", tenantId: T },
+      { name: "ENC-05", location: "Ghent", tenantId: T },
+      { name: "ENC-06", location: "Ghent", tenantId: T },
+      { name: "ENC-07", location: "Liège", tenantId: T },
+      { name: "ENC-08", location: "Liège", tenantId: T },
     ],
     skipDuplicates: true
   })
@@ -69,47 +66,47 @@ async function main() {
   await prisma.contract.createMany({
     data: [
       {
-        competitionId: 1, status: ContractStatus.valid,
+        competitionId: 1, status: ContractStatus.valid, tenantId: T,
         validFrom: new Date("2024-07-01"), validUntil: new Date("2027-06-30"),
         linearRights: true, maxRights: true, radioRights: true,
         geoRestriction: "Belgium only", sublicensing: false,
         fee: "€2.4M/year", notes: "Exclusive Belgian rights"
       },
       {
-        competitionId: 2, status: ContractStatus.valid,
+        competitionId: 2, status: ContractStatus.valid, tenantId: T,
         validFrom: new Date("2024-09-01"), validUntil: new Date("2027-08-31"),
         linearRights: true, maxRights: true, radioRights: true,
         geoRestriction: "Belgium only", sublicensing: false,
         fee: "€8.1M/year", notes: "Shared with RTBF"
       },
       {
-        competitionId: 3, status: ContractStatus.valid,
+        competitionId: 3, status: ContractStatus.valid, tenantId: T,
         validFrom: new Date("2025-01-01"), validUntil: new Date("2026-12-31"),
         linearRights: true, maxRights: false, radioRights: true,
         geoRestriction: "Belgium + Luxembourg", sublicensing: false,
         fee: "€1.2M/year", notes: "No VRT MAX streaming"
       },
       {
-        competitionId: 4, status: ContractStatus.expiring,
+        competitionId: 4, status: ContractStatus.expiring, tenantId: T,
         validFrom: new Date("2023-01-01"), validUntil: new Date("2026-06-30"),
         linearRights: true, maxRights: true, radioRights: false,
         geoRestriction: "Belgium only", sublicensing: false,
         fee: "€0.9M/year", notes: "Renewal negotiations started"
       },
       {
-        competitionId: 5, status: ContractStatus.valid,
+        competitionId: 5, status: ContractStatus.valid, tenantId: T,
         validFrom: new Date("2025-01-01"), validUntil: new Date("2028-12-31"),
         linearRights: true, maxRights: true, radioRights: true,
         geoRestriction: "Benelux", sublicensing: true,
         fee: "€5.5M/year", notes: "Premium package"
       },
       {
-        competitionId: 6, status: ContractStatus.none,
+        competitionId: 6, status: ContractStatus.none, tenantId: T,
         linearRights: false, maxRights: false, radioRights: false,
         notes: "Rights held by RTBF"
       },
       {
-        competitionId: 7, status: ContractStatus.draft,
+        competitionId: 7, status: ContractStatus.draft, tenantId: T,
         validFrom: new Date("2026-01-01"), validUntil: new Date("2028-12-31"),
         linearRights: true, maxRights: true, radioRights: true,
         geoRestriction: "Belgium only", sublicensing: false,
@@ -124,25 +121,25 @@ async function main() {
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@sporza.vrt.be' },
     update: {},
-    create: { email: 'admin@sporza.vrt.be', name: 'Admin User', role: Role.admin }
+    create: { email: 'admin@sporza.vrt.be', name: 'Admin User', role: Role.admin, tenantId: T }
   })
 
   const plannerUser = await prisma.user.upsert({
     where: { email: 'planner@sporza.vrt.be' },
     update: {},
-    create: { email: 'planner@sporza.vrt.be', name: 'Jan Planner', role: Role.planner }
+    create: { email: 'planner@sporza.vrt.be', name: 'Jan Planner', role: Role.planner, tenantId: T }
   })
 
   const sportsUser = await prisma.user.upsert({
     where: { email: 'sports@sporza.vrt.be' },
     update: {},
-    create: { email: 'sports@sporza.vrt.be', name: 'Eva Sports', role: Role.sports }
+    create: { email: 'sports@sporza.vrt.be', name: 'Eva Sports', role: Role.sports, tenantId: T }
   })
 
   const contractsUser = await prisma.user.upsert({
     where: { email: 'contracts@sporza.vrt.be' },
     update: {},
-    create: { email: 'contracts@sporza.vrt.be', name: 'Luc Contracts', role: Role.contracts }
+    create: { email: 'contracts@sporza.vrt.be', name: 'Luc Contracts', role: Role.contracts, tenantId: T }
   })
 
   console.log(`Created users: ${adminUser.email}, ${plannerUser.email}, ${sportsUser.email}, ${contractsUser.email}`)
@@ -151,24 +148,24 @@ async function main() {
   const importSources = await prisma.importSource.createMany({
     data: [
       {
-        code: 'football_data', name: 'football-data.org', kind: 'api',
+        code: 'football_data', name: 'football-data.org', kind: 'api', tenantId: T,
         priority: 10, isEnabled: Boolean(process.env.FOOTBALL_DATA_API_KEY),
         rateLimitPerMinute: 10, rateLimitPerDay: 500,
         configJson: { api_key: process.env.FOOTBALL_DATA_API_KEY || '', base_url: 'https://api.football-data.org/v4' }
       },
       {
-        code: 'api_football', name: 'API-Football', kind: 'api',
+        code: 'api_football', name: 'API-Football', kind: 'api', tenantId: T,
         priority: 15, isEnabled: Boolean(process.env.API_FOOTBALL_API_KEY),
         rateLimitPerMinute: 30, rateLimitPerDay: 100,
         configJson: { api_key: process.env.API_FOOTBALL_API_KEY || '', base_url: 'https://api-football-v1.p.rapidapi.com/v3' }
       },
       {
-        code: 'the_sports_db', name: 'TheSportsDB', kind: 'api',
+        code: 'the_sports_db', name: 'TheSportsDB', kind: 'api', tenantId: T,
         priority: 20, isEnabled: false, rateLimitPerMinute: 60, rateLimitPerDay: 86400,
         configJson: { api_key: '123', base_url: 'https://www.thesportsdb.com/api/v1/json' }
       },
       {
-        code: 'statsbomb_open', name: 'StatsBomb Open Data', kind: 'file',
+        code: 'statsbomb_open', name: 'StatsBomb Open Data', kind: 'file', tenantId: T,
         priority: 30, isEnabled: false,
         configJson: { data_path: '' }
       },
@@ -205,7 +202,7 @@ async function main() {
   ]
 
   for (const ev of sampleEvents) {
-    await prisma.event.create({ data: { ...ev, createdById: plannerUser.id } }).catch(() => {})
+    await prisma.event.create({ data: { ...ev, createdById: plannerUser.id, tenantId: T } }).catch(() => {})
   }
   console.log(`Created ${sampleEvents.length} sample events`)
 
@@ -220,6 +217,7 @@ async function main() {
         crew: { director: '', producer: '', cameraman1: '', cameraman2: '', soundEngineer: '' },
         isLivestream: !!ev.onDemandChannel,
         createdById: sportsUser.id,
+        tenantId: T,
       }
     }).catch(() => {})
 
@@ -231,6 +229,7 @@ async function main() {
           planType: 'Studio',
           crew: { presenter: '', analyst: '', floorManager: '' },
           createdById: sportsUser.id,
+          tenantId: T,
         }
       }).catch(() => {})
     }
@@ -240,18 +239,18 @@ async function main() {
   // ── Crew Members ────────────────────────────────────────────────────────────
   try {
     await prisma.$executeRawUnsafe(`
-      INSERT INTO crew_members (name, roles, email, phone, "isActive", "createdAt", "updatedAt")
+      INSERT INTO crew_members (name, roles, email, phone, "isActive", "tenantId", "createdAt", "updatedAt")
       VALUES
-        ('Tom Peeters', '["director","producer"]', 'tom.peeters@sporza.vrt.be', '+32 470 123456', true, NOW(), NOW()),
-        ('Sarah De Vos', '["producer","floorManager"]', 'sarah.devos@sporza.vrt.be', '+32 470 234567', true, NOW(), NOW()),
-        ('Marc Janssen', '["cameraman1","cameraman2"]', 'marc.janssen@sporza.vrt.be', NULL, true, NOW(), NOW()),
-        ('Eva Claes', '["soundEngineer"]', 'eva.claes@sporza.vrt.be', '+32 470 345678', true, NOW(), NOW()),
-        ('Pieter Wouters', '["presenter","analyst"]', 'pieter.wouters@sporza.vrt.be', NULL, true, NOW(), NOW()),
-        ('Lien Maes', '["presenter"]', 'lien.maes@sporza.vrt.be', '+32 470 456789', true, NOW(), NOW()),
-        ('Jan Willems', '["cameraman1","cameraman2","director"]', 'jan.willems@sporza.vrt.be', NULL, true, NOW(), NOW()),
-        ('Katrien Mertens', '["floorManager","producer"]', NULL, NULL, true, NOW(), NOW()),
-        ('Bram Jacobs', '["soundEngineer","cameraman2"]', 'bram.jacobs@sporza.vrt.be', NULL, true, NOW(), NOW()),
-        ('Ines Van Damme', '["analyst"]', NULL, NULL, true, NOW(), NOW())
+        ('Tom Peeters', '["director","producer"]', 'tom.peeters@sporza.vrt.be', '+32 470 123456', true, '${T}', NOW(), NOW()),
+        ('Sarah De Vos', '["producer","floorManager"]', 'sarah.devos@sporza.vrt.be', '+32 470 234567', true, '${T}', NOW(), NOW()),
+        ('Marc Janssen', '["cameraman1","cameraman2"]', 'marc.janssen@sporza.vrt.be', NULL, true, '${T}', NOW(), NOW()),
+        ('Eva Claes', '["soundEngineer"]', 'eva.claes@sporza.vrt.be', '+32 470 345678', true, '${T}', NOW(), NOW()),
+        ('Pieter Wouters', '["presenter","analyst"]', 'pieter.wouters@sporza.vrt.be', NULL, true, '${T}', NOW(), NOW()),
+        ('Lien Maes', '["presenter"]', 'lien.maes@sporza.vrt.be', '+32 470 456789', true, '${T}', NOW(), NOW()),
+        ('Jan Willems', '["cameraman1","cameraman2","director"]', 'jan.willems@sporza.vrt.be', NULL, true, '${T}', NOW(), NOW()),
+        ('Katrien Mertens', '["floorManager","producer"]', NULL, NULL, true, '${T}', NOW(), NOW()),
+        ('Bram Jacobs', '["soundEngineer","cameraman2"]', 'bram.jacobs@sporza.vrt.be', NULL, true, '${T}', NOW(), NOW()),
+        ('Ines Van Damme', '["analyst"]', NULL, NULL, true, '${T}', NOW(), NOW())
       ON CONFLICT (name) DO NOTHING
     `)
     console.log('Created 10 crew members')
@@ -262,12 +261,12 @@ async function main() {
   // ── Crew Templates ──────────────────────────────────────────────────────────
   try {
     await prisma.$executeRawUnsafe(`
-      INSERT INTO crew_templates (name, "planType", "crewData", "createdById", "isShared", "createdAt", "updatedAt")
+      INSERT INTO crew_templates (name, "planType", "crewData", "createdById", "isShared", "tenantId", "createdAt", "updatedAt")
       VALUES
-        ('Football OB Default', 'OB', '{"director":"Tom Peeters","producer":"Sarah De Vos","cameraman1":"Marc Janssen","cameraman2":"Jan Willems","soundEngineer":"Eva Claes"}', NULL, true, NOW(), NOW()),
-        ('Tennis OB Default', 'OB', '{"director":"Jan Willems","producer":"Sarah De Vos","cameraman1":"Marc Janssen","soundEngineer":"Bram Jacobs"}', NULL, true, NOW(), NOW()),
-        ('Studio Default', 'Studio', '{"presenter":"Pieter Wouters","analyst":"Ines Van Damme","floorManager":"Katrien Mertens"}', NULL, true, NOW(), NOW()),
-        ('Cycling Remote', 'Remote', '{"producer":"Sarah De Vos","presenter":"Lien Maes"}', NULL, true, NOW(), NOW())
+        ('Football OB Default', 'OB', '{"director":"Tom Peeters","producer":"Sarah De Vos","cameraman1":"Marc Janssen","cameraman2":"Jan Willems","soundEngineer":"Eva Claes"}', NULL, true, '${T}', NOW(), NOW()),
+        ('Tennis OB Default', 'OB', '{"director":"Jan Willems","producer":"Sarah De Vos","cameraman1":"Marc Janssen","soundEngineer":"Bram Jacobs"}', NULL, true, '${T}', NOW(), NOW()),
+        ('Studio Default', 'Studio', '{"presenter":"Pieter Wouters","analyst":"Ines Van Damme","floorManager":"Katrien Mertens"}', NULL, true, '${T}', NOW(), NOW()),
+        ('Cycling Remote', 'Remote', '{"producer":"Sarah De Vos","presenter":"Lien Maes"}', NULL, true, '${T}', NOW(), NOW())
       ON CONFLICT ("planType", "createdById") DO NOTHING
     `)
     console.log('Created 4 crew templates')
@@ -279,14 +278,14 @@ async function main() {
   try {
     await prisma.resource.createMany({
       data: [
-        { name: "OB Van Alpha", type: "ob_van", capacity: 1, notes: "Primary unit — Brussels base" },
-        { name: "OB Van Beta", type: "ob_van", capacity: 1, notes: "Secondary unit — Antwerp base" },
-        { name: "Fly Pack 1", type: "fly_pack", capacity: 2, notes: "Portable broadcast kit" },
-        { name: "Studio A", type: "studio", capacity: 3, notes: "Main studio — 3 concurrent productions" },
-        { name: "Studio B", type: "studio", capacity: 1, notes: "Small studio" },
-        { name: "Satellite Uplink", type: "uplink", capacity: 2, notes: "Dual-feed capable" },
-        { name: "Commentary Booth 1", type: "commentary", capacity: 1 },
-        { name: "Commentary Booth 2", type: "commentary", capacity: 1 },
+        { name: "OB Van Alpha", type: "ob_van", capacity: 1, notes: "Primary unit — Brussels base", tenantId: T },
+        { name: "OB Van Beta", type: "ob_van", capacity: 1, notes: "Secondary unit — Antwerp base", tenantId: T },
+        { name: "Fly Pack 1", type: "fly_pack", capacity: 2, notes: "Portable broadcast kit", tenantId: T },
+        { name: "Studio A", type: "studio", capacity: 3, notes: "Main studio — 3 concurrent productions", tenantId: T },
+        { name: "Studio B", type: "studio", capacity: 1, notes: "Small studio", tenantId: T },
+        { name: "Satellite Uplink", type: "uplink", capacity: 2, notes: "Dual-feed capable", tenantId: T },
+        { name: "Commentary Booth 1", type: "commentary", capacity: 1, tenantId: T },
+        { name: "Commentary Booth 2", type: "commentary", capacity: 1, tenantId: T },
       ],
       skipDuplicates: true,
     })
@@ -298,14 +297,14 @@ async function main() {
   // ── Field Definitions (crew fields) ─────────────────────────────────────────
   await prisma.fieldDefinition.createMany({
     data: [
-      { id: 'director', name: 'director', label: 'Director', fieldType: 'text', section: 'crew', sortOrder: 1, isSystem: true, isCustom: false },
-      { id: 'producer', name: 'producer', label: 'Producer', fieldType: 'text', section: 'crew', sortOrder: 2, isSystem: true, isCustom: false },
-      { id: 'cameraman1', name: 'cameraman1', label: 'Camera 1', fieldType: 'text', section: 'crew', sortOrder: 3, isSystem: true, isCustom: false },
-      { id: 'cameraman2', name: 'cameraman2', label: 'Camera 2', fieldType: 'text', section: 'crew', sortOrder: 4, isSystem: true, isCustom: false },
-      { id: 'soundEngineer', name: 'soundEngineer', label: 'Sound', fieldType: 'text', section: 'crew', sortOrder: 5, isSystem: true, isCustom: false },
-      { id: 'presenter', name: 'presenter', label: 'Presenter', fieldType: 'text', section: 'crew', sortOrder: 6, isSystem: true, isCustom: false },
-      { id: 'analyst', name: 'analyst', label: 'Analyst', fieldType: 'text', section: 'crew', sortOrder: 7, isSystem: true, isCustom: false },
-      { id: 'floorManager', name: 'floorManager', label: 'Floor Manager', fieldType: 'text', section: 'crew', sortOrder: 8, isSystem: true, isCustom: false },
+      { id: 'director', name: 'director', label: 'Director', fieldType: 'text', section: 'crew', sortOrder: 1, isSystem: true, isCustom: false, tenantId: T },
+      { id: 'producer', name: 'producer', label: 'Producer', fieldType: 'text', section: 'crew', sortOrder: 2, isSystem: true, isCustom: false, tenantId: T },
+      { id: 'cameraman1', name: 'cameraman1', label: 'Camera 1', fieldType: 'text', section: 'crew', sortOrder: 3, isSystem: true, isCustom: false, tenantId: T },
+      { id: 'cameraman2', name: 'cameraman2', label: 'Camera 2', fieldType: 'text', section: 'crew', sortOrder: 4, isSystem: true, isCustom: false, tenantId: T },
+      { id: 'soundEngineer', name: 'soundEngineer', label: 'Sound', fieldType: 'text', section: 'crew', sortOrder: 5, isSystem: true, isCustom: false, tenantId: T },
+      { id: 'presenter', name: 'presenter', label: 'Presenter', fieldType: 'text', section: 'crew', sortOrder: 6, isSystem: true, isCustom: false, tenantId: T },
+      { id: 'analyst', name: 'analyst', label: 'Analyst', fieldType: 'text', section: 'crew', sortOrder: 7, isSystem: true, isCustom: false, tenantId: T },
+      { id: 'floorManager', name: 'floorManager', label: 'Floor Manager', fieldType: 'text', section: 'crew', sortOrder: 8, isSystem: true, isCustom: false, tenantId: T },
     ],
     skipDuplicates: true,
   })
@@ -320,6 +319,7 @@ async function main() {
         key: 'orgConfig',
         scopeKind: 'global',
         scopeId: 'default',
+        tenantId: T,
         value: {
           channels: [
             { name: "Eén", color: "#E10600" },
@@ -338,6 +338,115 @@ async function main() {
   } catch {
     console.log('AppSetting table not available (migration may not be applied yet)')
   }
+
+  // ── Venues ───────────────────────────────────────────────────────────────────
+  const venues = await Promise.all([
+    prisma.venue.upsert({
+      where: { tenantId_name: { tenantId: T, name: 'Jan Breydel' } },
+      update: {},
+      create: { name: 'Jan Breydel', timezone: 'Europe/Brussels', country: 'Belgium', address: 'Olympialaan 74, 8200 Brugge', capacity: 29062, tenantId: T }
+    }),
+    prisma.venue.upsert({
+      where: { tenantId_name: { tenantId: T, name: 'Lotto Park' } },
+      update: {},
+      create: { name: 'Lotto Park', timezone: 'Europe/Brussels', country: 'Belgium', address: 'Theo Verbeecklaan 2, 1070 Anderlecht', capacity: 28063, tenantId: T }
+    }),
+    prisma.venue.upsert({
+      where: { tenantId_name: { tenantId: T, name: 'Roland Garros' } },
+      update: {},
+      create: { name: 'Roland Garros', timezone: 'Europe/Paris', country: 'France', address: '2 Avenue Gordon Bennett, 75016 Paris', capacity: 15225, tenantId: T }
+    }),
+    prisma.venue.upsert({
+      where: { tenantId_name: { tenantId: T, name: 'Spa-Francorchamps' } },
+      update: {},
+      create: { name: 'Spa-Francorchamps', timezone: 'Europe/Brussels', country: 'Belgium', address: 'Route du Circuit 55, 4970 Stavelot', capacity: 100000, tenantId: T }
+    }),
+  ])
+  console.log(`Created ${venues.length} venues`)
+
+  // ── Courts (for Roland Garros) ──────────────────────────────────────────────
+  const rolandGarros = venues[2]
+  const courts = await Promise.all([
+    prisma.court.upsert({
+      where: { venueId_name: { venueId: rolandGarros.id, name: 'Court Philippe-Chatrier' } },
+      update: {},
+      create: { venueId: rolandGarros.id, name: 'Court Philippe-Chatrier', capacity: 15225, hasRoof: true, isShowCourt: true, broadcastPriority: 1, tenantId: T }
+    }),
+    prisma.court.upsert({
+      where: { venueId_name: { venueId: rolandGarros.id, name: 'Court Suzanne-Lenglen' } },
+      update: {},
+      create: { venueId: rolandGarros.id, name: 'Court Suzanne-Lenglen', capacity: 10056, hasRoof: false, isShowCourt: true, broadcastPriority: 2, tenantId: T }
+    }),
+    prisma.court.upsert({
+      where: { venueId_name: { venueId: rolandGarros.id, name: 'Court Simonne-Mathieu' } },
+      update: {},
+      create: { venueId: rolandGarros.id, name: 'Court Simonne-Mathieu', capacity: 5000, hasRoof: false, isShowCourt: true, broadcastPriority: 3, tenantId: T }
+    }),
+  ])
+  console.log(`Created ${courts.length} courts`)
+
+  // ── Channels (first-class broadcast channels) ──────────────────────────────
+  const channelData = await Promise.all([
+    prisma.channel.upsert({
+      where: { tenantId_name: { tenantId: T, name: 'Eén' } },
+      update: {},
+      create: { name: 'Eén', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#E10600', tenantId: T }
+    }),
+    prisma.channel.upsert({
+      where: { tenantId_name: { tenantId: T, name: 'Canvas' } },
+      update: {},
+      create: { name: 'Canvas', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#1E3A5F', tenantId: T }
+    }),
+    prisma.channel.upsert({
+      where: { tenantId_name: { tenantId: T, name: 'VRT MAX Sport' } },
+      update: {},
+      create: { name: 'VRT MAX Sport', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#0066CC', tenantId: T }
+    }),
+    prisma.channel.upsert({
+      where: { tenantId_name: { tenantId: T, name: 'Ketnet' } },
+      update: {},
+      create: { name: 'Ketnet', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#FF6B00', tenantId: T }
+    }),
+  ])
+  console.log(`Created ${channelData.length} channels`)
+
+  // ── Sample Broadcast Slots (link some events to channels) ──────────────────
+  const allEvents = await prisma.event.findMany({ where: { tenantId: T }, take: 6, orderBy: { startDateBE: 'asc' } })
+  const eenChannel = channelData[0]
+  const canvasChannel = channelData[1]
+
+  let slotCount = 0
+  for (const ev of allEvents) {
+    const ch = ev.linearChannel === 'Canvas' ? canvasChannel : eenChannel
+    const startUtc = new Date(ev.startDateBE)
+    const [h, m] = ev.startTimeBE.split(':').map(Number)
+    startUtc.setUTCHours(h - 1, m, 0, 0) // CET → UTC approx
+
+    const endUtc = new Date(startUtc)
+    endUtc.setUTCMinutes(endUtc.getUTCMinutes() + 120)
+
+    await prisma.broadcastSlot.create({
+      data: {
+        tenantId: T,
+        channelId: ch.id,
+        eventId: ev.id,
+        schedulingMode: ev.sportId === 2 ? SchedulingMode.FLOATING : SchedulingMode.FIXED,
+        plannedStartUtc: startUtc,
+        plannedEndUtc: endUtc,
+        bufferBeforeMin: 15,
+        bufferAfterMin: ev.sportId === 1 ? 25 : 15,
+        expectedDurationMin: 120,
+        overrunStrategy: ev.sportId === 2 ? OverrunStrategy.CONDITIONAL_SWITCH : OverrunStrategy.EXTEND,
+        anchorType: ev.sportId === 2 ? AnchorType.COURT_POSITION : AnchorType.FIXED_TIME,
+        coveragePriority: 1,
+        status: 'PLANNED',
+        contentSegment: 'FULL',
+        sportMetadata: {},
+      }
+    }).catch(() => {})
+    slotCount++
+  }
+  console.log(`Created ${slotCount} broadcast slots`)
 
   console.log('\nSeeding completed!')
   console.log('\nTest accounts:')
