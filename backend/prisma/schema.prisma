@@ -119,6 +119,7 @@ model Tenant {
   runLedgerEntries       RunLedger[]
   outboxEvents           OutboxEvent[]
   cascadeEstimates       CascadeEstimate[]
+  channelSwitchActions   ChannelSwitchAction[]
 }
 
 model User {
@@ -1256,6 +1257,8 @@ model BroadcastSlot {
   event                      Event?               @relation(fields: [eventId], references: [id])
   scheduleVersion            ScheduleVersion?     @relation(fields: [scheduleVersionId], references: [id])
   runLedgerEntries           RunLedger[]
+  switchesFrom               ChannelSwitchAction[] @relation("SwitchFrom")
+  switchesTo                 ChannelSwitchAction[] @relation("SwitchTo")
 
   @@index([tenantId])
   @@index([channelId, plannedStartUtc])
@@ -1449,4 +1452,48 @@ model CascadeEstimate {
 
   @@unique([tenantId, eventId])
   @@index([tenantId])
+}
+
+// =============================================================================
+// BROADCAST MIDDLEWARE — CHANNEL SWITCH
+// =============================================================================
+
+enum SwitchTriggerType {
+  CONDITIONAL
+  REACTIVE
+  EMERGENCY
+  HARD_CUT
+  COURT_SWITCH
+}
+
+enum SwitchExecutionStatus {
+  PENDING
+  EXECUTING
+  COMPLETED
+  FAILED
+}
+
+model ChannelSwitchAction {
+  id              String               @id @default(uuid()) @db.Uuid
+  tenantId        String               @db.Uuid
+  fromSlotId      String               @db.Uuid
+  toChannelId     Int
+  toSlotId        String?              @db.Uuid
+  triggerType     SwitchTriggerType
+  switchAtUtc     DateTime?            @db.Timestamptz
+  reasonCode      String
+  reasonText      String?
+  confirmedBy     String?
+  confirmedAt     DateTime?            @db.Timestamptz
+  executionStatus SwitchExecutionStatus @default(PENDING)
+  autoConfirmed   Boolean              @default(false)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  tenant          Tenant               @relation(fields: [tenantId], references: [id])
+  fromSlot        BroadcastSlot        @relation("SwitchFrom", fields: [fromSlotId], references: [id])
+  toSlot          BroadcastSlot?       @relation("SwitchTo", fields: [toSlotId], references: [id])
+
+  @@index([tenantId])
+  @@index([fromSlotId])
 }

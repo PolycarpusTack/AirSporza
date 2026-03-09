@@ -43,6 +43,76 @@ export function setupSocket(io: SocketServer) {
       logger.info(`Client disconnected: ${socket.id}`)
     })
   })
-  
+
+  // ---- Broadcast middleware namespaces ----
+
+  const cascadeNs = io.of('/cascade')
+  cascadeNs.use((socket, next) => {
+    const token = socket.handshake.auth?.token
+    if (!token || typeof token !== 'string') return next(new Error('Unauthorized'))
+    try {
+      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
+      socket.data.userId = payload.sub ?? payload.id ?? undefined
+      socket.data.role = payload.role
+      next()
+    } catch { next(new Error('Unauthorized')) }
+  })
+  cascadeNs.on('connection', (socket) => {
+    socket.on('subscribe:court', (data: { tenantId: string; courtId: number }) => {
+      socket.join(`tenant:${data.tenantId}:court:${data.courtId}`)
+    })
+  })
+
+  const alertsNs = io.of('/alerts')
+  alertsNs.use((socket, next) => {
+    const token = socket.handshake.auth?.token
+    if (!token || typeof token !== 'string') return next(new Error('Unauthorized'))
+    try {
+      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
+      socket.data.userId = payload.sub ?? payload.id ?? undefined
+      socket.data.role = payload.role
+      next()
+    } catch { next(new Error('Unauthorized')) }
+  })
+  alertsNs.on('connection', (socket) => {
+    socket.on('subscribe:tenant', (data: { tenantId: string }) => {
+      socket.join(`tenant:${data.tenantId}`)
+    })
+  })
+
+  const switchesNs = io.of('/switches')
+  switchesNs.use((socket, next) => {
+    const token = socket.handshake.auth?.token
+    if (!token || typeof token !== 'string') return next(new Error('Unauthorized'))
+    try {
+      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
+      socket.data.userId = payload.sub ?? payload.id ?? undefined
+      socket.data.role = payload.role
+      next()
+    } catch { next(new Error('Unauthorized')) }
+  })
+  switchesNs.on('connection', (socket) => {
+    socket.on('subscribe:tenant', (data: { tenantId: string }) => {
+      socket.join(`tenant:${data.tenantId}`)
+    })
+  })
+
+  const scheduleNs = io.of('/schedule')
+  scheduleNs.use((socket, next) => {
+    const token = socket.handshake.auth?.token
+    if (!token || typeof token !== 'string') return next(new Error('Unauthorized'))
+    try {
+      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
+      socket.data.userId = payload.sub ?? payload.id ?? undefined
+      socket.data.role = payload.role
+      next()
+    } catch { next(new Error('Unauthorized')) }
+  })
+  scheduleNs.on('connection', (socket) => {
+    socket.on('subscribe:channel', (data: { tenantId: string; channelId: number }) => {
+      socket.join(`tenant:${data.tenantId}:channel:${data.channelId}`)
+    })
+  })
+
   return io
 }
