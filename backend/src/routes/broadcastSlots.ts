@@ -174,7 +174,7 @@ router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, n
 router.put('/:id', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
   try {
     const existing = await prisma.broadcastSlot.findFirst({
-      where: { id: req.params.id, tenantId: req.tenantId }
+      where: { id: req.params.id as string, tenantId: req.tenantId }
     })
     if (!existing) return next(createError(404, 'Broadcast slot not found'))
 
@@ -264,7 +264,7 @@ router.put('/:id', authenticate, authorize('planner', 'admin'), async (req, res,
 router.patch('/:id/status', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
   try {
     const existing = await prisma.broadcastSlot.findFirst({
-      where: { id: req.params.id, tenantId: req.tenantId }
+      where: { id: req.params.id as string, tenantId: req.tenantId }
     })
     if (!existing) return next(createError(404, 'Broadcast slot not found'))
 
@@ -309,7 +309,7 @@ router.patch('/:id/status', authenticate, authorize('planner', 'admin'), async (
 router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
   try {
     const toDelete = await prisma.broadcastSlot.findFirst({
-      where: { id: req.params.id, tenantId: req.tenantId }
+      where: { id: req.params.id as string, tenantId: req.tenantId }
     })
     if (!toDelete) return next(createError(404, 'Broadcast slot not found'))
 
