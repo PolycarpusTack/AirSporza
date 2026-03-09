@@ -375,7 +375,7 @@ export function DynamicEventForm({
                     key={section}
                     title={SECTION_LABELS[section]}
                     fieldCount={section === 'custom' ? (fields.length + apiCustomFields.length) : fields.length}
-                    defaultOpen={section === 'core' || section === 'scheduling'}
+                    defaultOpen={!!editEvent || section === 'core' || section === 'scheduling'}
                   >
                     {fields.map(renderFieldItem)}
                     {section === 'custom' && apiCustomFields.length > 0 && (
