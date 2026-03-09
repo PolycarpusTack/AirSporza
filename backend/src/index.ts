@@ -34,6 +34,8 @@ import venueRoutes from './routes/venues.js'
 import teamRoutes from './routes/teams.js'
 import courtRoutes from './routes/courts.js'
 import seasonRoutes from './routes/seasons.js'
+import channelRoutes from './routes/channels.js'
+import broadcastSlotRoutes from './routes/broadcastSlots.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -144,6 +146,8 @@ app.use('/api/venues', venueRoutes)
 app.use('/api/teams', teamRoutes)
 app.use('/api/courts', courtRoutes)
 app.use('/api/seasons', seasonRoutes)
+app.use('/api/channels', authenticate, channelRoutes)
+app.use('/api/broadcast-slots', authenticate, broadcastSlotRoutes)
 
 app.use(errorHandler)
 
