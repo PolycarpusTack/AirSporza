@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Lock } from 'lucide-react'
-import { Modal, Btn } from '../ui'
-import { ChannelSelect } from '../ui/ChannelSelect'
-import type { FieldConfig, Event, MandatoryFieldConfig, ChannelType } from '../../data/types'
+import { Modal } from '../ui'
+import type { FieldConfig, Event } from '../../data/types'
 import { SPORTS, COMPETITIONS } from '../../data'
 import { genId } from '../../utils'
 import { api } from '../../utils/api'
@@ -10,25 +9,46 @@ import { DynamicForm } from './DynamicForm'
 import { RepeatSection } from './RepeatSection'
 import { LinkFromImport } from './LinkFromImport'
 import { useApp } from '../../context/AppProvider'
-import { conflictsApi, type ConflictResult } from '../../services/conflicts'
-import { fieldsApi } from '../../services'
+import { useEventForm, isCustomField } from './hooks/useEventForm'
+import { useEventValidation, type ApiFieldDef } from './hooks/useEventValidation'
+import { useConflictCheck } from './hooks/useConflictCheck'
+import FieldSection from './fields/FieldSection'
+import { EventFieldRenderer } from './fields/EventFieldRenderer'
+import ConflictBanner from './ConflictBanner'
+import { SaveFooter, type SaveState } from './SaveFooter'
+import { DiscardDialog } from './DiscardDialog'
 
-/** Maps dropdown option keys to Channel FK fields and type filters */
-const CHANNEL_FIELD_MAP: Record<string, { fkField: keyof Event; typeFilter?: ChannelType }> = {
-  channels:          { fkField: 'channelId',         typeFilter: 'linear' },
-  radioChannels:     { fkField: 'radioChannelId',    typeFilter: 'radio' },
-  onDemandChannels:  { fkField: 'onDemandChannelId', typeFilter: 'on-demand' },
+// ---------------------------------------------------------------------------
+// Section mapping
+// ---------------------------------------------------------------------------
+
+const FIELD_SECTIONS: Record<string, string> = {
+  sport: 'core', competition: 'core', phase: 'core',
+  category: 'core', participants: 'core', content: 'core',
+  startDateBE: 'scheduling', startTimeBE: 'scheduling',
+  startDateOrigin: 'scheduling', startTimeOrigin: 'scheduling',
+  duration: 'scheduling', livestreamDate: 'scheduling', livestreamTime: 'scheduling',
+  linearChannel: 'broadcast', radioChannel: 'broadcast',
+  onDemandChannel: 'broadcast', linearStartTime: 'broadcast',
+  isLive: 'broadcast', isDelayedLive: 'broadcast',
+  videoRef: 'reference', winner: 'reference',
+  score: 'reference', complex: 'reference',
 }
 
-type ApiFieldDef = {
-  id: string
-  label: string
-  fieldType: string
-  required: boolean
-  visible: boolean
-  options: string[]
-  defaultValue?: string
+const ESSENTIAL_FIELD_IDS = new Set([
+  'sport', 'competition', 'participants',
+  'startDateBE', 'startTimeBE', 'linearChannel',
+])
+
+const SECTION_ORDER = ['core', 'scheduling', 'broadcast', 'reference', 'custom']
+const SECTION_LABELS: Record<string, string> = {
+  core: 'Core', scheduling: 'Scheduling', broadcast: 'Broadcast',
+  reference: 'Reference', custom: 'Custom Fields',
 }
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
 
 interface DynamicEventFormProps {
   eventFields: FieldConfig[]
@@ -41,172 +61,95 @@ interface DynamicEventFormProps {
   readOnly?: boolean
 }
 
-const CORE_FIELD_IDS = new Set([
-  'sport', 'competition',
-  'phase', 'category', 'participants', 'content',
-  'startDateBE', 'startTimeBE', 'startDateOrigin', 'startTimeOrigin',
-  'complex', 'livestreamDate', 'livestreamTime',
-  'linearChannel', 'radioChannel', 'linearStartTime', 'onDemandChannel',
-  'isLive', 'isDelayedLive',
-  'videoRef', 'winner', 'score', 'duration',
-])
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
-function isCustomField(fieldId: string, fieldConfig: FieldConfig[]): boolean {
-  if (CORE_FIELD_IDS.has(fieldId)) return false
-  const field = fieldConfig.find(f => f.id === fieldId)
-  return field?.isCustom === true || !CORE_FIELD_IDS.has(fieldId)
-}
-
-export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, editEvent, prefill, multiDayDates, readOnly }: DynamicEventFormProps) {
+export function DynamicEventForm({
+  eventFields, onClose, onSave, onBatchSave,
+  editEvent, prefill, multiDayDates, readOnly,
+}: DynamicEventFormProps) {
   const { orgConfig, sports: ctxSports, competitions: ctxComps } = useApp()
 
-  const initForm = (): Record<string, string | boolean> => {
-    const f: Record<string, string | boolean> = {}
-    const customFields = editEvent?.customFields as Record<string, unknown> | undefined
-    
-    eventFields.forEach(field => {
-      if (isCustomField(field.id, eventFields)) {
-        if (customFields && customFields[field.id] !== undefined) {
-          f[field.id] = customFields[field.id] as string | boolean
-        } else if (field.type === 'checkbox') {
-          f[field.id] = false
-        } else {
-          f[field.id] = ''
-        }
-      } else if (field.id === 'sport' || field.id === 'competition') {
-        const key = field.id === 'sport' ? 'sportId' : 'competitionId'
-        if (editEvent && editEvent[key as keyof Event] !== undefined) {
-          f[field.id] = String(editEvent[key as keyof Event])
-        } else {
-          f[field.id] = ''
-        }
-      } else if (field.type === 'dropdown' && field.options && CHANNEL_FIELD_MAP[field.options]) {
-        // Channel FK fields: store the numeric ID as a string
-        const { fkField } = CHANNEL_FIELD_MAP[field.options]
-        const fkVal = editEvent?.[fkField]
-        if (fkVal != null) {
-          f[field.id] = String(fkVal)
-        } else {
-          f[field.id] = ''
-        }
-      } else if (editEvent && editEvent[field.id as keyof Event] !== undefined) {
-        f[field.id] = editEvent[field.id as keyof Event] as string | boolean
-      } else if (field.type === 'checkbox') {
-        f[field.id] = false
-      } else {
-        f[field.id] = ''
-      }
-    })
-    if (prefill) {
-      Object.entries(prefill).forEach(([key, value]) => {
-        if (value !== undefined) f[key] = value
-      })
-    }
-    return f
-  }
+  // --- Hooks ---------------------------------------------------------------
+  const {
+    form, setForm, customValues, setCustomValues,
+    initForm, initCustomValues, update, handleCustomValueChange, isDirty,
+  } = useEventForm({ eventFields, editEvent, prefill })
 
-  const [form, setForm] = useState<Record<string, string | boolean>>(initForm)
-  const [errors, setErrors] = useState<Record<string, string>>({})
   const [apiCustomFields, setApiCustomFields] = useState<ApiFieldDef[]>([])
-  const [customValues, setCustomValues] = useState<Record<string, string>>({})
-  const [conflicts, setConflicts] = useState<ConflictResult | null>(null)
-  const [mandatoryFieldIds, setMandatoryFieldIds] = useState<string[]>([])
-  const [mandatoryErrors, setMandatoryErrors] = useState<string[]>([])
-  const [repeatDates, setRepeatDates] = useState<string[]>([])
 
+  const {
+    errors, mandatoryErrors, visibleFields,
+    validate, validateCustomFields, clearFieldError,
+  } = useEventValidation({ eventFields, form, apiCustomFields, customValues })
+
+  const conflictCheck = useConflictCheck()
+
+  // --- Local state ---------------------------------------------------------
+  const [repeatDates, setRepeatDates] = useState<string[]>([])
+  const [showAllFields, setShowAllFields] = useState(!!editEvent)
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [showDiscard, setShowDiscard] = useState(false)
+
+  // --- Re-init on editEvent change -----------------------------------------
   useEffect(() => {
     setForm(initForm())
-    // Prefill custom values from editEvent if available
-    if (editEvent?.customValues && editEvent.customValues.length > 0) {
-      const map: Record<string, string> = {}
-      for (const cv of editEvent.customValues) {
-        map[cv.fieldId] = cv.fieldValue
-      }
-      setCustomValues(map)
-    } else {
-      setCustomValues({})
-    }
-    setConflicts(null)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setCustomValues(initCustomValues())
+    conflictCheck.reset()
+    setSaveState('idle')
+    setShowAllFields(!!editEvent)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editEvent?.id, prefill])
 
+  // --- Load API custom fields once -----------------------------------------
   useEffect(() => {
     api.get<ApiFieldDef[]>('/fields?section=event')
       .then(setApiCustomFields)
-      .catch(() => { /* API not available, skip */ })
+      .catch(() => { /* API not available */ })
   }, [])
 
-  useEffect(() => {
-    setMandatoryErrors([])
-    const id = Number(form.sport)
-    if (!id) { setMandatoryFieldIds([]); return }
-    fieldsApi.getMandatory(id)
-      .then((cfg: MandatoryFieldConfig) => setMandatoryFieldIds(cfg.fieldIds))
-      .catch(() => setMandatoryFieldIds([]))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.sport])
-
-  const handleCustomValueChange = (fieldId: string, value: string) => {
-    setCustomValues(prev => ({ ...prev, [fieldId]: value }))
-  }
-
-  const update = (k: string, v: string | boolean) => {
-    setForm(p => ({ ...p, [k]: v }))
-    setErrors(p => ({ ...p, [k]: '' }))
-    setConflicts(null)
-  }
-
-  const handleLinkImport = (data: Record<string, string | undefined>) => {
-    Object.entries(data).forEach(([key, value]) => {
-      if (value) update(key, value)
-    })
-  }
-
+  // --- Options map ---------------------------------------------------------
   const sportsList = ctxSports.length ? ctxSports : SPORTS
-  const compsList  = ctxComps.length  ? ctxComps  : COMPETITIONS
+  const compsList = ctxComps.length ? ctxComps : COMPETITIONS
 
-  const optionsMap: Record<string, { value: string | number; label: string }[]> = {
+  const optionsMap = useMemo<Record<string, { value: string | number; label: string }[]>>(() => ({
     sports: sportsList.map(s => ({ value: s.id, label: `${s.icon} ${s.name}` })),
-    competitions: compsList.filter(c => !form.sport || c.sportId === parseInt(form.sport as string)).map(c => ({ value: c.id, label: c.name })),
+    competitions: compsList
+      .filter(c => !form.sport || c.sportId === parseInt(form.sport as string))
+      .map(c => ({ value: c.id, label: c.name })),
     phases: orgConfig.phases.map(p => ({ value: p, label: p })),
     categories: orgConfig.categories.map(c => ({ value: c, label: c })),
     complexes: orgConfig.complexes.map(c => ({ value: c, label: c })),
-    // channels, onDemandChannels, radioChannels removed — CHANNEL_FIELD_MAP intercepts these fields first
-  }
+  }), [sportsList, compsList, form.sport, orgConfig])
 
-  const visibleFields = eventFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
+  // --- Field change handler ------------------------------------------------
+  const handleFieldChange = useCallback((key: string, value: string | boolean) => {
+    update(key, value)
+    clearFieldError(key)
+    conflictCheck.reset()
+  }, [update, clearFieldError, conflictCheck])
 
-  const validate = (): boolean => {
-    const errs: Record<string, string> = {}
-    visibleFields.forEach(f => {
-      const val = form[f.id]
-      if (f.required && !val && val !== false) {
-        errs[f.id] = 'Required'
-      }
+  const handleLinkImport = useCallback((data: Record<string, string | undefined>) => {
+    Object.entries(data).forEach(([key, value]) => {
+      if (value) handleFieldChange(key, value)
     })
-    
-    const sportId = parseInt(form.sport as string)
-    const competitionId = parseInt(form.competition as string)
-    if (!sportId || sportId === 0) {
-      errs.sport = 'Valid sport required'
+  }, [handleFieldChange])
+
+  // --- Close with dirty guard ----------------------------------------------
+  const handleClose = useCallback(() => {
+    if (isDirty) {
+      setShowDiscard(true)
+    } else {
+      onClose()
     }
-    if (!competitionId || competitionId === 0) {
-      errs.competition = 'Valid competition required'
+  }, [isDirty, onClose])
+
+  // --- Build event object --------------------------------------------------
+  const buildEvent = useCallback((): Event => {
+    const customFields: Record<string, unknown> = {
+      ...(editEvent?.customFields as Record<string, unknown>),
     }
-    
-    if (form.duration && !/^\d{2}:\d{2}:\d{2};\d{2}$/.test(form.duration as string)) {
-      errs.duration = 'Format: HH:MM:SS;FF (e.g. 01:45:22;12)'
-    }
-
-    setErrors(errs)
-    return Object.keys(errs).length === 0
-  }
-
-  const handleSave = async () => {
-    if (!validate()) return
-
-    const customFields: Record<string, unknown> = { ...editEvent?.customFields as Record<string, unknown> }
-
     eventFields.forEach(field => {
       if (isCustomField(field.id, eventFields)) {
         customFields[field.id] = form[field.id]
@@ -217,7 +160,7 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
     const radioChannelId = form.radioChannel ? Number(form.radioChannel) || null : null
     const onDemandChannelId = form.onDemandChannel ? Number(form.onDemandChannel) || null : null
 
-    const event: Event = {
+    return {
       id: editEvent?.id || genId(),
       sportId: parseInt(form.sport as string) || 0,
       competitionId: parseInt(form.competition as string) || 0,
@@ -235,10 +178,10 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
       channelId,
       radioChannelId,
       onDemandChannelId,
-      linearChannel: undefined,   // @deprecated — channelId FK is source of truth
-      radioChannel: undefined,    // @deprecated — radioChannelId FK is source of truth
+      linearChannel: undefined,
+      radioChannel: undefined,
       linearStartTime: form.linearStartTime as string,
-      onDemandChannel: undefined, // @deprecated — onDemandChannelId FK is source of truth
+      onDemandChannel: undefined,
       isLive: form.isLive as boolean,
       isDelayedLive: form.isDelayedLive as boolean,
       videoRef: form.videoRef as string,
@@ -246,246 +189,226 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
       score: form.score as string,
       duration: form.duration as string,
       customFields,
-      customValues: Object.entries(customValues).map(([fieldId, fieldValue]) => ({ fieldId, fieldValue })),
+      customValues: Object.entries(customValues).map(([fieldId, fieldValue]) => ({
+        fieldId,
+        fieldValue,
+      })),
     }
+  }, [form, customValues, editEvent, eventFields])
 
-    // Only run check if we have the required fields
+  // --- Save ----------------------------------------------------------------
+  const handleSave = useCallback(async () => {
+    setSaveState('saving')
+
+    // 1. Validate core fields
+    if (!validate()) { setSaveState('idle'); return }
+
+    // 2. Conflict check
     if (form.competition && form.startDateBE && form.startTimeBE) {
-      const result = await conflictsApi.check({
+      const channelId = form.linearChannel ? Number(form.linearChannel) || undefined : undefined
+      const radioChannelId = form.radioChannel ? Number(form.radioChannel) || undefined : undefined
+      const onDemandChannelId = form.onDemandChannel ? Number(form.onDemandChannel) || undefined : undefined
+
+      const outcome = await conflictCheck.checkOrConfirm({
         id: editEvent?.id,
         competitionId: Number(form.competition),
-        channelId: channelId ?? undefined,
-        radioChannelId: radioChannelId ?? undefined,
-        onDemandChannelId: onDemandChannelId ?? undefined,
-        linearChannel: undefined,
-        onDemandChannel: undefined,
-        radioChannel: undefined,
+        channelId,
+        radioChannelId,
+        onDemandChannelId,
         startDateBE: form.startDateBE as string,
         startTimeBE: form.startTimeBE as string,
         status: editEvent?.status,
-      }).catch(() => null)
+      }, !!conflictCheck.conflicts)
 
-      setConflicts(result)
-
-      // Hard errors always block
-      if (result?.errors && result.errors.length > 0) return
-
-      // First time we detect warnings, stop and let user review.
-      // If conflicts is already set the user already saw them and is confirming.
-      if (result?.warnings && result.warnings.length > 0 && !conflicts) return
+      if (outcome === 'blocked') { setSaveState('idle'); return }
     }
 
-    // API custom fields required enforcement
-    const missingApiRequired = apiCustomFields
-      .filter(f => f.required && f.visible)
-      .filter(f => {
-        const val = customValues[f.id]
-        // Checkbox fields store 'true'/'false' as strings — 'false' means unchecked
-        if (f.fieldType === 'checkbox') return val !== 'true'
-        return !val || (typeof val === 'string' && val.trim() === '')
-      })
-      .map(f => f.id)
+    // 3. Validate custom fields
+    const missingCustom = validateCustomFields()
+    if (missingCustom.length > 0) { setSaveState('idle'); return }
 
-    // Mandatory field enforcement (sport-specific)
-    const missingMandatory = mandatoryFieldIds.filter(fieldId => {
-      const val = customValues[fieldId]
-      return !val || (typeof val === 'string' && val.trim() === '')
-    })
-
-    const allMissing = [...new Set([...missingApiRequired, ...missingMandatory])]
-    if (allMissing.length > 0) {
-      setMandatoryErrors(allMissing)
-      return
-    }
-    setMandatoryErrors([])
-
-    // Batch mode: create series of events
-    if (multiDayDates && multiDayDates.length > 1 && onBatchSave) {
-      const seriesId = crypto.randomUUID()
-      const events = multiDayDates.map(date => ({
-        ...event,
-        id: undefined,
-        startDateBE: date,
-        seriesId,
-      }))
-      try {
-        await onBatchSave(events as Partial<Event>[], seriesId)
-        onClose()
-      } catch { /* save failed — keep form open */ }
-      return
-    }
-
-    // Repeat pattern mode
-    if (repeatDates.length > 1 && onBatchSave) {
-      const seriesId = crypto.randomUUID()
-      const events = repeatDates.map(date => ({
-        ...event,
-        id: undefined,
-        startDateBE: date,
-        seriesId,
-      }))
-      try {
-        await onBatchSave(events as Partial<Event>[], seriesId)
-        onClose()
-      } catch { /* save failed — keep form open */ }
-      return
-    }
+    // 4. Build event
+    const event = buildEvent()
 
     try {
+      // Batch mode: multi-day series
+      if (multiDayDates && multiDayDates.length > 1 && onBatchSave) {
+        const seriesId = crypto.randomUUID()
+        const events = multiDayDates.map(date => ({
+          ...event,
+          id: undefined,
+          startDateBE: date,
+          seriesId,
+        }))
+        await onBatchSave(events as Partial<Event>[], seriesId)
+        setSaveState('success')
+        setTimeout(onClose, 600)
+        return
+      }
+
+      // Repeat pattern mode
+      if (repeatDates.length > 1 && onBatchSave) {
+        const seriesId = crypto.randomUUID()
+        const events = repeatDates.map(date => ({
+          ...event,
+          id: undefined,
+          startDateBE: date,
+          seriesId,
+        }))
+        await onBatchSave(events as Partial<Event>[], seriesId)
+        setSaveState('success')
+        setTimeout(onClose, 600)
+        return
+      }
+
+      // Single save
       await onSave(event)
-      onClose()
-    } catch { /* save failed — keep form open */ }
-  }
+      setSaveState('success')
+      setTimeout(onClose, 600)
+    } catch {
+      setSaveState('error')
+    }
+  }, [
+    validate, validateCustomFields, conflictCheck, buildEvent,
+    form, editEvent, multiDayDates, repeatDates,
+    onSave, onBatchSave, onClose,
+  ])
 
-  const inputCls = 'field-input'
-  const errCls = 'border-danger focus:border-danger focus:ring-danger/20'
+  // --- Section grouping ----------------------------------------------------
+  const fieldsBySection = useMemo(() => {
+    const groups: Record<string, FieldConfig[]> = {}
+    for (const s of SECTION_ORDER) groups[s] = []
 
-  const renderField = (field: FieldConfig) => {
-    const hasErr = errors[field.id]
-    const cls = `${inputCls} ${hasErr ? errCls : 'border-border'}`
+    for (const f of visibleFields) {
+      const section = FIELD_SECTIONS[f.id] ?? 'custom'
+      ;(groups[section] ??= []).push(f)
+    }
+    return groups
+  }, [visibleFields])
 
-    // Custom dropdowns with literal options — must check BEFORE system lookups
-    // to prevent a custom dropdown whose options string happens to match a system key
-    if (field.type === 'dropdown' && field.isCustom && field.options) {
-      const opts = (typeof field.options === 'string' ? field.options.split(',') : []).map(o => o.trim()).filter(Boolean)
-      return (
-        <select
-          value={form[field.id] as string || ''}
-          onChange={e => update(field.id, e.target.value)}
-          className={cls}
-        >
-          <option value=''>Select...</option>
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      )
-    }
-    // Channel FK dropdowns — render ChannelSelect with type filter + hierarchy
-    if (field.type === 'dropdown' && field.options && CHANNEL_FIELD_MAP[field.options]) {
-      const { typeFilter } = CHANNEL_FIELD_MAP[field.options]
-      const numVal = form[field.id] ? Number(form[field.id]) : null
-      return (
-        <ChannelSelect
-          value={numVal}
-          onChange={(id) => update(field.id, id != null ? String(id) : '')}
-          type={typeFilter}
-          placeholder={`Select ${field.label.toLowerCase()}...`}
-          className={hasErr ? errCls : ''}
-        />
-      )
-    }
-    if (field.type === 'dropdown' && field.options && optionsMap[field.options]) {
-      return (
-        <select
-          value={form[field.id] as string || ''}
-          onChange={e => update(field.id, e.target.value)}
-          className={cls}
-        >
-          <option value=''>Select...</option>
-          {optionsMap[field.options].map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-      )
-    }
-    if (field.type === 'checkbox') {
-      return (
-        <label className='flex items-center gap-2 py-1 cursor-pointer'>
-          <input
-            type='checkbox'
-            checked={!!form[field.id]}
-            onChange={e => update(field.id, e.target.checked)}
-            className='h-4 w-4 rounded border-border text-primary'
-          />
-          <span className='text-sm text-text-2'>{form[field.id] ? 'Yes' : 'No'}</span>
-        </label>
-      )
-    }
-    if (field.type === 'textarea') {
-      return (
-        <textarea
-          value={form[field.id] as string || ''}
-          onChange={e => update(field.id, e.target.value)}
-          rows={3}
-          className={cls}
-        />
-      )
-    }
-    if (field.id === 'duration') {
-      return (
-        <>
-          <input
-            type='text'
-            value={form[field.id] as string || ''}
-            onChange={e => update(field.id, e.target.value)}
-            placeholder='HH:MM:SS;FF'
-            pattern='\d{2}:\d{2}:\d{2};\d{2}'
-            maxLength={11}
-            className={cls}
-          />
-          <p className='mt-0.5 text-[11px] text-text-3 font-mono'>SMPTE timecode — bijv. 01:45:22;25</p>
-        </>
-      )
-    }
-    return (
-      <input
-        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : 'text'}
-        value={form[field.id] as string || ''}
-        onChange={e => update(field.id, e.target.value)}
-        className={cls}
+  // --- Render helpers ------------------------------------------------------
+  const renderFieldItem = (field: FieldConfig) => (
+    <div key={field.id} className={field.type === 'textarea' ? 'sm:col-span-2' : ''}>
+      <label className="field-label flex items-center gap-1.5">
+        {field.label}
+        {field.required && <span className="text-danger">*</span>}
+        {field.isCustom && (
+          <span className="rounded-sm border border-border bg-surface-2 px-1 text-[10px] text-text-2">
+            custom
+          </span>
+        )}
+      </label>
+      <EventFieldRenderer
+        field={field}
+        value={form[field.id] ?? ''}
+        error={errors[field.id]}
+        onChange={v => handleFieldChange(field.id, v)}
+        optionsMap={optionsMap}
       />
-    )
-  }
+      {errors[field.id] && (
+        <p className="mt-1 text-xs text-danger">{errors[field.id]}</p>
+      )}
+    </div>
+  )
 
+  const essentialFields = visibleFields.filter(f => ESSENTIAL_FIELD_IDS.has(f.id))
+
+  // --- JSX -----------------------------------------------------------------
   return (
-    <Modal onClose={onClose} title={readOnly ? 'View Event (Locked)' : editEvent ? 'Edit Event' : 'New Sports Event'}>
+    <Modal
+      onClose={handleClose}
+      title={readOnly ? 'View Event (Locked)' : editEvent ? 'Edit Event' : 'New Sports Event'}
+    >
       {readOnly && (
         <div className="flex items-center gap-2 mx-6 mt-4 mb-0 px-3 py-2 bg-warning/10 border border-warning/20 rounded-lg text-sm text-warning">
           <Lock className="w-4 h-4 flex-shrink-0" />
           This event is locked and cannot be edited.
         </div>
       )}
+
       {multiDayDates && multiDayDates.length > 1 && (
         <div className="bg-primary/10 border border-primary/30 rounded px-3 py-2 mx-6 mt-4 mb-0 text-sm">
           <span className="font-bold text-primary">Series</span>
           <span className="text-text-2 ml-2">
             Creating events on{' '}
-            {multiDayDates.map(d =>
-              new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-            ).join(', ')}
+            {multiDayDates
+              .map(d =>
+                new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
+                  weekday: 'short', day: 'numeric', month: 'short',
+                }),
+              )
+              .join(', ')}
           </span>
         </div>
       )}
+
       {!editEvent && (
         <div className="px-6 pt-4 pb-0">
           <LinkFromImport onLink={handleLinkImport} />
         </div>
       )}
+
       <fieldset disabled={readOnly} className="contents">
-      <div className='p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto'>
-        {visibleFields.map(field => (
-          <div key={field.id} className={field.type === 'textarea' ? 'sm:col-span-2' : ''}>
-            <label className='field-label flex items-center gap-1.5'>
-              {field.label}
-              {field.required && <span className='text-danger'>*</span>}
-              {field.isCustom && <span className='rounded-sm border border-border bg-surface-2 px-1 text-[10px] text-text-2'>custom</span>}
-            </label>
-            {renderField(field)}
-            {errors[field.id] && <p className='mt-1 text-xs text-danger'>{errors[field.id]}</p>}
-          </div>
-        ))}
-        {apiCustomFields.length > 0 && (
-          <div className='sm:col-span-2 border-t border-border pt-4'>
-            <p className='text-xs uppercase tracking-wide text-text-2 mb-3'>Custom Fields</p>
-            <DynamicForm
-              fields={apiCustomFields}
-              values={customValues}
-              onChange={handleCustomValueChange}
-              mandatoryErrors={mandatoryErrors}
-            />
-          </div>
-        )}
-      </div>
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto">
+          {!showAllFields ? (
+            <>
+              {essentialFields.map(renderFieldItem)}
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAllFields(true)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Show all fields...
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {SECTION_ORDER.map(section => {
+                const fields = fieldsBySection[section] ?? []
+                if (section === 'custom' && fields.length === 0 && apiCustomFields.length === 0) return null
+                if (section !== 'custom' && fields.length === 0) return null
+
+                return (
+                  <FieldSection
+                    key={section}
+                    title={SECTION_LABELS[section]}
+                    fieldCount={section === 'custom' ? (fields.length + apiCustomFields.length) : fields.length}
+                    defaultOpen={section === 'core' || section === 'scheduling'}
+                  >
+                    {fields.map(renderFieldItem)}
+                    {section === 'custom' && apiCustomFields.length > 0 && (
+                      <div className="sm:col-span-2">
+                        <DynamicForm
+                          fields={apiCustomFields}
+                          values={customValues}
+                          onChange={handleCustomValueChange}
+                          mandatoryErrors={mandatoryErrors}
+                        />
+                      </div>
+                    )}
+                  </FieldSection>
+                )
+              })}
+            </>
+          )}
+
+          {/* API custom fields in minimal mode */}
+          {!showAllFields && apiCustomFields.length > 0 && (
+            <div className="sm:col-span-2 border-t border-border pt-4">
+              <p className="text-xs uppercase tracking-wide text-text-2 mb-3">Custom Fields</p>
+              <DynamicForm
+                fields={apiCustomFields}
+                values={customValues}
+                onChange={handleCustomValueChange}
+                mandatoryErrors={mandatoryErrors}
+              />
+            </div>
+          )}
+        </div>
       </fieldset>
+
       {!editEvent && !multiDayDates?.length && !readOnly && (
         <div className="px-6 pb-2">
           <RepeatSection
@@ -495,28 +418,26 @@ export function DynamicEventForm({ eventFields, onClose, onSave, onBatchSave, ed
           />
         </div>
       )}
-      <div className='border-t border-border px-6 pt-4 pb-4 space-y-3'>
-        {conflicts && (conflicts.errors.length > 0 || conflicts.warnings.length > 0) && (
-          <div className="space-y-1">
-            {conflicts.errors.map((e, i) => (
-              <div key={i} className="text-xs text-danger bg-danger/10 rounded px-2 py-1">{e.message}</div>
-            ))}
-            {conflicts.warnings.length > 0 && (
-              <div className="text-xs text-text-2 mb-1">Warnings found — click Save again to proceed anyway.</div>
-            )}
-            {conflicts.warnings.map((w, i) => (
-              <div key={i} className="text-xs text-warning bg-warning/10 rounded px-2 py-1">{w.message}</div>
-            ))}
-          </div>
-        )}
-        <div className='flex items-center justify-between'>
-          <span className='text-xs uppercase tracking-wide text-text-2'>{readOnly ? 'Read-only' : `${visibleFields.filter(f => f.required).length} required fields`}</span>
-          <div className='flex gap-2'>
-            <Btn onClick={onClose}>{readOnly ? 'Close' : 'Cancel'}</Btn>
-            {!readOnly && <Btn variant='primary' onClick={handleSave}>{editEvent ? 'Save Changes' : 'Create Event'}</Btn>}
-          </div>
-        </div>
+
+      <div className="px-6">
+        <ConflictBanner conflicts={conflictCheck.conflicts} />
       </div>
+
+      <SaveFooter
+        onSave={handleSave}
+        onCancel={handleClose}
+        saveState={saveState}
+        requiredCount={visibleFields.filter(f => f.required).length}
+        readOnly={readOnly}
+        isEdit={!!editEvent}
+      />
+
+      {showDiscard && (
+        <DiscardDialog
+          onDiscard={onClose}
+          onKeepEditing={() => setShowDiscard(false)}
+        />
+      )}
     </Modal>
   )
 }
