@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
-import { getSocketServer } from '../services/socketInstance.js'
-import { logger } from '../utils/logger.js'
+import { writeOutboxEvent } from '../services/outbox.js'
 
 const router = Router()
 
@@ -11,24 +10,30 @@ router.post('/', async (req, res, next) => {
     const { fromSlotId, toChannelId, toSlotId, triggerType, switchAtUtc, reasonCode, reasonText } = req.body
     const tenantId = req.tenantId!
 
-    const action = await prisma.channelSwitchAction.create({
-      data: {
-        tenantId,
-        fromSlotId,
-        toChannelId,
-        toSlotId: toSlotId || null,
-        triggerType,
-        switchAtUtc: switchAtUtc ? new Date(switchAtUtc) : null,
-        reasonCode,
-        reasonText: reasonText || null,
-      },
-    })
+    const action = await prisma.$transaction(async (tx) => {
+      const created = await tx.channelSwitchAction.create({
+        data: {
+          tenantId,
+          fromSlotId,
+          toChannelId,
+          toSlotId: toSlotId || null,
+          triggerType,
+          switchAtUtc: switchAtUtc ? new Date(switchAtUtc) : null,
+          reasonCode,
+          reasonText: reasonText || null,
+        },
+      })
 
-    // Emit via Socket.IO
-    const io = getSocketServer()
-    if (io) {
-      io.of('/switches').to(`tenant:${tenantId}`).emit('switch:created', action)
-    }
+      await writeOutboxEvent(tx, {
+        tenantId,
+        eventType: 'channel_switch.created',
+        aggregateType: 'ChannelSwitchAction',
+        aggregateId: created.id,
+        payload: created,
+      })
+
+      return created
+    })
 
     res.status(201).json(action)
   } catch (err) {
@@ -42,20 +47,26 @@ router.post('/:id/confirm', async (req, res, next) => {
     const tenantId = req.tenantId!
     const { id } = req.params
 
-    const action = await prisma.channelSwitchAction.update({
-      where: { id, tenantId },
-      data: {
-        confirmedBy: (req as any).user?.id || 'system',
-        confirmedAt: new Date(),
-        executionStatus: 'EXECUTING',
-      },
-    })
+    const action = await prisma.$transaction(async (tx) => {
+      const confirmed = await tx.channelSwitchAction.update({
+        where: { id, tenantId },
+        data: {
+          confirmedBy: (req as any).user?.id || 'system',
+          confirmedAt: new Date(),
+          executionStatus: 'EXECUTING',
+        },
+      })
 
-    // Emit via Socket.IO
-    const io = getSocketServer()
-    if (io) {
-      io.of('/switches').to(`tenant:${tenantId}`).emit('switch:confirmed', action)
-    }
+      await writeOutboxEvent(tx, {
+        tenantId,
+        eventType: 'channel_switch.confirmed',
+        aggregateType: 'ChannelSwitchAction',
+        aggregateId: confirmed.id,
+        payload: confirmed,
+      })
+
+      return confirmed
+    })
 
     res.json(action)
   } catch (err) {

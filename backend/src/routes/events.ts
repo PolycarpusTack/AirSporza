@@ -3,17 +3,25 @@ import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
-import { emit } from '../services/socketInstance.js'
 import { writeAuditLog } from '../utils/audit.js'
-import { publishService } from '../services/publishService.js'
 import { canTransition } from '../services/eventTransitions.js'
 import { createNotification } from '../services/notificationService.js'
 import { detectConflicts, type ConflictWarning } from '../services/conflictService.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { syncEventToSlot, shouldSync, unlinkEventSlot } from '../services/eventSlotBridge.js'
+import { parseDurationToMinutes } from '../utils/parseDuration.js'
 import type { EventStatus, Role } from '@prisma/client'
 
 const router = Router()
+
+/** Auto-parse duration string into durationMin if not explicitly provided */
+function enrichDuration(data: Record<string, any>): void {
+  if (data.durationMin != null) return // explicit durationMin takes precedence
+  if (data.duration) {
+    const parsed = parseDurationToMinutes(data.duration)
+    if (parsed != null) data.durationMin = parsed
+  }
+}
 
 function parseId(param: string | string[] | undefined): number {
   if (!param || Array.isArray(param)) return 0
@@ -120,20 +128,20 @@ router.get('/', async (req, res, next) => {
         where.linearChannel = channel
       }
     }
-    
+
     if (from || to) {
       where.startDateBE = {}
       if (from) (where.startDateBE as Record<string, unknown>).gte = new Date(from as string)
       if (to) (where.startDateBE as Record<string, unknown>).lte = new Date(to as string)
     }
-    
+
     if (search) {
       where.OR = [
         { participants: { contains: search as string, mode: 'insensitive' } },
         { content: { contains: search as string, mode: 'insensitive' } }
       ]
     }
-    
+
     const events = await prisma.event.findMany({
       where,
       include: {
@@ -196,6 +204,9 @@ router.post('/conflicts/bulk', authenticate, async (req, res, next) => {
       select: {
         id: true,
         competitionId: true,
+        channelId: true,
+        radioChannelId: true,
+        onDemandChannelId: true,
         linearChannel: true,
         onDemandChannel: true,
         radioChannel: true,
@@ -210,6 +221,9 @@ router.post('/conflicts/bulk', authenticate, async (req, res, next) => {
         const { warnings } = await detectConflicts({
           id: ev.id,
           competitionId: ev.competitionId,
+          channelId: ev.channelId ?? undefined,
+          radioChannelId: ev.radioChannelId ?? undefined,
+          onDemandChannelId: ev.onDemandChannelId ?? undefined,
           linearChannel: ev.linearChannel ?? undefined,
           onDemandChannel: ev.onDemandChannel ?? undefined,
           radioChannel: ev.radioChannel ?? undefined,
@@ -281,11 +295,17 @@ router.delete('/bulk', authenticate, authorize('planner', 'admin'), async (req, 
         where: { tenantId: req.tenantId, entityType: 'event', entityId: { in: ids.map(String) } },
       })
       await tx.event.deleteMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
-    })
 
-    for (const id of ids) {
-      emit('event:deleted', { id }, 'events')
-    }
+      for (const id of ids) {
+        await writeOutboxEvent(tx, {
+          tenantId: req.tenantId!,
+          eventType: 'event.deleted',
+          aggregateType: 'Event',
+          aggregateId: String(id),
+          payload: { id },
+        })
+      }
+    })
 
     res.json({ deleted: ids.length })
   } catch (error) {
@@ -304,12 +324,20 @@ router.patch('/bulk/status', authenticate, authorize('planner', 'admin'), async 
         where: { tenantId: req.tenantId, id: { in: ids } },
         data: { status },
       })
-      return tx.event.findMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
-    })
+      const events = await tx.event.findMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
 
-    for (const ev of updatedEvents) {
-      emit('event:updated', ev, 'events')
-    }
+      for (const ev of events) {
+        await writeOutboxEvent(tx, {
+          tenantId: req.tenantId!,
+          eventType: 'event.updated',
+          aggregateType: 'Event',
+          aggregateId: String(ev.id),
+          payload: ev,
+        })
+      }
+
+      return events
+    })
 
     res.json({ updated: updatedEvents.length })
   } catch (error) {
@@ -339,13 +367,17 @@ router.patch('/bulk/reschedule', authenticate, authorize('planner', 'admin'), as
           data: { startDateBE: new Date(newDate) },
         })
         updated.push(result)
+
+        await writeOutboxEvent(tx, {
+          tenantId: req.tenantId!,
+          eventType: 'event.updated',
+          aggregateType: 'Event',
+          aggregateId: String(ev.id),
+          payload: result,
+        })
       }
       return updated
     })
-
-    for (const ev of updatedEvents) {
-      emit('event:updated', ev, 'events')
-    }
 
     res.json({ updated: updatedEvents.length })
   } catch (error) {
@@ -367,12 +399,20 @@ router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), async 
 
     const updatedEvents = await prisma.$transaction(async (tx) => {
       await tx.event.updateMany({ where: { tenantId: req.tenantId, id: { in: ids } }, data })
-      return tx.event.findMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
-    })
+      const events = await tx.event.findMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
 
-    for (const ev of updatedEvents) {
-      emit('event:updated', ev, 'events')
-    }
+      for (const ev of events) {
+        await writeOutboxEvent(tx, {
+          tenantId: req.tenantId!,
+          eventType: 'event.updated',
+          aggregateType: 'Event',
+          aggregateId: String(ev.id),
+          payload: ev,
+        })
+      }
+
+      return events
+    })
 
     res.json({ updated: updatedEvents.length })
   } catch (error) {
@@ -417,7 +457,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
     if (error) {
       return next(createError(400, error.details[0].message))
     }
-    
+
     const user = req.user as { id: string }
     const { customValues, ...eventData } = value
 
@@ -425,6 +465,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
     Object.keys(eventData).forEach(k => {
       if (eventData[k] === undefined) delete eventData[k]
     })
+    enrichDuration(eventData)
 
     const event = await prisma.$transaction(async (tx) => {
       const created = await tx.event.create({
@@ -458,7 +499,7 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
 
       await writeOutboxEvent(tx, {
         tenantId: req.tenantId!,
-        eventType: 'fixture.created',
+        eventType: 'event.created',
         aggregateType: 'Event',
         aggregateId: String(created.id),
         payload: created,
@@ -469,9 +510,6 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
 
       return created
     })
-
-    emit('event:created', event, 'events')
-    void publishService.dispatch('event.created', event)
 
     await writeAuditLog({
       userId: user.id,
@@ -507,6 +545,7 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
       const results = []
       for (const payload of eventPayloads) {
         const { customValues, ...eventData } = payload
+        enrichDuration(eventData)
         const event = await tx.event.create({
           data: {
             ...eventData,
@@ -534,7 +573,7 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
         }
         await writeOutboxEvent(tx, {
           tenantId: req.tenantId!,
-          eventType: 'fixture.created',
+          eventType: 'event.created',
           aggregateType: 'Event',
           aggregateId: String(event.id),
           payload: event,
@@ -547,11 +586,6 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
       }
       return results
     })
-
-    for (const event of created) {
-      emit('event:created', event, 'events')
-      void publishService.dispatch('event.created', event)
-    }
 
     await writeAuditLog({
       userId: user.id,
@@ -592,22 +626,16 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
         include: { channel: { select: { id: true, name: true, timezone: true } } },
       })
 
-      const outboxType = status === 'completed'
-        ? 'fixture.completed'
-        : status === 'live'
-          ? 'fixture.status_changed'
-          : 'fixture.status_changed'
-
       await writeOutboxEvent(tx, {
         tenantId: req.tenantId!,
-        eventType: outboxType,
+        eventType: 'event.status_changed',
         aggregateType: 'Event',
         aggregateId: String(id),
         payload: { ...result, previousStatus: event.status },
         priority: status === 'live' ? 'HIGH' : 'NORMAL',
       })
 
-      // Auto-bridge: sync slot status (cancelled → VOIDED, live → ON_AIR, etc.)
+      // Auto-bridge: sync slot status (cancelled → VOIDED, live → LIVE, etc.)
       if (result.channelId) {
         await syncEventToSlot(result as Parameters<typeof syncEventToSlot>[0], tx as unknown as Parameters<typeof syncEventToSlot>[1])
       }
@@ -636,8 +664,6 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
       )
     }
 
-    emit('event:statusChanged', updated, 'events')
-
     res.json(updated)
   } catch (error) {
     next(error)
@@ -665,6 +691,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
     Object.keys(eventData).forEach(k => {
       if (eventData[k] === undefined) delete eventData[k]
     })
+    enrichDuration(eventData)
 
     const event = await prisma.$transaction(async (tx) => {
       const updated = await tx.event.update({
@@ -697,7 +724,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
 
       await writeOutboxEvent(tx, {
         tenantId: req.tenantId!,
-        eventType: 'fixture.updated',
+        eventType: 'event.updated',
         aggregateType: 'Event',
         aggregateId: String(updated.id),
         payload: updated,
@@ -715,9 +742,6 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
 
       return updated
     })
-
-    emit('event:updated', event, 'events')
-    void publishService.dispatch('event.updated', event)
 
     const user = req.user as { id: string }
     await writeAuditLog({
@@ -748,17 +772,22 @@ router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, r
       return next(createError(404, 'Event not found'))
     }
 
-    await prisma.$transaction([
-      prisma.customFieldValue.deleteMany({
+    await prisma.$transaction(async (tx) => {
+      await tx.customFieldValue.deleteMany({
         where: { tenantId: req.tenantId, entityType: 'event', entityId: String(req.params.id) }
-      }),
-      prisma.event.delete({
+      })
+      await tx.event.delete({
         where: { id: Number(req.params.id) }
-      }),
-    ])
-    
-    emit('event:deleted', { id: Number(req.params.id) }, 'events')
-    void publishService.dispatch('event.deleted', { id: Number(req.params.id) })
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'event.deleted',
+        aggregateType: 'Event',
+        aggregateId: String(req.params.id),
+        payload: { id: Number(req.params.id) },
+      })
+    })
 
     const user = req.user as { id: string }
     await writeAuditLog({

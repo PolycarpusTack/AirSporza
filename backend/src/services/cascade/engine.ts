@@ -53,6 +53,20 @@ export async function runCascade(
     return orderA - orderB
   })
 
+  // Pre-load actual times from BroadcastSlots for completed events
+  const completedEventIds = events
+    .filter(e => e.status === 'completed' || e.status === 'live')
+    .map(e => e.id)
+  const actualSlots = completedEventIds.length > 0
+    ? await prisma.broadcastSlot.findMany({
+        where: { tenantId, eventId: { in: completedEventIds } },
+        select: { eventId: true, actualStartUtc: true, actualEndUtc: true },
+      })
+    : []
+  const actualTimesByEvent = new Map(
+    actualSlots.filter(s => s.eventId != null).map(s => [s.eventId!, s])
+  )
+
   const results: CascadeResult[] = []
   let prevEnd: { earliest: Date | null; estimated: Date | null; latest: Date | null } = {
     earliest: null,
@@ -66,9 +80,14 @@ export async function runCascade(
     const meta = (event.sportMetadata as any) || {}
     const status = event.status
 
-    if (status === 'completed') {
-      // Completed events have known times — confidence 1.0
-      const startTime = new Date(event.startDateBE)
+    if (status === 'completed' || status === 'live') {
+      // Use actual BroadcastSlot times if available, fall back to event start date
+      const actuals = actualTimesByEvent.get(event.id)
+      const startTime = actuals?.actualStartUtc
+        ? new Date(actuals.actualStartUtc)
+        : new Date(event.startDateBE)
+
+      const shortMin = estimator.shortDuration(castEvent)
       const est: CascadeResult = {
         eventId: event.id,
         estimatedStartUtc: startTime,
@@ -79,11 +98,17 @@ export async function runCascade(
         confidenceScore: 1.0,
         computedAt: new Date(),
       }
-      const shortMin = estimator.shortDuration(castEvent)
-      prevEnd = {
-        earliest: addMinutes(startTime, shortMin),
-        estimated: addMinutes(startTime, shortMin),
-        latest: addMinutes(startTime, shortMin),
+
+      // Use actual end time if completed, otherwise estimate
+      if (status === 'completed' && actuals?.actualEndUtc) {
+        const actualEnd = new Date(actuals.actualEndUtc)
+        prevEnd = { earliest: actualEnd, estimated: actualEnd, latest: actualEnd }
+      } else {
+        prevEnd = {
+          earliest: addMinutes(startTime, shortMin),
+          estimated: addMinutes(startTime, shortMin),
+          latest: addMinutes(startTime, shortMin),
+        }
       }
       prevConfidence = 1.0
       results.push(est)
@@ -143,25 +168,27 @@ export async function runCascade(
     results.push(est)
   }
 
-  // Upsert all estimates and update linked BroadcastSlots
-  for (const est of results) {
-    await prisma.cascadeEstimate.upsert({
-      where: { tenantId_eventId: { tenantId, eventId: est.eventId } },
-      create: { tenantId, ...est, inputsUsed: {} },
-      update: { ...est, inputsUsed: {} },
-    })
+  // Batch all DB writes in a single transaction
+  await prisma.$transaction(async (tx) => {
+    for (const est of results) {
+      await tx.cascadeEstimate.upsert({
+        where: { tenantId_eventId: { tenantId, eventId: est.eventId } },
+        create: { tenantId, ...est, inputsUsed: {} },
+        update: { ...est, inputsUsed: {} },
+      })
 
-    // Update linked BroadcastSlot estimated times
-    await prisma.broadcastSlot.updateMany({
-      where: { tenantId, eventId: est.eventId },
-      data: {
-        estimatedStartUtc: est.estimatedStartUtc,
-        estimatedEndUtc: addMinutes(est.estimatedStartUtc, est.estDurationLongMin || 0),
-        earliestStartUtc: est.earliestStartUtc,
-        latestStartUtc: est.latestStartUtc,
-      },
-    })
-  }
+      // Update linked BroadcastSlot estimated times
+      await tx.broadcastSlot.updateMany({
+        where: { tenantId, eventId: est.eventId },
+        data: {
+          estimatedStartUtc: est.estimatedStartUtc,
+          estimatedEndUtc: addMinutes(est.estimatedStartUtc, est.estDurationLongMin || 0),
+          earliestStartUtc: est.earliestStartUtc,
+          latestStartUtc: est.latestStartUtc,
+        },
+      })
+    }
+  })
 
   return results
 }

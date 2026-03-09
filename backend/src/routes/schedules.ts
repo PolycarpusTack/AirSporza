@@ -2,10 +2,29 @@ import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
-import { validateSchedule, type ValidationContext } from '../services/validation/index.js'
+import { validateSchedule, type ValidationContext, type RightsPolicy } from '../services/validation/index.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 
 const router = Router()
+
+/** Load contracts as RightsPolicy DTOs for schedule validation */
+async function loadRightsPolicies(tenantId: string, competitionIds: number[]): Promise<RightsPolicy[]> {
+  if (competitionIds.length === 0) return []
+  const contracts = await prisma.contract.findMany({
+    where: {
+      tenantId,
+      competitionId: { in: competitionIds },
+      status: { in: ['valid', 'expiring'] },
+    },
+  })
+  return contracts.map(c => ({
+    competitionId: c.competitionId,
+    territory: c.territory.length > 0 ? c.territory[0] : undefined,
+    maxLiveRuns: c.maxLiveRuns ?? 0,
+    windowStart: c.windowStartUtc?.toISOString(),
+    windowEnd: c.windowEndUtc?.toISOString(),
+  }))
+}
 
 // ─── SCHEDULE DRAFTS ─────────────────────────────────────────────────────────
 
@@ -196,11 +215,14 @@ router.post('/:id/validate', authenticate, authorize('planner', 'admin'), async 
       orderBy: { plannedStartUtc: 'asc' }
     })
 
-    // Build validation context
+    // Build validation context with contracts as rights policies
+    const events = slots.map(s => s.event).filter((e): e is NonNullable<typeof e> => e != null)
+    const competitionIds = [...new Set(events.map(e => e.competitionId).filter(Boolean))]
+    const rightsPolicies = await loadRightsPolicies(req.tenantId!, competitionIds)
     const context: ValidationContext = {
-      rightsPolicies: [], // Task 11 will populate this
+      rightsPolicies,
       existingRuns: [],
-      events: slots.map(s => s.event).filter(Boolean)
+      events,
     }
 
     const results = validateSchedule(slots as any[], context)
@@ -247,11 +269,14 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), async (
       orderBy: { plannedStartUtc: 'asc' }
     })
 
-    // Validate
+    // Validate with contracts as rights policies
+    const pubEvents = slots.map(s => s.event).filter((e): e is NonNullable<typeof e> => e != null)
+    const pubCompetitionIds = [...new Set(pubEvents.map(e => e.competitionId).filter(Boolean))]
+    const pubRightsPolicies = await loadRightsPolicies(req.tenantId!, pubCompetitionIds)
     const context: ValidationContext = {
-      rightsPolicies: [],
+      rightsPolicies: pubRightsPolicies,
       existingRuns: [],
-      events: slots.map(s => s.event).filter(Boolean)
+      events: pubEvents,
     }
 
     const results = validateSchedule(slots as any[], context)

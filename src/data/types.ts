@@ -1,6 +1,6 @@
 import type {
   SchedulingMode, StageType, OverrunStrategy, AnchorType, BroadcastSlotStatus, ContentSegment,
-  DraftStatus, ValidationResult
+  DraftStatus, ValidationResult, CoverageType
 } from '@planza/shared'
 
 export type {
@@ -109,11 +109,22 @@ export interface Contract {
   status: ContractStatus
   validFrom?: Date | string
   validUntil?: Date | string
+  // Legacy boolean rights (deprecated — use platforms[])
   linearRights: boolean
   maxRights: boolean
   radioRights: boolean
-  geoRestriction?: string
   sublicensing: boolean
+  // Enriched rights fields
+  seasonId?: number | null
+  territory: string[]
+  platforms: string[]
+  coverageType: CoverageType
+  maxLiveRuns?: number | null
+  maxPickRunsPerRound?: number | null
+  windowStartUtc?: string | null
+  windowEndUtc?: string | null
+  tapeDelayHoursMin?: number | null
+  geoRestriction?: string
   fee?: string
   notes?: string
   createdAt?: Date

@@ -12,7 +12,6 @@ export function validateDuration(slots: any[]): ValidationResult[] {
   results.push(...checkSlotOverlapCertain(slots))
   results.push(...checkSlotOverlapProbable(slots))
   results.push(...checkWideDurationRange(slots))
-  // Placeholder
   results.push(...checkKnockoutSlotTooShort(slots))
 
   return results
@@ -166,7 +165,47 @@ function checkWideDurationRange(slots: any[]): ValidationResult[] {
   return results
 }
 
-/** KNOCKOUT_SLOT_TOO_SHORT (ERROR) — placeholder */
-function checkKnockoutSlotTooShort(_slots: any[]): ValidationResult[] {
-  return []
+/**
+ * KNOCKOUT_SLOT_TOO_SHORT (ERROR)
+ * A slot for a knockout-stage event has less than the minimum expected duration.
+ * Knockout matches can go to extra time / penalties, so slots need adequate padding.
+ *
+ * Minimum durations by sport metadata:
+ * - Football knockout: 150 min (90 + 30 extra + 30 buffer)
+ * - Tennis knockout (best of 5): 300 min
+ * - Default knockout: 180 min
+ */
+function checkKnockoutSlotTooShort(slots: any[]): ValidationResult[] {
+  const results: ValidationResult[] = []
+
+  for (const slot of slots) {
+    if (!slot.expectedDurationMin) continue
+
+    // Check if this is a knockout match via sport metadata
+    const metadata = slot.sportMetadata || slot.event?.sportMetadata || {}
+    const stageType = metadata.stageType || metadata.stage_type
+    if (!stageType || !['KNOCKOUT', 'PLAYOFF', 'FINAL'].includes(stageType)) continue
+
+    // Determine minimum duration based on sport
+    const sportName = metadata.sport?.toLowerCase?.() || ''
+    let minDuration = 180 // default knockout minimum
+    if (sportName.includes('football') || sportName.includes('soccer')) {
+      minDuration = 150
+    } else if (sportName.includes('tennis')) {
+      const format = metadata.format || ''
+      minDuration = format.includes('best_of_5') ? 300 : 210
+    }
+
+    if (slot.expectedDurationMin < minDuration) {
+      results.push({
+        severity: 'ERROR',
+        code: 'KNOCKOUT_SLOT_TOO_SHORT',
+        scope: [slot.id],
+        message: `Knockout slot "${slot.id}" has ${slot.expectedDurationMin}min allocated but needs at least ${minDuration}min for ${stageType} stage.`,
+        remediation: `Increase slot duration to at least ${minDuration} minutes to accommodate extra time / penalties.`,
+      })
+    }
+  }
+
+  return results
 }

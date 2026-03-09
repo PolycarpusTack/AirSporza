@@ -14,8 +14,6 @@ export function validateStructural(slots: any[]): ValidationResult[] {
   results.push(...checkMissingChannel(slots))
   results.push(...checkFloatingNoTrigger(slots))
   results.push(...checkNoOverflowAvailable(slots))
-  // Placeholders — return empty for now
-  results.push(...checkTbdParticipantBlock(slots))
   results.push(...checkHandoffChainBroken(slots))
 
   return results
@@ -177,12 +175,54 @@ function checkNoOverflowAvailable(slots: any[]): ValidationResult[] {
   return results
 }
 
-/** TBD_PARTICIPANT_BLOCK (ERROR) — placeholder */
-function checkTbdParticipantBlock(_slots: any[]): ValidationResult[] {
-  return []
-}
+/**
+ * HANDOFF_CHAIN_BROKEN (ERROR)
+ * A CONTINUATION slot references an event whose FULL slot is not on the same channel
+ * or is missing entirely — the cascade handoff chain is broken.
+ */
+function checkHandoffChainBroken(slots: any[]): ValidationResult[] {
+  const results: ValidationResult[] = []
 
-/** HANDOFF_CHAIN_BROKEN (ERROR) — placeholder */
-function checkHandoffChainBroken(_slots: any[]): ValidationResult[] {
-  return []
+  // Build event→FULL slot map
+  const fullSlotsByEvent = new Map<number, any>()
+  for (const slot of slots) {
+    if (slot.eventId && slot.contentSegment === 'FULL') {
+      fullSlotsByEvent.set(slot.eventId, slot)
+    }
+  }
+
+  // Check CONTINUATION slots
+  const continuations = slots.filter(s => s.contentSegment === 'CONTINUATION')
+  for (const cont of continuations) {
+    if (!cont.eventId) continue
+    const fullSlot = fullSlotsByEvent.get(cont.eventId)
+
+    if (!fullSlot) {
+      results.push({
+        severity: 'ERROR',
+        code: 'HANDOFF_CHAIN_BROKEN',
+        scope: [cont.id],
+        message: `Continuation slot "${cont.id}" references event ${cont.eventId} but no FULL slot exists in this schedule.`,
+        remediation: 'Add the FULL broadcast slot or remove this continuation.',
+      })
+    } else if (fullSlot.channelId !== cont.channelId) {
+      // Cross-channel continuation is valid (channel switch), but the full slot
+      // must end before the continuation starts
+      if (fullSlot.plannedEndUtc && cont.plannedStartUtc) {
+        const fullEnd = new Date(fullSlot.plannedEndUtc).getTime()
+        const contStart = new Date(cont.plannedStartUtc).getTime()
+        if (contStart < fullEnd) {
+          results.push({
+            severity: 'WARNING',
+            code: 'HANDOFF_CHAIN_BROKEN',
+            scope: [fullSlot.id, cont.id],
+            message: `Continuation "${cont.id}" starts before FULL slot "${fullSlot.id}" ends — handoff timing may be invalid.`,
+            remediation: 'Ensure the continuation starts after the full broadcast ends or overlaps intentionally.',
+          })
+        }
+      }
+    }
+  }
+
+  return results
 }

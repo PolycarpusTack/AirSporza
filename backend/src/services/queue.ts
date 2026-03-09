@@ -40,6 +40,8 @@ export const cascadeQueue = createQueue('cascade')
 export const alertQueue = createQueue('alerts')
 export const standingsQueue = createQueue('standings')
 export const bracketQueue = createQueue('bracket')
+export const socketioQueue = createQueue('socketio')
+export const webhookQueue = createQueue('webhook')
 
 /**
  * Gracefully close all queues.
@@ -50,5 +52,7 @@ export async function closeQueues(): Promise<void> {
     alertQueue.close(),
     standingsQueue.close(),
     bracketQueue.close(),
+    socketioQueue.close(),
+    webhookQueue.close(),
   ])
 }

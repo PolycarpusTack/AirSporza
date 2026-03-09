@@ -17,6 +17,7 @@ export interface CascadeEvent {
   actualStartUtc?: Date | string | null
   actualEndUtc?: Date | string | null
   startDateBE: Date | string
+  durationMin?: number | null
 }
 
 export interface LiveScore {
@@ -25,9 +26,12 @@ export interface LiveScore {
   period?: string
 }
 
-/** V1: simple heuristics based on sport and metadata */
+/** V1: simple heuristics based on sport and metadata, with durationMin override */
 export const heuristicEstimator: DurationEstimator = {
   shortDuration(event: CascadeEvent): number {
+    // If event has an explicit duration, use it with 10% under padding
+    if (event.durationMin) return Math.round(event.durationMin * 0.9)
+
     const meta = event.sportMetadata || {}
     const sport = (event.sport?.name ?? '').toLowerCase()
 
@@ -48,6 +52,9 @@ export const heuristicEstimator: DurationEstimator = {
   },
 
   longDuration(event: CascadeEvent): number {
+    // If event has an explicit duration, use it with 20% over padding
+    if (event.durationMin) return Math.round(event.durationMin * 1.2)
+
     const meta = event.sportMetadata || {}
     const sport = (event.sport?.name ?? '').toLowerCase()
 

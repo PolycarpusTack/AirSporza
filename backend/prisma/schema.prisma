@@ -297,33 +297,48 @@ model TechPlan {
 }
 
 model Contract {
-  id              Int             @id @default(autoincrement())
-  competitionId   Int
-  status          ContractStatus  @default(none)
-  tenantId        String          @db.Uuid
+  id                    Int             @id @default(autoincrement())
+  competitionId         Int
+  status                ContractStatus  @default(none)
+  tenantId              String          @db.Uuid
 
-  validFrom       DateTime?
-  validUntil      DateTime?
+  validFrom             DateTime?
+  validUntil            DateTime?
 
-  linearRights    Boolean         @default(false)
-  maxRights       Boolean         @default(false)
-  radioRights     Boolean         @default(false)
-  sublicensing    Boolean         @default(false)
+  // Legacy boolean rights (deprecated — use platforms[])
+  linearRights          Boolean         @default(false)
+  maxRights             Boolean         @default(false)
+  radioRights           Boolean         @default(false)
+  sublicensing          Boolean         @default(false)
 
-  geoRestriction  String?
-  fee             String?
-  notes           String?
+  // Enriched rights fields (unified from RightsPolicy)
+  seasonId              Int?
+  territory             String[]        @default([])
+  platforms             String[]        @default([])
+  coverageType          String          @default("LIVE")
+  maxLiveRuns           Int?
+  maxPickRunsPerRound   Int?
+  windowStartUtc        DateTime?       @db.Timestamptz
+  windowEndUtc          DateTime?       @db.Timestamptz
+  tapeDelayHoursMin     Int?
 
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  geoRestriction        String?
+  fee                   String?
+  notes                 String?
 
-  tenant          Tenant          @relation(fields: [tenantId], references: [id])
-  competition     Competition     @relation(fields: [competitionId], references: [id])
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  tenant                Tenant          @relation(fields: [tenantId], references: [id])
+  competition           Competition     @relation(fields: [competitionId], references: [id])
+  season                Season?         @relation(fields: [seasonId], references: [id])
+  runLedgerEntries      RunLedger[]
 
   @@index([competitionId])
   @@index([status])
   @@index([validUntil])
   @@index([tenantId])
+  @@index([seasonId])
 }
 
 model Encoder {
@@ -1135,6 +1150,7 @@ model Season {
   competition   Competition @relation(fields: [competitionId], references: [id])
   stages        Stage[]
   events        Event[]
+  contracts     Contract[]
 
   @@unique([tenantId, competitionId, name])
   @@index([tenantId])
@@ -1398,6 +1414,7 @@ model RunLedger {
   broadcastSlotId String    @db.Uuid
   eventId         Int
   channelId       Int
+  contractId      Int?
   runType         RunType   @default(LIVE)
   parentRunId     String?   @db.Uuid
   startedAtUtc    DateTime? @db.Timestamptz
@@ -1408,12 +1425,14 @@ model RunLedger {
 
   tenant          Tenant        @relation(fields: [tenantId], references: [id])
   broadcastSlot   BroadcastSlot @relation(fields: [broadcastSlotId], references: [id])
+  contract        Contract?     @relation(fields: [contractId], references: [id])
   parentRun       RunLedger?    @relation("RunChain", fields: [parentRunId], references: [id])
   childRuns       RunLedger[]   @relation("RunChain")
 
   @@unique([tenantId, broadcastSlotId, runType])
   @@index([tenantId])
   @@index([eventId])
+  @@index([contractId])
 }
 
 // =============================================================================

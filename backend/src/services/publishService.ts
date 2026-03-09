@@ -122,7 +122,7 @@ async function scheduleRetries(
  * Dispatch a publish event to all matching active webhooks.
  * Creates a WebhookDelivery record for each, then attempts delivery with retry.
  */
-async function dispatch(eventType: PublishEventType, data: object): Promise<void> {
+async function _dispatch(eventType: PublishEventType, data: object): Promise<void> {
   const payload = {
     event: eventType,
     timestamp: new Date().toISOString(),
@@ -242,5 +242,10 @@ async function resumeFailedDeliveries(): Promise<void> {
     })
   }
 }
+
+/**
+ * @deprecated Use outbox + webhook worker instead. Kept for backwards compat during transition.
+ */
+const dispatch = _dispatch
 
 export const publishService = { dispatch, retryDelivery, checkExpiringContracts, resumeFailedDeliveries }

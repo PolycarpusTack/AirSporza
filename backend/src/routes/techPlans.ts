@@ -3,9 +3,8 @@ import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
-import { emit } from '../services/socketInstance.js'
 import { writeAuditLog } from '../utils/audit.js'
-import { publishService } from '../services/publishService.js'
+import { writeOutboxEvent } from '../services/outbox.js'
 
 export const LOCK_TTL_MS = 30_000
 
@@ -26,7 +25,7 @@ const techPlanSchema = Joi.object({
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { eventId } = req.query
-    
+
     const where: Record<string, unknown> = { tenantId: req.tenantId }
     if (eventId) where.eventId = Number(eventId)
 
@@ -40,7 +39,7 @@ router.get('/', authenticate, async (req, res, next) => {
       },
       orderBy: { createdAt: 'desc' }
     })
-    
+
     res.json(plans)
   } catch (error) {
     next(error)
@@ -58,11 +57,11 @@ router.get('/:id', authenticate, async (req, res, next) => {
         createdBy: { select: { id: true, name: true, email: true } }
       }
     })
-    
+
     if (!plan) {
       return next(createError(404, 'Tech plan not found'))
     }
-    
+
     res.json(plan)
   } catch (error) {
     next(error)
@@ -75,7 +74,7 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
     if (error) {
       return next(createError(400, error.details[0].message))
     }
-    
+
     const user = req.user as { id: string }
 
     // Auto-fill crew from plan-type default template if crew is empty
@@ -89,20 +88,30 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
       }
     }
 
-    const plan = await prisma.techPlan.create({
-      data: {
-        ...value,
+    const plan = await prisma.$transaction(async (tx) => {
+      const created = await tx.techPlan.create({
+        data: {
+          ...value,
+          tenantId: req.tenantId!,
+          crew,
+          createdById: user.id
+        },
+        include: {
+          event: { include: { sport: true, competition: true } }
+        }
+      })
+
+      await writeOutboxEvent(tx, {
         tenantId: req.tenantId!,
-        crew,
-        createdById: user.id
-      },
-      include: {
-        event: { include: { sport: true, competition: true } }
-      }
+        eventType: 'techPlan.created',
+        aggregateType: 'TechPlan',
+        aggregateId: String(created.id),
+        payload: created,
+      })
+
+      return created
     })
-    
-    emit('techPlan:created', plan, 'techPlans')
-    void publishService.dispatch('techPlan.created', plan)
+
     await writeAuditLog({
       userId: user.id,
       action: 'techPlan.create',
@@ -126,7 +135,7 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
     if (error) {
       return next(createError(400, error.details[0].message))
     }
-    
+
     const existing = await prisma.techPlan.findFirst({
       where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
@@ -135,16 +144,26 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
       return next(createError(404, 'Tech plan not found'))
     }
 
-    const plan = await prisma.techPlan.update({
-      where: { id: existing.id },
-      data: value,
-      include: {
-        event: { include: { sport: true, competition: true } }
-      }
+    const plan = await prisma.$transaction(async (tx) => {
+      const updated = await tx.techPlan.update({
+        where: { id: existing.id },
+        data: value,
+        include: {
+          event: { include: { sport: true, competition: true } }
+        }
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'techPlan.updated',
+        aggregateType: 'TechPlan',
+        aggregateId: String(updated.id),
+        payload: updated,
+      })
+
+      return updated
     })
-    
-    emit('techPlan:updated', plan, 'techPlans')
-    void publishService.dispatch('techPlan.updated', plan)
+
     const user = req.user as { id: string }
     await writeAuditLog({
       userId: user.id,
@@ -181,23 +200,34 @@ router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), async (
       return next(createError(409, `Encoder "${encoder}" is currently locked by another user`))
     }
 
-    // Upsert lock with 30-second TTL
-    await prisma.encoderLock.upsert({
-      where: { encoderName: encoder },
-      create: { tenantId: req.tenantId!, encoderName: encoder, lockedById: user.id, planId, expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
-      update: { lockedById: user.id, planId, expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
-    })
-
     const crew = existing.crew as Record<string, unknown>
     const updatedCrew = { ...crew, encoder }
 
-    const plan = await prisma.techPlan.update({
-      where: { id: planId },
-      data: { crew: updatedCrew },
-      include: { event: { include: { sport: true, competition: true } } },
+    const plan = await prisma.$transaction(async (tx) => {
+      // Upsert lock with 30-second TTL
+      await tx.encoderLock.upsert({
+        where: { encoderName: encoder },
+        create: { tenantId: req.tenantId!, encoderName: encoder, lockedById: user.id, planId, expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
+        update: { lockedById: user.id, planId, expiresAt: new Date(Date.now() + LOCK_TTL_MS) },
+      })
+
+      const updated = await tx.techPlan.update({
+        where: { id: planId },
+        data: { crew: updatedCrew },
+        include: { event: { include: { sport: true, competition: true } } },
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'techPlan.updated',
+        aggregateType: 'TechPlan',
+        aggregateId: String(planId),
+        payload: { ...updated, encoderSwapped: encoder },
+      })
+
+      return updated
     })
 
-    emit('encoder:swapped', { planId: plan.id, encoder, plan }, 'techPlans')
     await writeAuditLog({
       userId: user.id,
       action: 'encoder.swap',
@@ -224,10 +254,18 @@ router.delete('/:id', authenticate, authorize('sports', 'admin'), async (req, re
       return next(createError(404, 'Tech plan not found'))
     }
 
-    await prisma.techPlan.delete({ where: { id: planId } })
+    await prisma.$transaction(async (tx) => {
+      await tx.techPlan.delete({ where: { id: planId } })
 
-    emit('techPlan:deleted', { id: planId }, 'techPlans')
-    void publishService.dispatch('techPlan.deleted', { id: planId })
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'techPlan.deleted',
+        aggregateType: 'TechPlan',
+        aggregateId: String(planId),
+        payload: { id: planId },
+      })
+    })
+
     const user = req.user as { id: string }
     await writeAuditLog({
       userId: user.id,

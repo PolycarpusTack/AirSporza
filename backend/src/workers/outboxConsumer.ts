@@ -4,17 +4,37 @@ import {
   alertQueue,
   standingsQueue,
   bracketQueue,
+  socketioQueue,
+  webhookQueue,
 } from '../services/queue.js'
 import { logger } from '../utils/logger.js'
 
 const EVENT_ROUTING: Record<string, string[]> = {
-  'fixture.status_changed': ['cascade', 'standings', 'bracket'],
-  'fixture.completed': ['standings', 'bracket'],
-  'match.score_updated': ['cascade'],
-  'cascade.recomputed': ['alerts'],
-  'schedule.published': [],
-  'schedule.emergency_published': [],
-  'channel_switch.confirmed': [],
+  // Event lifecycle — notify clients + external systems
+  'event.created':              ['socketio', 'webhook'],
+  'event.updated':              ['socketio', 'webhook'],
+  'event.deleted':              ['socketio', 'webhook'],
+  'event.status_changed':       ['socketio', 'webhook', 'cascade', 'standings', 'bracket'],
+  // Fixture lifecycle — cascade + standings
+  'fixture.status_changed':     ['cascade', 'standings', 'bracket'],
+  'fixture.completed':          ['standings', 'bracket'],
+  'match.score_updated':        ['cascade'],
+  // Cascade results
+  'cascade.recomputed':         ['alerts'],
+  // Schedule lifecycle
+  'schedule.published':         ['webhook'],
+  'schedule.emergency_published': ['webhook'],
+  // Channel switches
+  'channel_switch.confirmed':   ['socketio', 'webhook'],
+  'channel_switch.created':     ['socketio'],
+  // BroadcastSlot lifecycle
+  'slot.created':               ['socketio'],
+  'slot.updated':               ['socketio'],
+  'slot.status_changed':        ['socketio', 'cascade'],
+  // TechPlan lifecycle
+  'techPlan.created':           ['socketio', 'webhook'],
+  'techPlan.updated':           ['socketio', 'webhook'],
+  'techPlan.deleted':           ['socketio', 'webhook'],
 }
 
 const QUEUE_MAP: Record<string, typeof cascadeQueue> = {
@@ -22,6 +42,8 @@ const QUEUE_MAP: Record<string, typeof cascadeQueue> = {
   alerts: alertQueue,
   standings: standingsQueue,
   bracket: bracketQueue,
+  socketio: socketioQueue,
+  webhook: webhookQueue,
 }
 
 /**
@@ -54,11 +76,12 @@ export async function consumeOutbox(): Promise<number> {
             event.eventType,
             {
               ...event.payload,
+              eventType: event.eventType,
               _outboxEventId: event.id,
               _tenantId: event.tenantId,
             },
             {
-              jobId: event.idempotencyKey,
+              jobId: `${event.idempotencyKey}:${queueName}`,
             }
           )
         }

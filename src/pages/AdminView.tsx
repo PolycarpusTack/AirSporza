@@ -10,7 +10,7 @@ import { AuditLogViewer } from '../components/admin/AuditLogViewer'
 import { AutoFillRulesPanel } from '../components/admin/AutoFillRulesPanel'
 import { WorkflowTogglesPanel } from '../components/admin/WorkflowTogglesPanel'
 import { ChannelsPanel } from '../components/admin/ChannelsPanel'
-import { RightsPoliciesPanel } from '../components/admin/RightsPoliciesPanel'
+// RightsPoliciesPanel removed — rights now managed via enriched ContractForm
 import { AdapterConfigPanel } from '../components/admin/AdapterConfigPanel'
 import { sportsApi, competitionsApi, encodersApi, importsApi, usersApi, type UserRecord } from '../services'
 import { settingsApi, type AdminStats } from '../services/settings'
@@ -742,7 +742,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
               {activeTab === 'autofill' && <AutoFillRulesPanel />}
               {activeTab === 'workflows' && <WorkflowTogglesPanel />}
               {activeTab === 'channels' && <ChannelsPanel />}
-              {activeTab === 'rights' && <RightsPoliciesPanel />}
+              {activeTab === 'rights' && <div className="card p-6 text-center text-text-3">Rights are now managed via enriched Contracts in the Contracts view.</div>}
               {activeTab === 'adapters' && <AdapterConfigPanel />}
             </div>
           </div>
@@ -761,7 +761,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
             {activeTab === 'autofill' && <AutoFillRulesPanel />}
             {activeTab === 'workflows' && <WorkflowTogglesPanel />}
             {activeTab === 'channels' && <ChannelsPanel />}
-            {activeTab === 'rights' && <RightsPoliciesPanel />}
+            {activeTab === 'rights' && <div className="card p-6 text-center text-text-3">Rights are now managed via enriched Contracts in the Contracts view.</div>}
             {activeTab === 'adapters' && <AdapterConfigPanel />}
           </div>
         )}

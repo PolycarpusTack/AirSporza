@@ -1,12 +1,17 @@
 import { prisma } from '../db/prisma.js'
 import type { EventStatus } from '@prisma/client'
+import { checkRights } from './rightsChecker.js'
 
-export type ConflictWarning = { type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan' | 'resource_conflict'; message: string }
-export type ConflictError   = { type: 'encoder_locked' | 'rights_violation'; message: string }
+export type ConflictWarning = { type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan' | 'resource_conflict' | 'platform_not_covered' | 'contract_expiring'; message: string }
+export type ConflictError   = { type: 'encoder_locked' | 'rights_violation' | 'territory_blocked' | 'max_runs_exceeded'; message: string }
 
 type EventDraft = {
   id?: number
   competitionId: number
+  channelId?: number | null
+  radioChannelId?: number | null
+  onDemandChannelId?: number | null
+  // Legacy string fields (still accepted for backwards compat)
   linearChannel?: string
   onDemandChannel?: string
   radioChannel?: string
@@ -32,8 +37,29 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
   const dayEnd = new Date(draft.startDateBE.slice(0, 10))
   dayEnd.setUTCHours(23, 59, 59, 999)
 
-  // 1. Channel overlap
-  if (draft.linearChannel) {
+  // 1. Channel overlap (FK-based, falls back to legacy string)
+  const channelId = draft.channelId
+  if (channelId) {
+    const sameDay = await prisma.event.findMany({
+      where: {
+        ...(draft.tenantId ? { tenantId: draft.tenantId } : {}),
+        channelId,
+        startDateBE: { gte: dayStart, lte: dayEnd },
+        ...(draft.id ? { NOT: { id: draft.id } } : {}),
+      },
+      select: { id: true, startTimeBE: true, participants: true },
+    })
+    const draftMin = timeToMin(draft.startTimeBE)
+    for (const ev of sameDay) {
+      if (Math.abs(timeToMin(ev.startTimeBE) - draftMin) < 30) {
+        warnings.push({
+          type: 'channel_overlap',
+          message: `Channel already has "${ev.participants ?? 'an event'}" within 30 min`,
+        })
+      }
+    }
+  } else if (draft.linearChannel) {
+    // Legacy fallback
     const sameDay = await prisma.event.findMany({
       where: {
         ...(draft.tenantId ? { tenantId: draft.tenantId } : {}),
@@ -54,8 +80,8 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
     }
   }
 
-  // 2. Rights window
-  const contract = await prisma.contract.findFirst({
+  // 2. Rights checking via unified rightsChecker
+  const contracts = await prisma.contract.findMany({
     where: {
       ...(draft.tenantId ? { tenantId: draft.tenantId } : {}),
       competitionId: draft.competitionId,
@@ -63,13 +89,54 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
       validFrom: { lte: dayEnd },
       validUntil: { gte: dayStart },
     },
-    select: { id: true, linearRights: true, maxRights: true, radioRights: true },
   })
-  if (!contract) {
-    warnings.push({
-      type: 'rights_window',
-      message: 'No active contract covers this competition on this date',
+
+  // Resolve channel types for rights checking
+  const allChannelIds = [draft.channelId, draft.radioChannelId, draft.onDemandChannelId].filter((id): id is number => id != null)
+  let channelTypes: string[] = []
+  if (allChannelIds.length > 0) {
+    const channels = await prisma.channel.findMany({
+      where: { id: { in: allChannelIds } },
+      select: { types: true },
     })
+    channelTypes = channels.flatMap(c => c.types)
+  }
+
+  // Build start UTC from date + time for window check
+  const startUtc = draft.startDateBE && draft.startTimeBE
+    ? new Date(`${draft.startDateBE.slice(0, 10)}T${draft.startTimeBE}:00Z`)
+    : null
+
+  const rightsResults = checkRights(
+    {
+      channelId: draft.channelId ?? allChannelIds[0] ?? null,
+      channelTypes,
+      startUtc,
+    },
+    contracts,
+  )
+
+  // Map unified results to conflict warnings/errors
+  for (const r of rightsResults) {
+    if (r.severity === 'ERROR') {
+      if (r.code === 'NO_VALID_CONTRACT') {
+        warnings.push({ type: 'rights_window', message: r.message })
+      } else if (r.code === 'TERRITORY_BLOCKED') {
+        errors.push({ type: 'territory_blocked', message: r.message })
+      } else if (r.code === 'MAX_RUNS_EXCEEDED') {
+        errors.push({ type: 'max_runs_exceeded', message: r.message })
+      } else {
+        errors.push({ type: 'rights_violation', message: r.message })
+      }
+    } else {
+      if (r.code === 'PLATFORM_NOT_COVERED') {
+        warnings.push({ type: 'platform_not_covered', message: r.message })
+      } else if (r.code === 'CONTRACT_EXPIRING') {
+        warnings.push({ type: 'contract_expiring', message: r.message })
+      } else {
+        warnings.push({ type: 'rights_window', message: r.message })
+      }
+    }
   }
 
   // 3. Missing tech plan (only warn for approved/published events that already exist)
@@ -80,7 +147,7 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
     }
   }
 
-  // 5. Resource double-booking
+  // 4. Resource double-booking
   if (draft.id) {
     const assignments = await prisma.resourceAssignment.findMany({
       where: { techPlan: { eventId: draft.id } },
@@ -107,19 +174,6 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
           })
         }
       }
-    }
-  }
-
-  // 4. Rights violations (hard errors per channel type)
-  if (contract) {
-    if (draft.linearChannel && !contract.linearRights) {
-      errors.push({ type: 'rights_violation', message: `Contract does not grant linear rights for ${draft.linearChannel}` })
-    }
-    if (draft.onDemandChannel && !contract.maxRights) {
-      errors.push({ type: 'rights_violation', message: `Contract does not grant on-demand rights for ${draft.onDemandChannel}` })
-    }
-    if (draft.radioChannel && !contract.radioRights) {
-      errors.push({ type: 'rights_violation', message: `Contract does not grant radio rights for ${draft.radioChannel}` })
     }
   }
 
