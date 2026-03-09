@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Plus, Trash2, GripVertical, Save } from 'lucide-react'
 import { Btn } from '../ui'
 import { useApp } from '../../context/AppProvider'
@@ -24,6 +24,7 @@ interface StringListProps {
 
 function StringList({ items, onChange, placeholder }: StringListProps) {
   const [draft, setDraft] = useState('')
+  const dragIdx = useRef<number | null>(null)
 
   const add = () => {
     const v = draft.trim()
@@ -34,10 +35,31 @@ function StringList({ items, onChange, placeholder }: StringListProps) {
 
   const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i))
 
+  const handleDragStart = (i: number) => { dragIdx.current = i }
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault() }
+
+  const handleDrop = (targetIdx: number) => {
+    const srcIdx = dragIdx.current
+    if (srcIdx === null || srcIdx === targetIdx) return
+    const next = [...items]
+    const [moved] = next.splice(srcIdx, 1)
+    next.splice(targetIdx, 0, moved)
+    onChange(next)
+    dragIdx.current = null
+  }
+
   return (
     <div className="space-y-2">
       {items.map((item, i) => (
-        <div key={i} className="flex items-center gap-2 px-3 py-2 bg-surface-2 rounded-lg">
+        <div
+          key={i}
+          draggable
+          onDragStart={() => handleDragStart(i)}
+          onDragOver={handleDragOver}
+          onDrop={() => handleDrop(i)}
+          className="flex items-center gap-2 px-3 py-2 bg-surface-2 rounded-lg"
+        >
           <GripVertical className="w-3.5 h-3.5 text-text-3 cursor-grab flex-shrink-0" />
           <span className="flex-1 text-sm text-text">{item}</span>
           <button

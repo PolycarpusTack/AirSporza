@@ -1,10 +1,50 @@
 import { Router } from 'express'
+import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { parseId } from '../utils/parseId.js'
 
 const router = Router()
+
+const stageSchema = Joi.object({
+  name: Joi.string().required(),
+  stageType: Joi.string().required(),
+  sortOrder: Joi.number().integer().default(0),
+  advancementRules: Joi.object().default({}),
+  sportMetadata: Joi.object().default({}),
+})
+
+const seasonCreateSchema = Joi.object({
+  competitionId: Joi.number().integer().positive().required(),
+  name: Joi.string().required(),
+  startDate: Joi.string().isoDate().required(),
+  endDate: Joi.string().isoDate().required(),
+  sportMetadata: Joi.object().default({}),
+  stages: Joi.array().items(stageSchema).optional(),
+})
+
+const seasonUpdateSchema = Joi.object({
+  name: Joi.string().optional(),
+  startDate: Joi.string().isoDate().optional(),
+  endDate: Joi.string().isoDate().optional(),
+  sportMetadata: Joi.object().optional(),
+})
+
+const stageCreateSchema = Joi.object({
+  name: Joi.string().required(),
+  stageType: Joi.string().required(),
+  sortOrder: Joi.number().integer().default(0),
+  advancementRules: Joi.object().default({}),
+  sportMetadata: Joi.object().default({}),
+})
+
+const roundCreateSchema = Joi.object({
+  name: Joi.string().required(),
+  roundNumber: Joi.number().integer().required(),
+  scheduledDateStart: Joi.string().isoDate().allow(null).optional(),
+  scheduledDateEnd: Joi.string().isoDate().allow(null).optional(),
+})
 
 // List seasons (optional ?competitionId filter)
 router.get('/', async (req, res, next) => {
@@ -57,11 +97,10 @@ router.get('/:id', async (req, res, next) => {
 // Create season (with optional nested stages)
 router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const { competitionId, name, startDate, endDate, sportMetadata, stages } = req.body
+    const { error, value } = seasonCreateSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
 
-    if (!competitionId || !name || !startDate || !endDate) {
-      return next(createError(400, 'competitionId, name, startDate, and endDate are required'))
-    }
+    const { competitionId, name, startDate, endDate, sportMetadata, stages } = value
 
     const season = await prisma.season.create({
       data: {
@@ -103,7 +142,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
     })
     if (!existing) return next(createError(404, 'Season not found'))
 
-    const { name, startDate, endDate, sportMetadata } = req.body
+    const { error, value } = seasonUpdateSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
+
+    const { name, startDate, endDate, sportMetadata } = value
     const season = await prisma.season.update({
       where: { id: existing.id },
       data: {
@@ -168,11 +210,10 @@ router.post('/:id/stages', authenticate, authorize('admin'), async (req, res, ne
     })
     if (!season) return next(createError(404, 'Season not found'))
 
-    const { name, stageType, sortOrder, advancementRules, sportMetadata } = req.body
+    const { error: valErr, value } = stageCreateSchema.validate(req.body)
+    if (valErr) return next(createError(400, valErr.details[0].message))
 
-    if (!name || !stageType) {
-      return next(createError(400, 'name and stageType are required'))
-    }
+    const { name, stageType, sortOrder, advancementRules, sportMetadata } = value
 
     const stage = await prisma.stage.create({
       data: {
@@ -200,11 +241,10 @@ router.post('/stages/:stageId/rounds', authenticate, authorize('admin'), async (
     })
     if (!stage) return next(createError(404, 'Stage not found'))
 
-    const { name, roundNumber, scheduledDateStart, scheduledDateEnd } = req.body
+    const { error: valErr, value } = roundCreateSchema.validate(req.body)
+    if (valErr) return next(createError(400, valErr.details[0].message))
 
-    if (!name || roundNumber === undefined) {
-      return next(createError(400, 'name and roundNumber are required'))
-    }
+    const { name, roundNumber, scheduledDateStart, scheduledDateEnd } = value
 
     const round = await prisma.round.create({
       data: {

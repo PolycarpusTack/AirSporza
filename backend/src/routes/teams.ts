@@ -1,10 +1,27 @@
 import { Router } from 'express'
+import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { parseId } from '../utils/parseId.js'
 
 const router = Router()
+
+const teamCreateSchema = Joi.object({
+  name: Joi.string().required(),
+  shortName: Joi.string().allow('', null).optional(),
+  country: Joi.string().allow('', null).optional(),
+  logoUrl: Joi.string().uri().allow('', null).optional(),
+  externalRefs: Joi.object().default({}),
+})
+
+const teamUpdateSchema = Joi.object({
+  name: Joi.string().optional(),
+  shortName: Joi.string().allow('', null).optional(),
+  country: Joi.string().allow('', null).optional(),
+  logoUrl: Joi.string().uri().allow('', null).optional(),
+  externalRefs: Joi.object().optional(),
+})
 
 // List all teams for tenant (with optional search)
 router.get('/', async (req, res, next) => {
@@ -65,11 +82,10 @@ router.get('/:id', async (req, res, next) => {
 // Create team
 router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const { name, shortName, country, logoUrl, externalRefs } = req.body
+    const { error, value } = teamCreateSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
 
-    if (!name) {
-      return next(createError(400, 'Name is required'))
-    }
+    const { name, shortName, country, logoUrl, externalRefs } = value
 
     const team = await prisma.team.create({
       data: {
@@ -77,7 +93,7 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
         shortName,
         country,
         logoUrl,
-        externalRefs: externalRefs || {},
+        externalRefs,
         tenantId: req.tenantId!
       }
     })
@@ -96,7 +112,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
     })
     if (!existing) return next(createError(404, 'Team not found'))
 
-    const { name, shortName, country, logoUrl, externalRefs } = req.body
+    const { error: valErr, value } = teamUpdateSchema.validate(req.body)
+    if (valErr) return next(createError(400, valErr.details[0].message))
+
+    const { name, shortName, country, logoUrl, externalRefs } = value
     const team = await prisma.team.update({
       where: { id: existing.id },
       data: { name, shortName, country, logoUrl, externalRefs }

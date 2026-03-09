@@ -1,10 +1,27 @@
 import { Router } from 'express'
+import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { parseId } from '../utils/parseId.js'
 
 const router = Router()
+
+const venueCreateSchema = Joi.object({
+  name: Joi.string().required(),
+  timezone: Joi.string().default('Europe/Brussels'),
+  country: Joi.string().allow('', null).optional(),
+  address: Joi.string().allow('', null).optional(),
+  capacity: Joi.number().integer().min(0).allow(null).optional(),
+})
+
+const venueUpdateSchema = Joi.object({
+  name: Joi.string().optional(),
+  timezone: Joi.string().optional(),
+  country: Joi.string().allow('', null).optional(),
+  address: Joi.string().allow('', null).optional(),
+  capacity: Joi.number().integer().min(0).allow(null).optional(),
+})
 
 // List all venues for tenant
 router.get('/', async (req, res, next) => {
@@ -45,16 +62,15 @@ router.get('/:id', async (req, res, next) => {
 // Create venue (admin only)
 router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const { name, timezone, country, address, capacity } = req.body
+    const { error, value } = venueCreateSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
 
-    if (!name) {
-      return next(createError(400, 'Name is required'))
-    }
+    const { name, timezone, country, address, capacity } = value
 
     const venue = await prisma.venue.create({
       data: {
         name,
-        timezone: timezone || 'Europe/Brussels',
+        timezone,
         country,
         address,
         capacity,
@@ -76,7 +92,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
     })
     if (!existing) return next(createError(404, 'Venue not found'))
 
-    const { name, timezone, country, address, capacity } = req.body
+    const { error: valErr, value } = venueUpdateSchema.validate(req.body)
+    if (valErr) return next(createError(400, valErr.details[0].message))
+
+    const { name, timezone, country, address, capacity } = value
     const venue = await prisma.venue.update({
       where: { id: existing.id },
       data: { name, timezone, country, address, capacity }

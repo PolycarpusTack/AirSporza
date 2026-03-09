@@ -35,7 +35,12 @@ export const DEFAULT_ORG_CONFIG: OrgConfig = {
   onDemandChannels: [
     { name: 'VRT MAX', color: '#EC4899' },
   ],
-  radioChannels: ['Radio 1', 'MNM', 'Klara', 'Studio Brussel'],
+  radioChannels: [
+    { name: 'Radio 1',       color: '#10B981' },
+    { name: 'MNM',           color: '#3B82F6' },
+    { name: 'Klara',         color: '#8B5CF6' },
+    { name: 'Studio Brussel', color: '#EF4444' },
+  ],
   phases: ['Group Stage', 'Round of 16', 'Quarter-final', 'Semi-final', 'Final', 'Regular Season', 'Stage'],
   categories: ['Men', 'Women', 'Mixed', 'Youth'],
   complexes: ['Lotto Arena', 'Koning Boudewijnstadion', 'Jan Breydel', 'Bosuil', 'Roland Garros', 'Spa-Francorchamps', 'Stade de France', 'Arthur Ashe Stadium', 'Col du Tourmalet', 'Ghelamco Arena'],

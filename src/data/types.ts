@@ -211,7 +211,7 @@ export interface ChannelConfig {
 export interface OrgConfig {
   channels: ChannelConfig[]
   onDemandChannels: ChannelConfig[]
-  radioChannels: string[]
+  radioChannels: ChannelConfig[]
   phases: string[]
   categories: string[]
   complexes: string[]

@@ -5,14 +5,16 @@ import { prisma } from '../src/db/prisma.js'
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
+    tenant: { findFirst: vi.fn().mockResolvedValue({ id: 'tenant-1', slug: 'default' }) },
     importSchedule: {
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
-      findUnique: vi.fn(),
+      findFirst: vi.fn(),
       delete: vi.fn(),
     },
     importSource: { findUnique: vi.fn() },
+    $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn(),
   }
 }))
@@ -29,12 +31,18 @@ vi.mock('../src/middleware/auth.js', () => ({
   authorize: () => (_: unknown, __: unknown, next: () => void) => next(),
 }))
 
+vi.mock('../src/services/importScheduler.js', () => ({
+  registerJob: vi.fn(),
+  stopJob: vi.fn(),
+  startScheduledImports: vi.fn().mockResolvedValue(undefined),
+}))
+
 const scheduleMock = (prisma as unknown as {
   importSchedule: {
     findMany: ReturnType<typeof vi.fn>
     create: ReturnType<typeof vi.fn>
     update: ReturnType<typeof vi.fn>
-    findUnique: ReturnType<typeof vi.fn>
+    findFirst: ReturnType<typeof vi.fn>
     delete: ReturnType<typeof vi.fn>
   }
 }).importSchedule
@@ -76,9 +84,9 @@ describe('POST /api/import/schedules', () => {
 describe('PATCH /api/import/schedules/:id', () => {
   it('returns 200 and disables the schedule when isEnabled is set to false', async () => {
     const existing = { id: 'sched1', cronExpr: '0 6 * * *', isEnabled: true, source: { code: 'EUROSPORT' } }
-    const updated = { ...existing, isEnabled: false, source: undefined }
-    scheduleMock.findUnique.mockResolvedValue(existing)
-    scheduleMock.update.mockResolvedValue({ id: 'sched1', cronExpr: '0 6 * * *', isEnabled: false })
+    const updated = { id: 'sched1', cronExpr: '0 6 * * *', isEnabled: false }
+    scheduleMock.findFirst.mockResolvedValue(existing)
+    scheduleMock.update.mockResolvedValue(updated)
 
     const res = await request(app)
       .patch('/api/import/schedules/sched1')
@@ -88,7 +96,7 @@ describe('PATCH /api/import/schedules/:id', () => {
   })
 
   it('returns 404 when schedule does not exist', async () => {
-    scheduleMock.findUnique.mockResolvedValue(null)
+    scheduleMock.findFirst.mockResolvedValue(null)
 
     const res = await request(app)
       .patch('/api/import/schedules/nonexistent')

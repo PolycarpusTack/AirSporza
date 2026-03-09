@@ -5,8 +5,11 @@ import { prisma } from '../src/db/prisma.js'
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
-    resource: { findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    tenant: { findFirst: vi.fn().mockResolvedValue({ id: 'tenant-1', slug: 'default' }) },
+    resource: { findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     resourceAssignment: { create: vi.fn(), delete: vi.fn(), findMany: vi.fn() },
+    $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+    $transaction: vi.fn(),
     $disconnect: vi.fn().mockResolvedValue(undefined),
   }
 }))
@@ -19,10 +22,13 @@ const mockResource = (prisma as unknown as {
   resource: {
     findMany: ReturnType<typeof vi.fn>
     create: ReturnType<typeof vi.fn>
-    findUnique: ReturnType<typeof vi.fn>
+    findFirst: ReturnType<typeof vi.fn>
     update: ReturnType<typeof vi.fn>
   }
+  $transaction: ReturnType<typeof vi.fn>
 }).resource
+
+const mockTransaction = (prisma as unknown as { $transaction: ReturnType<typeof vi.fn> }).$transaction
 
 const mockAssignment = (prisma as unknown as {
   resourceAssignment: {
@@ -65,8 +71,16 @@ describe('POST /api/resources/:id/assign', () => {
   it('returns 201', async () => {
     const resource = { id: 1, name: 'OB Van 1', type: 'ob_van', capacity: 1, isActive: true, notes: null }
     const assignment = { id: 10, resourceId: 1, techPlanId: 5, quantity: 1, notes: null, createdAt: new Date().toISOString() }
-    mockResource.findUnique.mockResolvedValue(resource)
-    mockAssignment.create.mockResolvedValue(assignment)
+    mockResource.findFirst.mockResolvedValue(resource)
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const txMock = {
+        resourceAssignment: {
+          aggregate: vi.fn().mockResolvedValue({ _sum: { quantity: 0 } }),
+          create: vi.fn().mockResolvedValue(assignment),
+        },
+      }
+      return fn(txMock)
+    })
     const res = await request(app)
       .post('/api/resources/1/assign')
       .send({ techPlanId: 5 })

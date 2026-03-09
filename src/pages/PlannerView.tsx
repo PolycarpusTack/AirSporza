@@ -178,11 +178,23 @@ function hexToChannelColor(hex: string): { border: string; bg: string; text: str
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
-  // Lighten by ~35% for text
-  const lr = Math.round(r + (255 - r) * 0.35).toString(16).padStart(2, '0')
-  const lg = Math.round(g + (255 - g) * 0.35).toString(16).padStart(2, '0')
-  const lb = Math.round(b + (255 - b) * 0.35).toString(16).padStart(2, '0')
-  return { border: hex, bg: `rgba(${r},${g},${b},0.1)`, text: `#${lr}${lg}${lb}` }
+  // Compute relative luminance (0 = darkest, 1 = lightest)
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  let textColor: string
+  if (luminance > 0.5) {
+    // Light background color — darken for text
+    const dr = Math.round(r * 0.4).toString(16).padStart(2, '0')
+    const dg = Math.round(g * 0.4).toString(16).padStart(2, '0')
+    const db = Math.round(b * 0.4).toString(16).padStart(2, '0')
+    textColor = `#${dr}${dg}${db}`
+  } else {
+    // Dark background color — lighten for text
+    const lr = Math.round(r + (255 - r) * 0.35).toString(16).padStart(2, '0')
+    const lg = Math.round(g + (255 - g) * 0.35).toString(16).padStart(2, '0')
+    const lb = Math.round(b + (255 - b) * 0.35).toString(16).padStart(2, '0')
+    textColor = `#${lr}${lg}${lb}`
+  }
+  return { border: hex, bg: `rgba(${r},${g},${b},0.1)`, text: textColor }
 }
 
 function buildColorMapById(channels: { id: number; color: string }[]): Record<number, { border: string; bg: string; text: string }> {

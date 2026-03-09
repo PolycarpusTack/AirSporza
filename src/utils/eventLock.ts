@@ -50,8 +50,7 @@ export function isEventLocked(
   if (freezeWindowHours > 0) {
     const eventStart = parseEventStart(event)
     if (eventStart) {
-      const now = new Date()
-      const hoursUntilStart = (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60)
+      const hoursUntilStart = (eventStart.getTime() - Date.now()) / (1000 * 60 * 60)
       if (hoursUntilStart < freezeWindowHours) {
         return { locked: true, reason: 'freeze', canOverride: isAdmin }
       }
@@ -87,5 +86,6 @@ function parseEventStart(event: Event): Date | null {
       : null
   if (!dateStr) return null
   const time = event.startTimeBE || '00:00'
-  return new Date(`${dateStr}T${time}:00`)
+  // Parse as UTC so freeze window triggers at the same moment for all users
+  return new Date(`${dateStr}T${time}:00Z`)
 }

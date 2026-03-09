@@ -5,14 +5,17 @@ import { prisma } from '../src/db/prisma.js'
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
+    tenant: { findFirst: vi.fn().mockResolvedValue({ id: 'tenant-1', slug: 'default' }) },
     auditLog: {
       findMany: vi.fn(),
-      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
     },
     event: { update: vi.fn() },
     techPlan: { update: vi.fn() },
     contract: { update: vi.fn() },
+    $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn(),
   },
 }))
@@ -25,7 +28,8 @@ vi.mock('../src/middleware/auth.js', () => ({
 const mockPrisma = prisma as unknown as {
   auditLog: {
     findMany: ReturnType<typeof vi.fn>
-    findUnique: ReturnType<typeof vi.fn>
+    findFirst: ReturnType<typeof vi.fn>
+    count: ReturnType<typeof vi.fn>
     create: ReturnType<typeof vi.fn>
   }
   event: { update: ReturnType<typeof vi.fn> }
@@ -46,7 +50,7 @@ describe('GET /api/audit/:entityType/:entityId', () => {
 
 describe('POST /api/audit/:logId/restore', () => {
   it('returns 200 and calls update with oldValue', async () => {
-    mockPrisma.auditLog.findUnique.mockResolvedValue({
+    mockPrisma.auditLog.findFirst.mockResolvedValue({
       id: 'abc', entityType: 'event', entityId: '1',
       oldValue: { participants: 'Old Name' }, newValue: { participants: 'New Name' }
     })
@@ -58,13 +62,13 @@ describe('POST /api/audit/:logId/restore', () => {
   })
 
   it('returns 404 when log entry not found', async () => {
-    mockPrisma.auditLog.findUnique.mockResolvedValue(null)
+    mockPrisma.auditLog.findFirst.mockResolvedValue(null)
     const res = await request(app).post('/api/audit/missing/restore')
     expect(res.status).toBe(404)
   })
 
   it('returns 400 when oldValue is null', async () => {
-    mockPrisma.auditLog.findUnique.mockResolvedValue({
+    mockPrisma.auditLog.findFirst.mockResolvedValue({
       id: 'abc', entityType: 'event', entityId: '1',
       oldValue: null, newValue: { participants: 'Current' }
     })
@@ -73,7 +77,7 @@ describe('POST /api/audit/:logId/restore', () => {
   })
 
   it('returns 400 for unsupported entityType', async () => {
-    mockPrisma.auditLog.findUnique.mockResolvedValue({
+    mockPrisma.auditLog.findFirst.mockResolvedValue({
       id: 'abc', entityType: 'encoder', entityId: '1',
       oldValue: { name: 'old' }, newValue: { name: 'new' }
     })

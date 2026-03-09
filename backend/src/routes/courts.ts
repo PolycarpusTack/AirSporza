@@ -1,10 +1,28 @@
 import { Router } from 'express'
+import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { parseId } from '../utils/parseId.js'
 
 const router = Router()
+
+const courtCreateSchema = Joi.object({
+  venueId: Joi.number().integer().positive().required(),
+  name: Joi.string().required(),
+  capacity: Joi.number().integer().min(0).allow(null).optional(),
+  hasRoof: Joi.boolean().default(false),
+  isShowCourt: Joi.boolean().default(false),
+  broadcastPriority: Joi.number().integer().default(0),
+})
+
+const courtUpdateSchema = Joi.object({
+  name: Joi.string().optional(),
+  capacity: Joi.number().integer().min(0).allow(null).optional(),
+  hasRoof: Joi.boolean().optional(),
+  isShowCourt: Joi.boolean().optional(),
+  broadcastPriority: Joi.number().integer().optional(),
+})
 
 // List courts (filter by venueId query param)
 router.get('/', async (req, res, next) => {
@@ -47,11 +65,10 @@ router.get('/:id', async (req, res, next) => {
 // Create court
 router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const { venueId, name, capacity, hasRoof, isShowCourt, broadcastPriority } = req.body
+    const { error, value } = courtCreateSchema.validate(req.body)
+    if (error) return next(createError(400, error.details[0].message))
 
-    if (!venueId || !name) {
-      return next(createError(400, 'venueId and name are required'))
-    }
+    const { venueId, name, capacity, hasRoof, isShowCourt, broadcastPriority } = value
 
     // Verify venue belongs to tenant
     const venue = await prisma.venue.findFirst({
@@ -64,9 +81,9 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
         venueId,
         name,
         capacity,
-        hasRoof: hasRoof ?? false,
-        isShowCourt: isShowCourt ?? false,
-        broadcastPriority: broadcastPriority ?? 0,
+        hasRoof,
+        isShowCourt,
+        broadcastPriority,
         tenantId: req.tenantId!
       }
     })
@@ -85,7 +102,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
     })
     if (!existing) return next(createError(404, 'Court not found'))
 
-    const { name, capacity, hasRoof, isShowCourt, broadcastPriority } = req.body
+    const { error: valErr, value } = courtUpdateSchema.validate(req.body)
+    if (valErr) return next(createError(400, valErr.details[0].message))
+
+    const { name, capacity, hasRoof, isShowCourt, broadcastPriority } = value
     const court = await prisma.court.update({
       where: { id: existing.id },
       data: { name, capacity, hasRoof, isShowCourt, broadcastPriority }
