@@ -8,6 +8,18 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('Seeding database...')
 
+  // ── Tenant ────────────────────────────────────────────────────────────────
+  try {
+    await prisma.tenant.upsert({
+      where: { slug: 'default' },
+      update: {},
+      create: { name: 'Default', slug: 'default', config: {} },
+    })
+    console.log('Created default tenant')
+  } catch {
+    console.log('Tenant table not available (migration may not be applied yet)')
+  }
+
   // ── Sports ──────────────────────────────────────────────────────────────────
   const sports = await prisma.sport.createMany({
     data: [
