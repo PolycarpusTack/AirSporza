@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Btn } from '../ui'
+import { weekMonday, addDays, dateStr, timeToMinutes } from '../../utils/dateTime'
 import type { Resource, ResourceAssignment } from '../../services/resources'
 import type { Event, Sport } from '../../data/types'
 
@@ -45,29 +46,6 @@ function sportColor(sportName: string): { bg: string; border: string; text: stri
     border: `hsla(${hue}, 60%, 50%, 0.6)`,
     text: `hsla(${hue}, 60%, 35%, 1)`,
   }
-}
-
-function weekMonday(offsetWeeks = 0): Date {
-  const d = new Date()
-  const day = d.getDay()
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1) + offsetWeeks * 7)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
-}
-
-function dateStr(d: Date): string {
-  return d.toISOString().split('T')[0]
-}
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return (h || 0) * 60 + (m || 0)
 }
 
 const CAL_START_HOUR = 8

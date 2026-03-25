@@ -6,6 +6,7 @@ import { Badge } from '../components/ui'
 import type { Event, DashboardWidget, Contract, EventStatus, BadgeVariant, FieldConfig } from '../data/types'
 import { CONTRACTS } from '../data'
 import { dayLabel } from '../utils'
+import { weekMonday, addDays, dateStr, getDateKey, timeToMinutes, parseDurationMin } from '../utils/dateTime'
 import { isEventLocked, isForwardTransition, lockReasonLabel } from '../utils/eventLock'
 import { computeReadiness, type ReadinessResult } from '../utils/eventReadiness'
 import { useApp } from '../context/AppProvider'
@@ -34,35 +35,6 @@ interface PlannerViewProps {
   onMultiDayCreate?: (prefill: { dates: string[]; startTimeBE: string; duration: string }) => void
 }
 
-// ── Week helpers ─────────────────────────────────────────────────────────────
-
-function weekMonday(offsetWeeks = 0): Date {
-  const d = new Date()
-  const day = d.getDay()
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1) + offsetWeeks * 7)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
-}
-
-function dateStr(d: Date): string {
-  // Use local date components to avoid UTC shift around midnight
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function getDateKey(date: Date | string): string {
-  if (typeof date === 'string') return date.split('T')[0]
-  return dateStr(date)
-}
-
 // ── Calendar helpers ─────────────────────────────────────────────────────────
 
 const CAL_START_HOUR = 8   // 08:00
@@ -70,26 +42,6 @@ const CAL_END_HOUR   = 23  // 23:00
 const CAL_HOURS      = CAL_END_HOUR - CAL_START_HOUR  // 15
 const PX_PER_HOUR    = 60
 const CAL_HEIGHT     = CAL_HOURS * PX_PER_HOUR        // 900
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return (h || 0) * 60 + (m || 0)
-}
-
-function parseDurationMin(duration?: string | null): number {
-  if (!duration) return 90
-  const n = Number(duration)
-  if (!isNaN(n) && n > 0) return n
-  // SMPTE timecode: HH:MM:SS;FF or HH:MM:SS:FF
-  const smpte = duration.match(/^(\d{1,2}):(\d{2}):(\d{2})[;:](\d{2})$/)
-  if (smpte) return Number(smpte[1]) * 60 + Number(smpte[2])
-  // Standard HH:MM format (e.g., "02:00" → 120min)
-  const hhmm = duration.match(/^(\d{1,2}):(\d{2})$/)
-  if (hhmm) return Number(hhmm[1]) * 60 + Number(hhmm[2])
-  const match = duration.match(/(\d+)h\s*(\d+)?m?/)
-  if (match) return Number(match[1]) * 60 + Number(match[2] || 0)
-  return 90
-}
 
 function eventTopPx(time: string): number {
   const mins = timeToMinutes(time)
