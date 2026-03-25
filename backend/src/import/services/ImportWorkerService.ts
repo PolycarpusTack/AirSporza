@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../db/prisma.js'
 import { logger } from '../../utils/logger.js'
+import { env } from '../../config/env.js'
 import { runImportJob } from './ImportJobRunner.js'
 import {
   IMPORT_WORKER_POLL_MS,
@@ -79,7 +80,7 @@ export async function claimNextImportJob(workerId: string) {
 
 export function startImportWorker() {
   let stopped = false
-  const workerId = process.env.IMPORT_WORKER_ID || randomUUID()
+  const workerId = env.IMPORT_WORKER_ID || randomUUID()
 
   logger.info('Import worker started', { workerId, pollMs: IMPORT_WORKER_POLL_MS })
 

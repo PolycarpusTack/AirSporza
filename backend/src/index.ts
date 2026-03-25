@@ -1,5 +1,4 @@
-import { config } from 'dotenv'
-config()
+import { env } from './config/env.js'
 
 import express from 'express'
 import cors from 'cors'
@@ -61,8 +60,8 @@ const io = new SocketServer(httpServer, {
 
 setSocketServer(io)
 
-const PORT = process.env.PORT || 3001
-const databaseUrl = process.env.DATABASE_URL || ''
+const PORT = env.PORT
+const databaseUrl = env.DATABASE_URL
 
 const getDatabaseInfo = () => {
   try {
@@ -117,7 +116,7 @@ app.get('/api/debug/db', authenticate, authorize('admin'), (_req, res) => {
   const db = getDatabaseInfo()
   res.json({
     status: 'ok',
-    environment: process.env.NODE_ENV || 'development',
+    environment: env.NODE_ENV,
     database: db,
   })
 })
@@ -162,7 +161,7 @@ app.use(errorHandler)
 setupSocket(io)
 
 // Daily cron: check for expiring contracts and dispatch webhook events
-if (process.env.NODE_ENV !== 'test') {
+if (env.NODE_ENV !== 'test') {
   const MS_PER_DAY = 24 * 60 * 60 * 1000
   setInterval(() => {
     publishService.checkExpiringContracts().catch(err =>
@@ -171,7 +170,7 @@ if (process.env.NODE_ENV !== 'test') {
   }, MS_PER_DAY)
 }
 
-if (process.env.NODE_ENV !== 'test') {
+if (env.NODE_ENV !== 'test') {
   publishService.resumeFailedDeliveries().catch(err =>
     logger.error('Failed to resume webhook deliveries on startup', { err })
   )
@@ -193,11 +192,11 @@ const gracefulShutdown = async () => {
 process.on('SIGTERM', gracefulShutdown)
 process.on('SIGINT', gracefulShutdown)
 
-if (process.env.NODE_ENV !== 'test') {
+if (env.NODE_ENV !== 'test') {
   httpServer.listen(PORT, () => {
     const db = getDatabaseInfo()
     logger.info(`Server running on port ${PORT}`)
-    logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`)
+    logger.info(`Environment: ${env.NODE_ENV}`)
     logger.info(`Database: ${db.host}:${db.port}/${db.database}?schema=${db.schema}`)
   })
 }
