@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { fieldsApi, sportsApi } from '../../services'
 import { Toggle } from '../ui/Toggle'
+import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 import type { FieldDefinition, DropdownList, DropdownOption } from '../../data/types'
 import type { FieldSection } from '../../services/fields'
 
@@ -14,6 +16,7 @@ function slugify(s: string) {
 // ── Panel 1: Field Definitions ──────────────────────────────────────────────
 
 function FieldPanel() {
+  const toast = useToast()
   const [section, setSection] = useState<Section>('event')
   const [fields, setFields] = useState<FieldDefinition[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +30,7 @@ function FieldPanel() {
     setLoading(true)
     fieldsApi.list(section)
       .then(data => setFields(data.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))))
-      .catch(() => {})
+      .catch(err => handleApiError(err, 'Failed to load fields', toast))
       .finally(() => setLoading(false))
   }, [section])
 
@@ -76,7 +79,7 @@ function FieldPanel() {
   }
   const handleDrop = async () => {
     const items = fields.map((f, i) => ({ id: f.id, sortOrder: i }))
-    await fieldsApi.reorder(items).catch(() => {})
+    await fieldsApi.reorder(items).catch(err => handleApiError(err, 'Failed to reorder fields', toast))
     dragIndex.current = null
   }
 
@@ -191,6 +194,7 @@ function FieldPanel() {
 // ── Panel 2: Dropdown Lists ──────────────────────────────────────────────────
 
 function DropdownPanel() {
+  const toast = useToast()
   const [lists, setLists] = useState<DropdownList[]>([])
   const [loading, setLoading] = useState(true)
   const [createForm, setCreateForm] = useState({ id: '', name: '', description: '' })
@@ -202,7 +206,7 @@ function DropdownPanel() {
     setLoading(true)
     fieldsApi.listDropdowns()
       .then(setLists)
-      .catch(() => {})
+      .catch(err => handleApiError(err, 'Failed to load dropdown lists', toast))
       .finally(() => setLoading(false))
   }, [])
 
@@ -297,6 +301,7 @@ function DropdownPanel() {
 // ── Panel 3: Mandatory Fields per Sport ─────────────────────────────────────
 
 function MandatoryPanel() {
+  const toast = useToast()
   const [sports, setSports] = useState<{ id: number; name: string; icon: string }[]>([])
   const [allFields, setAllFields] = useState<FieldDefinition[]>([])
   const [selectedSport, setSelectedSport] = useState<number | null>(null)
@@ -334,7 +339,7 @@ function MandatoryPanel() {
   const save = async () => {
     if (!selectedSport) return
     setSaving(true)
-    await fieldsApi.setMandatory(selectedSport, { fieldIds: [...checked] }).catch(() => {})
+    await fieldsApi.setMandatory(selectedSport, { fieldIds: [...checked] }).catch(err => handleApiError(err, 'Failed to save mandatory fields', toast))
     setSaving(false)
   }
 

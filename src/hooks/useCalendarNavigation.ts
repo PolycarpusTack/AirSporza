@@ -41,7 +41,7 @@ export function useCalendarNavigation(
 
   // ── Load saved views on mount ───────────────────────────────────────────────
   useEffect(() => {
-    savedViewsApi.list('planner').then(setSavedViews).catch(() => {})
+    savedViewsApi.list('planner').then(setSavedViews).catch(err => handleApiError(err, 'Failed to load saved views', toast))
   }, [])
 
   // ── Keyboard navigation for week ───────────────────────────────────────────

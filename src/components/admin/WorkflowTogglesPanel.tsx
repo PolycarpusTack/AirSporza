@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { settingsApi } from '../../services/settings'
 import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 import { Toggle } from '../ui/Toggle'
 
 interface WorkflowToggle {
@@ -30,7 +31,7 @@ export function WorkflowTogglesPanel() {
       if (saved) {
         setToggles(prev => prev.map(t => ({ ...t, enabled: saved[t.id] ?? t.enabled })))
       }
-    }).catch(() => {}).finally(() => setLoading(false))
+    }).catch(err => handleApiError(err, 'Failed to load workflow settings', toast)).finally(() => setLoading(false))
   }, [])
 
   const handleToggle = async (id: string, enabled: boolean) => {

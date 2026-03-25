@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { contractsApi, competitionsApi } from '../../services'
 import { Toggle } from '../ui/Toggle'
+import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 import type { Contract, ContractStatus, CoverageType } from '../../data/types'
 
 const PLATFORM_OPTIONS = ['linear', 'on-demand', 'radio', 'fast', 'pop-up'] as const
@@ -20,6 +22,7 @@ interface CompetitionOption {
 }
 
 export function ContractForm({ contract, onClose, onSaved, canManageContracts }: ContractFormProps) {
+  const toast = useToast()
   const [competitions, setCompetitions] = useState<CompetitionOption[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +50,7 @@ export function ContractForm({ contract, onClose, onSaved, canManageContracts }:
   })
 
   useEffect(() => {
-    competitionsApi.list().then(data => setCompetitions(data as CompetitionOption[])).catch(() => {})
+    competitionsApi.list().then(data => setCompetitions(data as CompetitionOption[])).catch(err => handleApiError(err, 'Failed to load competitions', toast))
   }, [])
 
   const set = <K extends keyof typeof form>(key: K, val: (typeof form)[K]) =>

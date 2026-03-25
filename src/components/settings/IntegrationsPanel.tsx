@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Badge, Btn } from '../ui'
+import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 import {
   importsApi,
   type FieldProvenanceRecord,
@@ -77,6 +79,7 @@ const readJobStat = (job: ImportJob, key: 'recordsProcessed' | 'recordsCreated' 
 }
 
 export function IntegrationsPanel({ userRole, defaultScope = 'events' }: IntegrationsPanelProps) {
+  const toast = useToast()
   const [sources, setSources] = useState<ImportSource[]>([])
   const [jobs, setJobs] = useState<ImportJob[]>([])
   const [mergeCandidates, setMergeCandidates] = useState<ImportMergeCandidate[]>([])
@@ -131,7 +134,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setMetrics(metricsData)
       setSelectedSource(prev => prev || getPreferredSource(sourcesData, selectedScope))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load integrations')
+      handleApiError(err, 'Failed to load integrations', toast)
     } finally {
       setLoading(false)
     }
@@ -169,7 +172,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       const updated = await importsApi.updateSource(source.id, { isEnabled: !source.isEnabled })
       setSources(prev => prev.map(item => item.id === source.id ? updated : item))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update source')
+      handleApiError(err, 'Failed to update source', toast)
     }
   }
 
@@ -204,7 +207,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setNote('')
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run manual sync')
+      handleApiError(err, 'Failed to run manual sync', toast)
     } finally {
       setSubmitting(false)
     }
@@ -217,7 +220,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setMessage(response.message)
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to cancel import job')
+      handleApiError(err, 'Failed to cancel import job', toast)
     }
   }
 
@@ -228,7 +231,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setMessage(response.message)
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to retry import job')
+      handleApiError(err, 'Failed to retry import job', toast)
     }
   }
 
@@ -239,7 +242,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setMessage(response.message)
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to replay dead letter')
+      handleApiError(err, 'Failed to replay dead letter', toast)
     }
   }
 
@@ -250,7 +253,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setMessage(response.message)
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve merge candidate')
+      handleApiError(err, 'Failed to approve merge candidate', toast)
     }
   }
 
@@ -261,7 +264,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setMessage(response.message)
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create entity from merge candidate')
+      handleApiError(err, 'Failed to create entity from merge candidate', toast)
     }
   }
 
@@ -272,7 +275,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setMessage(response.message)
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to ignore merge candidate')
+      handleApiError(err, 'Failed to ignore merge candidate', toast)
     }
   }
 
@@ -295,7 +298,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setAliasSourceId('')
       setAliases(await importsApi.listAliases({ type: aliasType, limit: 5 }))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create alias')
+      handleApiError(err, 'Failed to create alias', toast)
     }
   }
 
@@ -306,7 +309,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setMessage('Alias deleted successfully.')
       setAliases(await importsApi.listAliases({ type: aliasType, limit: 5 }))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete alias')
+      handleApiError(err, 'Failed to delete alias', toast)
     }
   }
 
@@ -322,7 +325,7 @@ export function IntegrationsPanel({ userRole, defaultScope = 'events' }: Integra
       setProvenance(records)
       setMessage(`Loaded ${records.length} provenance records.`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load provenance')
+      handleApiError(err, 'Failed to load provenance', toast)
     }
   }
 

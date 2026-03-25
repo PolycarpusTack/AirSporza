@@ -10,13 +10,13 @@ export function NotificationCenter() {
   const unreadCount = notifications.filter(n => !n.isRead).length
 
   useEffect(() => {
-    notificationsApi.list().then(setNotifications).catch(() => {})
+    notificationsApi.list().then(setNotifications).catch(() => {}) // intentional: background poll
   }, [])
 
   // Poll every 30s
   useEffect(() => {
     const interval = setInterval(() => {
-      notificationsApi.list().then(setNotifications).catch(() => {})
+      notificationsApi.list().then(setNotifications).catch(() => {}) // intentional: background poll
     }, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -31,12 +31,12 @@ export function NotificationCenter() {
   }, [])
 
   const markRead = async (id: string) => {
-    await notificationsApi.markRead(id).catch(() => {})
+    await notificationsApi.markRead(id).catch(() => {}) // intentional: background poll
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
   }
 
   const markAllRead = async () => {
-    await notificationsApi.markAllRead().catch(() => {})
+    await notificationsApi.markAllRead().catch(() => {}) // intentional: background poll
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
   }
 

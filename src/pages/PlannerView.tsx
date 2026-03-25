@@ -27,6 +27,7 @@ import { SkeletonCard } from '../components/planner/EventCard'
 import { minutesToTime } from '../hooks/useDrawToCreate'
 import type { VerticalDragResult } from '../hooks/useVerticalDrag'
 import { minutesToSmpte } from '../utils'
+import { handleApiError } from '../utils/apiError'
 import { useCalendarNavigation } from '../hooks/useCalendarNavigation'
 import { useEventActions } from '../hooks/useEventActions'
 
@@ -113,7 +114,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
 
   // Load contracts from API
   useEffect(() => {
-    contractsApi.list().then(data => setContracts(data as Contract[])).catch(() => {})
+    contractsApi.list().then(data => setContracts(data as Contract[])).catch(err => handleApiError(err, 'Failed to load contracts', toast))
   }, [])
 
   // Intersection Observer for list mode virtualization
@@ -205,7 +206,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
         for (const r of results) Object.assign(merged, r)
         setConflictMap(merged)
       })
-      .catch(() => {})
+      .catch(err => handleApiError(err, 'Failed to check conflicts', toast))
     return () => { cancelled = true }
   }, [weekEventKey])
 

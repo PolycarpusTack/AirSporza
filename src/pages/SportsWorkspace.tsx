@@ -8,6 +8,7 @@ import { crewTemplatesApi } from '../services/crewTemplates'
 import { resourcesApi } from '../services/resources'
 import type { Resource, ResourceAssignment } from '../services/resources'
 import { fmtDate } from '../utils'
+import { handleApiError } from '../utils/apiError'
 import { useSocket } from '../hooks'
 import { useToast } from '../components/Toast'
 import { useApp } from '../context/AppProvider'
@@ -61,9 +62,9 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const { on } = useSocket()
 
   useEffect(() => {
-    encodersApi.list().then(setEncoders).catch(() => {})
-    resourcesApi.list().then(setResources).catch(() => {})
-    crewTemplatesApi.list().then(setCrewTemplates).catch(() => {})
+    encodersApi.list().then(setEncoders).catch(err => handleApiError(err, 'Failed to load encoders', toast))
+    resourcesApi.list().then(setResources).catch(err => handleApiError(err, 'Failed to load resources', toast))
+    crewTemplatesApi.list().then(setCrewTemplates).catch(err => handleApiError(err, 'Failed to load crew templates', toast))
   }, [])
 
   const fetchAllAssignments = useCallback(() => {
@@ -74,8 +75,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
         for (const { id, a } of results) next[id] = a
         setAllAssignments(next)
       })
-      .catch(() => {})
-  }, [resources])
+      .catch(err => handleApiError(err, 'Failed to load resource assignments', toast))
+  }, [resources, toast])
 
   useEffect(() => { fetchAllAssignments() }, [fetchAllAssignments])
 
@@ -180,9 +181,9 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       crewEditTimers.current.delete(key)
       const plan = updated.find(p => p.id === planId)
       if (plan) {
-        techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields }).catch(() => {})
+        techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields }).catch(() => {}) // intentional: fire-and-forget crew field sync
         if (value.trim()) {
-          crewMembersApi.create({ name: value.trim(), roles: [field] }).catch(() => {})
+          crewMembersApi.create({ name: value.trim(), roles: [field] }).catch(() => {}) // intentional: fire-and-forget auto-create
         }
       }
     }, 500))
@@ -215,7 +216,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       if (plan) {
         try {
           await techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields })
-        } catch { /* non-blocking */ }
+        } catch { /* intentional: continue batch on individual failure */ }
       }
     }
     toast.success(`Template applied to ${planIds.length} plan${planIds.length !== 1 ? 's' : ''}`)
