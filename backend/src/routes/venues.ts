@@ -1,27 +1,11 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
-import { parseId } from '../utils/parseId.js'
+import * as s from '../schemas/venues.js'
 
 const router = Router()
-
-const venueCreateSchema = Joi.object({
-  name: Joi.string().required(),
-  timezone: Joi.string().default('Europe/Brussels'),
-  country: Joi.string().allow('', null).optional(),
-  address: Joi.string().allow('', null).optional(),
-  capacity: Joi.number().integer().min(0).allow(null).optional(),
-})
-
-const venueUpdateSchema = Joi.object({
-  name: Joi.string().optional(),
-  timezone: Joi.string().optional(),
-  country: Joi.string().allow('', null).optional(),
-  address: Joi.string().allow('', null).optional(),
-  capacity: Joi.number().integer().min(0).allow(null).optional(),
-})
 
 // List all venues for tenant
 router.get('/', async (req, res, next) => {
@@ -40,10 +24,10 @@ router.get('/', async (req, res, next) => {
 })
 
 // Get venue by id (with courts)
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const venue = await prisma.venue.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId },
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include: {
         courts: { orderBy: { broadcastPriority: 'desc' } }
       }
@@ -60,12 +44,9 @@ router.get('/:id', async (req, res, next) => {
 })
 
 // Create venue (admin only)
-router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('admin'), validate({ body: s.venueCreateSchema }), async (req, res, next) => {
   try {
-    const { error, value } = venueCreateSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    const { name, timezone, country, address, capacity } = value
+    const { name, timezone, country, address, capacity } = req.body
 
     const venue = await prisma.venue.create({
       data: {
@@ -85,17 +66,14 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
 })
 
 // Update venue
-router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/:id', authenticate, authorize('admin'), validate({ params: s.idParam, body: s.venueUpdateSchema }), async (req, res, next) => {
   try {
     const existing = await prisma.venue.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId }
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
     if (!existing) return next(createError(404, 'Venue not found'))
 
-    const { error: valErr, value } = venueUpdateSchema.validate(req.body)
-    if (valErr) return next(createError(400, valErr.details[0].message))
-
-    const { name, timezone, country, address, capacity } = value
+    const { name, timezone, country, address, capacity } = req.body
     const venue = await prisma.venue.update({
       where: { id: existing.id },
       data: { name, timezone, country, address, capacity }
@@ -108,10 +86,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
 })
 
 // Delete venue
-router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.delete('/:id', authenticate, authorize('admin'), validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const toDelete = await prisma.venue.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId }
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
     if (!toDelete) return next(createError(404, 'Venue not found'))
 

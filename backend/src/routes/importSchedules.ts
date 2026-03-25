@@ -1,23 +1,13 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import cron from 'node-cron'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { registerJob, stopJob } from '../services/importScheduler.js'
+import * as s from '../schemas/importSchedules.js'
 
 const router = Router()
-
-const createSchema = Joi.object({
-  sourceId: Joi.string().required(),
-  cronExpr: Joi.string().required(),
-  isEnabled: Joi.boolean(),
-})
-
-const patchSchema = Joi.object({
-  cronExpr: Joi.string(),
-  isEnabled: Joi.boolean(),
-}).min(1)
 
 router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
   try {
@@ -31,15 +21,13 @@ router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
   }
 })
 
-router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('admin'), validate({ body: s.createSchema }), async (req, res, next) => {
   try {
-    const { error, value } = createSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-    if (!cron.validate(value.cronExpr)) return next(createError(400, 'Invalid cron expression'))
+    if (!cron.validate(req.body.cronExpr)) return next(createError(400, 'Invalid cron expression'))
 
-    const schedule = await prisma.importSchedule.create({ data: { ...value, tenantId: req.tenantId! } })
-    if (value.isEnabled !== false) {
-      const src = await prisma.importSource.findUnique({ where: { id: value.sourceId }, select: { code: true } })
+    const schedule = await prisma.importSchedule.create({ data: { ...req.body, tenantId: req.tenantId! } })
+    if (req.body.isEnabled !== false) {
+      const src = await prisma.importSource.findUnique({ where: { id: req.body.sourceId }, select: { code: true } })
       if (!src) return next(createError(500, 'Import source not found after creation'))
       registerJob(schedule.id, schedule.cronExpr, src.code)
     }
@@ -49,12 +37,10 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
   }
 })
 
-router.patch('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.patch('/:id', authenticate, authorize('admin'), validate({ params: s.scheduleIdParam, body: s.patchSchema }), async (req, res, next) => {
   try {
     const id = String(req.params.id)
-    const { error, value } = patchSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-    if (value.cronExpr !== undefined && !cron.validate(value.cronExpr)) {
+    if (req.body.cronExpr !== undefined && !cron.validate(req.body.cronExpr)) {
       return next(createError(400, 'Invalid cron expression'))
     }
 
@@ -66,7 +52,7 @@ router.patch('/:id', authenticate, authorize('admin'), async (req, res, next) =>
 
     const updated = await prisma.importSchedule.update({
       where: { id: schedule.id },
-      data: value,
+      data: req.body,
     })
 
     if (updated.isEnabled) {

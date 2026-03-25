@@ -1,27 +1,11 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
-import { parseId } from '../utils/parseId.js'
+import * as s from '../schemas/teams.js'
 
 const router = Router()
-
-const teamCreateSchema = Joi.object({
-  name: Joi.string().required(),
-  shortName: Joi.string().allow('', null).optional(),
-  country: Joi.string().allow('', null).optional(),
-  logoUrl: Joi.string().uri().allow('', null).optional(),
-  externalRefs: Joi.object().default({}),
-})
-
-const teamUpdateSchema = Joi.object({
-  name: Joi.string().optional(),
-  shortName: Joi.string().allow('', null).optional(),
-  country: Joi.string().allow('', null).optional(),
-  logoUrl: Joi.string().uri().allow('', null).optional(),
-  externalRefs: Joi.object().optional(),
-})
 
 // List all teams for tenant (with optional search)
 router.get('/', async (req, res, next) => {
@@ -63,10 +47,10 @@ router.get('/autocomplete', async (req, res, next) => {
 })
 
 // Get team by id
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const team = await prisma.team.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId }
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
 
     if (!team) {
@@ -80,12 +64,9 @@ router.get('/:id', async (req, res, next) => {
 })
 
 // Create team
-router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('admin'), validate({ body: s.teamCreateSchema }), async (req, res, next) => {
   try {
-    const { error, value } = teamCreateSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    const { name, shortName, country, logoUrl, externalRefs } = value
+    const { name, shortName, country, logoUrl, externalRefs } = req.body
 
     const team = await prisma.team.create({
       data: {
@@ -105,17 +86,14 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
 })
 
 // Update team
-router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/:id', authenticate, authorize('admin'), validate({ params: s.idParam, body: s.teamUpdateSchema }), async (req, res, next) => {
   try {
     const existing = await prisma.team.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId }
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
     if (!existing) return next(createError(404, 'Team not found'))
 
-    const { error: valErr, value } = teamUpdateSchema.validate(req.body)
-    if (valErr) return next(createError(400, valErr.details[0].message))
-
-    const { name, shortName, country, logoUrl, externalRefs } = value
+    const { name, shortName, country, logoUrl, externalRefs } = req.body
     const team = await prisma.team.update({
       where: { id: existing.id },
       data: { name, shortName, country, logoUrl, externalRefs }
@@ -128,10 +106,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
 })
 
 // Delete team
-router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.delete('/:id', authenticate, authorize('admin'), validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const toDelete = await prisma.team.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId }
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
     if (!toDelete) return next(createError(404, 'Team not found'))
 

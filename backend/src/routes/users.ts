@@ -1,8 +1,9 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import * as s from '../schemas/users.js'
 
 const router = Router()
 
@@ -32,21 +33,14 @@ router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
 })
 
 // Update user role
-const updateRoleSchema = Joi.object({
-  role: Joi.string().valid('planner', 'sports', 'contracts', 'admin').required(),
-})
-
-router.put('/:id/role', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/:id/role', authenticate, authorize('admin'), validate({ params: s.userIdParam, body: s.updateRoleSchema }), async (req, res, next) => {
   try {
-    const { error, value } = updateRoleSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
     const userId = req.params.id as string
     const existingUser = await prisma.user.findFirst({ where: { id: userId, tenantId: req.tenantId } })
     if (!existingUser) return next(createError(404, 'User not found'))
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { role: value.role },
+      data: { role: req.body.role },
       select: { id: true, email: true, name: true, role: true }
     })
     res.json(user)
@@ -56,7 +50,7 @@ router.put('/:id/role', authenticate, authorize('admin'), async (req, res, next)
 })
 
 // Delete user (only if no events/techPlans)
-router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.delete('/:id', authenticate, authorize('admin'), validate({ params: s.userIdParam }), async (req, res, next) => {
   try {
     const userId = req.params.id as string
     const user = await prisma.user.findFirst({
