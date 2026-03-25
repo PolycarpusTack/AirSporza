@@ -153,7 +153,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   )
 
   const eventPlans = useMemo(() => selEvent ? realtimePlans.filter(p => p.eventId === selEvent.id) : [], [selEvent, realtimePlans])
-  const selectedSport = useMemo(() => selEvent ? sports.find(s => s.id === selEvent.sportId) : undefined, [selEvent, sports])
+  const selEventSport = useMemo(() => selEvent ? sports.find(s => s.id === selEvent.sportId) : undefined, [selEvent, sports])
   const selectedCompetition = useMemo(() => selEvent ? competitions.find(c => c.id === selEvent.competitionId) : undefined, [selEvent, competitions])
   const crewConflicts = useMemo(() => detectCrewConflicts(realtimePlans, events), [realtimePlans, events])
   const conflictGroups = useMemo(() => groupConflictsByPerson(realtimePlans, events), [realtimePlans, events])
@@ -394,7 +394,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                 {showDetail && (
                   <EventDetailCard
                     event={selEvent}
-                    sport={selectedSport}
+                    sport={selEventSport}
                     competition={selectedCompetition}
                     canEdit={canEdit}
                     onUpdateChannels={handleUpdateChannels}
