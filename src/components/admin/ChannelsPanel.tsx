@@ -242,7 +242,7 @@ export function ChannelsPanel() {
                 rows={3}
                 value={JSON.stringify(form.platformConfig, null, 2)}
                 onChange={e => {
-                  try { setForm(f => ({ ...f, platformConfig: JSON.parse(e.target.value) })) } catch { /* ignore invalid JSON while typing */ }
+                  try { setForm(f => ({ ...f, platformConfig: JSON.parse(e.target.value) })) } catch { /* intentional: ignore invalid JSON while typing */ }
                 }}
               />
             </div>

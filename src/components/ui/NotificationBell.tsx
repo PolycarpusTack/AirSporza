@@ -7,7 +7,7 @@ export function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    notificationsApi.list().then(setItems).catch(() => {})
+    notificationsApi.list().then(setItems).catch(() => {}) // intentional: background poll
   }, [])
 
   useEffect(() => {

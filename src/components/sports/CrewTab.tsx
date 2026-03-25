@@ -3,6 +3,8 @@ import { Search, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown } f
 import { Autocomplete } from '../ui/Autocomplete'
 import { crewMembersApi } from '../../services/crewMembers'
 import { crewTemplatesApi } from '../../services/crewTemplates'
+import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 import type { Event, TechPlan, FieldConfig, CrewTemplate } from '../../data/types'
 import type { ConflictMap } from '../../utils/crewConflicts'
 
@@ -18,6 +20,7 @@ interface CrewTabProps {
 type SortDir = 'asc' | 'desc' | null
 
 export function CrewTab({ plans, events, crewFields, conflicts, onCrewEdit, onBatchApply }: CrewTabProps) {
+  const toast = useToast()
   const [search, setSearch] = useState('')
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
@@ -33,7 +36,7 @@ export function CrewTab({ plans, events, crewFields, conflicts, onCrewEdit, onBa
 
   // Load templates once
   useEffect(() => {
-    crewTemplatesApi.list().then(setTemplates).catch(() => {})
+    crewTemplatesApi.list().then(setTemplates).catch(err => handleApiError(err, 'Failed to load crew templates', toast))
   }, [])
 
   // Close template dropdown on outside click

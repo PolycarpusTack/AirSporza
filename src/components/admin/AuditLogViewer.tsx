@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { Download } from 'lucide-react'
 import { auditApi, type AuditEntry, type AuditFilters } from '../../services/audit'
 import { Badge } from '../ui'
+import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 
 export function AuditLogViewer() {
+  const toast = useToast()
   const [logs, setLogs] = useState<AuditEntry[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -16,7 +19,7 @@ export function AuditLogViewer() {
       const result = await auditApi.listAll(filters)
       setLogs(result.logs)
       setTotal(result.total)
-    } catch { /* ignore */ }
+    } catch (err) { handleApiError(err, 'Failed to load audit logs', toast) }
     setLoading(false)
   }
 

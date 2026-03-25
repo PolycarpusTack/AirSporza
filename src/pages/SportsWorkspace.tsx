@@ -8,6 +8,7 @@ import { crewTemplatesApi } from '../services/crewTemplates'
 import { resourcesApi } from '../services/resources'
 import type { Resource, ResourceAssignment } from '../services/resources'
 import { fmtDate } from '../utils'
+import { handleApiError } from '../utils/apiError'
 import { useSocket } from '../hooks'
 import { useToast } from '../components/Toast'
 import { useApp } from '../context/AppProvider'
@@ -61,9 +62,9 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const { on } = useSocket()
 
   useEffect(() => {
-    encodersApi.list().then(setEncoders).catch(() => {})
-    resourcesApi.list().then(setResources).catch(() => {})
-    crewTemplatesApi.list().then(setCrewTemplates).catch(() => {})
+    encodersApi.list().then(setEncoders).catch(err => handleApiError(err, 'Failed to load encoders', toast))
+    resourcesApi.list().then(setResources).catch(err => handleApiError(err, 'Failed to load resources', toast))
+    crewTemplatesApi.list().then(setCrewTemplates).catch(err => handleApiError(err, 'Failed to load crew templates', toast))
   }, [])
 
   const fetchAllAssignments = useCallback(() => {
@@ -74,8 +75,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
         for (const { id, a } of results) next[id] = a
         setAllAssignments(next)
       })
-      .catch(() => {})
-  }, [resources])
+      .catch(err => handleApiError(err, 'Failed to load resource assignments', toast))
+  }, [resources, toast])
 
   useEffect(() => { fetchAllAssignments() }, [fetchAllAssignments])
 
@@ -150,6 +151,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   )
 
   const eventPlans = useMemo(() => selEvent ? realtimePlans.filter(p => p.eventId === selEvent.id) : [], [selEvent, realtimePlans])
+  const selectedSport = useMemo(() => selEvent ? sports.find(s => s.id === selEvent.sportId) : undefined, [selEvent, sports])
+  const selectedCompetition = useMemo(() => selEvent ? competitions.find(c => c.id === selEvent.competitionId) : undefined, [selEvent, competitions])
   const crewConflicts = useMemo(() => detectCrewConflicts(realtimePlans, events), [realtimePlans, events])
   const conflictGroups = useMemo(() => groupConflictsByPerson(realtimePlans, events), [realtimePlans, events])
   const resourceConflicts = useMemo(
@@ -160,7 +163,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     const types = new Set(realtimePlans.map(p => p.planType))
     return Array.from(types).sort()
   }, [realtimePlans])
-  const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
+  const visibleCrewFields = useMemo(() => crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order), [crewFields])
 
   const crewEditTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -178,9 +181,9 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       crewEditTimers.current.delete(key)
       const plan = updated.find(p => p.id === planId)
       if (plan) {
-        techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields }).catch(() => {})
+        techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields }).catch(() => {}) // intentional: fire-and-forget crew field sync
         if (value.trim()) {
-          crewMembersApi.create({ name: value.trim(), roles: [field] }).catch(() => {})
+          crewMembersApi.create({ name: value.trim(), roles: [field] }).catch(() => {}) // intentional: fire-and-forget auto-create
         }
       }
     }, 500))
@@ -213,7 +216,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       if (plan) {
         try {
           await techPlansApi.update(planId, { crew: plan.crew, eventId: plan.eventId, planType: plan.planType, isLivestream: plan.isLivestream, customFields: plan.customFields })
-        } catch { /* non-blocking */ }
+        } catch { /* intentional: continue batch on individual failure */ }
       }
     }
     toast.success(`Template applied to ${planIds.length} plan${planIds.length !== 1 ? 's' : ''}`)
@@ -389,8 +392,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                 {showDetail && (
                   <EventDetailCard
                     event={selEvent}
-                    sport={sports.find(s => s.id === selEvent.sportId)}
-                    competition={competitions.find(c => c.id === selEvent.competitionId)}
+                    sport={selectedSport}
+                    competition={selectedCompetition}
                     canEdit={canEdit}
                     onUpdateChannels={handleUpdateChannels}
                   />

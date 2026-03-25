@@ -5,6 +5,8 @@ import { useCascade } from '../../hooks/useCascade'
 import { api } from '../../utils/api'
 import type { Court, CascadeEstimate, Alert } from '../../data/types'
 import { Activity, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 
 interface CascadeDashboardProps {
   date: string
@@ -13,13 +15,14 @@ interface CascadeDashboardProps {
 }
 
 export function CascadeDashboard({ date, onDateChange, onSwitchAction }: CascadeDashboardProps) {
+  const toast = useToast()
   const [courts, setCourts] = useState<Court[]>([])
   const [selectedCourtId, setSelectedCourtId] = useState<number | undefined>()
   const { estimates, alerts, loading, dismissAlert } = useCascade(selectedCourtId, date)
 
   // Fetch courts
   useEffect(() => {
-    api.get<Court[]>('/courts').then(setCourts).catch(() => {})
+    api.get<Court[]>('/courts').then(setCourts).catch(err => handleApiError(err, 'Failed to load courts', toast))
   }, [])
 
   // Auto-select first court

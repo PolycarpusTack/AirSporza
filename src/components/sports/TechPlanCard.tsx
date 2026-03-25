@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Plus, ChevronDown, AlertTriangle } from 'lucide-react'
 import { Autocomplete, Badge, Btn } from '../ui'
 import { crewMembersApi } from '../../services/crewMembers'
@@ -36,7 +36,7 @@ function getCustomFields(plan: TechPlan): CustomField[] {
   return Array.isArray(plan.customFields) ? plan.customFields as CustomField[] : []
 }
 
-export function TechPlanCard({
+export const TechPlanCard = React.memo(function TechPlanCard({
   plan, crewFields, isEditing, showCrew,
   onToggleEdit, onCrewEdit, onOpenSwap,
   onAddCustomField, onUpdateCustomField, onRemoveCustomField,
@@ -242,4 +242,4 @@ export function TechPlanCard({
       </div>
     </div>
   )
-}
+})

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { eventsApi } from '../../services'
+import { addDaysStr } from '../../utils/dateTime'
 
 type RepeatType = 'none' | 'daily' | 'weekdays' | 'every_n_days' | 'matchday'
 
@@ -10,12 +11,6 @@ interface RepeatSectionProps {
 }
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
-function addDaysToDate(dateStr: string, n: number): string {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
-}
 
 function getDayOfWeek(dateStr: string): number {
   const d = new Date(dateStr + 'T00:00:00')
@@ -62,20 +57,20 @@ export function RepeatSection({ startDate, onDatesChange, competitionId }: Repea
       let current = startDate
       while (current <= maxDate && result.length < 100) {
         result.push(current)
-        current = addDaysToDate(current, 1)
+        current = addDaysStr(current, 1)
       }
     } else if (repeatType === 'weekdays') {
       let current = startDate
       while (current <= maxDate && result.length < 100) {
         const dow = getDayOfWeek(current)
         if (selectedDays[dow]) result.push(current)
-        current = addDaysToDate(current, 1)
+        current = addDaysStr(current, 1)
       }
     } else if (repeatType === 'every_n_days') {
       let current = startDate
       while (current <= maxDate && result.length < 100) {
         result.push(current)
-        current = addDaysToDate(current, everyN)
+        current = addDaysStr(current, everyN)
       }
     }
 

@@ -17,6 +17,8 @@ import { settingsApi, type AdminStats } from '../services/settings'
 import { auditApi, type AuditEntry } from '../services/audit'
 import { Badge } from '../components/ui'
 import { Toggle } from '../components/ui/Toggle'
+import { useToast } from '../components/Toast'
+import { handleApiError } from '../utils/apiError'
 
 interface AdminViewProps {
   widgets: DashboardWidget[]
@@ -37,6 +39,7 @@ function SportsTab({ sports, setSports }: {
   sports: (Sport & { _count?: { competitions: number; events: number } })[]
   setSports: React.Dispatch<React.SetStateAction<(Sport & { _count?: { competitions: number; events: number } })[]>>
 }) {
+  const toast = useToast()
   const [showForm, setShowForm] = useState(false)
   const [editSport, setEditSport] = useState<Sport | null>(null)
   const [form, setForm] = useState({ name: '', icon: '', federation: '' })
@@ -58,13 +61,13 @@ function SportsTab({ sports, setSports }: {
         setSports(prev => [...prev, created])
       }
       setShowForm(false)
-    } catch { /* ignore */ } finally {
+    } catch (err) { handleApiError(err, 'Failed to save sport', toast) } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: number) => {
-    await sportsApi.delete(id).catch(() => {})
+    await sportsApi.delete(id).catch(err => handleApiError(err, 'Failed to delete sport', toast))
     setSports(prev => prev.filter(s => s.id !== id))
     setConfirmDelete(null)
   }
@@ -134,6 +137,7 @@ function SportsTab({ sports, setSports }: {
 // ── Competitions Tab ─────────────────────────────────────────────────────────
 
 function CompetitionsTab({ sports }: { sports: Sport[] }) {
+  const toast = useToast()
   const [competitions, setCompetitions] = useState<(Competition & { sport: Sport; _count?: { events: number } })[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -141,7 +145,7 @@ function CompetitionsTab({ sports }: { sports: Sport[] }) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    competitionsApi.list().then(setCompetitions).catch(() => {}).finally(() => setLoading(false))
+    competitionsApi.list().then(setCompetitions).catch(err => handleApiError(err, 'Failed to load competitions', toast)).finally(() => setLoading(false))
   }, [])
 
   const handleSave = async (e: React.FormEvent) => {
@@ -158,7 +162,7 @@ function CompetitionsTab({ sports }: { sports: Sport[] }) {
       setCompetitions(prev => [...prev, { ...created, sport }])
       setShowForm(false)
       setForm({ sportId: 0, name: '', season: '', matches: '' })
-    } catch { /* ignore */ } finally {
+    } catch (err) { handleApiError(err, 'Failed to create competition', toast) } finally {
       setSaving(false)
     }
   }
@@ -221,6 +225,7 @@ function CompetitionsTab({ sports }: { sports: Sport[] }) {
 // ── Encoders Tab ─────────────────────────────────────────────────────────────
 
 function EncodersTab() {
+  const toast = useToast()
   const [encoders, setEncoders] = useState<Encoder[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -229,7 +234,7 @@ function EncodersTab() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    encodersApi.list().then(setEncoders).catch(() => {}).finally(() => setLoading(false))
+    encodersApi.list().then(setEncoders).catch(err => handleApiError(err, 'Failed to load encoders', toast)).finally(() => setLoading(false))
   }, [])
 
   const openCreate = () => { setEditEncoder(null); setForm({ name: '', location: '', notes: '', isActive: true }); setShowForm(true) }
@@ -247,13 +252,13 @@ function EncodersTab() {
         setEncoders(prev => [...prev, created])
       }
       setShowForm(false)
-    } catch { /* ignore */ } finally {
+    } catch (err) { handleApiError(err, 'Failed to save encoder', toast) } finally {
       setSaving(false)
     }
   }
 
   const toggleActive = async (enc: Encoder) => {
-    const updated = await encodersApi.update(enc.id, { isActive: !enc.isActive }).catch(() => null)
+    const updated = await encodersApi.update(enc.id, { isActive: !enc.isActive }).catch(err => { handleApiError(err, 'Failed to toggle encoder', toast); return null })
     if (updated) setEncoders(prev => prev.map(e => e.id === enc.id ? updated : e))
   }
 
@@ -332,6 +337,7 @@ const IMPORT_STAGES: { id: ImportStage; label: string }[] = [
 ]
 
 function CsvImportTab({ sports }: { sports: Sport[] }) {
+  const toast = useToast()
   const [competitions, setCompetitions] = useState<(Competition & { sport: Sport })[]>([])
   const [stage, setStage] = useState<ImportStage>('upload')
   const [file, setFile] = useState<File | null>(null)
@@ -342,7 +348,7 @@ function CsvImportTab({ sports }: { sports: Sport[] }) {
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
-    competitionsApi.list().then(setCompetitions).catch(() => {})
+    competitionsApi.list().then(setCompetitions).catch(err => handleApiError(err, 'Failed to load competitions', toast))
   }, [])
 
   const filteredComps = sportId
@@ -519,6 +525,7 @@ function CsvImportTab({ sports }: { sports: Sport[] }) {
 // ── AdminView ────────────────────────────────────────────────────────────────
 
 export function AdminView({ widgets, activeTab: externalTab, onTabChange }: AdminViewProps) {
+  const toast = useToast()
   const [internalTab, setInternalTab] = useState<AdminTab>('org')
   const activeTab = externalTab ?? internalTab
   const setActiveTab = (tab: AdminTab) => { if (onTabChange) onTabChange(tab); else setInternalTab(tab) }
@@ -536,13 +543,13 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
   const showAudit = visWidgets.some(w => w.id === 'auditLog')
 
   useEffect(() => {
-    sportsApi.list().then(setSports).catch(() => {})
-    settingsApi.getStats().then(setAdminStats).catch(() => {})
-    usersApi.list().then(setUserList).catch(() => {})
+    sportsApi.list().then(setSports).catch(err => handleApiError(err, 'Failed to load sports', toast))
+    settingsApi.getStats().then(setAdminStats).catch(err => handleApiError(err, 'Failed to load admin stats', toast))
+    usersApi.list().then(setUserList).catch(err => handleApiError(err, 'Failed to load users', toast))
     auditApi.listAll({ limit: 20 }).then(r => {
       setAuditLogs(r.logs)
       setAuditTotal(r.total)
-    }).catch(() => {})
+    }).catch(err => handleApiError(err, 'Failed to load audit logs', toast))
   }, [])
 
   const sidebarGroups: AdminGroup[] = [

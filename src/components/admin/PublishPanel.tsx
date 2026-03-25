@@ -343,7 +343,7 @@ function DeliveriesTab() {
 
   const handleBulkRetry = async () => {
     for (const id of failedIds) {
-      try { await publishApi.retryDelivery(id) } catch { /* continue */ }
+      try { await publishApi.retryDelivery(id) } catch { /* intentional: continue batch on individual failure */ }
     }
     toast.success(`${failedIds.length} retries queued`)
     void load()

@@ -6,6 +6,7 @@ import type { Resource, ResourceAssignment } from '../../services/resources'
 import type { Event, TechPlan, Sport } from '../../data/types'
 import { ResourceTimeline } from './ResourceTimeline'
 import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 import { fmtDate } from '../../utils'
 
 interface ResourcesTabProps {
@@ -32,9 +33,9 @@ export function ResourcesTab({ resources, techPlans, events, sports }: Resources
         for (const { id, a } of results) next[id] = a
         setAssignments(next)
       })
-      .catch(() => {})
+      .catch(err => handleApiError(err, 'Failed to load resource assignments', toast))
     return () => { cancelled = true }
-  }, [resources])
+  }, [resources, toast])
 
   useEffect(() => {
     const cleanup = fetchAssignments()

@@ -1,22 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Btn } from '../ui'
+import { getDateKey, addDaysStr } from '../../utils/dateTime'
 import type { Event } from '../../data/types'
 
 interface DuplicatePopoverProps {
   event: Event
   onDuplicate: (targetDate: string) => void
   onClose: () => void
-}
-
-function toDateStr(d: Date | string): string {
-  if (typeof d === 'string') return d.slice(0, 10)
-  return d.toISOString().slice(0, 10)
-}
-
-function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
 }
 
 function formatLabel(dateStr: string): string {
@@ -28,9 +18,9 @@ function formatLabel(dateStr: string): string {
 }
 
 export function DuplicatePopover({ event, onDuplicate, onClose }: DuplicatePopoverProps) {
-  const sourceDate = toDateStr(event.startDateBE)
-  const tomorrow = useMemo(() => addDays(sourceDate, 1), [sourceDate])
-  const nextWeek = useMemo(() => addDays(sourceDate, 7), [sourceDate])
+  const sourceDate = getDateKey(event.startDateBE)
+  const tomorrow = useMemo(() => addDaysStr(sourceDate, 1), [sourceDate])
+  const nextWeek = useMemo(() => addDaysStr(sourceDate, 7), [sourceDate])
   const [customDate, setCustomDate] = useState('')
 
   return (

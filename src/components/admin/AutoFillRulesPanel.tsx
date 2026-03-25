@@ -5,6 +5,7 @@ import { channelsApi } from '../../services/channels'
 import type { Channel } from '../../data/types'
 import { useApp } from '../../context/AppProvider'
 import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 
 export function AutoFillRulesPanel() {
   const [rules, setRules] = useState<AutoFillRule[]>([])
@@ -14,13 +15,13 @@ export function AutoFillRulesPanel() {
   const [channelList, setChannelList] = useState<Channel[]>([])
 
   useEffect(() => {
-    channelsApi.list().then(setChannelList).catch(() => {})
+    channelsApi.list().then(setChannelList).catch(err => handleApiError(err, 'Failed to load channels', toast))
   }, [])
 
   useEffect(() => {
     settingsApi.getAutoFillRules()
       .then(r => setRules(r.rules))
-      .catch(() => {})
+      .catch(err => handleApiError(err, 'Failed to load auto-fill rules', toast))
       .finally(() => setLoading(false))
   }, [])
 

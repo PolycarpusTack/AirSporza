@@ -11,24 +11,11 @@ import type {
   FieldProvenanceRecord,
 } from '../services/imports'
 import { Toggle } from '../components/ui/Toggle'
+import { useToast } from '../components/Toast'
+import { handleApiError } from '../utils/apiError'
+import { fmtAgo, fmtDateTime } from '../utils/dateTime'
 
 type ImportTab = 'sources' | 'jobs' | 'review' | 'dead-letters' | 'aliases' | 'provenance'
-
-function fmtAgo(iso: string | null): string {
-  if (!iso) return '—'
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
-}
-
-function fmtDateTime(iso: string | null): string {
-  if (!iso) return '—'
-  return new Intl.DateTimeFormat('en-BE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
-}
 
 function readJobStat(job: ImportJob, key: string): number {
   const v = job.statsJson[key]
@@ -38,6 +25,7 @@ function readJobStat(job: ImportJob, key: string): number {
 // ── Sources ───────────────────────────────────────────────────────────────────
 
 function SourcesTab({ metrics }: { metrics: ImportMetrics | null }) {
+  const toast = useToast()
   const [sources, setSources] = useState<ImportSource[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
@@ -45,11 +33,11 @@ function SourcesTab({ metrics }: { metrics: ImportMetrics | null }) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    importsApi.listSources().then(setSources).catch(() => {}).finally(() => setLoading(false))
+    importsApi.listSources().then(setSources).catch(err => handleApiError(err, 'Failed to load sources', toast)).finally(() => setLoading(false))
   }, [])
 
   const handleToggle = async (src: ImportSource) => {
-    const updated = await importsApi.updateSource(src.id, { isEnabled: !src.isEnabled }).catch(() => null)
+    const updated = await importsApi.updateSource(src.id, { isEnabled: !src.isEnabled }).catch(err => { handleApiError(err, 'Failed to toggle source', toast); return null })
     if (updated) setSources(prev => prev.map(s => s.id === updated.id ? updated : s))
   }
 
@@ -267,6 +255,7 @@ const JOB_STATUS: Record<string, string> = {
 const SCOPES = ['sports', 'competitions', 'teams', 'events', 'fixtures', 'live']
 
 function JobsTab() {
+  const toast = useToast()
   const [jobs, setJobs] = useState<ImportJob[]>([])
   const [sources, setSources] = useState<ImportSource[]>([])
   const [loading, setLoading] = useState(true)
@@ -278,7 +267,7 @@ function JobsTab() {
   useEffect(() => {
     Promise.all([importsApi.listJobs({ limit: 50 }), importsApi.listSources()])
       .then(([j, s]) => { setJobs(j); setSources(s) })
-      .catch(() => {})
+      .catch(err => handleApiError(err, 'Failed to load jobs', toast))
       .finally(() => setLoading(false))
   }, [])
 
@@ -286,12 +275,12 @@ function JobsTab() {
     setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   const handleCancel = async (id: string) => {
-    const res = await importsApi.cancelJob(id).catch(() => null)
+    const res = await importsApi.cancelJob(id).catch(err => { handleApiError(err, 'Failed to cancel job', toast); return null })
     if (res) setJobs(prev => prev.map(j => j.id === id ? res.job : j))
   }
 
   const handleRetry = async (id: string) => {
-    const res = await importsApi.retryJob(id).catch(() => null)
+    const res = await importsApi.retryJob(id).catch(err => { handleApiError(err, 'Failed to retry job', toast); return null })
     if (res) setJobs(prev => prev.map(j => j.id === id ? res.job : j))
   }
 
@@ -309,7 +298,7 @@ function JobsTab() {
       setJobs(prev => [res.job, ...prev])
       setShowNewJob(false)
       setNewJob(p => ({ ...p, note: '' }))
-    } catch { /* ignore */ } finally { setCreating(false) }
+    } catch (err) { handleApiError(err, 'Failed to create job', toast) } finally { setCreating(false) }
   }
 
   if (loading) return <div className="card p-8 text-center text-text-3 text-sm animate-pulse">Loading jobs…</div>
@@ -480,21 +469,22 @@ function JobsTab() {
 // ── Review (Merge Candidates) ─────────────────────────────────────────────────
 
 function ReviewTab() {
+  const toast = useToast()
   const [candidates, setCandidates] = useState<ImportMergeCandidate[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     importsApi.listMergeCandidates({ status: 'pending' })
-      .then(setCandidates).catch(() => {}).finally(() => setLoading(false))
+      .then(setCandidates).catch(err => handleApiError(err, 'Failed to load merge candidates', toast)).finally(() => setLoading(false))
   }, [])
 
   const handleApprove = async (c: ImportMergeCandidate) => {
-    const res = await importsApi.approveMergeCandidate(c.id, c.suggestedEntityId).catch(() => null)
+    const res = await importsApi.approveMergeCandidate(c.id, c.suggestedEntityId).catch(err => { handleApiError(err, 'Failed to approve candidate', toast); return null })
     if (res) setCandidates(prev => prev.filter(x => x.id !== c.id))
   }
 
   const handleCreateNew = async (id: string) => {
-    const res = await importsApi.createMergeCandidateEntity(id).catch(() => null)
+    const res = await importsApi.createMergeCandidateEntity(id).catch(err => { handleApiError(err, 'Failed to create entity', toast); return null })
     if (res) setCandidates(prev => prev.filter(c => c.id !== id))
   }
 
@@ -567,16 +557,17 @@ function ReviewTab() {
 // ── Dead Letters ──────────────────────────────────────────────────────────────
 
 function DeadLettersTab() {
+  const toast = useToast()
   const [letters, setLetters] = useState<ImportDeadLetter[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     importsApi.listDeadLetters({ resolved: 'false' })
-      .then(setLetters).catch(() => {}).finally(() => setLoading(false))
+      .then(setLetters).catch(err => handleApiError(err, 'Failed to load dead letters', toast)).finally(() => setLoading(false))
   }, [])
 
   const handleReplay = async (id: string) => {
-    const res = await importsApi.replayDeadLetter(id).catch(() => null)
+    const res = await importsApi.replayDeadLetter(id).catch(err => { handleApiError(err, 'Failed to replay dead letter', toast); return null })
     if (res) setLetters(prev => prev.filter(l => l.id !== id))
   }
 
@@ -628,6 +619,7 @@ function DeadLettersTab() {
 type AliasType = 'team' | 'competition' | 'venue'
 
 function AliasesTab({ sources }: { sources: ImportSource[] }) {
+  const toast = useToast()
   const [aliasType, setAliasType] = useState<AliasType>('team')
   const [aliases, setAliases] = useState<ImportAliasRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -637,7 +629,7 @@ function AliasesTab({ sources }: { sources: ImportSource[] }) {
 
   const loadAliases = (type: AliasType) => {
     setLoading(true)
-    importsApi.listAliases({ type, limit: 50 }).then(setAliases).catch(() => {}).finally(() => setLoading(false))
+    importsApi.listAliases({ type, limit: 50 }).then(setAliases).catch(err => handleApiError(err, 'Failed to load aliases', toast)).finally(() => setLoading(false))
   }
 
   useEffect(() => { loadAliases(aliasType) }, [aliasType])
@@ -661,7 +653,7 @@ function AliasesTab({ sources }: { sources: ImportSource[] }) {
   }
 
   const handleDelete = async (id: string) => {
-    await importsApi.deleteAlias(aliasType, id).catch(() => {})
+    await importsApi.deleteAlias(aliasType, id).catch(err => handleApiError(err, 'Failed to delete alias', toast))
     setAliases(prev => prev.filter(a => a.id !== id))
   }
 
@@ -851,14 +843,15 @@ function ProvenanceTab() {
 // ── ImportView ────────────────────────────────────────────────────────────────
 
 export function ImportView() {
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState<ImportTab>('sources')
   const [metrics, setMetrics] = useState<ImportMetrics | null>(null)
   const [sources, setSources] = useState<ImportSource[]>([])
   const [refreshing, setRefreshing] = useState(false)
 
   const loadMetrics = () => {
-    importsApi.metrics().then(setMetrics).catch(() => {})
-    importsApi.listSources().then(setSources).catch(() => {})
+    importsApi.metrics().then(setMetrics).catch(err => handleApiError(err, 'Failed to load metrics', toast))
+    importsApi.listSources().then(setSources).catch(err => handleApiError(err, 'Failed to load sources', toast))
   }
 
   useEffect(() => { loadMetrics() }, [])

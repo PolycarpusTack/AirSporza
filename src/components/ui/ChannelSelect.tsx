@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { channelsApi } from '../../services/channels'
+import { useToast } from '../Toast'
+import { handleApiError } from '../../utils/apiError'
 import type { Channel, ChannelType } from '../../data/types'
 
 interface ChannelSelectProps {
@@ -21,6 +23,7 @@ export function ChannelSelect({
   disabled = false,
   allowClear = false,
 }: ChannelSelectProps) {
+  const toast = useToast()
   const [channels, setChannels] = useState<Channel[]>([])
   const [loading, setLoading] = useState(true)
   const loadedType = useRef<ChannelType | undefined>(undefined)
@@ -30,7 +33,7 @@ export function ChannelSelect({
     loadedType.current = type
     channelsApi.list(type)
       .then(setChannels)
-      .catch(() => setChannels([]))
+      .catch(err => { handleApiError(err, 'Failed to load channels', toast); setChannels([]) })
       .finally(() => setLoading(false))
   }, [type])
 
@@ -87,10 +90,11 @@ export function ChannelSelect({
  * Useful for display-only contexts.
  */
 export function useChannelLookup() {
+  const toast = useToast()
   const [channels, setChannels] = useState<Channel[]>([])
 
   useEffect(() => {
-    channelsApi.list().then(setChannels).catch(() => {})
+    channelsApi.list().then(setChannels).catch(err => handleApiError(err, 'Failed to load channels', toast))
   }, [])
 
   const getChannel = (id: number | null | undefined): Channel | undefined =>

@@ -4,6 +4,8 @@ import type { DashboardWidget, Contract } from '../data/types'
 import { contractsApi } from '../services'
 import { fmtDate, daysUntil } from '../utils'
 import { useAuth } from '../hooks'
+import { useToast } from '../components/Toast'
+import { handleApiError } from '../utils/apiError'
 import { ContractForm } from '../components/forms/ContractForm'
 
 // ── Expandable detail panel ───────────────────────────────────────────────────
@@ -70,6 +72,7 @@ const statusConf: Record<string, { l: string; i: string; color: string; textColo
 
 export function ContractsView({ widgets }: ContractsViewProps) {
   const { user } = useAuth()
+  const toast = useToast()
   const [data, setData] = useState<ContractWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
@@ -89,7 +92,7 @@ export function ContractsView({ widgets }: ContractsViewProps) {
     setLoading(true)
     contractsApi.list()
       .then(setData)
-      .catch(() => {})
+      .catch(err => handleApiError(err, 'Failed to load contracts', toast))
       .finally(() => setLoading(false))
   }, [])
 
