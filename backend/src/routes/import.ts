@@ -1,42 +1,18 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { getImportSourceRuntimeStatus } from '../import/adapters/index.js'
 import type { CanonicalImportEvent } from '../import/types.js'
 import { mergeImportJobStats, readImportJobStats } from '../import/services/ImportJobState.js'
 import { manualCreateNormalizedEvent, manualMergeNormalizedEvent } from '../import/services/ImportJobRunner.js'
 import { ensureImportSchemaReady, normalizeImportSchemaError } from '../import/services/ImportSchemaService.js'
+import * as s from '../schemas/import.js'
 
 const router = Router()
 const MINUTE_MS = 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
-
-const sourceUpdateSchema = Joi.object({
-  isEnabled: Joi.boolean(),
-  priority: Joi.number().integer().min(1).max(999),
-  rateLimitPerMinute: Joi.number().integer().min(1).allow(null),
-  rateLimitPerDay: Joi.number().integer().min(1).allow(null),
-}).min(1)
-
-const createJobSchema = Joi.object({
-  sourceCode: Joi.string().required(),
-  entityScope: Joi.string().valid('sports', 'competitions', 'teams', 'events', 'fixtures', 'live').required(),
-  mode: Joi.string().valid('full', 'incremental', 'backfill').default('incremental'),
-  entityId: Joi.alternatives(Joi.string(), Joi.number()).allow(null),
-  note: Joi.string().allow('').max(500),
-})
-
-const mergeDecisionSchema = Joi.object({
-  targetEntityId: Joi.alternatives(Joi.string(), Joi.number()).allow(null),
-})
-
-const aliasSchema = Joi.object({
-  canonicalId: Joi.string().required(),
-  alias: Joi.string().trim().min(2).required(),
-  sourceId: Joi.string().allow(null, ''),
-})
 
 const buildWindowUsage = (
   limit: number | null,
@@ -337,13 +313,8 @@ router.get('/sources', authenticate, authorize('planner', 'sports', 'admin'), as
   }
 })
 
-router.patch('/sources/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.patch('/sources/:id', authenticate, authorize('admin'), validate({ body: s.sourceUpdateSchema }), async (req, res, next) => {
   try {
-    const { error, value } = sourceUpdateSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const existing = await prisma.importSource.findFirst({
       where: { id: String(req.params.id), tenantId: req.tenantId },
     })
@@ -353,7 +324,7 @@ router.patch('/sources/:id', authenticate, authorize('admin'), async (req, res, 
 
     const source = await prisma.importSource.update({
       where: { id: existing.id },
-      data: value,
+      data: req.body,
       include: {
         _count: {
           select: {
@@ -487,13 +458,8 @@ router.get('/merge-candidates', authenticate, authorize('planner', 'sports', 'ad
   }
 })
 
-router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('planner', 'sports', 'admin'), validate({ body: s.mergeDecisionSchema }), async (req, res, next) => {
   try {
-    const { error, value } = mergeDecisionSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const candidate = await prisma.mergeCandidate.findFirst({
       where: { id: String(req.params.id), tenantId: req.tenantId },
       include: {
@@ -514,8 +480,8 @@ router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('plan
       return next(createError(400, 'Merge candidate does not contain a replayable normalized event'))
     }
 
-    const targetEntityId = value.targetEntityId != null
-      ? Number(value.targetEntityId)
+    const targetEntityId = req.body.targetEntityId != null
+      ? Number(req.body.targetEntityId)
       : candidate.suggestedEntityId
         ? Number(candidate.suggestedEntityId)
         : null
@@ -640,12 +606,9 @@ router.post('/merge-candidates/:id/ignore', authenticate, authorize('planner', '
   }
 })
 
-router.post('/jobs', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.post('/jobs', authenticate, authorize('planner', 'sports', 'admin'), validate({ body: s.createJobSchema }), async (req, res, next) => {
   try {
-    const { error, value } = createJobSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
+    const value = req.body
 
     const source = await prisma.importSource.findUnique({
       where: { code: value.sourceCode }
@@ -1097,7 +1060,7 @@ router.get('/aliases', authenticate, authorize('planner', 'sports', 'admin'), as
   }
 })
 
-router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admin'), validate({ body: s.aliasSchema }), async (req, res, next) => {
   try {
     const type = String(req.params.type)
     const delegate = getAliasDelegate(type)
@@ -1105,10 +1068,7 @@ router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admi
       return next(createError(400, 'Alias type must be team, competition, or venue'))
     }
 
-    const { error, value } = aliasSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
+    const value = req.body
 
     const normalizedAlias = normalizeAlias(value.alias)
 
