@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { verifyHmac } from '../middleware/hmac.js'
 import { liveScoreAdapter } from '../adapters/liveScore.js'
 import { logger } from '../utils/logger.js'
 
@@ -74,7 +75,7 @@ router.delete('/configs/:id', authenticate, authorize('admin'), async (req, res,
 // ===========================================================================
 
 // POST /api/adapters/live-score/webhook
-router.post('/live-score/webhook', async (req, res, next) => {
+router.post('/live-score/webhook', verifyHmac(), async (req, res, next) => {
   try {
     // Look up the adapter config to determine the tenant
     const configId = req.body.configId || req.query.configId
@@ -95,15 +96,15 @@ router.post('/live-score/webhook', async (req, res, next) => {
 })
 
 // Placeholder endpoints for future adapters
-router.post('/oop/webhook', async (_req, res) => {
+router.post('/oop/webhook', authenticate, async (_req, res) => {
   res.status(501).json({ error: 'OOP adapter not yet implemented' })
 })
 
-router.post('/live-timing/webhook', async (_req, res) => {
+router.post('/live-timing/webhook', authenticate, async (_req, res) => {
   res.status(501).json({ error: 'Live timing adapter not yet implemented' })
 })
 
-router.post('/as-run/webhook', async (_req, res) => {
+router.post('/as-run/webhook', authenticate, async (_req, res) => {
   res.status(501).json({ error: 'As-run adapter not yet implemented' })
 })
 
