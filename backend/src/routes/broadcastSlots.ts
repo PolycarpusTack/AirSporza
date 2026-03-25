@@ -13,25 +13,23 @@ router.get('/', validate({ query: s.slotsQuery }), async (req, res, next) => {
   try {
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
-    if (req.query.channelId) {
-      where.channelId = Number(req.query.channelId)
-    }
-    if (req.query.eventId) {
-      where.eventId = Number(req.query.eventId)
-    }
-    if (req.query.status) {
-      where.status = req.query.status as string
+    const { channelId, eventId, status, dateStart, dateEnd } = req.query as {
+      channelId?: number
+      eventId?: number
+      status?: string
+      dateStart?: Date
+      dateEnd?: Date
     }
 
+    if (channelId) where.channelId = channelId
+    if (eventId) where.eventId = eventId
+    if (status) where.status = status
+
     // Date range filter on plannedStartUtc
-    if (req.query.dateStart || req.query.dateEnd) {
+    if (dateStart || dateEnd) {
       const plannedStartUtc: Record<string, Date> = {}
-      if (req.query.dateStart) {
-        plannedStartUtc.gte = new Date(req.query.dateStart as string)
-      }
-      if (req.query.dateEnd) {
-        plannedStartUtc.lte = new Date(req.query.dateEnd as string)
-      }
+      if (dateStart) plannedStartUtc.gte = dateStart
+      if (dateEnd) plannedStartUtc.lte = dateEnd
       where.plannedStartUtc = plannedStartUtc
     }
 

@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { verifyHmac } from '../middleware/hmac.js'
+import { webhookLimiter } from '../middleware/rateLimits.js'
 import { liveScoreAdapter } from '../adapters/liveScore.js'
 import { logger } from '../utils/logger.js'
 import * as s from '../schemas/adapters.js'
@@ -77,7 +78,7 @@ router.delete('/configs/:id', authenticate, authorize('admin'), validate({ param
 // ===========================================================================
 
 // POST /api/adapters/live-score/webhook
-router.post('/live-score/webhook', verifyHmac(), async (req, res, next) => {
+router.post('/live-score/webhook', webhookLimiter, verifyHmac(), async (req, res, next) => {
   try {
     // Look up the adapter config to determine the tenant
     const configId = req.body.configId || req.query.configId

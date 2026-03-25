@@ -3,7 +3,7 @@ import { env } from './config/env.js'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import { authLimiter, publicLimiter, standardLimiter, webhookLimiter } from './middleware/rateLimits.js'
+import { authLimiter, publicLimiter, standardLimiter } from './middleware/rateLimits.js'
 import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import { logger } from './utils/logger.js'
@@ -160,7 +160,7 @@ app.use('/api/rights', authenticate, standardLimiter, rightsRoutes)
 app.use('/api/channel-switches', authenticate, standardLimiter, channelSwitchRoutes)
 
 // Adapter routes — CRUD has per-endpoint auth; webhook uses HMAC (not JWT)
-app.use('/api/adapters', webhookLimiter, adapterRoutes)
+app.use('/api/adapters', adapterRoutes)
 
 app.use(errorHandler)
 

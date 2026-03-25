@@ -24,16 +24,24 @@ function enrichDuration(data: Record<string, any>): void {
   }
 }
 
-router.get('/', async (req, res, next) => {
+router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
   try {
-    const { sportId, competitionId, channel, channelId: chId, from, to, search } = req.query
+    const { sportId, competitionId, channel, channelId: chId, from, to, search } = req.query as {
+      sportId?: number
+      competitionId?: number
+      channel?: string
+      channelId?: number
+      from?: string
+      to?: string
+      search?: string
+    }
 
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
-    if (sportId) where.sportId = Number(sportId)
-    if (competitionId) where.competitionId = Number(competitionId)
+    if (sportId) where.sportId = sportId
+    if (competitionId) where.competitionId = competitionId
     if (chId) {
-      where.channelId = Number(chId)
+      where.channelId = chId
     } else if (channel) {
       // Support both channelId (int) and channel name (string) for backwards compat
       const parsed = Number(channel)
@@ -46,11 +54,11 @@ router.get('/', async (req, res, next) => {
 
     if (from || to) {
       where.startDateBE = {}
-      if (from) (where.startDateBE as Record<string, unknown>).gte = new Date(from as string)
-      if (to) (where.startDateBE as Record<string, unknown>).lte = new Date(to as string)
+      if (from) (where.startDateBE as Record<string, unknown>).gte = new Date(from)
+      if (to) (where.startDateBE as Record<string, unknown>).lte = new Date(to)
     }
 
-    const searchTerm = search ? String(search).slice(0, 200) : undefined
+    const searchTerm = search ? search.slice(0, 200) : undefined
     if (searchTerm) {
       where.OR = [
         { participants: { contains: searchTerm, mode: 'insensitive' } },

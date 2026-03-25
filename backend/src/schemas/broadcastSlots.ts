@@ -65,6 +65,6 @@ export const slotsQuery = z.object({
   channelId: z.coerce.number().int().positive().optional(),
   eventId: z.coerce.number().int().positive().optional(),
   status: z.string().optional(),
-  dateStart: z.string().optional(),
-  dateEnd: z.string().optional(),
+  dateStart: z.coerce.date().optional(),
+  dateEnd: z.coerce.date().optional(),
 })
