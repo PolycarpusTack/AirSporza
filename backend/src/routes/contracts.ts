@@ -1,11 +1,11 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { ContractStatus } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
-import { parseId } from '../utils/parseId.js'
 import { writeAuditLog } from '../utils/audit.js'
+import * as s from '../schemas/contracts.js'
 
 const FINANCIAL_FIELDS = ['fee', 'notes'] as const
 
@@ -23,31 +23,6 @@ export function filterContractForRole(
 
 const router = Router()
 const contractStatuses = new Set<string>(Object.values(ContractStatus))
-
-const contractSchema = Joi.object({
-  competitionId:        Joi.number().integer().min(1).required(),
-  status:               Joi.string().valid(...Object.values(ContractStatus)).required(),
-  validFrom:            Joi.string().isoDate().optional().allow(null),
-  validUntil:           Joi.string().isoDate().optional().allow(null),
-  // Legacy boolean rights (still accepted, auto-populate platforms[])
-  linearRights:         Joi.boolean().optional(),
-  maxRights:            Joi.boolean().optional(),
-  radioRights:          Joi.boolean().optional(),
-  sublicensing:         Joi.boolean().optional(),
-  // Enriched rights fields
-  seasonId:             Joi.number().integer().min(1).optional().allow(null),
-  territory:            Joi.array().items(Joi.string()).optional(),
-  platforms:            Joi.array().items(Joi.string().valid('linear', 'on-demand', 'radio', 'fast', 'pop-up')).optional(),
-  coverageType:         Joi.string().valid('LIVE', 'DELAYED', 'HIGHLIGHTS').optional(),
-  maxLiveRuns:          Joi.number().integer().min(0).optional().allow(null),
-  maxPickRunsPerRound:  Joi.number().integer().min(0).optional().allow(null),
-  windowStartUtc:       Joi.string().isoDate().optional().allow(null),
-  windowEndUtc:         Joi.string().isoDate().optional().allow(null),
-  tapeDelayHoursMin:    Joi.number().integer().min(0).optional().allow(null),
-  geoRestriction:       Joi.string().allow('').optional().allow(null),
-  fee:                  Joi.string().allow('').optional().allow(null),
-  notes:                Joi.string().allow('').optional().allow(null),
-})
 
 router.get('/', authenticate, async (req, res, next) => {
   try {
@@ -105,10 +80,10 @@ router.get('/expiring', authenticate, async (req, res, next) => {
   }
 })
 
-router.get('/:id', authenticate, async (req, res, next) => {
+router.get('/:id', authenticate, validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const contract = await prisma.contract.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId },
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include: {
         competition: {
           include: { sport: true }
@@ -137,15 +112,12 @@ function enrichPlatforms(data: Record<string, unknown>): void {
   if (platforms.length > 0) data.platforms = platforms
 }
 
-router.post('/', authenticate, authorize('contracts', 'admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('contracts', 'admin'), validate({ body: s.contractSchema }), async (req, res, next) => {
   try {
-    const { error, value } = contractSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    enrichPlatforms(value)
+    enrichPlatforms(req.body)
 
     const contract = await prisma.contract.create({
-      data: { ...value, tenantId: req.tenantId! },
+      data: { ...req.body, tenantId: req.tenantId! },
       include: { competition: { include: { sport: true } } }
     })
 
@@ -167,20 +139,17 @@ router.post('/', authenticate, authorize('contracts', 'admin'), async (req, res,
   }
 })
 
-router.put('/:id', authenticate, authorize('contracts', 'admin'), async (req, res, next) => {
+router.put('/:id', authenticate, authorize('contracts', 'admin'), validate({ params: s.idParam, body: s.contractSchema }), async (req, res, next) => {
   try {
-    const contractId = parseId(req.params.id)
+    const contractId = Number(req.params.id)
     const existing = await prisma.contract.findFirst({ where: { id: contractId, tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Contract not found'))
 
-    const { error, value } = contractSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    enrichPlatforms(value)
+    enrichPlatforms(req.body)
 
     const contract = await prisma.contract.update({
       where: { id: contractId },
-      data: value,
+      data: req.body,
       include: { competition: { include: { sport: true } } }
     })
 
