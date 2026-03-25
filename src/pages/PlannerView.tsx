@@ -4,7 +4,7 @@ import { Badge } from '../components/ui'
 import type { Event, DashboardWidget, Contract, EventStatus } from '../data/types'
 import { CONTRACTS } from '../data'
 import { dayLabel } from '../utils'
-import { weekMonday, addDays, dateStr, getDateKey } from '../utils/dateTime'
+import { dateStr, getDateKey } from '../utils/dateTime'
 import {
   FALLBACK_COLOR,
   buildColorMapById, statusVariant,
@@ -15,7 +15,6 @@ import { useApp } from '../context/AppProvider'
 import { useAuth } from '../hooks'
 import { contractsApi } from '../services/contracts'
 import { eventsApi, type ConflictWarning } from '../services'
-import { savedViewsApi, type SavedView, type PlannerFilterState } from '../services/savedViews'
 import { useToast } from '../components/Toast'
 import { useChannelLookup } from '../components/ui/ChannelSelect'
 import { BulkActionBar } from '../components/planner/BulkActionBar'
@@ -28,6 +27,8 @@ import { SkeletonCard } from '../components/planner/EventCard'
 import { minutesToTime } from '../hooks/useDrawToCreate'
 import type { VerticalDragResult } from '../hooks/useVerticalDrag'
 import { minutesToSmpte } from '../utils'
+import { useCalendarNavigation } from '../hooks/useCalendarNavigation'
+import { useEventActions } from '../hooks/useEventActions'
 
 interface PlannerViewProps {
   widgets: DashboardWidget[]
@@ -46,8 +47,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const [competitionFilter, setCompetitionFilter] = useState<number | undefined>()
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
   const [readinessFilter, setReadinessFilter] = useState<string>('all')
-  const [weekOffset, setWeekOffset] = useState(0)
-  const [calendarMode, setCalendarMode] = useState(true)
   const [contracts, setContracts] = useState<Contract[]>(CONTRACTS)
   const [conflictMap, setConflictMap] = useState<Record<number, ConflictWarning[]>>({})
   const [selectionMode, setSelectionMode] = useState(false)
@@ -68,17 +67,12 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const listObserverRef = useRef<IntersectionObserver | null>(null)
   const [visibleDays, setVisibleDays] = useState<Set<string>>(new Set())
 
-  const [savedViews, setSavedViews] = useState<SavedView[]>([])
-  const [saveViewName, setSaveViewName] = useState('')
-  const [showSaveInput, setShowSaveInput] = useState(false)
-
   const [ctxMenu, setCtxMenu] = useState<{
     x: number; y: number
     event?: Event
     date?: string
     time?: string
   } | null>(null)
-  const clipboardRef = useRef<Event | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Event | null>(null)
 
   const { sports, competitions, orgConfig, setEvents, events: contextEvents, applyOptimisticEvent, revertOptimisticEvent, crewFields, techPlans } = useApp()
@@ -86,65 +80,31 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const toast = useToast()
   const freezeHours = orgConfig.freezeWindowHours ?? 3
 
+  const { channels: apiChannels, getChannel } = useChannelLookup()
+
+  // ── Calendar navigation hook ──────────────────────────────────────────────
+  const nav = useCalendarNavigation(scrollToDate, {
+    channelFilter, sportFilter, competitionFilter, statusFilter, localSearch,
+  }, {
+    setChannelFilter, setSportFilter, setCompetitionFilter, setStatusFilter,
+    setLocalSearch, setSearchInput,
+    findChannelByName: (name: string) => apiChannels.find(c => c.name === name),
+  })
+  const {
+    setWeekOffset, calendarMode, setCalendarMode,
+    savedViews, saveViewName, setSaveViewName, showSaveInput, setShowSaveInput,
+    weekFromStr, weekToStr, weekDays, todayStr, weekLabel, currentWeekValue,
+    handleSaveView, handleLoadView, handleDeleteView, handleWeekPickerChange,
+  } = nav
+
+  // ── Event actions hook ────────────────────────────────────────────────────
+  const { handleCtxStatusChange, handleCtxDelete, handleCtxDuplicate, handleCtxPaste, clipboardRef } = useEventActions({
+    setEvents, freezeHours, userRole: user?.role,
+  })
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
-
-  useEffect(() => {
-    savedViewsApi.list('planner').then(setSavedViews).catch(() => {})
-  }, [])
-
-  const handleSaveView = async () => {
-    if (!saveViewName.trim()) return
-    try {
-      const view = await savedViewsApi.create(saveViewName.trim(), 'planner', {
-        channelFilter,
-        calendarMode: calendarMode ? 'calendar' : 'list',
-        sportFilter,
-        competitionFilter,
-        statusFilter,
-        searchText: localSearch || undefined,
-        weekOffset,
-      })
-      setSavedViews(prev => [...prev, view])
-      setSaveViewName('')
-      setShowSaveInput(false)
-    } catch {
-      toast.error('Failed to save view')
-    }
-  }
-
-  const handleLoadView = (view: SavedView) => {
-    const fs = view.filterState as PlannerFilterState
-    if (fs.channelFilter != null) {
-      // Support legacy string-based filters — match by name to ID
-      if (typeof fs.channelFilter === 'string') {
-        const ch = apiChannels.find(c => c.name === fs.channelFilter)
-        setChannelFilter(ch ? ch.id : 'all')
-      } else {
-        setChannelFilter(fs.channelFilter)
-      }
-    }
-    if (fs.calendarMode === 'calendar') setCalendarMode(true)
-    if (fs.calendarMode === 'list') setCalendarMode(false)
-    setSportFilter(fs.sportFilter)
-    setCompetitionFilter(fs.competitionFilter)
-    setStatusFilter(fs.statusFilter)
-    setLocalSearch(fs.searchText ?? '')
-    setSearchInput(fs.searchText ?? '')
-    if (fs.weekOffset !== undefined) setWeekOffset(fs.weekOffset)
-  }
-
-  const handleDeleteView = async (id: string) => {
-    try {
-      await savedViewsApi.delete(id)
-      setSavedViews(prev => prev.filter(v => v.id !== id))
-    } catch {
-      toast.error('Failed to delete view')
-    }
-  }
-
-  const { channels: apiChannels, getChannel } = useChannelLookup()
   const channelColorMap = useMemo(() => buildColorMapById(apiChannels), [apiChannels])
   const getChannelColor = useCallback(
     (channelId?: number | null) => channelId ? (channelColorMap[channelId] ?? FALLBACK_COLOR) : FALLBACK_COLOR,
@@ -154,18 +114,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   // Load contracts from API
   useEffect(() => {
     contractsApi.list().then(data => setContracts(data as Contract[])).catch(() => {})
-  }, [])
-
-  // Keyboard navigation for week
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.key === 'ArrowLeft')  setWeekOffset(o => o - 1)
-      if (e.key === 'ArrowRight') setWeekOffset(o => o + 1)
-      if (e.key === 't' || e.key === 'T') setWeekOffset(0)
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
   }, [])
 
   // Intersection Observer for list mode virtualization
@@ -189,49 +137,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     listObserverRef.current = obs
     return () => obs.disconnect()
   }, [calendarMode])
-
-  // Auto-scroll to a specific date (e.g. after creating an event)
-  useEffect(() => {
-    if (!scrollToDate) return
-    const eventDate = new Date(scrollToDate + 'T00:00:00')
-    const today = new Date()
-    const todayDay = today.getDay() || 7
-    const todayMonday = new Date(today)
-    todayMonday.setDate(today.getDate() - todayDay + 1)
-    todayMonday.setHours(0, 0, 0, 0)
-    const eventDay = eventDate.getDay() || 7
-    const eventMonday = new Date(eventDate)
-    eventMonday.setDate(eventDate.getDate() - eventDay + 1)
-    eventMonday.setHours(0, 0, 0, 0)
-    const diffWeeks = Math.round(
-      (eventMonday.getTime() - todayMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)
-    )
-    setWeekOffset(diffWeeks)
-  }, [scrollToDate])
-
-  const monday = weekMonday(weekOffset)
-  const sunday = addDays(monday, 6)
-  const weekFromStr = dateStr(monday)
-  const weekToStr   = dateStr(sunday)
-
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
-  const todayStr = dateStr(new Date())
-
-  const weekLabel = (() => {
-    const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
-    return `${monday.toLocaleDateString('en-GB', opts)} – ${sunday.toLocaleDateString('en-GB', { ...opts, year: 'numeric' })}`
-  })()
-
-  const currentWeekValue = (() => {
-    const d = new Date(monday)
-    d.setUTCHours(0, 0, 0, 0)
-    const thursday = new Date(d)
-    thursday.setDate(d.getDate() - d.getDay() + 4)
-    const yearStart = new Date(thursday.getFullYear(), 0, 1)
-    const weekNo = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
-    const year = thursday.getFullYear()
-    return `${year}-W${String(weekNo).padStart(2, '0')}`
-  })()
 
   // Memoised lookup Maps for performance
   const sportsMap = useMemo(() => new Map(sports.map(s => [s.id, s])), [sports])
@@ -586,97 +491,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     }
   }, [selectedIds, setEvents, toast])
 
-  // ── Context menu handlers ──────────────────────────────────────────────────
-
-  const handleCtxStatusChange = useCallback(async (event: Event, status: EventStatus) => {
-    const currentStatus = (event.status ?? 'draft') as EventStatus
-    const forward = isForwardTransition(currentStatus, status)
-    // Forward transitions bypass lock
-    if (!forward) {
-      const lock = isEventLocked(event, freezeHours, user?.role)
-      if (lock.locked && !lock.canOverride) {
-        toast.warning('This event is locked and cannot be changed')
-        return
-      }
-      if (lock.locked && lock.canOverride) {
-        if (!window.confirm(`This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`)) return
-      }
-    }
-    try {
-      await eventsApi.update(event.id, { ...event, status })
-      setEvents(prev => prev.map(e => e.id === event.id ? { ...e, status } : e))
-      toast.success(`Status changed to ${status}`)
-    } catch {
-      toast.error('Failed to update status')
-    }
-  }, [setEvents, toast, freezeHours, user?.role])
-
-  const handleCtxDelete = useCallback(async (event: Event) => {
-    const lock = isEventLocked(event, freezeHours, user?.role)
-    if (lock.locked && !lock.canOverride) {
-      toast.warning('This event is locked and cannot be deleted')
-      return
-    }
-    if (lock.locked && lock.canOverride) {
-      if (!window.confirm(`This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`)) return
-    }
-    if (!window.confirm(`Delete "${event.participants}"?`)) return
-    try {
-      await eventsApi.delete(event.id)
-      setEvents(prev => prev.filter(e => e.id !== event.id))
-      toast.success('Event deleted')
-    } catch {
-      toast.error('Failed to delete event')
-    }
-  }, [setEvents, toast, freezeHours, user?.role])
-
-  const pickEventFields = (e: Event) => ({
-    sportId: e.sportId, competitionId: e.competitionId, phase: e.phase,
-    category: e.category, participants: e.participants, content: e.content,
-    startDateBE: e.startDateBE, startTimeBE: e.startTimeBE,
-    startDateOrigin: e.startDateOrigin, startTimeOrigin: e.startTimeOrigin,
-    complex: e.complex, livestreamDate: e.livestreamDate, livestreamTime: e.livestreamTime,
-    channelId: e.channelId, radioChannelId: e.radioChannelId, onDemandChannelId: e.onDemandChannelId,
-    linearChannel: e.linearChannel, radioChannel: e.radioChannel, onDemandChannel: e.onDemandChannel,
-    linearStartTime: e.linearStartTime, isLive: e.isLive, isDelayedLive: e.isDelayedLive,
-    videoRef: e.videoRef, winner: e.winner, score: e.score, duration: e.duration,
-    customFields: e.customFields,
-  })
-
-  const handleCtxDuplicate = useCallback(async (event: Event, targetDate: string) => {
-    try {
-      const created = await eventsApi.create({
-        ...pickEventFields(event),
-        startDateBE: targetDate,
-        status: 'draft' as EventStatus,
-      }) as Event
-      setEvents(prev => [...prev, created])
-      clipboardRef.current = created
-      const label = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-GB', {
-        weekday: 'short', day: 'numeric', month: 'short',
-      })
-      toast.success(`Duplicated to ${label}`)
-    } catch {
-      toast.error('Failed to duplicate event')
-    }
-  }, [setEvents, toast])
-
-  const handleCtxPaste = useCallback(async (date: string, time?: string) => {
-    const src = clipboardRef.current
-    if (!src) return
-    try {
-      const created = await eventsApi.create({
-        ...pickEventFields(src),
-        startDateBE: date,
-        ...(time ? { startTimeBE: time, linearStartTime: time } : {}),
-        status: 'draft' as EventStatus,
-      }) as Event
-      setEvents(prev => [...prev, created])
-      toast.success('Pasted event')
-    } catch {
-      toast.error('Failed to paste event')
-    }
-  }, [setEvents, toast])
+  // ── Context menu builders ──────────────────────────────────────────────────
 
   const ALL_STATUSES: EventStatus[] = ['draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled']
 
@@ -779,29 +594,8 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
                 className="inp text-sm px-2 py-1"
                 value={currentWeekValue}
                 onChange={e => {
-                  if (!e.target.value) return
-                  const [yearStr, weekStr] = e.target.value.split('-W')
-                  const year = Number(yearStr)
-                  const week = Number(weekStr)
-                  if (!year || !week) return
-                  const jan4 = new Date(year, 0, 4)
-                  const dayOfWeek = jan4.getDay() || 7
-                  const startOfWeek1 = new Date(jan4)
-                  startOfWeek1.setDate(jan4.getDate() - dayOfWeek + 1)
-                  const targetMonday = new Date(startOfWeek1)
-                  targetMonday.setDate(startOfWeek1.getDate() + (week - 1) * 7)
-                  const today = new Date()
-                  const todayDay = today.getDay() || 7
-                  const todayMonday = new Date(today)
-                  todayMonday.setDate(today.getDate() - todayDay + 1)
-                  todayMonday.setHours(0, 0, 0, 0)
-                  targetMonday.setHours(0, 0, 0, 0)
-                  const diffMs = targetMonday.getTime() - todayMonday.getTime()
-                  const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000))
-                  setLocalSearch('')
-                  setSearchInput('')
+                  handleWeekPickerChange(e.target.value)
                   setSelectedIds(new Set())
-                  setWeekOffset(diffWeeks)
                 }}
               />
             </div>
