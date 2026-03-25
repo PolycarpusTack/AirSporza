@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { validateSchedule, type ValidationContext, type RightsPolicy } from '../services/validation/index.js'
 import { writeOutboxEvent } from '../services/outbox.js'
+import * as s from '../schemas/schedules.js'
 
 const router = Router()
 
@@ -29,13 +31,9 @@ async function loadRightsPolicies(tenantId: string, competitionIds: number[]): P
 // ─── SCHEDULE DRAFTS ─────────────────────────────────────────────────────────
 
 // POST /api/schedule-drafts — create draft
-router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('planner', 'admin'), validate({ body: s.draftCreateSchema }), async (req, res, next) => {
   try {
     const { channelId, dateRangeStart, dateRangeEnd } = req.body
-
-    if (!channelId || !dateRangeStart || !dateRangeEnd) {
-      return next(createError(400, 'channelId, dateRangeStart, and dateRangeEnd are required'))
-    }
 
     // Verify channel belongs to tenant
     const channel = await prisma.channel.findFirst({
@@ -69,7 +67,7 @@ router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, n
 })
 
 // GET /api/schedule-drafts — list drafts (filter by channelId, status)
-router.get('/', async (req, res, next) => {
+router.get('/', validate({ query: s.draftsQuery }), async (req, res, next) => {
   try {
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
@@ -143,13 +141,9 @@ router.get('/:id', async (req, res, next) => {
 })
 
 // PATCH /api/schedule-drafts/:id — append operations (optimistic locking via version)
-router.patch('/:id', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.patch('/:id', authenticate, authorize('planner', 'admin'), validate({ params: s.draftIdParam, body: s.draftPatchSchema }), async (req, res, next) => {
   try {
     const { version, operations } = req.body
-
-    if (version === undefined || !Array.isArray(operations)) {
-      return next(createError(400, 'version (number) and operations (array) are required'))
-    }
 
     const draft = await prisma.scheduleDraft.findFirst({
       where: { id: req.params.id as string, tenantId: req.tenantId }
@@ -246,7 +240,7 @@ router.post('/:id/validate', authenticate, authorize('planner', 'admin'), async 
 })
 
 // POST /api/schedule-drafts/:id/publish — validate + create ScheduleVersion
-router.post('/:id/publish', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validate({ params: s.draftIdParam, body: s.draftPublishSchema }), async (req, res, next) => {
   try {
     const { acknowledgeWarnings, isEmergency, reasonCode } = req.body
 

@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { verifyHmac } from '../middleware/hmac.js'
 import { liveScoreAdapter } from '../adapters/liveScore.js'
 import { logger } from '../utils/logger.js'
+import * as s from '../schemas/adapters.js'
 
 const router = Router()
 
@@ -24,7 +26,7 @@ router.get('/configs', authenticate, authorize('admin'), async (req, res, next) 
 })
 
 // POST /api/adapters/configs — create config (admin)
-router.post('/configs', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/configs', authenticate, authorize('admin'), validate({ body: s.adapterConfigCreateSchema }), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
     const { adapterType, direction, providerName, config, isActive } = req.body
@@ -43,7 +45,7 @@ router.post('/configs', authenticate, authorize('admin'), async (req, res, next)
 })
 
 // PUT /api/adapters/configs/:id — update
-router.put('/configs/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/configs/:id', authenticate, authorize('admin'), validate({ params: s.adapterConfigIdParam, body: s.adapterConfigUpdateSchema }), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
     const id = String(req.params.id)
@@ -61,7 +63,7 @@ router.put('/configs/:id', authenticate, authorize('admin'), async (req, res, ne
 })
 
 // DELETE /api/adapters/configs/:id — delete
-router.delete('/configs/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.delete('/configs/:id', authenticate, authorize('admin'), validate({ params: s.adapterConfigIdParam }), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
     const id = String(req.params.id)
