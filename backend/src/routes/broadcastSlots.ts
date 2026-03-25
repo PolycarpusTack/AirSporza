@@ -1,13 +1,15 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeOutboxEvent } from '../services/outbox.js'
+import * as s from '../schemas/broadcastSlots.js'
 
 const router = Router()
 
 // List broadcast slots (filter by channelId, dateStart, dateEnd, eventId, status)
-router.get('/', async (req, res, next) => {
+router.get('/', validate({ query: s.slotsQuery }), async (req, res, next) => {
   try {
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
@@ -49,10 +51,10 @@ router.get('/', async (req, res, next) => {
 })
 
 // Get slot by id (with event and channel)
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validate({ params: s.slotIdParam }), async (req, res, next) => {
   try {
     const slot = await prisma.broadcastSlot.findFirst({
-      where: { id: req.params.id, tenantId: req.tenantId },
+      where: { id: req.params.id as string, tenantId: req.tenantId },
       include: {
         channel: true,
         event: {
@@ -75,7 +77,7 @@ router.get('/:id', async (req, res, next) => {
 })
 
 // Create broadcast slot (planner+)
-router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('planner', 'admin'), validate({ body: s.slotCreateSchema }), async (req, res, next) => {
   try {
     const {
       channelId,
@@ -101,10 +103,6 @@ router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, n
       scheduleVersionId,
       sportMetadata
     } = req.body
-
-    if (!channelId) {
-      return next(createError(400, 'channelId is required'))
-    }
 
     // Verify channel belongs to tenant
     const channel = await prisma.channel.findFirst({
@@ -171,7 +169,7 @@ router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, n
 })
 
 // Update broadcast slot (planner+)
-router.put('/:id', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.put('/:id', authenticate, authorize('planner', 'admin'), validate({ params: s.slotIdParam, body: s.slotUpdateSchema }), async (req, res, next) => {
   try {
     const existing = await prisma.broadcastSlot.findFirst({
       where: { id: req.params.id as string, tenantId: req.tenantId }
@@ -273,7 +271,7 @@ router.put('/:id', authenticate, authorize('planner', 'admin'), async (req, res,
 })
 
 // Update slot status only (planner+)
-router.patch('/:id/status', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.patch('/:id/status', authenticate, authorize('planner', 'admin'), validate({ params: s.slotIdParam, body: s.slotStatusUpdateSchema }), async (req, res, next) => {
   try {
     const existing = await prisma.broadcastSlot.findFirst({
       where: { id: req.params.id as string, tenantId: req.tenantId }
@@ -281,14 +279,6 @@ router.patch('/:id/status', authenticate, authorize('planner', 'admin'), async (
     if (!existing) return next(createError(404, 'Broadcast slot not found'))
 
     const { status } = req.body
-    if (!status) {
-      return next(createError(400, 'status is required'))
-    }
-
-    const validStatuses = ['PLANNED', 'LIVE', 'OVERRUN', 'SWITCHED_OUT', 'COMPLETED', 'VOIDED']
-    if (!validStatuses.includes(status)) {
-      return next(createError(400, `Invalid status. Must be one of: ${validStatuses.join(', ')}`))
-    }
 
     const slot = await prisma.$transaction(async (tx) => {
       const updated = await tx.broadcastSlot.update({
@@ -318,7 +308,7 @@ router.patch('/:id/status', authenticate, authorize('planner', 'admin'), async (
 })
 
 // Delete broadcast slot (planner+)
-router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.delete('/:id', authenticate, authorize('planner', 'admin'), validate({ params: s.slotIdParam }), async (req, res, next) => {
   try {
     const toDelete = await prisma.broadcastSlot.findFirst({
       where: { id: req.params.id as string, tenantId: req.tenantId }

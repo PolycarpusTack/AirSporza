@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
-import { parseId } from '../utils/parseId.js'
+import * as s from '../schemas/channels.js'
 
 const router = Router()
 
@@ -73,10 +74,10 @@ router.get('/tree', async (req, res, next) => {
 })
 
 // Get channel by id
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const channel = await prisma.channel.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId },
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include: {
         parent: { select: { id: true, name: true } },
         children: {
@@ -98,13 +99,9 @@ router.get('/:id', async (req, res, next) => {
 })
 
 // Create channel (admin only)
-router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('admin'), validate({ body: s.channelCreateSchema }), async (req, res, next) => {
   try {
     const { name, parentId, types, timezone, broadcastDayStartLocal, platformConfig, epgConfig, color, sortOrder } = req.body
-
-    if (!name) {
-      return next(createError(400, 'Name is required'))
-    }
 
     // Validate parentId belongs to same tenant
     if (parentId) {
@@ -140,10 +137,10 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
 })
 
 // Update channel (admin only)
-router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/:id', authenticate, authorize('admin'), validate({ params: s.idParam, body: s.channelUpdateSchema }), async (req, res, next) => {
   try {
     const existing = await prisma.channel.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId }
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
     if (!existing) return next(createError(404, 'Channel not found'))
 
@@ -188,10 +185,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
 })
 
 // Delete channel (admin only)
-router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.delete('/:id', authenticate, authorize('admin'), validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const toDelete = await prisma.channel.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId }
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
     if (!toDelete) return next(createError(404, 'Channel not found'))
 
