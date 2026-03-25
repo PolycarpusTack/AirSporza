@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChannelSelect } from '../ui/ChannelSelect'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
 import type { EventStatus, Sport, Competition } from '../../data/types'
 
 interface BulkActionBarProps {
@@ -33,10 +34,13 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
   const [shiftDays, setShiftDays] = useState(1)
   const [pendingChannelId, setPendingChannelId] = useState<number | null>(null)
+  const { confirm, dialog } = useConfirmDialog()
 
   if (count === 0) return null
 
   return (
+    <>
+    {dialog}
     <div className="fixed bottom-0 left-0 right-0 bg-surface border-t z-40 p-3 flex items-center gap-3 flex-wrap">
       <span className="text-sm font-semibold text-text-2 mr-2">
         {count} selected
@@ -47,10 +51,13 @@ export function BulkActionBar({
         className="btn btn-sm"
         style={{ color: 'var(--color-danger)' }}
         disabled={loading}
-        onClick={() => {
-          if (window.confirm(`Delete ${count} event(s)? This cannot be undone.`)) {
-            onDelete()
-          }
+        onClick={async () => {
+          const ok = await confirm({
+            title: 'Delete events',
+            message: `Delete ${count} selected event${count !== 1 ? 's' : ''}? This cannot be undone.`,
+            variant: 'danger',
+          })
+          if (ok) onDelete()
         }}
       >
         Delete
@@ -138,5 +145,6 @@ export function BulkActionBar({
         ))}
       </select>
     </div>
+    </>
   )
 }

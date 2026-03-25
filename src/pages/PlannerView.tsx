@@ -30,6 +30,7 @@ import { minutesToSmpte } from '../utils'
 import { handleApiError } from '../utils/apiError'
 import { useCalendarNavigation } from '../hooks/useCalendarNavigation'
 import { useEventActions } from '../hooks/useEventActions'
+import { useConfirmDialog } from '../components/ui/ConfirmDialog'
 
 interface PlannerViewProps {
   widgets: DashboardWidget[]
@@ -98,9 +99,12 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     handleSaveView, handleLoadView, handleDeleteView, handleWeekPickerChange,
   } = nav
 
+  // ── Confirm dialog hook ──────────────────────────────────────────────────
+  const { confirm, dialog: confirmDialog } = useConfirmDialog()
+
   // ── Event actions hook ────────────────────────────────────────────────────
   const { handleCtxStatusChange, handleCtxDelete, handleCtxDuplicate, handleCtxPaste, clipboardRef } = useEventActions({
-    setEvents, freezeHours, userRole: user?.role,
+    setEvents, freezeHours, userRole: user?.role, confirm,
   })
 
   const sensors = useSensors(
@@ -240,7 +244,13 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
     const lock = isEventLocked(event, freezeHours, user?.role)
     if (lock.locked && !lock.canOverride) return
     if (lock.locked && lock.canOverride) {
-      if (!window.confirm(`This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`)) return
+      const ok = await confirm({
+        title: 'Override lock',
+        message: `This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`,
+        variant: 'warning',
+        confirmLabel: 'Continue',
+      })
+      if (!ok) return
     }
     const currentDateStr = typeof event.startDateBE === 'string'
       ? event.startDateBE.slice(0, 10)
@@ -380,7 +390,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   // ── Bulk operation handlers ────────────────────────────────────────────────
 
   /** Filter out locked events from a bulk operation. Shows a warning if some are skipped. Returns IDs to proceed with. */
-  const filterLockedForBulk = useCallback((ids: number[]): number[] | null => {
+  const filterLockedForBulk = useCallback(async (ids: number[]): Promise<number[] | null> => {
     const events = contextEvents.filter(e => ids.includes(e.id))
     const locked = events.filter(e => {
       const lock = isEventLocked(e, freezeHours, user?.role)
@@ -391,17 +401,21 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
       return null
     }
     if (locked.length > 0) {
-      if (!window.confirm(`${locked.length} of ${ids.length} event(s) are locked and will be skipped. Continue with the remaining ${ids.length - locked.length}?`)) {
-        return null
-      }
+      const ok = await confirm({
+        title: 'Some events are locked',
+        message: `${locked.length} of ${ids.length} event(s) are locked and will be skipped. Continue with the remaining ${ids.length - locked.length}?`,
+        variant: 'warning',
+        confirmLabel: 'Continue',
+      })
+      if (!ok) return null
       const lockedIds = new Set(locked.map(e => e.id))
       return ids.filter(id => !lockedIds.has(id))
     }
     return ids
-  }, [contextEvents, freezeHours, user?.role, toast])
+  }, [contextEvents, freezeHours, user?.role, toast, confirm])
 
   const handleBulkDelete = useCallback(async () => {
-    const filtered = filterLockedForBulk(Array.from(selectedIds))
+    const filtered = await filterLockedForBulk(Array.from(selectedIds))
     if (!filtered || filtered.length === 0) return
     setBulkLoading(true)
     try {
@@ -418,7 +432,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   }, [selectedIds, setEvents, toast, filterLockedForBulk])
 
   const handleBulkStatus = useCallback(async (status: EventStatus) => {
-    const filtered = filterLockedForBulk(Array.from(selectedIds))
+    const filtered = await filterLockedForBulk(Array.from(selectedIds))
     if (!filtered || filtered.length === 0) return
     setBulkLoading(true)
     try {
@@ -434,7 +448,7 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   }, [selectedIds, setEvents, toast, filterLockedForBulk])
 
   const handleBulkReschedule = useCallback(async (shiftDays: number) => {
-    const filtered = filterLockedForBulk(Array.from(selectedIds))
+    const filtered = await filterLockedForBulk(Array.from(selectedIds))
     if (!filtered || filtered.length === 0) return
     setBulkLoading(true)
     try {
@@ -987,6 +1001,8 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
           onClose={() => setDuplicateTarget(null)}
         />
       )}
+
+      {confirmDialog}
     </div>
   )
 }

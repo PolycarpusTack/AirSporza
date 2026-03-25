@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Badge, Btn } from '../ui'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { resourcesApi, RESOURCE_TYPE_LABELS } from '../../services/resources'
 import type { Resource, ResourceAssignment } from '../../services/resources'
 import type { Event, TechPlan, Sport } from '../../data/types'
@@ -22,6 +23,7 @@ export function ResourcesTab({ resources, techPlans, events, sports }: Resources
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table')
   const toast = useToast()
+  const { confirm, dialog: confirmDialog } = useConfirmDialog()
 
   const fetchAssignments = useCallback(() => {
     if (resources.length === 0) return
@@ -51,6 +53,13 @@ export function ResourcesTab({ resources, techPlans, events, sports }: Resources
   const handleUnassign = useCallback(async (resourceId: number, techPlanId: number) => {
     const key = `${resourceId}-${techPlanId}`
     if (busyIds.has(key)) return
+    const ok = await confirm({
+      title: 'Unassign resource',
+      message: 'Remove this resource assignment?',
+      variant: 'warning',
+      confirmLabel: 'Unassign',
+    })
+    if (!ok) return
     setBusyIds(prev => new Set(prev).add(key))
     try {
       await resourcesApi.unassign(resourceId, techPlanId)
@@ -65,7 +74,7 @@ export function ResourcesTab({ resources, techPlans, events, sports }: Resources
         return next
       })
     }
-  }, [busyIds, fetchAssignments, toast])
+  }, [busyIds, fetchAssignments, toast, confirm])
 
   if (resources.length === 0) {
     return <div className="card p-8 text-center text-text-3 text-sm">No resources configured yet</div>
@@ -203,6 +212,8 @@ export function ResourcesTab({ resources, techPlans, events, sports }: Resources
           }}
         />
       )}
+
+      {confirmDialog}
     </>
   )
 }

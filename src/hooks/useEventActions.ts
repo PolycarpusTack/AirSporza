@@ -3,12 +3,14 @@ import { eventsApi } from '../services'
 import { isEventLocked, isForwardTransition, lockReasonLabel } from '../utils/eventLock'
 import { handleApiError } from '../utils/apiError'
 import { useToast } from '../components/Toast'
+import type { ConfirmOptions } from '../components/ui/ConfirmDialog'
 import type { Event, EventStatus } from '../data/types'
 
 interface UseEventActionsParams {
   setEvents: React.Dispatch<React.SetStateAction<Event[]>>
   freezeHours: number
   userRole?: string
+  confirm: (options: ConfirmOptions) => Promise<boolean>
 }
 
 function pickEventFields(e: Event) {
@@ -26,7 +28,7 @@ function pickEventFields(e: Event) {
   }
 }
 
-export function useEventActions({ setEvents, freezeHours, userRole }: UseEventActionsParams) {
+export function useEventActions({ setEvents, freezeHours, userRole, confirm }: UseEventActionsParams) {
   const toast = useToast()
   const clipboardRef = useRef<Event | null>(null)
 
@@ -41,7 +43,13 @@ export function useEventActions({ setEvents, freezeHours, userRole }: UseEventAc
         return
       }
       if (lock.locked && lock.canOverride) {
-        if (!window.confirm(`This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`)) return
+        const ok = await confirm({
+          title: 'Override lock',
+          message: `This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`,
+          variant: 'warning',
+          confirmLabel: 'Continue',
+        })
+        if (!ok) return
       }
     }
     try {
@@ -51,7 +59,7 @@ export function useEventActions({ setEvents, freezeHours, userRole }: UseEventAc
     } catch (err) {
       handleApiError(err, 'Failed to update status', toast)
     }
-  }, [setEvents, toast, freezeHours, userRole])
+  }, [setEvents, toast, freezeHours, userRole, confirm])
 
   const handleCtxDelete = useCallback(async (event: Event) => {
     const lock = isEventLocked(event, freezeHours, userRole)
@@ -60,9 +68,20 @@ export function useEventActions({ setEvents, freezeHours, userRole }: UseEventAc
       return
     }
     if (lock.locked && lock.canOverride) {
-      if (!window.confirm(`This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`)) return
+      const ok = await confirm({
+        title: 'Override lock',
+        message: `This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`,
+        variant: 'warning',
+        confirmLabel: 'Continue',
+      })
+      if (!ok) return
     }
-    if (!window.confirm(`Delete "${event.participants}"?`)) return
+    const ok = await confirm({
+      title: 'Delete event',
+      message: `Delete "${event.participants}"? This cannot be undone.`,
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
       await eventsApi.delete(event.id)
       setEvents(prev => prev.filter(e => e.id !== event.id))
@@ -70,7 +89,7 @@ export function useEventActions({ setEvents, freezeHours, userRole }: UseEventAc
     } catch (err) {
       handleApiError(err, 'Failed to delete event', toast)
     }
-  }, [setEvents, toast, freezeHours, userRole])
+  }, [setEvents, toast, freezeHours, userRole, confirm])
 
   const handleCtxDuplicate = useCallback(async (event: Event, targetDate: string) => {
     try {
