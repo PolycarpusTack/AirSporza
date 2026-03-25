@@ -1,9 +1,10 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
+import * as s from '../schemas/fieldConfig.js'
 
 const router = Router()
 
@@ -11,21 +12,6 @@ export function generateFieldId(section: string, name: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
   return `custom_${section}_${slug}`
 }
-
-const fieldSchema = Joi.object({
-  name: Joi.string().required(),
-  label: Joi.string().required(),
-  fieldType: Joi.string().valid('text', 'number', 'date', 'time', 'dropdown', 'checkbox', 'textarea').required(),
-  section: Joi.string().valid('event', 'crew', 'contract').required(),
-  required: Joi.boolean().default(false),
-  sortOrder: Joi.number().integer().default(0),
-  options: Joi.array().items(Joi.string()).default([]),
-  dropdownSourceId: Joi.string().allow(null, '').default(null),
-  defaultValue: Joi.string().allow(null, '').default(null),
-  conditionalRules: Joi.array().default([]),
-  visibleByRoles: Joi.array().items(Joi.string().valid('admin', 'planner', 'sports', 'contracts')).default([]),
-  visible: Joi.boolean().default(true),
-})
 
 // GET /api/fields?section=event
 router.get('/', async (req, res, next) => {
@@ -42,21 +28,18 @@ router.get('/', async (req, res, next) => {
 })
 
 // POST /api/fields — admin only
-router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('admin'), validate({ body: s.fieldSchema }), async (req, res, next) => {
   try {
-    const { error, value } = fieldSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
+    const id = generateFieldId(req.body.section, req.body.name)
 
-    const id = generateFieldId(value.section, value.name)
-
-    if (value.dropdownSourceId) {
-      const list = await prisma.dropdownList.findFirst({ where: { id: value.dropdownSourceId, tenantId: req.tenantId } })
-      if (!list) return next(createError(400, `Dropdown list '${value.dropdownSourceId}' not found`))
+    if (req.body.dropdownSourceId) {
+      const list = await prisma.dropdownList.findFirst({ where: { id: req.body.dropdownSourceId, tenantId: req.tenantId } })
+      if (!list) return next(createError(400, `Dropdown list '${req.body.dropdownSourceId}' not found`))
     }
 
     const user = req.user as { id: string }
     const field = await prisma.fieldDefinition.create({
-      data: { ...value, id, isSystem: false, isCustom: true, createdById: user.id, tenantId: req.tenantId! },
+      data: { ...req.body, id, isSystem: false, isCustom: true, createdById: user.id, tenantId: req.tenantId! },
     })
 
     await writeAuditLog({
@@ -77,14 +60,8 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
 })
 
 // PUT /api/fields/order — batch reorder
-router.put('/order', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/order', authenticate, authorize('admin'), validate({ body: s.fieldOrderSchema }), async (req, res, next) => {
   try {
-    const schema = Joi.array().items(
-      Joi.object({ id: Joi.string().required(), sortOrder: Joi.number().integer().required() })
-    )
-    const { error, value } = schema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
     // Pre-fetch all field IDs belonging to this tenant
     const tenantFields = await prisma.fieldDefinition.findMany({
       where: { tenantId: req.tenantId },
@@ -93,7 +70,7 @@ router.put('/order', authenticate, authorize('admin'), async (req, res, next) =>
     const tenantFieldIds = new Set(tenantFields.map(f => f.id))
 
     // Filter client-supplied IDs to only those belonging to the tenant
-    const filtered = (value as { id: string; sortOrder: number }[]).filter(({ id }) => tenantFieldIds.has(id))
+    const filtered = (req.body as { id: string; sortOrder: number }[]).filter(({ id }) => tenantFieldIds.has(id))
 
     await prisma.$transaction(
       filtered.map(({ id, sortOrder }) =>
@@ -108,26 +85,13 @@ router.put('/order', authenticate, authorize('admin'), async (req, res, next) =>
 })
 
 // PUT /api/fields/:id — admin only
-router.put('/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/:id', authenticate, authorize('admin'), validate({ body: s.fieldUpdateSchema }), async (req, res, next) => {
   try {
     const existing = await prisma.fieldDefinition.findFirst({ where: { id: String(req.params.id), tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Field not found'))
 
-    const updateSchema = Joi.object({
-      label: Joi.string(),
-      required: Joi.boolean(),
-      sortOrder: Joi.number().integer(),
-      visible: Joi.boolean(),
-      options: Joi.array().items(Joi.string()),
-      conditionalRules: Joi.array(),
-      visibleByRoles: Joi.array().items(Joi.string()),
-    })
-
-    const { error, value } = updateSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
     const user = req.user as { id: string }
-    const field = await prisma.fieldDefinition.update({ where: { id: String(req.params.id) }, data: value })
+    const field = await prisma.fieldDefinition.update({ where: { id: String(req.params.id) }, data: req.body })
 
     await writeAuditLog({
       userId: user.id,
@@ -190,41 +154,22 @@ router.get('/dropdowns', async (req, res, next) => {
   }
 })
 
-router.post('/dropdowns', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/dropdowns', authenticate, authorize('admin'), validate({ body: s.dropdownCreateSchema }), async (req, res, next) => {
   try {
-    const schema = Joi.object({
-      id: Joi.string().required(),
-      name: Joi.string().required(),
-      description: Joi.string().allow('', null),
-      managedBy: Joi.string().valid('admin', 'planner', 'sports', 'contracts').default('admin'),
-    })
-    const { error, value } = schema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    const list = await prisma.dropdownList.create({ data: { ...value, tenantId: req.tenantId! } })
+    const list = await prisma.dropdownList.create({ data: { ...req.body, tenantId: req.tenantId! } })
     res.status(201).json(list)
   } catch (error) {
     next(error)
   }
 })
 
-router.post('/dropdowns/:listId/options', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/dropdowns/:listId/options', authenticate, authorize('admin'), validate({ body: s.dropdownOptionSchema }), async (req, res, next) => {
   try {
     const list = await prisma.dropdownList.findFirst({ where: { id: String(req.params.listId), tenantId: req.tenantId } })
     if (!list) return next(createError(404, 'Dropdown list not found'))
 
-    const schema = Joi.object({
-      value: Joi.string().required(),
-      label: Joi.string().required(),
-      parentId: Joi.string().allow(null, '').default(null),
-      sortOrder: Joi.number().integer().default(0),
-      metadata: Joi.object().default({}),
-    })
-    const { error, value } = schema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
     const option = await prisma.dropdownOption.create({
-      data: { ...value, listId: String(req.params.listId), tenantId: req.tenantId! },
+      data: { ...req.body, listId: String(req.params.listId), tenantId: req.tenantId! },
     })
     res.status(201).json(option)
   } catch (error) {
@@ -234,7 +179,7 @@ router.post('/dropdowns/:listId/options', authenticate, authorize('admin'), asyn
 
 // ── Mandatory Field Configs (per sport) ────────────────────────────────────
 
-router.get('/mandatory/:sportId', async (req, res, next) => {
+router.get('/mandatory/:sportId', validate({ params: s.sportIdParam }), async (req, res, next) => {
   try {
     const config = await prisma.mandatoryFieldConfig.findFirst({
       where: { sportId: Number(req.params.sportId), tenantId: req.tenantId },
@@ -245,19 +190,12 @@ router.get('/mandatory/:sportId', async (req, res, next) => {
   }
 })
 
-router.put('/mandatory/:sportId', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/mandatory/:sportId', authenticate, authorize('admin'), validate({ params: s.sportIdParam, body: s.mandatoryFieldSchema }), async (req, res, next) => {
   try {
-    const schema = Joi.object({
-      fieldIds: Joi.array().items(Joi.string()).required(),
-      conditionalRequired: Joi.array().default([]),
-    })
-    const { error, value } = schema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
     const config = await prisma.mandatoryFieldConfig.upsert({
       where: { sportId: Number(req.params.sportId) },
-      create: { sportId: Number(req.params.sportId), tenantId: req.tenantId!, ...value },
-      update: value,
+      create: { sportId: Number(req.params.sportId), tenantId: req.tenantId!, ...req.body },
+      update: req.body,
     })
     res.json(config)
   } catch (error) {

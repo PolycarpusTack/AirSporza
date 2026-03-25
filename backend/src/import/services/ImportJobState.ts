@@ -1,3 +1,5 @@
+import { env } from '../../config/env.js'
+
 export type ImportJobStats = {
   recordsProcessed?: number
   recordsCreated?: number
@@ -20,10 +22,10 @@ export type ImportJobStats = {
   lastError?: string | null
 }
 
-export const IMPORT_WORKER_POLL_MS = Number(process.env.IMPORT_WORKER_POLL_MS || 5000)
-export const IMPORT_JOB_LEASE_MS = Number(process.env.IMPORT_JOB_LEASE_MS || 30000)
-export const IMPORT_JOB_HEARTBEAT_MS = Number(process.env.IMPORT_JOB_HEARTBEAT_MS || 5000)
-export const IMPORT_JOB_MAX_RETRIES = Number(process.env.IMPORT_JOB_MAX_RETRIES || 3)
+export const IMPORT_WORKER_POLL_MS = env.IMPORT_WORKER_POLL_MS
+export const IMPORT_JOB_LEASE_MS = env.IMPORT_JOB_LEASE_MS
+export const IMPORT_JOB_HEARTBEAT_MS = env.IMPORT_JOB_HEARTBEAT_MS
+export const IMPORT_JOB_MAX_RETRIES = env.IMPORT_JOB_MAX_RETRIES
 
 export function readImportJobStats(value: unknown): ImportJobStats {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {

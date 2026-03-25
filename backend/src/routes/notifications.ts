@@ -1,7 +1,9 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import * as s from '../schemas/notifications.js'
 
 const router = Router()
 
@@ -28,7 +30,7 @@ router.patch('/read-all', authenticate, async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-router.patch('/:id/read', authenticate, async (req, res, next) => {
+router.patch('/:id/read', authenticate, validate({ params: s.notificationIdParam }), async (req, res, next) => {
   try {
     const user = req.user as { id: string }
     const note = await prisma.notification.findFirst({ where: { id: String(req.params.id), tenantId: req.tenantId } })

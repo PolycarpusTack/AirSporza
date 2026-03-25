@@ -1,7 +1,8 @@
 import { Queue, Worker, type Processor, type ConnectionOptions } from 'bullmq'
 import { logger } from '../utils/logger.js'
+import { env } from '../config/env.js'
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
+const REDIS_URL = env.REDIS_URL
 
 function parseRedisUrl(url: string): ConnectionOptions {
   const parsed = new URL(url)

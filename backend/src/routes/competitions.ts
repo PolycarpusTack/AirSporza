@@ -1,17 +1,18 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
-import { parseId } from '../utils/parseId.js'
+import * as s from '../schemas/competitions.js'
 
 const router = Router()
 
 router.get('/', async (req, res, next) => {
   try {
     const { sportId } = req.query
-    
+
     const where: Record<string, unknown> = { tenantId: req.tenantId }
-    if (sportId) where.sportId = parseId(sportId as string)
+    if (sportId) where.sportId = Number(sportId)
 
     const competitions = await prisma.competition.findMany({
       where,
@@ -24,17 +25,17 @@ router.get('/', async (req, res, next) => {
         { name: 'asc' }
       ]
     })
-    
+
     res.json(competitions)
   } catch (error) {
     next(error)
   }
 })
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const competition = await prisma.competition.findFirst({
-      where: { id: parseId(req.params.id), tenantId: req.tenantId },
+      where: { id: Number(req.params.id), tenantId: req.tenantId },
       include: {
         sport: true,
         contracts: {
@@ -47,11 +48,11 @@ router.get('/:id', async (req, res, next) => {
         }
       }
     })
-    
+
     if (!competition) {
       return next(createError(404, 'Competition not found'))
     }
-    
+
     res.json({
       ...competition,
       contract: competition.contracts[0] ?? null,
@@ -61,18 +62,14 @@ router.get('/:id', async (req, res, next) => {
   }
 })
 
-router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('admin'), validate({ body: s.competitionCreateSchema }), async (req, res, next) => {
   try {
     const { sportId, name, matches, season } = req.body
-    
-    if (!sportId || !name || !season) {
-      return next(createError(400, 'SportId, name and season are required'))
-    }
-    
+
     const competition = await prisma.competition.create({
       data: { sportId, name, matches: matches || 0, season, tenantId: req.tenantId! }
     })
-    
+
     res.status(201).json(competition)
   } catch (error) {
     next(error)

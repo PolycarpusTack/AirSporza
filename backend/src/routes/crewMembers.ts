@@ -1,32 +1,12 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
 import { authenticate } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import * as s from '../schemas/crewMembers.js'
 
 const router = Router()
-
-const crewMemberSchema = Joi.object({
-  name: Joi.string().trim().min(1).max(200).required(),
-  roles: Joi.array().items(Joi.string().trim()).default([]),
-  email: Joi.string().email().allow('', null).optional(),
-  phone: Joi.string().allow('', null).optional(),
-  isActive: Joi.boolean().default(true),
-})
-
-const crewMemberUpdateSchema = Joi.object({
-  name: Joi.string().trim().min(1).max(200).optional(),
-  roles: Joi.array().items(Joi.string().trim()).optional(),
-  email: Joi.string().email().allow('', null).optional(),
-  phone: Joi.string().allow('', null).optional(),
-  isActive: Joi.boolean().optional(),
-})
-
-const mergeSchema = Joi.object({
-  sourceId: Joi.number().integer().positive().required(),
-  targetId: Joi.number().integer().positive().required(),
-})
 
 // GET /api/crew-members — list all crew members with optional filters
 router.get('/', authenticate, async (req, res, next) => {
@@ -98,12 +78,9 @@ router.get('/autocomplete', authenticate, async (req, res, next) => {
 })
 
 // POST /api/crew-members — create a crew member
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, validate({ body: s.crewMemberSchema }), async (req, res, next) => {
   try {
-    const { error, value } = crewMemberSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    const member = await prisma.crewMember.create({ data: { ...value, tenantId: req.tenantId! } })
+    const member = await prisma.crewMember.create({ data: { ...req.body, tenantId: req.tenantId! } })
     res.status(201).json(member)
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -174,12 +151,9 @@ router.post('/extract', authenticate, async (req, res, next) => {
 })
 
 // POST /api/crew-members/merge — merge sourceId into targetId
-router.post('/merge', authenticate, async (req, res, next) => {
+router.post('/merge', authenticate, validate({ body: s.mergeSchema }), async (req, res, next) => {
   try {
-    const { error, value } = mergeSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    const { sourceId, targetId } = value
+    const { sourceId, targetId } = req.body
     if (sourceId === targetId) return next(createError(400, 'Source and target must be different'))
 
     const [source, target] = await Promise.all([
@@ -246,18 +220,14 @@ router.post('/merge', authenticate, async (req, res, next) => {
 })
 
 // PUT /api/crew-members/:id — update a crew member
-router.put('/:id', authenticate, async (req, res, next) => {
+router.put('/:id', authenticate, validate({ params: s.idParam, body: s.crewMemberUpdateSchema }), async (req, res, next) => {
   try {
     const id = Number(req.params.id)
-    if (!Number.isFinite(id)) return next(createError(400, 'Invalid id'))
 
     const existing = await prisma.crewMember.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!existing) return next(createError(404, 'Crew member not found'))
 
-    const { error, value } = crewMemberUpdateSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    const member = await prisma.crewMember.update({ where: { id: existing.id }, data: value })
+    const member = await prisma.crewMember.update({ where: { id: existing.id }, data: req.body })
     res.json(member)
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -268,10 +238,9 @@ router.put('/:id', authenticate, async (req, res, next) => {
 })
 
 // DELETE /api/crew-members/:id — delete a crew member
-router.delete('/:id', authenticate, async (req, res, next) => {
+router.delete('/:id', authenticate, validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const id = Number(req.params.id)
-    if (!Number.isFinite(id)) return next(createError(400, 'Invalid id'))
 
     const toDelete = await prisma.crewMember.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!toDelete) return next(createError(404, 'Crew member not found'))

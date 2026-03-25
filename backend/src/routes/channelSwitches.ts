@@ -1,12 +1,14 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { writeOutboxEvent } from '../services/outbox.js'
+import * as s from '../schemas/channelSwitches.js'
 
 const router = Router()
 
 // POST /api/channel-switches — initiate a channel switch
-router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('planner', 'admin'), validate({ body: s.switchCreateSchema }), async (req, res, next) => {
   try {
     const { fromSlotId, toChannelId, toSlotId, triggerType, switchAtUtc, reasonCode, reasonText } = req.body
     const tenantId = req.tenantId!
@@ -43,7 +45,7 @@ router.post('/', authenticate, authorize('planner', 'admin'), async (req, res, n
 })
 
 // POST /api/channel-switches/:id/confirm — planner confirms a switch
-router.post('/:id/confirm', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.post('/:id/confirm', authenticate, authorize('planner', 'admin'), validate({ params: s.switchIdParam }), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
     const id = String(req.params.id)
@@ -76,7 +78,7 @@ router.post('/:id/confirm', authenticate, authorize('planner', 'admin'), async (
 })
 
 // GET /api/channel-switches — list (audit trail)
-router.get('/', async (req, res, next) => {
+router.get('/', validate({ query: s.switchesQuery }), async (req, res, next) => {
   try {
     const tenantId = req.tenantId!
     const { fromSlotId, executionStatus } = req.query

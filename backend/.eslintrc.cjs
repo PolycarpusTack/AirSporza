@@ -16,6 +16,17 @@ module.exports = {
       varsIgnorePattern: '^_'
     }],
     '@typescript-eslint/no-explicit-any': 'warn',
+    'no-restricted-properties': ['error',
+      {
+        object: 'prisma',
+        property: '$executeRawUnsafe',
+        message: 'Use $executeRaw with tagged template literals for parameterized queries',
+      },
+      {
+        property: '$executeRawUnsafe',
+        message: 'Use $executeRaw with tagged template literals for parameterized queries',
+      },
+    ],
   },
   env: {
     node: true,

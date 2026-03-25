@@ -1,16 +1,12 @@
 import { Router } from 'express'
 import { Prisma } from '@prisma/client'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import * as s from '../schemas/savedViews.js'
 
 const router = Router()
-const schema = Joi.object({
-  name: Joi.string().max(80).required(),
-  context: Joi.string().valid('planner', 'contracts', 'sports').required(),
-  filterState: Joi.object().required(),
-})
 
 router.get('/', authenticate, async (req, res, next) => {
   try {
@@ -25,12 +21,10 @@ router.get('/', authenticate, async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, validate({ body: s.savedViewSchema }), async (req, res, next) => {
   try {
-    const { error, value } = schema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
     const user = req.user as { id: string }
-    const view = await prisma.savedView.create({ data: { tenantId: req.tenantId!, userId: user.id, ...value } })
+    const view = await prisma.savedView.create({ data: { tenantId: req.tenantId!, userId: user.id, ...req.body } })
     res.status(201).json(view)
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -40,7 +34,7 @@ router.post('/', authenticate, async (req, res, next) => {
   }
 })
 
-router.delete('/:id', authenticate, async (req, res, next) => {
+router.delete('/:id', authenticate, validate({ params: s.savedViewIdParam }), async (req, res, next) => {
   try {
     const user = req.user as { id: string }
     const id = String(req.params.id)

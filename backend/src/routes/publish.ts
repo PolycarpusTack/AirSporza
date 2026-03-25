@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { logger } from '../utils/logger.js'
+import * as s from '../schemas/publish.js'
 
 const router = Router()
 
@@ -115,11 +117,11 @@ function buildIcal(events: ReturnType<typeof formatEventForPublish>[], baseUrl: 
 
 // ─── Pull Feeds (no auth — public API) ──────────────────────────────────────
 
-router.get('/events', async (req, res, next) => {
+router.get('/events', validate({ query: s.publishEventsQuery }), async (req, res, next) => {
   try {
-    const { channel, sport, from, to, rights, cursor, format, limit: limitStr } = req.query
+    const { channel, sport, from, to, rights, cursor, format, limit: limitParam } = req.query as Record<string, any>
 
-    const limit = Math.min(parseInt(String(limitStr ?? '100')), 500)
+    const limit = Number(limitParam) || 100
 
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
@@ -224,10 +226,9 @@ router.get('/events', async (req, res, next) => {
   }
 })
 
-router.get('/events/:id', async (req, res, next) => {
+router.get('/events/:id', validate({ params: s.idParam }), async (req, res, next) => {
   try {
-    const id = parseInt(req.params.id)
-    if (!id) return next(createError(400, 'Invalid event id'))
+    const id = Number(req.params.id)
 
     const event = await prisma.event.findFirst({
       where: { id, tenantId: req.tenantId },
@@ -342,12 +343,9 @@ router.get('/webhooks', authenticate, authorize('admin'), async (req, res, next)
   }
 })
 
-router.post('/webhooks', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/webhooks', authenticate, authorize('admin'), validate({ body: s.webhookCreateSchema }), async (req, res, next) => {
   try {
     const { url, secret, events: eventTypes } = req.body
-    if (!url || !secret || !Array.isArray(eventTypes) || eventTypes.length === 0) {
-      return next(createError(400, 'url, secret, and events[] are required'))
-    }
 
     const user = req.user as { id: string }
     const webhook = await prisma.webhookEndpoint.create({

@@ -1,15 +1,17 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
+import * as s from '../schemas/audit.js'
 
 const router = Router()
 
 // System-wide audit log with filters
-router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
+router.get('/', authenticate, authorize('admin'), validate({ query: s.auditQuery }), async (req, res, next) => {
   try {
-    const { action, userId, entityType, from, to, limit = '50', offset = '0' } = req.query as Record<string, string>
+    const { action, userId, entityType, from, to, limit = 50, offset = 0 } = req.query as any
 
     const where: Record<string, unknown> = { tenantId: req.tenantId }
     if (action) where.action = { contains: action }
@@ -37,7 +39,7 @@ router.get('/', authenticate, authorize('admin'), async (req, res, next) => {
   }
 })
 
-router.get('/:entityType/:entityId', authenticate, authorize('admin'), async (req, res, next) => {
+router.get('/:entityType/:entityId', authenticate, authorize('admin'), validate({ params: s.auditEntityParams }), async (req, res, next) => {
   try {
     const entityType = String(req.params.entityType)
     const entityId = String(req.params.entityId)
@@ -63,7 +65,7 @@ const RESTORABLE: Record<string, (id: number, data: object) => Promise<unknown>>
   contract: (id, data) => prisma.contract.update({ where: { id }, data: stripImmutable(data) }),
 }
 
-router.post('/:logId/restore', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/:logId/restore', authenticate, authorize('admin'), validate({ params: s.restoreParams }), async (req, res, next) => {
   try {
     const log = await prisma.auditLog.findFirst({ where: { id: String(req.params.logId), tenantId: req.tenantId } })
     if (!log) return next(createError(404, 'Audit log entry not found'))

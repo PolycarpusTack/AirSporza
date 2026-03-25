@@ -6,21 +6,22 @@ import { prisma } from '../db/prisma.js'
 import { authenticate } from '../middleware/auth.js'
 import { createError } from '../middleware/errorHandler.js'
 import { getJwtSecret, getJwtExpiresIn, getFrontendUrl } from '../config/index.js'
+import { env } from '../config/env.js'
 
 const router = Router()
 
 const getSignOptions = (): SignOptions => ({ expiresIn: getJwtExpiresIn() } as SignOptions)
 
-if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
+if (env.OAUTH_CLIENT_ID && env.OAUTH_CLIENT_SECRET) {
   passport.use(new OAuth2Strategy({
-    authorizationURL: process.env.OAUTH_AUTHORIZATION_URL || '',
-    tokenURL: process.env.OAUTH_TOKEN_URL || '',
-    clientID: process.env.OAUTH_CLIENT_ID,
-    clientSecret: process.env.OAUTH_CLIENT_SECRET,
-    callbackURL: process.env.OAUTH_CALLBACK_URL || ''
+    authorizationURL: env.OAUTH_AUTHORIZATION_URL || '',
+    tokenURL: env.OAUTH_TOKEN_URL || '',
+    clientID: env.OAUTH_CLIENT_ID,
+    clientSecret: env.OAUTH_CLIENT_SECRET,
+    callbackURL: env.OAUTH_CALLBACK_URL || ''
   }, async (accessToken: string, _refreshToken: string, _profile: unknown, done: (err: Error | null, user?: Express.User | false) => void) => {
     try {
-      const response = await fetch(process.env.OAUTH_USER_INFO_URL || '', {
+      const response = await fetch(env.OAUTH_USER_INFO_URL || '', {
         headers: { Authorization: `Bearer ${accessToken}` }
       })
       const profile = await response.json() as { email: string; name?: string; sub?: string }
@@ -55,7 +56,7 @@ if (process.env.OAUTH_CLIENT_ID && process.env.OAUTH_CLIENT_SECRET) {
 
 
 const requireOAuth = (_req: Request, res: Response, next: NextFunction) => {
-  if (!process.env.OAUTH_CLIENT_ID || !process.env.OAUTH_CLIENT_SECRET) {
+  if (!env.OAUTH_CLIENT_ID || !env.OAUTH_CLIENT_SECRET) {
     return res.status(503).json({ error: 'OAuth not configured' })
   }
   next()
@@ -92,7 +93,7 @@ router.post('/logout', authenticate, (_req, res) => {
 })
 
 router.post('/dev-login', async (req, res, next) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (env.NODE_ENV === 'production') {
     return next(createError(403, 'Not available in production'))
   }
   

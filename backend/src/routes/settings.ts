@@ -1,35 +1,13 @@
 import { Router } from 'express'
 import { Prisma } from '@prisma/client'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
+import * as s from '../schemas/settings.js'
 
 const router = Router()
-
-const roleSchema = Joi.string().valid('planner', 'sports', 'contracts', 'admin').required()
-const fieldConfigSchema = Joi.array().items(
-  Joi.object({
-    id: Joi.string().required(),
-    label: Joi.string().required(),
-    type: Joi.string().valid('text', 'number', 'date', 'time', 'checkbox', 'textarea', 'dropdown').required(),
-    options: Joi.string().allow('', null),
-    required: Joi.boolean().required(),
-    visible: Joi.boolean().required(),
-    order: Joi.number().integer().required(),
-    isCustom: Joi.boolean().optional(),
-  })
-).required()
-
-const dashboardWidgetsSchema = Joi.array().items(
-  Joi.object({
-    id: Joi.string().required(),
-    label: Joi.string().required(),
-    visible: Joi.boolean().required(),
-    order: Joi.number().integer().required(),
-  })
-).required()
 
 function getCurrentUser(req: Parameters<typeof authenticate>[0]) {
   return req.user as { id: string; email?: string; role: string }
@@ -136,13 +114,9 @@ router.put('/autofill', authenticate, authorize('admin'), async (req, res, next)
   }
 })
 
-router.get('/app', authenticate, async (req, res, next) => {
+router.get('/app', authenticate, validate({ query: s.roleQuery }), async (req, res, next) => {
   try {
     const role = String(req.query.role || '')
-    const { error } = roleSchema.validate(role)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
 
     const user = getCurrentUser(req)
     const tid = req.tenantId
@@ -177,27 +151,8 @@ router.get('/app', authenticate, async (req, res, next) => {
   }
 })
 
-const channelConfigItem = Joi.object({
-  name: Joi.string().required(),
-  color: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).required(),
-})
-
-const orgConfigSchema = Joi.object({
-  channels: Joi.array().items(channelConfigItem).required(),
-  onDemandChannels: Joi.array().items(channelConfigItem).required(),
-  radioChannels: Joi.array().items(Joi.string()).required(),
-  phases: Joi.array().items(Joi.string()).required(),
-  categories: Joi.array().items(Joi.string()).required(),
-  complexes: Joi.array().items(Joi.string()).required(),
-}).required()
-
-router.put('/app/org', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/app/org', authenticate, authorize('admin'), validate({ body: s.orgConfigSchema }), async (req, res, next) => {
   try {
-    const { error, value } = orgConfigSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const user = getCurrentUser(req)
     const existing = await getSetting('org_config', 'global', 'global', req.tenantId)
     const setting = await upsertSetting({
@@ -205,7 +160,7 @@ router.put('/app/org', authenticate, authorize('admin'), async (req, res, next) 
       scopeKind: 'global',
       scopeId: 'global',
       userId: user.id,
-      value,
+      value: req.body,
       tenantId: req.tenantId,
     })
 
@@ -215,7 +170,7 @@ router.put('/app/org', authenticate, authorize('admin'), async (req, res, next) 
       entityType: 'app_setting',
       entityId: setting.id,
       oldValue: existing?.value,
-      newValue: value,
+      newValue: req.body,
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || null,
       tenantId: req.tenantId,
@@ -227,13 +182,8 @@ router.put('/app/org', authenticate, authorize('admin'), async (req, res, next) 
   }
 })
 
-router.put('/app/fields/event', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/app/fields/event', authenticate, authorize('admin'), validate({ body: s.fieldsBodySchema }), async (req, res, next) => {
   try {
-    const { error, value } = fieldConfigSchema.validate(req.body.fields)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const user = getCurrentUser(req)
     const existing = await getSetting('event_fields', 'global', 'global', req.tenantId)
     const setting = await upsertSetting({
@@ -241,7 +191,7 @@ router.put('/app/fields/event', authenticate, authorize('admin'), async (req, re
       scopeKind: 'global',
       scopeId: 'global',
       userId: user.id,
-      value,
+      value: req.body.fields,
       tenantId: req.tenantId,
     })
 
@@ -251,7 +201,7 @@ router.put('/app/fields/event', authenticate, authorize('admin'), async (req, re
       entityType: 'app_setting',
       entityId: setting.id,
       oldValue: existing?.value,
-      newValue: value,
+      newValue: req.body.fields,
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || null,
       tenantId: req.tenantId,
@@ -263,13 +213,8 @@ router.put('/app/fields/event', authenticate, authorize('admin'), async (req, re
   }
 })
 
-router.put('/app/fields/crew', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/app/fields/crew', authenticate, authorize('admin'), validate({ body: s.fieldsBodySchema }), async (req, res, next) => {
   try {
-    const { error, value } = fieldConfigSchema.validate(req.body.fields)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const user = getCurrentUser(req)
     const existing = await getSetting('crew_fields', 'global', 'global', req.tenantId)
     const setting = await upsertSetting({
@@ -277,7 +222,7 @@ router.put('/app/fields/crew', authenticate, authorize('admin'), async (req, res
       scopeKind: 'global',
       scopeId: 'global',
       userId: user.id,
-      value,
+      value: req.body.fields,
       tenantId: req.tenantId,
     })
 
@@ -287,7 +232,7 @@ router.put('/app/fields/crew', authenticate, authorize('admin'), async (req, res
       entityType: 'app_setting',
       entityId: setting.id,
       oldValue: existing?.value,
-      newValue: value,
+      newValue: req.body.fields,
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || null,
       tenantId: req.tenantId,
@@ -299,18 +244,9 @@ router.put('/app/fields/crew', authenticate, authorize('admin'), async (req, res
   }
 })
 
-router.put('/app/dashboard/:role', authenticate, async (req, res, next) => {
+router.put('/app/dashboard/:role', authenticate, validate({ params: s.roleParam, body: s.dashboardBodySchema, query: s.dashboardScopeQuery }), async (req, res, next) => {
   try {
     const role = String(req.params.role)
-    const { error: roleError } = roleSchema.validate(role)
-    if (roleError) {
-      return next(createError(400, roleError.details[0].message))
-    }
-
-    const { error, value } = dashboardWidgetsSchema.validate(req.body.widgets)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
 
     const scope = req.query.scope === 'role' ? 'role' : 'user_role'
     const user = getCurrentUser(req)
@@ -326,7 +262,7 @@ router.put('/app/dashboard/:role', authenticate, async (req, res, next) => {
       scopeKind: scope,
       scopeId,
       userId: user.id,
-      value,
+      value: req.body.widgets,
       tenantId: req.tenantId,
     })
 
@@ -336,7 +272,7 @@ router.put('/app/dashboard/:role', authenticate, async (req, res, next) => {
       entityType: 'app_setting',
       entityId: setting.id,
       oldValue: existing?.value,
-      newValue: value,
+      newValue: req.body.widgets,
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || null,
       tenantId: req.tenantId,

@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { canTransition } from '../services/eventTransitions.js'
@@ -10,6 +10,7 @@ import { detectConflicts, type ConflictWarning } from '../services/conflictServi
 import { writeOutboxEvent } from '../services/outbox.js'
 import { syncEventToSlot, shouldSync, unlinkEventSlot } from '../services/eventSlotBridge.js'
 import { parseDurationToMinutes } from '../utils/parseDuration.js'
+import * as s from '../schemas/events.js'
 import type { EventStatus, Role } from '@prisma/client'
 
 const router = Router()
@@ -23,105 +24,24 @@ function enrichDuration(data: Record<string, any>): void {
   }
 }
 
-function parseId(param: string | string[] | undefined): number {
-  if (!param || Array.isArray(param)) return 0
-  return parseInt(param, 10)
-}
-
-const positiveId = Joi.number().integer().min(1).required()
-
-const statusUpdateSchema = Joi.object({
-  status: Joi.string()
-    .valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled')
-    .required()
-})
-
-const conflictCheckSchema = Joi.object({
-  id:                Joi.number().integer().min(1).optional(),
-  competitionId:     Joi.number().integer().min(1).optional(),
-  channelId:         Joi.number().integer().min(1).optional(),
-  radioChannelId:    Joi.number().integer().min(1).optional(),
-  onDemandChannelId: Joi.number().integer().min(1).optional(),
-  linearChannel:     Joi.string().allow('').optional(),
-  onDemandChannel:   Joi.string().allow('').optional(),
-  radioChannel:      Joi.string().allow('').optional(),
-  startDateBE:       Joi.string().isoDate().optional(),
-  startTimeBE:       Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
-  status:            Joi.string().valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled').optional(),
-})
-
-const bulkIdsSchema = Joi.array()
-  .items(Joi.number().integer().min(1))
-  .min(1)
-  .max(100)
-  .required()
-
-const bulkDeleteSchema = Joi.object({ ids: bulkIdsSchema })
-
-const bulkStatusSchema = Joi.object({
-  ids: bulkIdsSchema,
-  status: Joi.string()
-    .valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled')
-    .required(),
-})
-
-const bulkRescheduleSchema = Joi.object({
-  ids: bulkIdsSchema,
-  shiftDays: Joi.number().integer().min(-365).max(365).required(),
-})
-
-const bulkAssignSchema = Joi.object({
-  ids: bulkIdsSchema,
-  field: Joi.string().valid('linearChannel', 'channelId', 'sportId', 'competitionId').required(),
-  value: Joi.alternatives().try(Joi.string().allow(''), Joi.number()).required(),
-})
-
-const eventSchema = Joi.object({
-  sportId: positiveId,
-  competitionId: positiveId,
-  phase: Joi.string().allow(''),
-  category: Joi.string().allow(''),
-  participants: Joi.string().required(),
-  content: Joi.string().allow(''),
-  startDateBE: Joi.string().isoDate().required(),
-  startTimeBE: Joi.string().pattern(/^\d{2}:\d{2}$/).required(),
-  startDateOrigin: Joi.string().isoDate().allow(''),
-  startTimeOrigin: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(''),
-  complex: Joi.string().allow(''),
-  livestreamDate: Joi.string().isoDate().allow(''),
-  livestreamTime: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(''),
-  channelId: Joi.number().integer().min(1).allow(null),
-  radioChannelId: Joi.number().integer().min(1).allow(null),
-  onDemandChannelId: Joi.number().integer().min(1).allow(null),
-  linearChannel: Joi.string().allow(''),
-  radioChannel: Joi.string().allow(''),
-  onDemandChannel: Joi.string().allow(''),
-  linearStartTime: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(''),
-  durationMin: Joi.number().integer().min(1).allow(null),
-  isLive: Joi.boolean(),
-  isDelayedLive: Joi.boolean(),
-  videoRef: Joi.string().allow(''),
-  winner: Joi.string().allow(''),
-  score: Joi.string().allow(''),
-  duration: Joi.string().allow(''),
-  customFields: Joi.object(),
-  customValues: Joi.array().items(
-    Joi.object({ fieldId: Joi.string().required(), fieldValue: Joi.string().required() })
-  ).default([]),
-  status: Joi.string().valid('draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled'),
-  seriesId: Joi.string().allow(null, ''),
-})
-
-router.get('/', async (req, res, next) => {
+router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
   try {
-    const { sportId, competitionId, channel, channelId: chId, from, to, search } = req.query
+    const { sportId, competitionId, channel, channelId: chId, from, to, search } = req.query as {
+      sportId?: number
+      competitionId?: number
+      channel?: string
+      channelId?: number
+      from?: string
+      to?: string
+      search?: string
+    }
 
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
-    if (sportId) where.sportId = Number(sportId)
-    if (competitionId) where.competitionId = Number(competitionId)
+    if (sportId) where.sportId = sportId
+    if (competitionId) where.competitionId = competitionId
     if (chId) {
-      where.channelId = Number(chId)
+      where.channelId = chId
     } else if (channel) {
       // Support both channelId (int) and channel name (string) for backwards compat
       const parsed = Number(channel)
@@ -134,11 +54,11 @@ router.get('/', async (req, res, next) => {
 
     if (from || to) {
       where.startDateBE = {}
-      if (from) (where.startDateBE as Record<string, unknown>).gte = new Date(from as string)
-      if (to) (where.startDateBE as Record<string, unknown>).lte = new Date(to as string)
+      if (from) (where.startDateBE as Record<string, unknown>).gte = new Date(from)
+      if (to) (where.startDateBE as Record<string, unknown>).lte = new Date(to)
     }
 
-    const searchTerm = search ? String(search).slice(0, 200) : undefined
+    const searchTerm = search ? search.slice(0, 200) : undefined
     if (searchTerm) {
       where.OR = [
         { participants: { contains: searchTerm, mode: 'insensitive' } },
@@ -177,31 +97,18 @@ router.get('/', async (req, res, next) => {
   }
 })
 
-router.post('/conflicts', authenticate, async (req, res, next) => {
+router.post('/conflicts', authenticate, validate({ body: s.conflictCheckSchema }), async (req, res, next) => {
   try {
-    const { error, value } = conflictCheckSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-    const result = await detectConflicts(value)
+    const result = await detectConflicts(req.body)
     res.json(result)
   } catch (error) {
     next(error)
   }
 })
 
-const bulkConflictSchema = Joi.object({
-  eventIds: Joi.array()
-    .items(Joi.number().integer().min(1))
-    .min(1)
-    .max(50)
-    .required(),
-})
-
-router.post('/conflicts/bulk', authenticate, async (req, res, next) => {
+router.post('/conflicts/bulk', authenticate, validate({ body: s.bulkConflictSchema }), async (req, res, next) => {
   try {
-    const { error, value } = bulkConflictSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
-    const { eventIds } = value as { eventIds: number[] }
+    const { eventIds } = req.body as { eventIds: number[] }
 
     const events = await prisma.event.findMany({
       where: { tenantId: req.tenantId, id: { in: eventIds } },
@@ -254,12 +161,9 @@ router.post('/conflicts/bulk', authenticate, async (req, res, next) => {
 })
 
 // Get fixture dates for a competition (for matchday repeat pattern)
-router.get('/fixtures/:competitionId', authenticate, async (req, res, next) => {
+router.get('/fixtures/:competitionId', authenticate, validate({ params: s.competitionIdParam }), async (req, res, next) => {
   try {
     const competitionId = Number(req.params.competitionId)
-    if (!competitionId || isNaN(competitionId)) {
-      return next(createError(400, 'Invalid competition ID'))
-    }
 
     const events = await prisma.event.findMany({
       where: { tenantId: req.tenantId, competitionId },
@@ -288,11 +192,9 @@ router.get('/fixtures/:competitionId', authenticate, async (req, res, next) => {
 
 // ── Bulk operations (must be before /:id routes) ────────────────────────────
 
-router.delete('/bulk', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.delete('/bulk', authenticate, authorize('planner', 'admin'), validate({ body: s.bulkDeleteSchema }), async (req, res, next) => {
   try {
-    const { error, value } = bulkDeleteSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-    const { ids } = value as { ids: number[] }
+    const { ids } = req.body as { ids: number[] }
 
     await prisma.$transaction(async (tx) => {
       // Void any linked BroadcastSlots before deleting events
@@ -323,11 +225,9 @@ router.delete('/bulk', authenticate, authorize('planner', 'admin'), async (req, 
   }
 })
 
-router.patch('/bulk/status', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.patch('/bulk/status', authenticate, authorize('planner', 'admin'), validate({ body: s.bulkStatusSchema }), async (req, res, next) => {
   try {
-    const { error, value } = bulkStatusSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-    const { ids, status } = value as { ids: number[]; status: EventStatus }
+    const { ids, status } = req.body as { ids: number[]; status: EventStatus }
 
     const updatedEvents = await prisma.$transaction(async (tx) => {
       await tx.event.updateMany({
@@ -355,11 +255,9 @@ router.patch('/bulk/status', authenticate, authorize('planner', 'admin'), async 
   }
 })
 
-router.patch('/bulk/reschedule', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.patch('/bulk/reschedule', authenticate, authorize('planner', 'admin'), validate({ body: s.bulkRescheduleSchema }), async (req, res, next) => {
   try {
-    const { error, value } = bulkRescheduleSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-    const { ids, shiftDays } = value as { ids: number[]; shiftDays: number }
+    const { ids, shiftDays } = req.body as { ids: number[]; shiftDays: number }
 
     const currentEvents = await prisma.event.findMany({
       where: { tenantId: req.tenantId, id: { in: ids } },
@@ -395,11 +293,9 @@ router.patch('/bulk/reschedule', authenticate, authorize('planner', 'admin'), as
   }
 })
 
-router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), validate({ body: s.bulkAssignSchema }), async (req, res, next) => {
   try {
-    const { error, value } = bulkAssignSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-    const { ids, field, value: fieldValue } = value as {
+    const { ids, field, value: fieldValue } = req.body as {
       ids: number[]
       field: 'linearChannel' | 'sportId' | 'competitionId'
       value: string | number
@@ -430,7 +326,7 @@ router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), async 
   }
 })
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const event = await prisma.event.findFirst({
       where: { id: Number(req.params.id), tenantId: req.tenantId },
@@ -461,15 +357,10 @@ router.get('/:id', async (req, res, next) => {
   }
 })
 
-router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('planner', 'sports', 'admin'), validate({ body: s.eventSchema }), async (req, res, next) => {
   try {
-    const { error, value } = eventSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const user = req.user as { id: string }
-    const { customValues, ...eventData } = value
+    const { customValues, ...eventData } = req.body
 
     // Remove undefined values that Prisma can't handle
     Object.keys(eventData).forEach(k => {
@@ -538,18 +429,10 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), async (r
   }
 })
 
-const batchCreateSchema = Joi.object({
-  events: Joi.array().items(eventSchema).min(1).max(100).required(),
-  seriesId: Joi.string().allow(null, ''),
-})
-
-router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), validate({ body: s.batchCreateSchema }), async (req, res, next) => {
   try {
-    const { error, value } = batchCreateSchema.validate(req.body)
-    if (error) return next(createError(400, error.details[0].message))
-
     const user = req.user as { id: string }
-    const { events: eventPayloads, seriesId } = value
+    const { events: eventPayloads, seriesId } = req.body
 
     const created = await prisma.$transaction(async (tx) => {
       const results = []
@@ -614,12 +497,10 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), asy
   }
 })
 
-router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'), validate({ params: s.idParam, body: s.statusUpdateSchema }), async (req, res, next) => {
   try {
-    const id = parseId(req.params.id)
-    const { error: vErr, value: vBody } = statusUpdateSchema.validate(req.body)
-    if (vErr) return next(createError(400, vErr.details[0].message))
-    const { status } = vBody as { status: EventStatus }
+    const id = Number(req.params.id)
+    const { status } = req.body as { status: EventStatus }
 
     const event = await prisma.event.findFirst({ where: { id, tenantId: req.tenantId } })
     if (!event) return next(createError(404, 'Event not found'))
@@ -680,13 +561,8 @@ router.patch('/:id/status', authenticate, authorize('planner', 'sports', 'admin'
   }
 })
 
-router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), validate({ params: s.idParam, body: s.eventSchema }), async (req, res, next) => {
   try {
-    const { error, value } = eventSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const existing = await prisma.event.findFirst({
       where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
@@ -695,7 +571,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
       return next(createError(404, 'Event not found'))
     }
 
-    const { customValues, ...eventData } = value
+    const { customValues, ...eventData } = req.body
 
     // Remove undefined values that Prisma can't handle
     Object.keys(eventData).forEach(k => {
@@ -784,7 +660,7 @@ router.put('/:id', authenticate, authorize('planner', 'sports', 'admin'), async 
   }
 })
 
-router.delete('/:id', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.delete('/:id', authenticate, authorize('planner', 'admin'), validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const event = await prisma.event.findFirst({
       where: { id: Number(req.params.id), tenantId: req.tenantId }

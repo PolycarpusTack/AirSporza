@@ -27,7 +27,7 @@ export async function setTenantContext(req: Request, _res: Response, next: NextF
 
     if (defaultTenantId) {
       // Set PostgreSQL session variable for RLS
-      await prisma.$executeRawUnsafe(`SELECT set_tenant_context('${defaultTenantId}')`)
+      await prisma.$executeRaw`SELECT set_tenant_context(${defaultTenantId})`
       req.tenantId = defaultTenantId
     } else {
       logger.warn('No default tenant found — tenant context not set')

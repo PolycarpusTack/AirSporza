@@ -32,7 +32,7 @@ export async function runCascade(
   const lockKey = hashCode(`cascade:${courtId}:${dateStr}`)
 
   return await prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${lockKey})`)
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`
 
     // Find all events on this court for this date, ordered by court position
     const events = await tx.event.findMany({

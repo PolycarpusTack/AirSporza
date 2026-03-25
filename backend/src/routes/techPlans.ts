@@ -1,10 +1,11 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { writeOutboxEvent } from '../services/outbox.js'
+import * as s from '../schemas/techPlans.js'
 
 export const LOCK_TTL_MS = 30_000
 
@@ -13,14 +14,6 @@ export function isLockExpired(expiresAt: Date): boolean {
 }
 
 const router = Router()
-
-const techPlanSchema = Joi.object({
-  eventId: Joi.number().required(),
-  planType: Joi.string().required(),
-  crew: Joi.object().required(),
-  isLivestream: Joi.boolean(),
-  customFields: Joi.array().items(Joi.object({ name: Joi.string(), value: Joi.string() }))
-})
 
 router.get('/', authenticate, async (req, res, next) => {
   try {
@@ -46,7 +39,7 @@ router.get('/', authenticate, async (req, res, next) => {
   }
 })
 
-router.get('/:id', authenticate, async (req, res, next) => {
+router.get('/:id', authenticate, validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const plan = await prisma.techPlan.findFirst({
       where: { id: Number(req.params.id), tenantId: req.tenantId },
@@ -68,20 +61,15 @@ router.get('/:id', authenticate, async (req, res, next) => {
   }
 })
 
-router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, next) => {
+router.post('/', authenticate, authorize('sports', 'admin'), validate({ body: s.techPlanSchema }), async (req, res, next) => {
   try {
-    const { error, value } = techPlanSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const user = req.user as { id: string }
 
     // Auto-fill crew from plan-type default template if crew is empty
-    let crew = value.crew || {}
-    if (Object.keys(crew).length === 0 && value.planType) {
+    let crew = req.body.crew || {}
+    if (Object.keys(crew).length === 0 && req.body.planType) {
       const defaultTemplate = await prisma.crewTemplate.findFirst({
-        where: { tenantId: req.tenantId, planType: value.planType, createdById: null },
+        where: { tenantId: req.tenantId, planType: req.body.planType, createdById: null },
       })
       if (defaultTemplate) {
         crew = defaultTemplate.crewData as Record<string, unknown>
@@ -91,7 +79,7 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
     const plan = await prisma.$transaction(async (tx) => {
       const created = await tx.techPlan.create({
         data: {
-          ...value,
+          ...req.body,
           tenantId: req.tenantId!,
           crew,
           createdById: user.id
@@ -129,13 +117,8 @@ router.post('/', authenticate, authorize('sports', 'admin'), async (req, res, ne
   }
 })
 
-router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, next) => {
+router.put('/:id', authenticate, authorize('sports', 'admin'), validate({ params: s.idParam, body: s.techPlanSchema }), async (req, res, next) => {
   try {
-    const { error, value } = techPlanSchema.validate(req.body)
-    if (error) {
-      return next(createError(400, error.details[0].message))
-    }
-
     const existing = await prisma.techPlan.findFirst({
       where: { id: Number(req.params.id), tenantId: req.tenantId }
     })
@@ -145,9 +128,9 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
     }
 
     // Validate that eventId belongs to the same tenant
-    if (value.eventId) {
+    if (req.body.eventId) {
       const event = await prisma.event.findFirst({
-        where: { id: value.eventId, tenantId: req.tenantId },
+        where: { id: req.body.eventId, tenantId: req.tenantId },
       })
       if (!event) {
         return next(createError(400, 'eventId does not belong to this tenant'))
@@ -157,7 +140,7 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
     const plan = await prisma.$transaction(async (tx) => {
       const updated = await tx.techPlan.update({
         where: { id: existing.id },
-        data: value,
+        data: req.body,
         include: {
           event: { include: { sport: true, competition: true } }
         }
@@ -193,10 +176,9 @@ router.put('/:id', authenticate, authorize('sports', 'admin'), async (req, res, 
   }
 })
 
-router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), async (req, res, next) => {
+router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), validate({ params: s.idParam, body: s.encoderPatchSchema }), async (req, res, next) => {
   try {
     const { encoder } = req.body
-    if (!encoder) return next(createError(400, 'Encoder is required'))
 
     const planId = Number(req.params.id)
     const user = req.user as { id: string }
@@ -256,7 +238,7 @@ router.patch('/:id/encoder', authenticate, authorize('sports', 'admin'), async (
   }
 })
 
-router.delete('/:id', authenticate, authorize('sports', 'admin'), async (req, res, next) => {
+router.delete('/:id', authenticate, authorize('sports', 'admin'), validate({ params: s.idParam }), async (req, res, next) => {
   try {
     const planId = Number(req.params.id)
     const existing = await prisma.techPlan.findFirst({ where: { id: planId, tenantId: req.tenantId } })

@@ -1,7 +1,9 @@
 import { Router } from 'express'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import * as s from '../schemas/rights.js'
 
 const router = Router()
 
@@ -34,7 +36,7 @@ router.get('/policies', authenticate, async (req, res, next) => {
 })
 
 // POST /policies — create policy (admin)
-router.post('/policies', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/policies', authenticate, authorize('admin'), validate({ body: s.policyCreateSchema }), async (req, res, next) => {
   try {
     const {
       competitionId,
@@ -48,10 +50,6 @@ router.post('/policies', authenticate, authorize('admin'), async (req, res, next
       windowEndUtc,
       tapeDelayHoursMin
     } = req.body
-
-    if (!competitionId) {
-      return next(createError(400, 'competitionId is required'))
-    }
 
     const policy = await prisma.rightsPolicy.create({
       data: {
@@ -79,7 +77,7 @@ router.post('/policies', authenticate, authorize('admin'), async (req, res, next
 })
 
 // PUT /policies/:id — update policy (admin)
-router.put('/policies/:id', authenticate, authorize('admin'), async (req, res, next) => {
+router.put('/policies/:id', authenticate, authorize('admin'), validate({ params: s.policyIdParam, body: s.policyUpdateSchema }), async (req, res, next) => {
   try {
     const existing = await prisma.rightsPolicy.findFirst({
       where: { id: req.params.id as string, tenantId: req.tenantId }
@@ -196,7 +194,7 @@ router.get('/run-ledger', authenticate, async (req, res, next) => {
 })
 
 // POST /run-ledger — record a run
-router.post('/run-ledger', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+router.post('/run-ledger', authenticate, authorize('planner', 'admin'), validate({ body: s.runLedgerCreateSchema }), async (req, res, next) => {
   try {
     const {
       broadcastSlotId,
@@ -209,10 +207,6 @@ router.post('/run-ledger', authenticate, authorize('planner', 'admin'), async (r
       durationMin,
       status
     } = req.body
-
-    if (!broadcastSlotId || !eventId || !channelId) {
-      return next(createError(400, 'broadcastSlotId, eventId, and channelId are required'))
-    }
 
     // Validate broadcast slot exists and belongs to tenant
     const slot = await prisma.broadcastSlot.findFirst({
