@@ -23,6 +23,7 @@ import { ConflictDashboard } from '../components/sports/ConflictDashboard'
 import { ResourceConflictList } from '../components/sports/ResourceConflictList'
 import { detectCrewConflicts, groupConflictsByPerson } from '../utils/crewConflicts'
 import { detectResourceConflicts } from '../utils/resourceConflicts'
+import { useConfirmDialog } from '../components/ui/ConfirmDialog'
 
 interface SportsWorkspaceProps {
   events: Event[]
@@ -58,6 +59,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [templateShared, setTemplateShared] = useState(false)
   const toast = useToast()
   const { handleSaveEvent } = useApp()
+  const { confirm: confirmSW, dialog: confirmSWDialog } = useConfirmDialog()
 
   const { on } = useSocket()
 
@@ -475,9 +477,17 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                         onAddCustomField={() => addCustomToPlan(plan.id)}
                         onUpdateCustomField={(idx, key, val) => updatePlanCustomField(plan.id, idx, key, val)}
                         onRemoveCustomField={(idx) => removePlanCustomField(plan.id, idx)}
-                        onApplyTemplate={(crewData) => {
+                        onApplyTemplate={async (crewData) => {
                           const hasExisting = Object.values(plan.crew).some(v => typeof v === 'string' && v.trim())
-                          if (hasExisting && !window.confirm('This will overwrite current crew fields. Continue?')) return
+                          if (hasExisting) {
+                            const ok = await confirmSW({
+                              title: 'Overwrite crew fields',
+                              message: 'This will overwrite current crew fields. Continue?',
+                              variant: 'warning',
+                              confirmLabel: 'Overwrite',
+                            })
+                            if (!ok) return
+                          }
                           handleCrewBatchApply(plan.id, crewData)
                         }}
                         onSaveAsTemplate={(crewData) => { setSaveTemplateData(crewData); setTemplateName(''); setTemplateShared(false) }}
@@ -762,6 +772,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
           </div>
         </div>
       )}
+
+      {confirmSWDialog}
     </div>
   )
 }

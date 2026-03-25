@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Merge, Trash2, RefreshCw } from 'lucide-react'
 import { Btn, Badge } from '../ui'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { crewMembersApi } from '../../services/crewMembers'
 import { useToast } from '../Toast'
 import type { CrewMember } from '../../data/types'
@@ -13,6 +14,7 @@ export function CrewRosterPanel() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
   const toast = useToast()
+  const { confirm, dialog: confirmDialog } = useConfirmDialog()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -71,9 +73,15 @@ export function CrewRosterPanel() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (member: CrewMember) => {
+    const ok = await confirm({
+      title: 'Delete crew member',
+      message: `Delete "${member.name}"? This cannot be undone.`,
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
-      await crewMembersApi.delete(id)
+      await crewMembersApi.delete(member.id)
       toast.success('Deleted')
       load()
     } catch {
@@ -152,7 +160,7 @@ export function CrewRosterPanel() {
                         <>
                           <Btn variant="ghost" size="xs" onClick={() => { setEditingId(m.id); setEditName(m.name) }}>Rename</Btn>
                           <Btn variant="ghost" size="xs" onClick={() => setMergeSource(m.id)}><Merge className="w-3 h-3" /></Btn>
-                          <Btn variant="ghost" size="xs" onClick={() => handleDelete(m.id)}><Trash2 className="w-3 h-3 text-danger" /></Btn>
+                          <Btn variant="ghost" size="xs" onClick={() => handleDelete(m)}><Trash2 className="w-3 h-3 text-danger" /></Btn>
                         </>
                       ) : null}
                     </div>
@@ -163,6 +171,8 @@ export function CrewRosterPanel() {
           </table>
         </div>
       )}
+
+      {confirmDialog}
     </div>
   )
 }

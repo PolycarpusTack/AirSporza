@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Trash2, Globe, Lock } from 'lucide-react'
 import { Btn, Badge } from '../ui'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { crewTemplatesApi } from '../../services/crewTemplates'
 import { useToast } from '../Toast'
 import type { CrewTemplate } from '../../data/types'
@@ -9,6 +10,7 @@ export function CrewTemplatesPanel() {
   const [templates, setTemplates] = useState<CrewTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const toast = useToast()
+  const { confirm, dialog: confirmDialog } = useConfirmDialog()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -33,9 +35,15 @@ export function CrewTemplatesPanel() {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (t: CrewTemplate) => {
+    const ok = await confirm({
+      title: 'Delete template',
+      message: `Delete template "${t.name}"? This cannot be undone.`,
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
-      await crewTemplatesApi.delete(id)
+      await crewTemplatesApi.delete(t.id)
       toast.success('Deleted')
       load()
     } catch {
@@ -67,7 +75,7 @@ export function CrewTemplatesPanel() {
                   <div className="text-xs text-text-2">Plan type: <span className="font-mono">{t.planType}</span></div>
                   <div className="text-xs text-text-3 mt-1">Fields: {Object.entries(t.crewData).filter(([, v]) => v).map(([k]) => k).join(', ') || 'empty'}</div>
                 </div>
-                <Btn variant="ghost" size="xs" onClick={() => handleDelete(t.id)}><Trash2 className="w-3.5 h-3.5 text-danger" /></Btn>
+                <Btn variant="ghost" size="xs" onClick={() => handleDelete(t)}><Trash2 className="w-3.5 h-3.5 text-danger" /></Btn>
               </div>
             ))}
           </div>
@@ -94,13 +102,15 @@ export function CrewTemplatesPanel() {
                 </div>
                 <div className="flex items-center gap-1">
                   <Btn variant="ghost" size="xs" onClick={() => handleToggleShared(t)}>{t.isShared ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />}</Btn>
-                  <Btn variant="ghost" size="xs" onClick={() => handleDelete(t.id)}><Trash2 className="w-3.5 h-3.5 text-danger" /></Btn>
+                  <Btn variant="ghost" size="xs" onClick={() => handleDelete(t)}><Trash2 className="w-3.5 h-3.5 text-danger" /></Btn>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {confirmDialog}
     </div>
   )
 }

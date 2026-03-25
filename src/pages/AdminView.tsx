@@ -19,6 +19,7 @@ import { Badge } from '../components/ui'
 import { Toggle } from '../components/ui/Toggle'
 import { useToast } from '../components/Toast'
 import { handleApiError } from '../utils/apiError'
+import { useConfirmDialog } from '../components/ui/ConfirmDialog'
 
 interface AdminViewProps {
   widgets: DashboardWidget[]
@@ -44,7 +45,7 @@ function SportsTab({ sports, setSports }: {
   const [editSport, setEditSport] = useState<Sport | null>(null)
   const [form, setForm] = useState({ name: '', icon: '', federation: '' })
   const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const { confirm, dialog: confirmDialog } = useConfirmDialog()
 
   const openCreate = () => { setEditSport(null); setForm({ name: '', icon: '', federation: '' }); setShowForm(true) }
   const openEdit = (s: Sport) => { setEditSport(s); setForm({ name: s.name, icon: s.icon, federation: s.federation }); setShowForm(true) }
@@ -66,10 +67,18 @@ function SportsTab({ sports, setSports }: {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    await sportsApi.delete(id).catch(err => handleApiError(err, 'Failed to delete sport', toast))
-    setSports(prev => prev.filter(s => s.id !== id))
-    setConfirmDelete(null)
+  const handleDelete = async (s: Sport & { _count?: { competitions: number; events: number } }) => {
+    const hasComps = (s._count?.competitions ?? 0) > 0
+    const ok = await confirm({
+      title: 'Delete sport',
+      message: hasComps
+        ? 'This will also delete all associated competitions and events.'
+        : `Delete "${s.name}"? This cannot be undone.`,
+      variant: 'danger',
+    })
+    if (!ok) return
+    await sportsApi.delete(s.id).catch(err => handleApiError(err, 'Failed to delete sport', toast))
+    setSports(prev => prev.filter(x => x.id !== s.id))
   }
 
   return (
@@ -97,15 +106,7 @@ function SportsTab({ sports, setSports }: {
                 <td className="px-4 py-3 text-right">
                   <div className="flex gap-2 justify-end items-center">
                     <button onClick={() => openEdit(s)} className="btn btn-g btn-sm">Edit</button>
-                    {confirmDelete === s.id ? (
-                      <>
-                        {(s._count?.competitions ?? 0) > 0 && <span className="text-xs text-warning">Has competitions</span>}
-                        <button onClick={() => handleDelete(s.id)} className="btn btn-sm text-danger border border-danger/30 bg-danger/10 hover:bg-danger/20">Delete</button>
-                        <button onClick={() => setConfirmDelete(null)} className="btn btn-s btn-sm">Cancel</button>
-                      </>
-                    ) : (
-                      <button onClick={() => setConfirmDelete(s.id)} className="text-xs text-danger hover:underline">Delete</button>
-                    )}
+                    <button onClick={() => handleDelete(s)} className="text-xs text-danger hover:underline">Delete</button>
                   </div>
                 </td>
               </tr>
@@ -130,6 +131,8 @@ function SportsTab({ sports, setSports }: {
           </div>
         </div>
       )}
+
+      {confirmDialog}
     </div>
   )
 }
@@ -526,6 +529,7 @@ function CsvImportTab({ sports }: { sports: Sport[] }) {
 
 export function AdminView({ widgets, activeTab: externalTab, onTabChange }: AdminViewProps) {
   const toast = useToast()
+  const { confirm: confirmAdmin, dialog: confirmAdminDialog } = useConfirmDialog()
   const [internalTab, setInternalTab] = useState<AdminTab>('org')
   const activeTab = externalTab ?? internalTab
   const setActiveTab = (tab: AdminTab) => { if (onTabChange) onTabChange(tab); else setInternalTab(tab) }
@@ -660,6 +664,12 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
                         <button
                           className="text-xs text-danger hover:underline"
                           onClick={async () => {
+                            const ok = await confirmAdmin({
+                              title: 'Delete user',
+                              message: `Delete user "${u.name || u.email}"? This cannot be undone.`,
+                              variant: 'danger',
+                            })
+                            if (!ok) return
                             await usersApi.delete(u.id)
                             setUserList(prev => prev.filter(x => x.id !== u.id))
                           }}
@@ -773,6 +783,8 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
           </div>
         )}
       </div>
+
+      {confirmAdminDialog}
     </div>
   )
 }
