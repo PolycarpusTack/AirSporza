@@ -3,7 +3,7 @@ import { env } from './config/env.js'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
+import { authLimiter, publicLimiter, standardLimiter, webhookLimiter } from './middleware/rateLimits.js'
 import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import { logger } from './utils/logger.js'
@@ -82,22 +82,23 @@ const getDatabaseInfo = () => {
   }
 }
 
+// Number of proxy layers between client and this server.
+// Must match production deployment topology for correct IP extraction.
 app.set('trust proxy', 1)
 
-app.use(helmet())
-app.use(cors({
-  origin: corsOrigins,
-  credentials: true
+app.use(helmet({ contentSecurityPolicy: false }))
+app.use(cors({ origin: corsOrigins }))
+
+// Raw body preservation for HMAC verification.
+// Import routes need higher limit; place BEFORE the general parser.
+app.use('/api/import', express.json({
+  limit: '10mb',
+  verify: (req: any, _res: any, buf: Buffer) => { req.rawBody = buf }
 }))
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 500,
-  message: { error: 'Too many requests, please try again later.' }
-})
-app.use('/api/', limiter)
-
-app.use(express.json({ limit: '10mb' }))
+app.use(express.json({
+  limit: '1mb',
+  verify: (req: any, _res: any, buf: Buffer) => { req.rawBody = buf }
+}))
 app.use(express.urlencoded({ extended: true }))
 
 app.use((req, res, next) => {
@@ -121,40 +122,45 @@ app.get('/api/debug/db', authenticate, authorize('admin'), (_req, res) => {
   })
 })
 
-app.use('/api/auth', authRoutes)
+app.use('/api/auth', authLimiter, authRoutes)
 
 // Tenant context middleware — sets RLS session variable for all subsequent routes
 app.use('/api', setTenantContext)
 
-app.use('/api/events', eventsRoutes)
-app.use('/api/sports', sportsRoutes)
-app.use('/api/competitions', competitionsRoutes)
-app.use('/api/tech-plans', techPlansRoutes)
-app.use('/api/contracts', contractsRoutes)
-app.use('/api/encoders', encodersRoutes)
-app.use('/api/import/schedules', importSchedulesRoutes)
-app.use('/api/import', importRoutes)
-app.use('/api/import', csvImportRoutes)
-app.use('/api/fields', fieldConfigRoutes)
-app.use('/api/settings', settingsRoutes)
-app.use('/api/publish', publishRoutes)
-app.use('/api/audit', auditRoutes)
-app.use('/api/notifications', notificationsRoutes)
-app.use('/api/saved-views', savedViewsRoutes)
-app.use('/api/resources', resourcesRoutes)
-app.use('/api/crew-members', crewMembersRoutes)
-app.use('/api/crew-templates', crewTemplatesRoutes)
-app.use('/api/users', usersRouter)
-app.use('/api/venues', venueRoutes)
-app.use('/api/teams', teamRoutes)
-app.use('/api/courts', courtRoutes)
-app.use('/api/seasons', seasonRoutes)
-app.use('/api/channels', authenticate, channelRoutes)
-app.use('/api/broadcast-slots', authenticate, broadcastSlotRoutes)
-app.use('/api/schedule-drafts', authenticate, scheduleRoutes)
-app.use('/api/rights', authenticate, rightsRoutes)
-app.use('/api/channel-switches', authenticate, channelSwitchRoutes)
-app.use('/api/adapters', adapterRoutes)
+// Public routes (no auth required)
+app.use('/api/sports', publicLimiter, sportsRoutes)
+app.use('/api/competitions', publicLimiter, competitionsRoutes)
+app.use('/api/encoders', publicLimiter, encodersRoutes)
+app.use('/api/publish', publicLimiter, publishRoutes)
+
+// Authenticated routes — standardLimiter goes AFTER authenticate (uses req.user.id as key)
+app.use('/api/events', authenticate, standardLimiter, eventsRoutes)
+app.use('/api/tech-plans', authenticate, standardLimiter, techPlansRoutes)
+app.use('/api/contracts', authenticate, standardLimiter, contractsRoutes)
+app.use('/api/import/schedules', authenticate, standardLimiter, importSchedulesRoutes)
+app.use('/api/import', authenticate, standardLimiter, importRoutes)
+app.use('/api/import', authenticate, standardLimiter, csvImportRoutes)
+app.use('/api/fields', authenticate, standardLimiter, fieldConfigRoutes)
+app.use('/api/settings', authenticate, standardLimiter, settingsRoutes)
+app.use('/api/audit', authenticate, standardLimiter, auditRoutes)
+app.use('/api/notifications', authenticate, standardLimiter, notificationsRoutes)
+app.use('/api/saved-views', authenticate, standardLimiter, savedViewsRoutes)
+app.use('/api/resources', authenticate, standardLimiter, resourcesRoutes)
+app.use('/api/crew-members', authenticate, standardLimiter, crewMembersRoutes)
+app.use('/api/crew-templates', authenticate, standardLimiter, crewTemplatesRoutes)
+app.use('/api/users', authenticate, standardLimiter, usersRouter)
+app.use('/api/venues', authenticate, standardLimiter, venueRoutes)
+app.use('/api/teams', authenticate, standardLimiter, teamRoutes)
+app.use('/api/courts', authenticate, standardLimiter, courtRoutes)
+app.use('/api/seasons', authenticate, standardLimiter, seasonRoutes)
+app.use('/api/channels', authenticate, standardLimiter, channelRoutes)
+app.use('/api/broadcast-slots', authenticate, standardLimiter, broadcastSlotRoutes)
+app.use('/api/schedule-drafts', authenticate, standardLimiter, scheduleRoutes)
+app.use('/api/rights', authenticate, standardLimiter, rightsRoutes)
+app.use('/api/channel-switches', authenticate, standardLimiter, channelSwitchRoutes)
+
+// Adapter routes — CRUD has per-endpoint auth; webhook uses HMAC (not JWT)
+app.use('/api/adapters', webhookLimiter, adapterRoutes)
 
 app.use(errorHandler)
 
