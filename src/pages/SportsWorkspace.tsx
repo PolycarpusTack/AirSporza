@@ -150,6 +150,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   )
 
   const eventPlans = useMemo(() => selEvent ? realtimePlans.filter(p => p.eventId === selEvent.id) : [], [selEvent, realtimePlans])
+  const selectedSport = useMemo(() => selEvent ? sports.find(s => s.id === selEvent.sportId) : undefined, [selEvent, sports])
+  const selectedCompetition = useMemo(() => selEvent ? competitions.find(c => c.id === selEvent.competitionId) : undefined, [selEvent, competitions])
   const crewConflicts = useMemo(() => detectCrewConflicts(realtimePlans, events), [realtimePlans, events])
   const conflictGroups = useMemo(() => groupConflictsByPerson(realtimePlans, events), [realtimePlans, events])
   const resourceConflicts = useMemo(
@@ -160,7 +162,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     const types = new Set(realtimePlans.map(p => p.planType))
     return Array.from(types).sort()
   }, [realtimePlans])
-  const visibleCrewFields = crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order)
+  const visibleCrewFields = useMemo(() => crewFields.filter(f => f.visible).sort((a, b) => a.order - b.order), [crewFields])
 
   const crewEditTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -389,8 +391,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
                 {showDetail && (
                   <EventDetailCard
                     event={selEvent}
-                    sport={sports.find(s => s.id === selEvent.sportId)}
-                    competition={competitions.find(c => c.id === selEvent.competitionId)}
+                    sport={selectedSport}
+                    competition={selectedCompetition}
                     canEdit={canEdit}
                     onUpdateChannels={handleUpdateChannels}
                   />

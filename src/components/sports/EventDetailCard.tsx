@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Tv, Radio, MonitorPlay, Clock } from 'lucide-react'
 import { Badge, Btn } from '../ui'
 import { ChannelSelect, useChannelLookup } from '../ui/ChannelSelect'
@@ -20,7 +20,7 @@ interface EventDetailCardProps {
   onUpdateChannels?: (eventId: number, channels: ChannelUpdate) => void
 }
 
-export function EventDetailCard({ event, sport, competition, canEdit, onUpdateChannels }: EventDetailCardProps) {
+export const EventDetailCard = React.memo(function EventDetailCard({ event, sport, competition, canEdit, onUpdateChannels }: EventDetailCardProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [form, setForm] = useState<ChannelUpdate>({
     channelId: event.channelId ?? null,
@@ -173,4 +173,4 @@ export function EventDetailCard({ event, sport, competition, canEdit, onUpdateCh
       )}
     </div>
   )
-}
+})
