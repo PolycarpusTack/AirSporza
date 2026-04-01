@@ -5,6 +5,7 @@ import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
+import { writeOutboxEvent } from '../services/outbox.js'
 import * as s from '../schemas/settings.js'
 
 const router = Router()
@@ -14,9 +15,11 @@ function getCurrentUser(req: Parameters<typeof authenticate>[0]) {
 }
 
 
-async function getSetting(key: string, scopeKind: 'global' | 'role' | 'user' | 'user_role', scopeId: string, tenantId?: string) {
+type DbClient = Prisma.TransactionClient | typeof prisma
+
+async function getSetting(key: string, scopeKind: 'global' | 'role' | 'user' | 'user_role', scopeId: string, tenantId?: string, db: DbClient = prisma) {
   const tid = tenantId ?? null
-  const results = await prisma.$queryRaw<Array<{
+  const results = await db.$queryRaw<Array<{
     id: string
     key: string
     scopeKind: 'global' | 'role' | 'user' | 'user_role'
@@ -43,9 +46,9 @@ async function upsertSetting(params: {
   userId?: string | null
   value: unknown
   tenantId?: string
-}) {
+}, db: DbClient = prisma) {
   const { key, scopeKind, scopeId, userId, value, tenantId } = params
-  const rows = await prisma.$queryRaw<Array<{
+  const rows = await db.$queryRaw<Array<{
     id: string
     value: Prisma.JsonValue
   }>>(Prisma.sql`
@@ -100,14 +103,28 @@ router.put('/autofill', authenticate, authorize('admin'), async (req, res, next)
   try {
     const { rules } = req.body
     const user = getCurrentUser(req)
-    const setting = await upsertSetting({
-      key: 'autofill_rules',
-      scopeKind: 'global',
-      scopeId: 'global',
-      userId: user.id,
-      value: { rules },
-      tenantId: req.tenantId,
+
+    const setting = await prisma.$transaction(async (tx) => {
+      const result = await upsertSetting({
+        key: 'autofill_rules',
+        scopeKind: 'global',
+        scopeId: 'global',
+        userId: user.id,
+        value: { rules },
+        tenantId: req.tenantId,
+      }, tx)
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'setting.updated',
+        aggregateType: 'AppSetting',
+        aggregateId: result.id,
+        payload: { key: 'autofill_rules', value: result.value },
+      })
+
+      return result
     })
+
     res.json(setting?.value ?? { rules })
   } catch (error) {
     next(error)
@@ -155,13 +172,26 @@ router.put('/app/org', authenticate, authorize('admin'), validate({ body: s.orgC
   try {
     const user = getCurrentUser(req)
     const existing = await getSetting('org_config', 'global', 'global', req.tenantId)
-    const setting = await upsertSetting({
-      key: 'org_config',
-      scopeKind: 'global',
-      scopeId: 'global',
-      userId: user.id,
-      value: req.body,
-      tenantId: req.tenantId,
+
+    const setting = await prisma.$transaction(async (tx) => {
+      const result = await upsertSetting({
+        key: 'org_config',
+        scopeKind: 'global',
+        scopeId: 'global',
+        userId: user.id,
+        value: req.body,
+        tenantId: req.tenantId,
+      }, tx)
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'setting.updated',
+        aggregateType: 'AppSetting',
+        aggregateId: result.id,
+        payload: { key: 'org_config', value: result.value },
+      })
+
+      return result
     })
 
     await writeAuditLog({
@@ -186,13 +216,26 @@ router.put('/app/fields/event', authenticate, authorize('admin'), validate({ bod
   try {
     const user = getCurrentUser(req)
     const existing = await getSetting('event_fields', 'global', 'global', req.tenantId)
-    const setting = await upsertSetting({
-      key: 'event_fields',
-      scopeKind: 'global',
-      scopeId: 'global',
-      userId: user.id,
-      value: req.body.fields,
-      tenantId: req.tenantId,
+
+    const setting = await prisma.$transaction(async (tx) => {
+      const result = await upsertSetting({
+        key: 'event_fields',
+        scopeKind: 'global',
+        scopeId: 'global',
+        userId: user.id,
+        value: req.body.fields,
+        tenantId: req.tenantId,
+      }, tx)
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'setting.updated',
+        aggregateType: 'AppSetting',
+        aggregateId: result.id,
+        payload: { key: 'event_fields', value: result.value },
+      })
+
+      return result
     })
 
     await writeAuditLog({
@@ -217,13 +260,26 @@ router.put('/app/fields/crew', authenticate, authorize('admin'), validate({ body
   try {
     const user = getCurrentUser(req)
     const existing = await getSetting('crew_fields', 'global', 'global', req.tenantId)
-    const setting = await upsertSetting({
-      key: 'crew_fields',
-      scopeKind: 'global',
-      scopeId: 'global',
-      userId: user.id,
-      value: req.body.fields,
-      tenantId: req.tenantId,
+
+    const setting = await prisma.$transaction(async (tx) => {
+      const result = await upsertSetting({
+        key: 'crew_fields',
+        scopeKind: 'global',
+        scopeId: 'global',
+        userId: user.id,
+        value: req.body.fields,
+        tenantId: req.tenantId,
+      }, tx)
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'setting.updated',
+        aggregateType: 'AppSetting',
+        aggregateId: result.id,
+        payload: { key: 'crew_fields', value: result.value },
+      })
+
+      return result
     })
 
     await writeAuditLog({
@@ -257,13 +313,26 @@ router.put('/app/dashboard/:role', authenticate, validate({ params: s.roleParam,
 
     const scopeId = scope === 'role' ? role : `${user.id}:${role}`
     const existing = await getSetting('dashboard_widgets', scope, scopeId, req.tenantId)
-    const setting = await upsertSetting({
-      key: 'dashboard_widgets',
-      scopeKind: scope,
-      scopeId,
-      userId: user.id,
-      value: req.body.widgets,
-      tenantId: req.tenantId,
+
+    const setting = await prisma.$transaction(async (tx) => {
+      const result = await upsertSetting({
+        key: 'dashboard_widgets',
+        scopeKind: scope,
+        scopeId,
+        userId: user.id,
+        value: req.body.widgets,
+        tenantId: req.tenantId,
+      }, tx)
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'setting.updated',
+        aggregateType: 'AppSetting',
+        aggregateId: result.id,
+        payload: { key: 'dashboard_widgets', scope, role, value: result.value },
+      })
+
+      return result
     })
 
     await writeAuditLog({

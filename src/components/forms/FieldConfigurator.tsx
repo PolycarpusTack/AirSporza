@@ -19,7 +19,7 @@ interface NewFieldForm {
 const PROTECTED_FIELDS = new Set(['sport', 'competition'])
 const CORE_REQUIRED_FIELDS = new Set(['sport', 'competition', 'participants', 'startDateBE', 'startTimeBE'])
 
-export function FieldConfigurator({ fields, setFields, title, onClose }: FieldConfiguratorProps) {
+export function FieldConfigModal({ fields, setFields, title, onClose }: FieldConfiguratorProps) {
   const [editingField, setEditingField] = useState<string | null>(null)
   const [newFieldForm, setNewFieldForm] = useState<NewFieldForm | null>(null)
   const [dragIdx, setDragIdx] = useState<number | null>(null)

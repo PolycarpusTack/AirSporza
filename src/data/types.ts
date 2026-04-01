@@ -4,7 +4,7 @@ import type {
 } from '@planza/shared'
 
 export type {
-  UserRole, AuditAction, FieldSection, ConditionalRule, ConditionalRequiredField,
+  UserRole, AuditAction, FieldType, FieldSection, ConditionalRule, ConditionalRequiredField,
   FieldDefinition, DropdownList, DropdownOption, MandatoryFieldConfig, CustomFieldValue, ApiResponse,
   SchedulingMode, StageType, OverrunStrategy, AnchorType, BroadcastSlotStatus, ContentSegment,
   DraftStatus, RunType, RunStatus, CoverageType, Platform, SwitchTriggerType, SwitchExecutionStatus,
@@ -31,8 +31,6 @@ export interface Competition {
 }
 
 export type BadgeVariant = 'default' | 'live' | 'delayed' | 'valid' | 'expiring' | 'none' | 'draft' | 'success' | 'danger' | 'warning'
-
-export type FieldType = 'text' | 'number' | 'date' | 'time' | 'checkbox' | 'textarea' | 'dropdown'
 
 export interface FieldConfig {
   id: string

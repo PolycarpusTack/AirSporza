@@ -5,6 +5,7 @@ import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
+import { writeOutboxEvent } from '../services/outbox.js'
 import * as s from '../schemas/contracts.js'
 
 const FINANCIAL_FIELDS = ['fee', 'notes'] as const
@@ -115,13 +116,25 @@ function enrichPlatforms(data: Record<string, unknown>): void {
 router.post('/', authenticate, authorize('contracts', 'admin'), validate({ body: s.contractSchema }), async (req, res, next) => {
   try {
     enrichPlatforms(req.body)
+    const user = req.user as { id: string }
 
-    const contract = await prisma.contract.create({
-      data: { ...req.body, tenantId: req.tenantId! },
-      include: { competition: { include: { sport: true } } }
+    const contract = await prisma.$transaction(async (tx) => {
+      const created = await tx.contract.create({
+        data: { ...req.body, tenantId: req.tenantId! },
+        include: { competition: { include: { sport: true } } }
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'contract.created',
+        aggregateType: 'Contract',
+        aggregateId: String(created.id),
+        payload: created,
+      })
+
+      return created
     })
 
-    const user = req.user as { id: string }
     await writeAuditLog({
       userId: user.id,
       action: 'contract.create',
@@ -146,14 +159,26 @@ router.put('/:id', authenticate, authorize('contracts', 'admin'), validate({ par
     if (!existing) return next(createError(404, 'Contract not found'))
 
     enrichPlatforms(req.body)
+    const user = req.user as { id: string }
 
-    const contract = await prisma.contract.update({
-      where: { id: contractId },
-      data: req.body,
-      include: { competition: { include: { sport: true } } }
+    const contract = await prisma.$transaction(async (tx) => {
+      const updated = await tx.contract.update({
+        where: { id: contractId },
+        data: req.body,
+        include: { competition: { include: { sport: true } } }
+      })
+
+      await writeOutboxEvent(tx, {
+        tenantId: req.tenantId!,
+        eventType: 'contract.updated',
+        aggregateType: 'Contract',
+        aggregateId: String(updated.id),
+        payload: updated,
+      })
+
+      return updated
     })
 
-    const user = req.user as { id: string }
     await writeAuditLog({
       userId: user.id,
       action: 'contract.update',

@@ -35,6 +35,11 @@ const EVENT_ROUTING: Record<string, string[]> = {
   'techPlan.created':           ['socketio', 'webhook'],
   'techPlan.updated':           ['socketio', 'webhook'],
   'techPlan.deleted':           ['socketio', 'webhook'],
+  // Contract lifecycle — notify clients + external systems (rights affect scheduling)
+  'contract.created':           ['socketio', 'webhook'],
+  'contract.updated':           ['socketio', 'webhook'],
+  // Settings lifecycle — notify other admin sessions (internal only, no webhook)
+  'setting.updated':            ['socketio'],
 }
 
 const QUEUE_MAP: Record<string, typeof cascadeQueue> = {

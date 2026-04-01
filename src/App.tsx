@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { FieldConfigurator, DashboardCustomizer, DynamicEventForm } from './components/forms'
+import { FieldConfigModal, DashboardCustomizer, DynamicEventForm } from './components/forms'
 import { SettingsModal } from './components/settings/SettingsModal'
 import { Header } from './components/layout/Header'
 import { Sidebar } from './components/layout/Sidebar'
@@ -290,7 +290,7 @@ function AppContent() {
       })()}
 
       {showFieldConfig === 'event' && (
-        <FieldConfigurator
+        <FieldConfigModal
           fields={eventFields}
           setFields={setEventFields}
           title="Configure Event Metadata Fields"
@@ -299,7 +299,7 @@ function AppContent() {
       )}
 
       {showFieldConfig === 'crew' && (
-        <FieldConfigurator
+        <FieldConfigModal
           fields={crewFields}
           setFields={setCrewFields}
           title="Configure Crew / Technical Plan Fields"
