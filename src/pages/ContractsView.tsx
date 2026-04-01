@@ -227,7 +227,7 @@ export function ContractsView({ widgets }: ContractsViewProps) {
                   <tr key={c.id} className="border-t border-border/60">
                     <td className="py-2 font-medium">{c.sport?.icon} {c.competition?.name}</td>
                     <td className="text-center py-2">{(c as any).platforms?.includes('linear') ?? c.linearRights ? '✅' : '❌'}</td>
-                    <td className="text-center py-2">{(c as any).platforms?.includes('max') ?? c.maxRights ? '✅' : '❌'}</td>
+                    <td className="text-center py-2">{(c as any).platforms?.includes('on-demand') ?? c.maxRights ? '✅' : '❌'}</td>
                     <td className="text-center py-2">{(c as any).platforms?.includes('radio') ?? c.radioRights ? '✅' : '❌'}</td>
                     <td className="text-center py-2">{c.sublicensing ? '✅' : '❌'}</td>
                   </tr>
@@ -299,7 +299,7 @@ export function ContractsView({ widgets }: ContractsViewProps) {
                             </div>
                             <div className="px-4 py-3 hidden lg:flex gap-1">
                               {((c as any).platforms?.includes('linear') ?? c.linearRights) && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-success/15 text-xs font-bold text-success">L</span>}
-                              {((c as any).platforms?.includes('max') ?? c.maxRights) && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-xs font-bold text-primary">M</span>}
+                              {((c as any).platforms?.includes('on-demand') ?? c.maxRights) && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-xs font-bold text-primary">M</span>}
                               {((c as any).platforms?.includes('radio') ?? c.radioRights) && <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-brand/10 text-xs font-bold text-foreground">R</span>}
                             </div>
                             {canManageContracts && (

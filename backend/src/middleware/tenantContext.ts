@@ -10,27 +10,33 @@ declare global {
   }
 }
 
-// Cache the default tenant ID to avoid repeated queries
+// Cache the default tenant ID to avoid repeated queries on unauthenticated routes
 let defaultTenantId: string | null = null
 
 export async function setTenantContext(req: Request, _res: Response, next: NextFunction) {
   try {
-    // For now: all requests use default tenant
-    // Later: derive from JWT claims or subdomain
-    if (!defaultTenantId) {
-      const tenant = await prisma.tenant.findFirst({ where: { slug: 'default' } })
-      defaultTenantId = tenant?.id ?? null
-      if (defaultTenantId) {
-        logger.info('Tenant context initialized', { tenantId: defaultTenantId })
+    // Derive tenantId from authenticated user when available (set by passport)
+    const user = req.user as { tenantId?: string } | undefined
+    let tenantId = user?.tenantId ?? null
+
+    // Fall back to default tenant for unauthenticated/public routes
+    if (!tenantId) {
+      if (!defaultTenantId) {
+        const tenant = await prisma.tenant.findFirst({ where: { slug: 'default' } })
+        defaultTenantId = tenant?.id ?? null
+        if (defaultTenantId) {
+          logger.info('Default tenant context initialized', { tenantId: defaultTenantId })
+        }
       }
+      tenantId = defaultTenantId
     }
 
-    if (defaultTenantId) {
+    if (tenantId) {
       // Set PostgreSQL session variable for RLS
-      await prisma.$executeRaw`SELECT set_tenant_context(${defaultTenantId})`
-      req.tenantId = defaultTenantId
+      await prisma.$executeRaw`SELECT set_tenant_context(${tenantId})`
+      req.tenantId = tenantId
     } else {
-      logger.warn('No default tenant found — tenant context not set')
+      logger.warn('No tenant context resolved — neither user tenant nor default found')
     }
 
     next()

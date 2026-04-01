@@ -395,7 +395,7 @@ model AppSetting {
   tenant Tenant @relation(fields: [tenantId], references: [id])
   user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@unique([key, scopeKind, scopeId])
+  @@unique([tenantId, key, scopeKind, scopeId])
   @@index([scopeKind, scopeId])
   @@index([userId])
   @@index([tenantId])

@@ -48,9 +48,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     socket.on('connect', () => {
       console.log('Socket connected')
-      socket.emit('subscribe:events')
-      socket.emit('subscribe:techPlans')
-      socket.emit('subscribe:encoders')
+      const tenantId = user.tenantId
+      socket.emit('subscribe:events', tenantId ? { tenantId } : undefined)
+      socket.emit('subscribe:techPlans', tenantId ? { tenantId } : undefined)
+      socket.emit('subscribe:encoders', tenantId ? { tenantId } : undefined)
     })
 
     socket.on('disconnect', () => {

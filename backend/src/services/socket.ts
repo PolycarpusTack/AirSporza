@@ -23,22 +23,28 @@ export function setupSocket(io: SocketServer) {
   
   io.on('connection', (socket) => {
     logger.info(`Client connected: ${socket.id}`, { userId: socket.data.userId, role: socket.data.role })
-    
-    socket.on('subscribe:events', () => {
-      socket.join('events')
-      logger.debug(`Client ${socket.id} subscribed to events`)
+
+    socket.on('subscribe:events', (data?: { tenantId?: string }) => {
+      const tenantId = data?.tenantId
+      const room = tenantId ? `tenant:${tenantId}:events` : 'events'
+      socket.join(room)
+      logger.debug(`Client ${socket.id} subscribed to ${room}`)
     })
-    
-    socket.on('subscribe:techPlans', () => {
-      socket.join('techPlans')
-      logger.debug(`Client ${socket.id} subscribed to techPlans`)
+
+    socket.on('subscribe:techPlans', (data?: { tenantId?: string }) => {
+      const tenantId = data?.tenantId
+      const room = tenantId ? `tenant:${tenantId}:techPlans` : 'techPlans'
+      socket.join(room)
+      logger.debug(`Client ${socket.id} subscribed to ${room}`)
     })
-    
-    socket.on('subscribe:encoders', () => {
-      socket.join('encoders')
-      logger.debug(`Client ${socket.id} subscribed to encoders`)
+
+    socket.on('subscribe:encoders', (data?: { tenantId?: string }) => {
+      const tenantId = data?.tenantId
+      const room = tenantId ? `tenant:${tenantId}:encoders` : 'encoders'
+      socket.join(room)
+      logger.debug(`Client ${socket.id} subscribed to ${room}`)
     })
-    
+
     socket.on('disconnect', () => {
       logger.info(`Client disconnected: ${socket.id}`)
     })

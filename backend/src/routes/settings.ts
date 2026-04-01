@@ -54,7 +54,7 @@ async function upsertSetting(params: {
   }>>(Prisma.sql`
     INSERT INTO "AppSetting" ("id", "key", "scopeKind", "scopeId", "userId", "tenantId", "value", "createdAt", "updatedAt")
     VALUES (gen_random_uuid(), ${key}, ${scopeKind}::"SettingScopeKind", ${scopeId}, ${userId || null}, ${tenantId ?? null}::uuid, ${JSON.stringify(value)}::jsonb, NOW(), NOW())
-    ON CONFLICT ("key", "scopeKind", "scopeId")
+    ON CONFLICT ("tenantId", "key", "scopeKind", "scopeId")
     DO UPDATE SET
       "userId" = EXCLUDED."userId",
       "value" = EXCLUDED."value",

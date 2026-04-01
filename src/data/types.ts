@@ -1,4 +1,5 @@
 import type {
+  FieldType,
   SchedulingMode, StageType, OverrunStrategy, AnchorType, BroadcastSlotStatus, ContentSegment,
   DraftStatus, ValidationResult, CoverageType
 } from '@planza/shared'
@@ -170,6 +171,7 @@ export interface User {
   name?: string
   avatar?: string
   role: Role
+  tenantId?: string
   externalId?: string
   createdAt?: Date
   updatedAt?: Date

@@ -2,6 +2,17 @@ import { createWorker } from '../services/queue.js'
 import { emit, getSocketServer } from '../services/socketInstance.js'
 import { logger } from '../utils/logger.js'
 
+/** Map outbox event type to the Socket.IO room (matches subscribe channels) */
+function deriveRoomFromEventType(eventType: string): string | undefined {
+  if (eventType.startsWith('event.')) return 'events'
+  if (eventType.startsWith('techPlan.')) return 'techPlans'
+  if (eventType.startsWith('encoder.')) return 'encoders'
+  if (eventType.startsWith('contract.')) return 'events' // contracts affect event views
+  if (eventType.startsWith('setting.')) return undefined // broadcast to all connected clients
+  if (eventType.startsWith('slot.')) return 'events'
+  return undefined
+}
+
 /**
  * Socket.IO Worker
  *
@@ -24,8 +35,12 @@ export function startSocketWorker() {
         }
       }
     } else {
-      // Default namespace emit
-      emit(eventType, payload, room)
+      // Default namespace emit — use tenant-scoped room when tenantId is available
+      const entityRoom = room || deriveRoomFromEventType(eventType)
+      const targetRoom = tenantId && entityRoom
+        ? `tenant:${tenantId}:${entityRoom}`
+        : entityRoom
+      emit(eventType, payload, targetRoom)
     }
 
     logger.debug('Socket.IO emit via worker', { eventType, room, namespace })
