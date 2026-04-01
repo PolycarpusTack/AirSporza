@@ -1026,7 +1026,9 @@ router.get('/aliases', authenticate, authorize('planner', 'sports', 'admin'), as
       return next(createError(400, 'Alias type must be team, competition, or venue'))
     }
 
-    const where = req.query.sourceId ? { sourceId: String(req.query.sourceId) } : undefined
+    const where: Record<string, unknown> = { tenantId: req.tenantId }
+    if (req.query.sourceId) where.sourceId = String(req.query.sourceId)
+
     if (type === 'team') {
       return res.json(await prisma.teamAlias.findMany({
         where,
@@ -1072,10 +1074,13 @@ router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admi
 
     const normalizedAlias = normalizeAlias(value.alias)
 
+    // NOTE: where keys use tenant-scoped compound unique (tenantId_sourceId_normalizedAlias).
+    // Prisma client types update after `npx prisma generate` post-migration.
     if (type === 'team') {
-      const alias = await prisma.teamAlias.upsert({
+      const alias = await (prisma.teamAlias.upsert as any)({
         where: {
-          sourceId_normalizedAlias: {
+          tenantId_sourceId_normalizedAlias: {
+            tenantId: req.tenantId!,
             sourceId: value.sourceId || null,
             normalizedAlias,
           }
@@ -1097,9 +1102,10 @@ router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admi
     }
 
     if (type === 'competition') {
-      const alias = await prisma.competitionAlias.upsert({
+      const alias = await (prisma.competitionAlias.upsert as any)({
         where: {
-          sourceId_normalizedAlias: {
+          tenantId_sourceId_normalizedAlias: {
+            tenantId: req.tenantId!,
             sourceId: value.sourceId || null,
             normalizedAlias,
           }
@@ -1120,9 +1126,10 @@ router.post('/aliases/:type', authenticate, authorize('planner', 'sports', 'admi
       return res.status(201).json(alias)
     }
 
-    const alias = await prisma.venueAlias.upsert({
+    const alias = await (prisma.venueAlias.upsert as any)({
       where: {
-        sourceId_normalizedAlias: {
+        tenantId_sourceId_normalizedAlias: {
+          tenantId: req.tenantId!,
           sourceId: value.sourceId || null,
           normalizedAlias,
         }

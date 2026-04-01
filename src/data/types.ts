@@ -128,6 +128,9 @@ export interface Contract {
   notes?: string
   createdAt?: Date
   updatedAt?: Date
+  // Populated by API include
+  competition?: { name: string; sport?: { icon: string; name: string } }
+  sport?: { icon: string; name: string }
 }
 
 export interface Encoder {

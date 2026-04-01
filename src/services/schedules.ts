@@ -9,7 +9,13 @@ export const schedulesApi = {
   listSlots: (params?: { channelId?: number; date?: string }) => {
     const qs = new URLSearchParams()
     if (params?.channelId) qs.set('channelId', String(params.channelId))
-    if (params?.date) qs.set('date', params.date)
+    if (params?.date) {
+      qs.set('dateStart', params.date)
+      // End of day: next day at midnight
+      const next = new Date(params.date + 'T00:00:00Z')
+      next.setUTCDate(next.getUTCDate() + 1)
+      qs.set('dateEnd', next.toISOString().slice(0, 10))
+    }
     const q = qs.toString()
     return api.get<BroadcastSlot[]>(`/broadcast-slots${q ? `?${q}` : ''}`)
   },

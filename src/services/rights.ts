@@ -19,9 +19,9 @@ export interface RightsPolicy {
 export const rightsApi = {
   list: (competitionId?: number) => {
     const qs = competitionId ? `?competitionId=${competitionId}` : ''
-    return api.get<RightsPolicy[]>(`/rights${qs}`)
+    return api.get<RightsPolicy[]>(`/rights/policies${qs}`)
   },
-  create: (data: Partial<RightsPolicy>) => api.post<RightsPolicy>('/rights', data),
-  update: (id: string, data: Partial<RightsPolicy>) => api.put<RightsPolicy>(`/rights/${id}`, data),
-  delete: (id: string) => api.delete(`/rights/${id}`),
+  create: (data: Partial<RightsPolicy>) => api.post<RightsPolicy>('/rights/policies', data),
+  update: (id: string, data: Partial<RightsPolicy>) => api.put<RightsPolicy>(`/rights/policies/${id}`, data),
+  delete: (id: string) => api.delete(`/rights/policies/${id}`),
 }

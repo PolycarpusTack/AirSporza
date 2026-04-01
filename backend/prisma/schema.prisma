@@ -823,7 +823,7 @@ model TeamAlias {
   canonicalTeam CanonicalTeam @relation(fields: [canonicalTeamId], references: [id])
   source        ImportSource? @relation(fields: [sourceId], references: [id])
 
-  @@unique([sourceId, normalizedAlias])
+  @@unique([tenantId, sourceId, normalizedAlias])
   @@index([normalizedAlias])
   @@index([tenantId])
 }
@@ -840,7 +840,7 @@ model CompetitionAlias {
   canonicalCompetition CanonicalCompetition @relation(fields: [canonicalCompetitionId], references: [id])
   source               ImportSource?        @relation(fields: [sourceId], references: [id])
 
-  @@unique([sourceId, normalizedAlias])
+  @@unique([tenantId, sourceId, normalizedAlias])
   @@index([normalizedAlias])
   @@index([tenantId])
 }
@@ -857,7 +857,7 @@ model VenueAlias {
   canonicalVenue CanonicalVenue @relation(fields: [canonicalVenueId], references: [id])
   source         ImportSource?  @relation(fields: [sourceId], references: [id])
 
-  @@unique([sourceId, normalizedAlias])
+  @@unique([tenantId, sourceId, normalizedAlias])
   @@index([normalizedAlias])
   @@index([tenantId])
 }
