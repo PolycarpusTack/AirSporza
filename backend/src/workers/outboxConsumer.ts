@@ -6,6 +6,7 @@ import {
   bracketQueue,
   socketioQueue,
   webhookQueue,
+  integrationQueue,
 } from '../services/queue.js'
 import { logger } from '../utils/logger.js'
 
@@ -14,7 +15,7 @@ const EVENT_ROUTING: Record<string, string[]> = {
   'event.created':              ['socketio', 'webhook'],
   'event.updated':              ['socketio', 'webhook'],
   'event.deleted':              ['socketio', 'webhook'],
-  'event.status_changed':       ['socketio', 'webhook', 'cascade', 'standings', 'bracket'],
+  'event.status_changed':       ['socketio', 'webhook', 'cascade', 'standings', 'bracket', 'integration'],
   // Fixture lifecycle — cascade + standings
   'fixture.status_changed':     ['cascade', 'standings', 'bracket'],
   'fixture.completed':          ['standings', 'bracket'],
@@ -22,7 +23,7 @@ const EVENT_ROUTING: Record<string, string[]> = {
   // Cascade results
   'cascade.recomputed':         ['alerts'],
   // Schedule lifecycle
-  'schedule.published':         ['webhook'],
+  'schedule.published':         ['webhook', 'integration'],
   'schedule.emergency_published': ['webhook'],
   // Channel switches
   'channel_switch.confirmed':   ['socketio', 'webhook'],
@@ -49,6 +50,7 @@ const QUEUE_MAP: Record<string, typeof cascadeQueue> = {
   bracket: bracketQueue,
   socketio: socketioQueue,
   webhook: webhookQueue,
+  integration: integrationQueue,
 }
 
 /**

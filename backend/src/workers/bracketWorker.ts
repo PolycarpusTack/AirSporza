@@ -1,6 +1,7 @@
 import { createWorker } from '../services/queue.js'
 import { prisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
+import { setTenantRLS } from '../utils/setTenantRLS.js'
 
 /**
  * Progress knockout brackets after a fixture completes.
@@ -12,6 +13,7 @@ export const bracketWorker = createWorker(
   'bracket',
   async (job) => {
     const { eventId, _tenantId: tenantId } = job.data
+    if (tenantId) await setTenantRLS(tenantId)
     logger.info(`Bracket progression triggered for event=${eventId}`)
 
     const event = await prisma.event.findUnique({

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import request from 'supertest'
-import { app } from '../src/index.js'
+import { buildApp } from '../src/index.js'
+const app = buildApp()
 import { prisma } from '../src/db/prisma.js'
 
 vi.mock('../src/db/prisma.js', () => ({
@@ -14,6 +15,7 @@ vi.mock('../src/db/prisma.js', () => ({
       delete: vi.fn(),
     },
     importSource: { findUnique: vi.fn() },
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
     $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn(),
   }

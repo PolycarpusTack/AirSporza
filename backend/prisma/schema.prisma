@@ -121,6 +121,7 @@ model Tenant {
   cascadeEstimates      CascadeEstimate[]
   channelSwitchActions  ChannelSwitchAction[]
   adapterConfigs        AdapterConfig[]
+  integrations          Integration[]
 }
 
 model User {
@@ -272,6 +273,8 @@ model Event {
   @@index([stageId])
   @@index([roundId])
   @@index([tenantId])
+  @@index([tenantId, startDateBE])
+  @@index([tenantId, sportId, startDateBE])
 }
 
 model TechPlan {
@@ -377,6 +380,7 @@ model AuditLog {
 
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([action])
   @@index([createdAt])
   @@index([tenantId])
 }
@@ -936,6 +940,7 @@ model WebhookDelivery {
   @@index([webhookId, createdAt])
   @@index([eventType])
   @@index([deliveredAt])
+  @@index([deliveredAt, attempts])
   @@index([tenantId])
 }
 
@@ -1589,4 +1594,83 @@ model AdapterConfig {
 
   @@unique([tenantId, adapterType, providerName])
   @@index([tenantId])
+}
+
+// =============================================================================
+// INTEGRATION HUB
+// =============================================================================
+
+enum IntegrationDirection {
+  INBOUND
+  OUTBOUND
+  BIDIRECTIONAL
+}
+
+enum IntegrationLogStatus {
+  success
+  failed
+  partial
+}
+
+model Integration {
+  id                  String               @id @default(uuid()) @db.Uuid
+  tenantId            String               @db.Uuid
+  name                String
+  direction           IntegrationDirection
+  templateCode        String
+  credentials         String?
+  fieldOverrides      Json                 @default("[]")
+  config              Json                 @default("{}")
+  triggerConfig       Json                 @default("{}")
+  isActive            Boolean              @default(true)
+  rateLimitPerMinute  Int?
+  rateLimitPerDay     Int?
+  lastSuccessAt       DateTime?            @db.Timestamptz
+  lastFailureAt       DateTime?            @db.Timestamptz
+  consecutiveFailures Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  tenant    Tenant                @relation(fields: [tenantId], references: [id])
+  schedules IntegrationSchedule[]
+  logs      IntegrationLog[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([tenantId, direction])
+}
+
+model IntegrationSchedule {
+  id              String    @id @default(uuid()) @db.Uuid
+  integrationId   String    @db.Uuid
+  cronExpression  String
+  jobType         String
+  jobConfig       Json      @default("{}")
+  isActive        Boolean   @default(true)
+  lastRunAt       DateTime? @db.Timestamptz
+  nextRunAt       DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now())
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId])
+  @@index([isActive, nextRunAt])
+}
+
+model IntegrationLog {
+  id              String               @id @default(uuid()) @db.Uuid
+  integrationId   String               @db.Uuid
+  direction       IntegrationDirection
+  status          IntegrationLogStatus
+  requestMeta     Json                 @default("{}")
+  responseMeta    Json                 @default("{}")
+  recordCount     Int                  @default(0)
+  errorMessage    String?
+  durationMs      Int?
+  createdAt       DateTime             @default(now()) @db.Timestamptz
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, createdAt(sort: Desc)])
+  @@index([integrationId, status])
 }

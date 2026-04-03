@@ -2,11 +2,13 @@ import { createWorker } from '../services/queue.js'
 import { prisma } from '../db/prisma.js'
 import { runCascade } from '../services/cascade/engine.js'
 import { logger } from '../utils/logger.js'
+import { setTenantRLS } from '../utils/setTenantRLS.js'
 
 export const cascadeWorker = createWorker(
   'cascade',
   async (job) => {
     const { tenantId, eventId } = job.data
+    if (tenantId) await setTenantRLS(tenantId)
     if (!eventId) {
       logger.warn('Cascade job missing eventId — skipping')
       return { skipped: true }

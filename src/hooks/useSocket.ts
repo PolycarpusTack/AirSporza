@@ -48,10 +48,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     socket.on('connect', () => {
       console.log('Socket connected')
-      const tenantId = user.tenantId
-      socket.emit('subscribe:events', tenantId ? { tenantId } : undefined)
-      socket.emit('subscribe:techPlans', tenantId ? { tenantId } : undefined)
-      socket.emit('subscribe:encoders', tenantId ? { tenantId } : undefined)
+      // Tenant scoping is enforced server-side from the JWT/user lookup
+      socket.emit('subscribe:events')
+      socket.emit('subscribe:techPlans')
+      socket.emit('subscribe:encoders')
     })
 
     socket.on('disconnect', () => {

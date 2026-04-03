@@ -297,15 +297,19 @@ router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), valida
   try {
     const { ids, field, value: fieldValue } = req.body as {
       ids: number[]
-      field: 'linearChannel' | 'sportId' | 'competitionId'
+      field: 'channelId' | 'linearChannel' | 'sportId' | 'competitionId'
       value: string | number
     }
 
     const data: Record<string, unknown> = { [field]: fieldValue }
+    const affectsSlots = field === 'channelId'
 
     const updatedEvents = await prisma.$transaction(async (tx) => {
       await tx.event.updateMany({ where: { tenantId: req.tenantId, id: { in: ids } }, data })
-      const events = await tx.event.findMany({ where: { tenantId: req.tenantId, id: { in: ids } } })
+      const events = await tx.event.findMany({
+        where: { tenantId: req.tenantId, id: { in: ids } },
+        include: affectsSlots ? { channel: true } : undefined,
+      })
 
       for (const ev of events) {
         await writeOutboxEvent(tx, {
@@ -315,6 +319,17 @@ router.patch('/bulk/assign', authenticate, authorize('planner', 'admin'), valida
           aggregateId: String(ev.id),
           payload: ev,
         })
+      }
+
+      // Sync broadcast slots when channel assignment changes
+      if (affectsSlots) {
+        for (const ev of events) {
+          if (ev.channelId) {
+            await syncEventToSlot(ev as Parameters<typeof syncEventToSlot>[0], tx as unknown as Parameters<typeof syncEventToSlot>[1])
+          } else {
+            await unlinkEventSlot(ev.id, req.tenantId!, tx as unknown as Parameters<typeof unlinkEventSlot>[2])
+          }
+        }
       }
 
       return events

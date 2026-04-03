@@ -5,5 +5,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    env: {
+      NODE_ENV: 'test',
+    },
+    pool: 'forks',
+    testTimeout: 10000,
   },
 })

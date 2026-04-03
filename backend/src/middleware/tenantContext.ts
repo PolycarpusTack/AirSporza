@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { prisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
+import { setTenantRLS } from '../utils/setTenantRLS.js'
 
 declare global {
   namespace Express {
@@ -32,8 +33,7 @@ export async function setTenantContext(req: Request, _res: Response, next: NextF
     }
 
     if (tenantId) {
-      // Set PostgreSQL session variable for RLS
-      await prisma.$executeRaw`SELECT set_tenant_context(${tenantId})`
+      await setTenantRLS(tenantId)
       req.tenantId = tenantId
     } else {
       logger.warn('No tenant context resolved — neither user tenant nor default found')

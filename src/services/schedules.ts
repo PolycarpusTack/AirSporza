@@ -1,10 +1,7 @@
 import { api } from '../utils/api'
-import type { ScheduleDraft, ScheduleVersion, BroadcastSlot, Channel } from '../data/types'
+import type { ScheduleDraft, ScheduleVersion, BroadcastSlot } from '../data/types'
 
 export const schedulesApi = {
-  // Channels
-  listChannels: () => api.get<Channel[]>('/channels'),
-
   // Broadcast Slots
   listSlots: (params?: { channelId?: number; date?: string }) => {
     const qs = new URLSearchParams()

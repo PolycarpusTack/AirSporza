@@ -1,12 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import request from 'supertest'
-import { app } from '../src/index.js'
+import { buildApp } from '../src/index.js'
+const app = buildApp()
 import { prisma } from '../src/db/prisma.js'
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
     tenant: { findFirst: vi.fn().mockResolvedValue({ id: 'tenant-1', slug: 'default' }) },
     savedView: { findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
     $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn(),
   }

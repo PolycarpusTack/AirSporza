@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { io } from 'socket.io-client'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { io, type Socket } from 'socket.io-client'
 import { getStoredToken } from '../utils/api'
 import { api } from '../utils/api'
 import type { CascadeEstimate, Alert } from '../data/types'
@@ -10,6 +10,9 @@ export function useCascade(courtId?: number, date?: string) {
   const [estimates, setEstimates] = useState<CascadeEstimate[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
+
+  const cascadeRef = useRef<Socket | null>(null)
+  const alertsRef = useRef<Socket | null>(null)
 
   // REST fallback — fetch initial data
   const fetchEstimates = useCallback(async () => {
@@ -34,15 +37,21 @@ export function useCascade(courtId?: number, date?: string) {
     const token = getStoredToken()
     if (!token || !courtId) return
 
+    // Disconnect any previous sockets before creating new ones
+    cascadeRef.current?.disconnect()
+    alertsRef.current?.disconnect()
+
     const cascadeSocket = io(`${SOCKET_URL}/cascade`, {
       auth: { token },
       transports: ['websocket'],
     })
+    cascadeRef.current = cascadeSocket
 
     const alertsSocket = io(`${SOCKET_URL}/alerts`, {
       auth: { token },
       transports: ['websocket'],
     })
+    alertsRef.current = alertsSocket
 
     cascadeSocket.on('connect', () => {
       cascadeSocket.emit('subscribe:court', { courtId })
@@ -73,6 +82,8 @@ export function useCascade(courtId?: number, date?: string) {
     return () => {
       cascadeSocket.disconnect()
       alertsSocket.disconnect()
+      cascadeRef.current = null
+      alertsRef.current = null
     }
   }, [courtId])
 

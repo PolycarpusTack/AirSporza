@@ -3,6 +3,7 @@ import { ScheduleGrid } from '../components/schedule/ScheduleGrid'
 import { DraftToolbar } from '../components/schedule/DraftToolbar'
 import { SwitchConfirmModal } from '../components/schedule/SwitchConfirmModal'
 import { schedulesApi } from '../services/schedules'
+import { channelsApi } from '../services/channels'
 import { useToast } from '../components/Toast'
 import type { Channel, BroadcastSlot, ScheduleDraft, Alert } from '../data/types'
 import { CascadeDashboard } from '../components/schedule/CascadeDashboard'
@@ -27,7 +28,7 @@ export function ScheduleView() {
     setLoading(true)
     try {
       const [ch, sl, dr] = await Promise.all([
-        schedulesApi.listChannels(),
+        channelsApi.list(),
         schedulesApi.listSlots({ date }),
         schedulesApi.listDrafts(),
       ])

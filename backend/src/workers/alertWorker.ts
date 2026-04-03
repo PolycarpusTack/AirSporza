@@ -3,11 +3,13 @@ import { evaluateAlerts } from '../services/cascade/alerts.js'
 import { prisma } from '../db/prisma.js'
 import { socketioQueue } from '../services/queue.js'
 import { logger } from '../utils/logger.js'
+import { setTenantRLS } from '../utils/setTenantRLS.js'
 
 export const alertWorker = createWorker(
   'alerts',
   async (job) => {
     const { _tenantId: tenantId, courtId, channelId } = job.data
+    if (tenantId) await setTenantRLS(tenantId)
     logger.info(`Alert evaluation triggered for tenant=${tenantId}`, { courtId, channelId })
 
     // Scope query to affected courts/channels instead of all tenant slots

@@ -1,45 +1,60 @@
 import { Server as SocketServer } from 'socket.io'
 import jwt from 'jsonwebtoken'
+import { prisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
 import { getJwtSecret } from '../config/index.js'
 
+/**
+ * Authenticate a socket by verifying the JWT and looking up the user in the DB.
+ * Sets socket.data.userId, socket.data.role, and socket.data.tenantId.
+ */
+async function authenticateSocket(
+  socket: { handshake: { auth?: { token?: string } }; data: Record<string, unknown> },
+  next: (err?: Error) => void
+) {
+  const token = socket.handshake.auth?.token
+  if (!token || typeof token !== 'string') {
+    return next(new Error('Unauthorized'))
+  }
+
+  try {
+    const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string }
+    const userId = payload.sub ?? payload.id
+    if (!userId) return next(new Error('Unauthorized'))
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, tenantId: true } })
+    if (!user) return next(new Error('Unauthorized'))
+
+    socket.data.userId = user.id
+    socket.data.role = user.role
+    socket.data.tenantId = user.tenantId
+    next()
+  } catch {
+    next(new Error('Unauthorized'))
+  }
+}
+
 export function setupSocket(io: SocketServer) {
-  io.use((socket, next) => {
-    const token = socket.handshake.auth?.token
+  io.use(authenticateSocket)
 
-    if (!token || typeof token !== 'string') {
-      return next(new Error('Unauthorized'))
-    }
-
-    try {
-      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
-      socket.data.userId = payload.sub ?? payload.id ?? undefined
-      socket.data.role = payload.role
-      next()
-    } catch {
-      next(new Error('Unauthorized'))
-    }
-  })
-  
   io.on('connection', (socket) => {
-    logger.info(`Client connected: ${socket.id}`, { userId: socket.data.userId, role: socket.data.role })
+    const tenantId = socket.data.tenantId as string
+    logger.info(`Client connected: ${socket.id}`, { userId: socket.data.userId, role: socket.data.role, tenantId })
 
-    socket.on('subscribe:events', (data?: { tenantId?: string }) => {
-      const tenantId = data?.tenantId
+    // Auto-join tenant-scoped rooms — client cannot choose a different tenant
+    socket.on('subscribe:events', () => {
       const room = tenantId ? `tenant:${tenantId}:events` : 'events'
       socket.join(room)
       logger.debug(`Client ${socket.id} subscribed to ${room}`)
     })
 
-    socket.on('subscribe:techPlans', (data?: { tenantId?: string }) => {
-      const tenantId = data?.tenantId
+    socket.on('subscribe:techPlans', () => {
       const room = tenantId ? `tenant:${tenantId}:techPlans` : 'techPlans'
       socket.join(room)
       logger.debug(`Client ${socket.id} subscribed to ${room}`)
     })
 
-    socket.on('subscribe:encoders', (data?: { tenantId?: string }) => {
-      const tenantId = data?.tenantId
+    socket.on('subscribe:encoders', () => {
       const room = tenantId ? `tenant:${tenantId}:encoders` : 'encoders'
       socket.join(room)
       logger.debug(`Client ${socket.id} subscribed to ${room}`)
@@ -53,70 +68,38 @@ export function setupSocket(io: SocketServer) {
   // ---- Broadcast middleware namespaces ----
 
   const cascadeNs = io.of('/cascade')
-  cascadeNs.use((socket, next) => {
-    const token = socket.handshake.auth?.token
-    if (!token || typeof token !== 'string') return next(new Error('Unauthorized'))
-    try {
-      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
-      socket.data.userId = payload.sub ?? payload.id ?? undefined
-      socket.data.role = payload.role
-      next()
-    } catch { next(new Error('Unauthorized')) }
-  })
+  cascadeNs.use(authenticateSocket)
   cascadeNs.on('connection', (socket) => {
-    socket.on('subscribe:court', (data: { tenantId: string; courtId: number }) => {
-      socket.join(`tenant:${data.tenantId}:court:${data.courtId}`)
+    const tenantId = socket.data.tenantId as string
+    socket.on('subscribe:court', (data: { courtId: number }) => {
+      socket.join(`tenant:${tenantId}:court:${data.courtId}`)
     })
   })
 
   const alertsNs = io.of('/alerts')
-  alertsNs.use((socket, next) => {
-    const token = socket.handshake.auth?.token
-    if (!token || typeof token !== 'string') return next(new Error('Unauthorized'))
-    try {
-      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
-      socket.data.userId = payload.sub ?? payload.id ?? undefined
-      socket.data.role = payload.role
-      next()
-    } catch { next(new Error('Unauthorized')) }
-  })
+  alertsNs.use(authenticateSocket)
   alertsNs.on('connection', (socket) => {
-    socket.on('subscribe:tenant', (data: { tenantId: string }) => {
-      socket.join(`tenant:${data.tenantId}`)
+    const tenantId = socket.data.tenantId as string
+    socket.on('subscribe:tenant', () => {
+      socket.join(`tenant:${tenantId}`)
     })
   })
 
   const switchesNs = io.of('/switches')
-  switchesNs.use((socket, next) => {
-    const token = socket.handshake.auth?.token
-    if (!token || typeof token !== 'string') return next(new Error('Unauthorized'))
-    try {
-      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
-      socket.data.userId = payload.sub ?? payload.id ?? undefined
-      socket.data.role = payload.role
-      next()
-    } catch { next(new Error('Unauthorized')) }
-  })
+  switchesNs.use(authenticateSocket)
   switchesNs.on('connection', (socket) => {
-    socket.on('subscribe:tenant', (data: { tenantId: string }) => {
-      socket.join(`tenant:${data.tenantId}`)
+    const tenantId = socket.data.tenantId as string
+    socket.on('subscribe:tenant', () => {
+      socket.join(`tenant:${tenantId}`)
     })
   })
 
   const scheduleNs = io.of('/schedule')
-  scheduleNs.use((socket, next) => {
-    const token = socket.handshake.auth?.token
-    if (!token || typeof token !== 'string') return next(new Error('Unauthorized'))
-    try {
-      const payload = jwt.verify(token, getJwtSecret()) as { sub?: string; id?: string; role?: string }
-      socket.data.userId = payload.sub ?? payload.id ?? undefined
-      socket.data.role = payload.role
-      next()
-    } catch { next(new Error('Unauthorized')) }
-  })
+  scheduleNs.use(authenticateSocket)
   scheduleNs.on('connection', (socket) => {
-    socket.on('subscribe:channel', (data: { tenantId: string; channelId: number }) => {
-      socket.join(`tenant:${data.tenantId}:channel:${data.channelId}`)
+    const tenantId = socket.data.tenantId as string
+    socket.on('subscribe:channel', (data: { channelId: number }) => {
+      socket.join(`tenant:${tenantId}:channel:${data.channelId}`)
     })
   })
 

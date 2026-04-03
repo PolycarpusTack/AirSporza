@@ -1,65 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Btn, Card, Badge } from '../components/ui'
-import { api } from '../utils/api'
-
-interface ImportSource {
-  id: string
-  code: string
-  name: string
-  kind: string
-  priority: number
-  isEnabled: boolean
-  hasCredentials: boolean
-  rateLimitPerMinute: number | null
-  rateLimitPerDay: number | null
-  lastFetchAt: string | null
-  stats: {
-    jobs: number
-    deadLetters: number
-    records: number
-    sourceLinks: number
-  }
-}
-
-interface ImportJob {
-  id: string
-  entityScope: string
-  mode: string
-  status: string
-  startedAt: string | null
-  finishedAt: string | null
-  statsJson: Record<string, unknown>
-  source: { code: string; name: string }
-  _count: { records: number; deadLetters: number }
-}
-
-interface Metrics {
-  totals: {
-    sources: number
-    enabledSources: number
-    pendingJobs: number
-    completedJobs24h: number
-    pendingReviews: number
-    unresolvedDeadLetters: number
-    manualSyncs24h: number
-  }
-  sources: Array<{
-    id: string
-    code: string
-    name: string
-    isEnabled: boolean
-    priority: number
-    lastFetchAt: string | null
-    jobs: number
-    records: number
-    deadLetters: number
-  }>
-}
+import { importsApi } from '../services'
+import type { ImportSource, ImportJob, ImportMetrics } from '../services'
 
 export function IntegrationSettings() {
   const [sources, setSources] = useState<ImportSource[]>([])
   const [jobs, setJobs] = useState<ImportJob[]>([])
-  const [metrics, setMetrics] = useState<Metrics | null>(null)
+  const [metrics, setMetrics] = useState<ImportMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'sources' | 'jobs' | 'metrics'>('sources')
@@ -72,9 +19,9 @@ export function IntegrationSettings() {
     setLoading(true)
     try {
       const [sourcesData, jobsData, metricsData] = await Promise.all([
-        api.get<ImportSource[]>('/import/sources'),
-        api.get<ImportJob[]>('/import/jobs?limit=20'),
-        api.get<Metrics>('/import/metrics'),
+        importsApi.listSources(),
+        importsApi.listJobs({ limit: 20 }),
+        importsApi.metrics(),
       ])
       setSources(sourcesData)
       setJobs(jobsData)
@@ -88,7 +35,7 @@ export function IntegrationSettings() {
 
   const toggleSource = async (id: string, isEnabled: boolean) => {
     try {
-      await api.patch(`/import/sources/${id}`, { isEnabled })
+      await importsApi.updateSource(id, { isEnabled })
       setSources(prev => prev.map(s => s.id === id ? { ...s, isEnabled } : s))
     } catch (error) {
       console.error('Failed to toggle source:', error)
@@ -98,7 +45,7 @@ export function IntegrationSettings() {
   const triggerSync = async (sourceCode: string, entityScope: string) => {
     setSyncing(sourceCode)
     try {
-      await api.post(`/import/jobs`, { sourceCode, entityScope, mode: 'incremental' })
+      await importsApi.createJob({ sourceCode, entityScope, mode: 'incremental' })
       await fetchData()
     } catch (error) {
       console.error('Failed to trigger sync:', error)
@@ -256,7 +203,7 @@ export function IntegrationSettings() {
                       {job.status}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3">{job._count.records}</td>
+                  <td className="px-4 py-3">{job._count?.records ?? 0}</td>
                   <td className="px-4 py-3 text-muted">
                     {job.startedAt ? new Date(job.startedAt).toLocaleString() : '—'}
                   </td>

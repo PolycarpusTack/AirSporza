@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
-import { app } from '../src/index.js'
+import { buildApp } from '../src/index.js'
+const app = buildApp()
 import { prisma } from '../src/db/prisma.js'
 
 vi.mock('../src/db/prisma.js', () => ({
@@ -22,6 +23,7 @@ vi.mock('../src/db/prisma.js', () => ({
     broadcastSlot: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     auditLog: { create: vi.fn() },
     outboxEvent: { create: vi.fn() },
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
     $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
     $transaction: vi.fn(),
     $disconnect: vi.fn(),
@@ -106,7 +108,7 @@ describe('Event Endpoints', () => {
         .send({})
         .expect(400)
 
-      expect(response.body).toHaveProperty('message')
+      expect(response.body).toHaveProperty('error', 'Validation failed')
     })
 
     it('should create an event with valid data', async () => {
@@ -170,7 +172,7 @@ describe('Event Endpoints', () => {
         })
         .expect(400)
 
-      expect(response.body.message).toMatch(/sportId|required/i)
+      expect(response.body.error).toBe('Validation failed')
     })
   })
 

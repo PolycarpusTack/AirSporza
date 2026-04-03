@@ -17,8 +17,6 @@ import {
   ROLE_CONFIG,
   SPORTS,
   COMPETITIONS,
-  INITIAL_EVENTS,
-  INITIAL_TECH_PLANS,
 } from '../data'
 import { eventsApi, settingsApi, techPlansApi, sportsApi, competitionsApi } from '../services'
 import { useToast } from '../components/Toast'
@@ -113,33 +111,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ])
 
 
-        if (eventsData) {
-          setEvents(eventsData as Event[])
-        } else {
-          setEvents(INITIAL_EVENTS)
-          toast.warning('Using sample data — API unavailable')
-        }
+        setEvents(eventsData ? eventsData as Event[] : [])
+        setTechPlans(plansData ? plansData as TechPlan[] : [])
+        if (sportsData) setSports(sportsData)
+        if (competitionsData) setCompetitions(competitionsData)
 
-        if (plansData) {
-          setTechPlans(plansData as TechPlan[])
-        } else {
-          setTechPlans(INITIAL_TECH_PLANS)
-        }
+        const failedApis = [
+          !eventsData && 'events',
+          !plansData && 'tech plans',
+          !sportsData && 'sports',
+          !competitionsData && 'competitions',
+        ].filter(Boolean)
 
-        if (sportsData) {
-          setSports(sportsData)
+        if (failedApis.length > 0) {
+          toast.error(`Failed to load: ${failedApis.join(', ')}. Some data may be missing.`)
         }
-
-        if (competitionsData) {
-          setCompetitions(competitionsData)
-        }
-
 
       } catch (error) {
         console.error('Failed to fetch data:', error)
-        setEvents(INITIAL_EVENTS)
-        setTechPlans(INITIAL_TECH_PLANS)
-        toast.error('Failed to load data — using samples')
+        setEvents([])
+        setTechPlans([])
+        toast.error('Failed to connect to API — please check your connection')
       } finally {
         setLoading(false)
       }

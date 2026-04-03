@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
-import { app } from '../src/index.js'
+import { buildApp } from '../src/index.js'
+const app = buildApp()
 import { prisma } from '../src/db/prisma.js'
 
 vi.mock('../src/db/prisma.js', () => ({
@@ -21,6 +22,7 @@ vi.mock('../src/db/prisma.js', () => ({
     broadcastSlot: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     auditLog: { create: vi.fn() },
     outboxEvent: { create: vi.fn() },
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
     $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
     $transaction: vi.fn(),
     $disconnect: vi.fn(),

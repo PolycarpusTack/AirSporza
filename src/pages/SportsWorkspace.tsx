@@ -9,7 +9,6 @@ import { resourcesApi } from '../services/resources'
 import type { Resource, ResourceAssignment } from '../services/resources'
 import { fmtDate } from '../utils'
 import { handleApiError } from '../utils/apiError'
-import { useSocket } from '../hooks'
 import { useToast } from '../components/Toast'
 import { useApp } from '../context/AppProvider'
 import { EncoderSwapModal } from '../components/sports/EncoderSwapModal'
@@ -47,7 +46,8 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const [swapModal, setSwapModal] = useState<number | null>(null)
   const [editingPlanCrew, setEditingPlanCrew] = useState<number | null>(null)
   const [mobileSidebar, setMobileSidebar] = useState(false)
-  const [realtimePlans, setRealtimePlans] = useState<TechPlan[]>(techPlans)
+  // Use techPlans from props directly — AppProvider keeps them in sync via socket events
+  const realtimePlans = techPlans
   const [encoders, setEncoders] = useState<Encoder[]>([])
   const [resources, setResources] = useState<Resource[]>([])
   const [allAssignments, setAllAssignments] = useState<Record<number, ResourceAssignment[]>>({})
@@ -60,8 +60,6 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const toast = useToast()
   const { handleSaveEvent } = useApp()
   const { confirm: confirmSW, dialog: confirmSWDialog } = useConfirmDialog()
-
-  const { on } = useSocket()
 
   useEffect(() => {
     encodersApi.list().then(setEncoders).catch(err => handleApiError(err, 'Failed to load encoders', toast))
@@ -92,30 +90,6 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     return result
   }, [allAssignments])
 
-  useEffect(() => {
-    setRealtimePlans(techPlans)
-  }, [techPlans])
-
-  useEffect(() => {
-    const unsubCreated = on('techPlan:created', (plan: TechPlan) => {
-      setRealtimePlans(prev => [...prev, plan])
-    })
-    const unsubUpdated = on('techPlan:updated', (plan: TechPlan) => {
-      setRealtimePlans(prev => prev.map(p => p.id === plan.id ? plan : p))
-    })
-    const unsubDeleted = on('techPlan:deleted', ({ id }: { id: number }) => {
-      setRealtimePlans(prev => prev.filter(p => p.id !== id))
-    })
-    const unsubSwapped = on('encoder:swapped', ({ planId, plan }: { planId: number; plan: TechPlan }) => {
-      setRealtimePlans(prev => prev.map(p => p.id === planId ? plan : p))
-    })
-    return () => {
-      unsubCreated()
-      unsubUpdated()
-      unsubDeleted()
-      unsubSwapped()
-    }
-  }, [on])
 
   const [selectedSport, setSelectedSport] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<'events' | 'plans' | 'crew' | 'resources' | 'conflicts'>('events')
@@ -172,7 +146,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
   const handleCrewEdit = useCallback((planId: number, field: string, value: string) => {
     // Immediate local state update
     const updated = realtimePlans.map(p => p.id === planId ? { ...p, crew: { ...p.crew as Record<string, unknown>, [field]: value } } : p)
-    setRealtimePlans(updated)
+    setTechPlans(updated)
     setTechPlans(updated)
 
     // Debounce the API persist + roster add (500ms)
@@ -193,7 +167,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
 
   const handleCrewBatchApply = useCallback(async (planId: number, crewData: Record<string, unknown>) => {
     const updated = realtimePlans.map(p => p.id === planId ? { ...p, crew: { ...p.crew as Record<string, unknown>, ...crewData } } : p)
-    setRealtimePlans(updated)
+    setTechPlans(updated)
     setTechPlans(updated)
     const plan = updated.find(p => p.id === planId)
     if (plan) {
@@ -211,7 +185,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       if (!planIds.includes(p.id)) return p
       return { ...p, crew: { ...(p.crew as Record<string, unknown>), ...crewData } }
     })
-    setRealtimePlans(updated)
+    setTechPlans(updated)
     setTechPlans(updated)
     for (const planId of planIds) {
       const plan = updated.find(p => p.id === planId)
@@ -228,7 +202,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
     try {
       const created = await techPlansApi.create({ eventId, planType, crew: {}, customFields: [] })
       const plan = created as TechPlan
-      setRealtimePlans(prev => prev.some(p => p.id === plan.id) ? prev : [...prev, plan])
+      setTechPlans(prev => prev.some(p => p.id === plan.id) ? prev : [...prev, plan])
       setTechPlans(prev => {
         const arr = Array.isArray(prev) ? prev : []
         return arr.some(p => p.id === plan.id) ? arr : [...arr, plan]
@@ -278,7 +252,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       const cf = getCustomFields(p)
       return { ...p, customFields: [...cf, { name: "", value: "" }] }
     })
-    setRealtimePlans(updated)
+    setTechPlans(updated)
     setTechPlans(updated)
     persistPlan(planId, updated)
   }
@@ -290,7 +264,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       cf[idx] = { ...cf[idx], [key]: val }
       return { ...p, customFields: cf }
     })
-    setRealtimePlans(updated)
+    setTechPlans(updated)
     setTechPlans(updated)
     persistPlan(planId, updated)
   }
@@ -301,7 +275,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
       const cf = getCustomFields(p).filter((_, i) => i !== idx)
       return { ...p, customFields: cf }
     })
-    setRealtimePlans(updated)
+    setTechPlans(updated)
     setTechPlans(updated)
     persistPlan(planId, updated)
   }
@@ -733,7 +707,7 @@ export function SportsWorkspace({ events, techPlans, setTechPlans, crewFields, w
           encoders={encoders}
           currentEncoderName={realtimePlans.find(p => p.id === swapModal)?.crew.encoder as string | undefined}
           onSwapComplete={(planId, updated) => {
-            setRealtimePlans(prev => prev.map(p => p.id === planId ? updated : p))
+            setTechPlans(prev => prev.map(p => p.id === planId ? updated : p))
             setTechPlans(prev => {
               const arr = Array.isArray(prev) ? prev : []
               return arr.map(p => p.id === planId ? updated : p)

@@ -10,14 +10,16 @@ import { startSocketWorker } from './workers/socketWorker.js'
 import { startWebhookWorker } from './workers/webhookWorker.js'
 import { cascadeWorker } from './workers/cascadeWorker.js'
 import { alertWorker } from './workers/alertWorker.js'
+import { startIntegrationPushWorker } from './workers/integrationPushWorker.js'
 import { closeQueues } from './services/queue.js'
 import { logger } from './utils/logger.js'
 
 const importWorker = startImportWorker()
-const outboxInterval = startOutboxConsumer(1000)
+const outboxInterval = startOutboxConsumer(5000)
 const socketWorker = startSocketWorker()
 const webhookWorker = startWebhookWorker()
-logger.info('All workers started (standings, bracket, cascade, alert, socket, webhook, outbox)')
+const integrationWorker = startIntegrationPushWorker()
+logger.info('All workers started (standings, bracket, cascade, alert, socket, webhook, integration, outbox)')
 
 const shutdown = async () => {
   logger.info('Stopping workers')
@@ -29,6 +31,7 @@ const shutdown = async () => {
   await alertWorker.close()
   await socketWorker.close()
   await webhookWorker.close()
+  await integrationWorker.close()
   await closeQueues()
   await prisma.$disconnect()
   process.exit(0)

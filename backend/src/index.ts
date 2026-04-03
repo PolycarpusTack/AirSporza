@@ -39,6 +39,7 @@ import scheduleRoutes from './routes/schedules.js'
 import rightsRoutes from './routes/rights.js'
 import channelSwitchRoutes from './routes/channelSwitches.js'
 import adapterRoutes from './routes/adapters.js'
+import integrationsRoutes from './routes/integrations.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -46,134 +47,150 @@ import { authenticate, authorize } from './middleware/auth.js'
 import { setTenantContext } from './middleware/tenantContext.js'
 import { publishService } from './services/publishService.js'
 import { startScheduledImports } from './services/importScheduler.js'
+import { startIntegrationScheduler } from './integrations/integrationScheduler.js'
 
-const corsOrigins = getCorsOrigins()
+// ---------------------------------------------------------------------------
+// buildApp — pure Express app with routes and middleware. No HTTP server,
+// no Socket.IO, no listeners, no signal handlers. Safe for tests.
+// ---------------------------------------------------------------------------
 
-const app = express()
-const httpServer = createServer(app)
-const io = new SocketServer(httpServer, {
-  cors: {
-    origin: corsOrigins,
-    methods: ['GET', 'POST']
-  }
-})
+export function buildApp() {
+  const corsOrigins = getCorsOrigins()
+  const app = express()
 
-setSocketServer(io)
+  app.set('trust proxy', 1)
+  app.use(helmet({ contentSecurityPolicy: false }))
+  app.use(cors({ origin: corsOrigins }))
 
-const PORT = env.PORT
-const databaseUrl = env.DATABASE_URL
+  // Raw body preservation for HMAC verification.
+  app.use('/api/import', express.json({
+    limit: '10mb',
+    verify: (req: any, _res: any, buf: Buffer) => { req.rawBody = buf }
+  }))
+  app.use(express.json({
+    limit: '1mb',
+    verify: (req: any, _res: any, buf: Buffer) => { req.rawBody = buf }
+  }))
+  app.use(express.urlencoded({ extended: true }))
 
-const getDatabaseInfo = () => {
-  try {
-    const parsed = new URL(databaseUrl)
-    return {
-      host: parsed.hostname || 'unknown',
-      port: parsed.port || '5432',
-      database: parsed.pathname.replace(/^\//, '') || 'unknown',
-      schema: parsed.searchParams.get('schema') || 'public',
-    }
-  } catch {
-    return {
-      host: 'invalid',
-      port: 'invalid',
-      database: 'invalid',
-      schema: 'invalid',
-    }
-  }
+  app.use((req, res, next) => {
+    logger.info(`${req.method} ${req.path}`, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    })
+    next()
+  })
+
+  app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  })
+
+  app.use('/api/auth', authLimiter, authRoutes)
+
+  // Public routes
+  app.use('/api/sports', setTenantContext, publicLimiter, sportsRoutes)
+  app.use('/api/competitions', setTenantContext, publicLimiter, competitionsRoutes)
+  app.use('/api/encoders', setTenantContext, publicLimiter, encodersRoutes)
+  app.use('/api/publish', setTenantContext, publicLimiter, publishRoutes)
+
+  // Authenticated routes
+  app.use('/api/events', authenticate, setTenantContext, standardLimiter, eventsRoutes)
+  app.use('/api/tech-plans', authenticate, setTenantContext, standardLimiter, techPlansRoutes)
+  app.use('/api/contracts', authenticate, setTenantContext, standardLimiter, contractsRoutes)
+  app.use('/api/import/schedules', authenticate, setTenantContext, standardLimiter, importSchedulesRoutes)
+  app.use('/api/import', authenticate, setTenantContext, standardLimiter, importRoutes)
+  app.use('/api/import', authenticate, setTenantContext, standardLimiter, csvImportRoutes)
+  app.use('/api/fields', authenticate, setTenantContext, standardLimiter, fieldConfigRoutes)
+  app.use('/api/settings', authenticate, setTenantContext, standardLimiter, settingsRoutes)
+  app.use('/api/audit', authenticate, setTenantContext, standardLimiter, auditRoutes)
+  app.use('/api/notifications', authenticate, setTenantContext, standardLimiter, notificationsRoutes)
+  app.use('/api/saved-views', authenticate, setTenantContext, standardLimiter, savedViewsRoutes)
+  app.use('/api/resources', authenticate, setTenantContext, standardLimiter, resourcesRoutes)
+  app.use('/api/crew-members', authenticate, setTenantContext, standardLimiter, crewMembersRoutes)
+  app.use('/api/crew-templates', authenticate, setTenantContext, standardLimiter, crewTemplatesRoutes)
+  app.use('/api/users', authenticate, setTenantContext, standardLimiter, usersRouter)
+  app.use('/api/venues', authenticate, setTenantContext, standardLimiter, venueRoutes)
+  app.use('/api/teams', authenticate, setTenantContext, standardLimiter, teamRoutes)
+  app.use('/api/courts', authenticate, setTenantContext, standardLimiter, courtRoutes)
+  app.use('/api/seasons', authenticate, setTenantContext, standardLimiter, seasonRoutes)
+  app.use('/api/channels', authenticate, setTenantContext, standardLimiter, channelRoutes)
+  app.use('/api/broadcast-slots', authenticate, setTenantContext, standardLimiter, broadcastSlotRoutes)
+  app.use('/api/schedule-drafts', authenticate, setTenantContext, standardLimiter, scheduleRoutes)
+  app.use('/api/rights', authenticate, setTenantContext, standardLimiter, rightsRoutes)
+  app.use('/api/channel-switches', authenticate, setTenantContext, standardLimiter, channelSwitchRoutes)
+
+  app.use('/api/integrations', authenticate, setTenantContext, standardLimiter, integrationsRoutes)
+
+  // Adapter routes — CRUD has per-endpoint auth; webhook uses HMAC
+  app.use('/api/adapters', adapterRoutes)
+
+  app.use(errorHandler)
+
+  return app
 }
 
-// Number of proxy layers between client and this server.
-// Must match production deployment topology for correct IP extraction.
-app.set('trust proxy', 1)
+// ---------------------------------------------------------------------------
+// createApp — full server with HTTP, Socket.IO, and debug endpoint.
+// Used by the production entry point. Not used by tests.
+// ---------------------------------------------------------------------------
 
-app.use(helmet({ contentSecurityPolicy: false }))
-app.use(cors({ origin: corsOrigins }))
-
-// Raw body preservation for HMAC verification.
-// Import routes need higher limit; place BEFORE the general parser.
-app.use('/api/import', express.json({
-  limit: '10mb',
-  verify: (req: any, _res: any, buf: Buffer) => { req.rawBody = buf }
-}))
-app.use(express.json({
-  limit: '1mb',
-  verify: (req: any, _res: any, buf: Buffer) => { req.rawBody = buf }
-}))
-app.use(express.urlencoded({ extended: true }))
-
-app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path}`, {
-    ip: req.ip,
-    userAgent: req.get('user-agent')
+export function createApp() {
+  const app = buildApp()
+  const corsOrigins = getCorsOrigins()
+  const httpServer = createServer(app)
+  const io = new SocketServer(httpServer, {
+    cors: {
+      origin: corsOrigins,
+      methods: ['GET', 'POST']
+    }
   })
-  next()
-})
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
-})
+  setSocketServer(io)
+  setupSocket(io)
 
-app.get('/api/debug/db', authenticate, authorize('admin'), (_req, res) => {
-  const db = getDatabaseInfo()
-  res.json({
-    status: 'ok',
-    environment: env.NODE_ENV,
-    database: db,
+  const databaseUrl = env.DATABASE_URL
+  const getDatabaseInfo = () => {
+    try {
+      const parsed = new URL(databaseUrl)
+      return {
+        host: parsed.hostname || 'unknown',
+        port: parsed.port || '5432',
+        database: parsed.pathname.replace(/^\//, '') || 'unknown',
+        schema: parsed.searchParams.get('schema') || 'public',
+      }
+    } catch {
+      return { host: 'invalid', port: 'invalid', database: 'invalid', schema: 'invalid' }
+    }
+  }
+
+  app.get('/api/debug/db', authenticate, authorize('admin'), (_req, res) => {
+    const db = getDatabaseInfo()
+    res.json({ status: 'ok', environment: env.NODE_ENV, database: db })
   })
-})
 
-app.use('/api/auth', authLimiter, authRoutes)
+  return { app, httpServer, io, getDatabaseInfo }
+}
 
-// Public routes — tenant context uses default (no user available)
-app.use('/api/sports', setTenantContext, publicLimiter, sportsRoutes)
-app.use('/api/competitions', setTenantContext, publicLimiter, competitionsRoutes)
-app.use('/api/encoders', setTenantContext, publicLimiter, encodersRoutes)
-app.use('/api/publish', setTenantContext, publicLimiter, publishRoutes)
+// ---------------------------------------------------------------------------
+// Server startup — only runs outside of tests
+// ---------------------------------------------------------------------------
 
-// Authenticated routes — authenticate FIRST so setTenantContext can derive tenant from user
-app.use('/api/events', authenticate, setTenantContext, standardLimiter, eventsRoutes)
-app.use('/api/tech-plans', authenticate, setTenantContext, standardLimiter, techPlansRoutes)
-app.use('/api/contracts', authenticate, setTenantContext, standardLimiter, contractsRoutes)
-app.use('/api/import/schedules', authenticate, setTenantContext, standardLimiter, importSchedulesRoutes)
-app.use('/api/import', authenticate, setTenantContext, standardLimiter, importRoutes)
-app.use('/api/import', authenticate, setTenantContext, standardLimiter, csvImportRoutes)
-app.use('/api/fields', authenticate, setTenantContext, standardLimiter, fieldConfigRoutes)
-app.use('/api/settings', authenticate, setTenantContext, standardLimiter, settingsRoutes)
-app.use('/api/audit', authenticate, setTenantContext, standardLimiter, auditRoutes)
-app.use('/api/notifications', authenticate, setTenantContext, standardLimiter, notificationsRoutes)
-app.use('/api/saved-views', authenticate, setTenantContext, standardLimiter, savedViewsRoutes)
-app.use('/api/resources', authenticate, setTenantContext, standardLimiter, resourcesRoutes)
-app.use('/api/crew-members', authenticate, setTenantContext, standardLimiter, crewMembersRoutes)
-app.use('/api/crew-templates', authenticate, setTenantContext, standardLimiter, crewTemplatesRoutes)
-app.use('/api/users', authenticate, setTenantContext, standardLimiter, usersRouter)
-app.use('/api/venues', authenticate, setTenantContext, standardLimiter, venueRoutes)
-app.use('/api/teams', authenticate, setTenantContext, standardLimiter, teamRoutes)
-app.use('/api/courts', authenticate, setTenantContext, standardLimiter, courtRoutes)
-app.use('/api/seasons', authenticate, setTenantContext, standardLimiter, seasonRoutes)
-app.use('/api/channels', authenticate, setTenantContext, standardLimiter, channelRoutes)
-app.use('/api/broadcast-slots', authenticate, setTenantContext, standardLimiter, broadcastSlotRoutes)
-app.use('/api/schedule-drafts', authenticate, setTenantContext, standardLimiter, scheduleRoutes)
-app.use('/api/rights', authenticate, setTenantContext, standardLimiter, rightsRoutes)
-app.use('/api/channel-switches', authenticate, setTenantContext, standardLimiter, channelSwitchRoutes)
+let app: express.Express
+let httpServer: ReturnType<typeof createApp>['httpServer']
 
-// Adapter routes — CRUD has per-endpoint auth; webhook uses HMAC (not JWT)
-app.use('/api/adapters', adapterRoutes)
-
-app.use(errorHandler)
-
-setupSocket(io)
-
-// Daily cron: check for expiring contracts and dispatch webhook events
 if (env.NODE_ENV !== 'test') {
+  const instance = createApp()
+  app = instance.app
+  httpServer = instance.httpServer
+  const getDatabaseInfo = instance.getDatabaseInfo
+
   const MS_PER_DAY = 24 * 60 * 60 * 1000
   setInterval(() => {
     publishService.checkExpiringContracts().catch(err =>
       logger.error('Contract expiry check failed', { err })
     )
   }, MS_PER_DAY)
-}
 
-if (env.NODE_ENV !== 'test') {
   publishService.resumeFailedDeliveries().catch(err =>
     logger.error('Failed to resume webhook deliveries on startup', { err })
   )
@@ -181,21 +198,24 @@ if (env.NODE_ENV !== 'test') {
   startScheduledImports().catch(err =>
     logger.error('Failed to start import scheduler', { err })
   )
-}
 
-const gracefulShutdown = async () => {
-  logger.info('Received shutdown signal, closing connections...')
-  await prisma.$disconnect()
-  httpServer.close(() => {
-    logger.info('Server closed')
-    process.exit(0)
-  })
-}
+  startIntegrationScheduler().catch(err =>
+    logger.error('Failed to start integration scheduler', { err })
+  )
 
-process.on('SIGTERM', gracefulShutdown)
-process.on('SIGINT', gracefulShutdown)
+  const gracefulShutdown = async () => {
+    logger.info('Received shutdown signal, closing connections...')
+    await prisma.$disconnect()
+    httpServer.close(() => {
+      logger.info('Server closed')
+      process.exit(0)
+    })
+  }
 
-if (env.NODE_ENV !== 'test') {
+  process.on('SIGTERM', gracefulShutdown)
+  process.on('SIGINT', gracefulShutdown)
+
+  const PORT = env.PORT
   httpServer.listen(PORT, () => {
     const db = getDatabaseInfo()
     logger.info(`Server running on port ${PORT}`)

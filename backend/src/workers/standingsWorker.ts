@@ -1,6 +1,7 @@
 import { createWorker } from '../services/queue.js'
 import { prisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
+import { setTenantRLS } from '../utils/setTenantRLS.js'
 
 interface StandingsRow {
   teamId: number
@@ -24,6 +25,7 @@ export const standingsWorker = createWorker(
   'standings',
   async (job) => {
     const { eventId, _tenantId: tenantId } = job.data
+    if (tenantId) await setTenantRLS(tenantId)
     logger.info(`Standings recompute triggered for event=${eventId}`)
 
     // Find the event and its stage

@@ -38,8 +38,6 @@ export type PublishEventType =
   | 'techPlan.deleted'
   | 'contract.expiring'
 
-const RETRY_DELAYS_MS = [1_000, 5_000, 30_000] // 3 attempts
-
 function sign(secret: string, body: string): string {
   return 'sha256=' + createHmac('sha256', secret).update(body, 'utf8').digest('hex')
 }
@@ -92,83 +90,6 @@ async function attemptDelivery(
     logger.info('Webhook delivered', { webhookId: webhook.id, deliveryId: delivery.id, statusCode })
   } else {
     throw new Error(error ?? `HTTP ${statusCode}`)
-  }
-}
-
-async function scheduleRetries(
-  webhook: WebhookEndpoint,
-  delivery: WebhookDelivery,
-  payload: object,
-  attemptIndex = 0
-): Promise<void> {
-  if (attemptIndex >= RETRY_DELAYS_MS.length) {
-    logger.warn('Webhook delivery exhausted retries', { webhookId: webhook.id, deliveryId: delivery.id })
-    return
-  }
-
-  setTimeout(async () => {
-    try {
-      // Re-fetch delivery to check if it was already manually retried
-      const current = await prisma.webhookDelivery.findUnique({ where: { id: delivery.id } })
-      if (!current || current.deliveredAt) return // already succeeded
-
-      await attemptDelivery(webhook, delivery, payload)
-    } catch {
-      await scheduleRetries(webhook, delivery, payload, attemptIndex + 1)
-    }
-  }, RETRY_DELAYS_MS[attemptIndex])
-}
-
-/**
- * Dispatch a publish event to all matching active webhooks.
- * Creates a WebhookDelivery record for each, then attempts delivery with retry.
- */
-async function _dispatch(eventType: PublishEventType, data: object): Promise<void> {
-  const payload = {
-    event: eventType,
-    timestamp: new Date().toISOString(),
-    data,
-  }
-
-  let webhooks: WebhookEndpoint[]
-  try {
-    webhooks = await prisma.webhookEndpoint.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { events: { has: eventType } },
-          { events: { has: eventType.split('.')[0] + '.*' } }, // e.g. 'event.*' matches 'event.created'
-        ],
-      },
-    })
-  } catch (err) {
-    logger.error('Failed to load webhooks for dispatch', { err })
-    return
-  }
-
-  if (webhooks.length === 0) return
-
-  for (const webhook of webhooks) {
-    let delivery: WebhookDelivery
-    try {
-      delivery = await prisma.webhookDelivery.create({
-        data: {
-          tenantId: webhook.tenantId,
-          webhookId: webhook.id,
-          eventType,
-          payload: payload as object,
-          attempts: 0,
-        },
-      })
-    } catch (err) {
-      logger.error('Failed to create delivery record', { webhookId: webhook.id, err })
-      continue
-    }
-
-    // Fire first attempt immediately (don't await — non-blocking)
-    attemptDelivery(webhook, delivery, payload).catch(() => {
-      scheduleRetries(webhook, delivery, payload, 0)
-    })
   }
 }
 
@@ -246,15 +167,10 @@ async function resumeFailedDeliveries(): Promise<void> {
 
   for (const delivery of failed) {
     const payload = delivery.payload as object
-    attemptDelivery(delivery.webhook, delivery, payload).catch(() => {
-      scheduleRetries(delivery.webhook, delivery, payload, delivery.attempts)
+    attemptDelivery(delivery.webhook, delivery, payload).catch(err => {
+      logger.warn('Failed to resume delivery', { deliveryId: delivery.id, err })
     })
   }
 }
 
-/**
- * @deprecated Use outbox + webhook worker instead. Kept for backwards compat during transition.
- */
-const dispatch = _dispatch
-
-export const publishService = { dispatch, retryDelivery, checkExpiringContracts, resumeFailedDeliveries }
+export const publishService = { retryDelivery, checkExpiringContracts, resumeFailedDeliveries }

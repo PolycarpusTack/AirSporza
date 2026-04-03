@@ -4,7 +4,7 @@ import { Modal } from '../ui'
 import type { FieldConfig, Event } from '../../data/types'
 import { SPORTS, COMPETITIONS } from '../../data'
 import { genId } from '../../utils'
-import { api } from '../../utils/api'
+import { fieldsApi } from '../../services'
 import { DynamicForm } from './DynamicForm'
 import { RepeatSection } from './RepeatSection'
 import { LinkFromImport } from './LinkFromImport'
@@ -104,8 +104,8 @@ export function DynamicEventForm({
 
   // --- Load API custom fields once -----------------------------------------
   useEffect(() => {
-    api.get<ApiFieldDef[]>('/fields?section=event')
-      .then(setApiCustomFields)
+    fieldsApi.list('event')
+      .then(fields => setApiCustomFields(fields as ApiFieldDef[]))
       .catch(() => { /* API not available */ })
   }, [])
 
