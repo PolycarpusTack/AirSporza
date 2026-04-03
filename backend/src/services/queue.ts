@@ -43,6 +43,7 @@ export const standingsQueue = createQueue('standings')
 export const bracketQueue = createQueue('bracket')
 export const socketioQueue = createQueue('socketio')
 export const webhookQueue = createQueue('webhook')
+export const integrationQueue = createQueue('integration')
 
 /**
  * Gracefully close all queues.
@@ -55,5 +56,6 @@ export async function closeQueues(): Promise<void> {
     bracketQueue.close(),
     socketioQueue.close(),
     webhookQueue.close(),
+    integrationQueue.close(),
   ])
 }

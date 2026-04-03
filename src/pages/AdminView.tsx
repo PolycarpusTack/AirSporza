@@ -12,6 +12,7 @@ import { WorkflowTogglesPanel } from '../components/admin/WorkflowTogglesPanel'
 import { ChannelsPanel } from '../components/admin/ChannelsPanel'
 // RightsPoliciesPanel removed — rights now managed via enriched ContractForm
 import { AdapterConfigPanel } from '../components/admin/AdapterConfigPanel'
+import { IntegrationHub } from './IntegrationHub'
 import { sportsApi, competitionsApi, encodersApi, importsApi, usersApi, type UserRecord } from '../services'
 import { settingsApi, type AdminStats } from '../services/settings'
 import { auditApi, type AuditEntry } from '../services/audit'
@@ -27,7 +28,7 @@ interface AdminViewProps {
   onTabChange?: (tab: AdminTab) => void
 }
 
-export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates' | 'audit-log' | 'autofill' | 'workflows' | 'channels' | 'rights' | 'adapters'
+export type AdminTab = 'fields' | 'sports' | 'competitions' | 'encoders' | 'csv' | 'publish' | 'org' | 'crew-roster' | 'crew-templates' | 'audit-log' | 'autofill' | 'workflows' | 'channels' | 'rights' | 'adapters' | 'integrations'
 
 interface AdminGroup {
   label: string
@@ -580,6 +581,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
       label: 'Data',
       items: [
         { id: 'csv', label: 'CSV Import' },
+        { id: 'integrations' as AdminTab, label: 'Integrations' },
         { id: 'publish', label: 'Publish & Webhooks' },
         { id: 'audit-log', label: 'Audit Log' },
       ],
@@ -780,6 +782,7 @@ export function AdminView({ widgets, activeTab: externalTab, onTabChange }: Admi
             {activeTab === 'channels' && <ChannelsPanel />}
             {activeTab === 'rights' && <div className="card p-6 text-center text-text-3">Rights are now managed via enriched Contracts in the Contracts view.</div>}
             {activeTab === 'adapters' && <AdapterConfigPanel />}
+            {activeTab === 'integrations' && <IntegrationHub />}
           </div>
         )}
       </div>
