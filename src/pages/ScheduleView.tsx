@@ -43,6 +43,7 @@ export function ScheduleView() {
   /* ---------- data state ---------- */
   const [channels, setChannels] = useState<Channel[]>([])
   const [baseSlots, setBaseSlots] = useState<BroadcastSlot[]>([])
+  const [drafts, setDrafts] = useState<ScheduleDraft[]>([])
   const [activeDraft, setActiveDraft] = useState<ScheduleDraft | null>(null)
 
   /* ---------- UI state ---------- */
@@ -50,6 +51,7 @@ export function ScheduleView() {
   const [timezone, setTimezone] = useState('UTC')
   const [activeTab, setActiveTab] = useState<'grid' | 'cascade'>('grid')
   const [loading, setLoading] = useState(true)
+  const [previewing, setPreviewing] = useState(false)
   const [validating, setValidating] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [switchAlert, setSwitchAlert] = useState<Alert | null>(null)
@@ -93,8 +95,13 @@ export function ScheduleView() {
       ])
       setChannels(ch)
       setBaseSlots(sl)
+      setDrafts(dr)
       if (dr.length) {
-        setActiveDraft(dr.find(d => d.status !== 'PUBLISHED') || dr[0])
+        setActiveDraft(prev => {
+          // Keep current selection if it still exists in the new list
+          if (prev && dr.some(d => d.id === prev.id)) return prev
+          return dr.find(d => d.status !== 'PUBLISHED') || dr[0]
+        })
       } else {
         setActiveDraft(null)
       }
@@ -116,6 +123,50 @@ export function ScheduleView() {
     } finally {
       setValidating(false)
     }
+  }, [editor])
+
+  const handlePreviewCascade = useCallback(async () => {
+    if (!activeDraft) return
+    setPreviewing(true)
+    try {
+      const result = await schedulesApi.previewCascade(activeDraft.id)
+      const totalEstimates = result.courts.reduce((sum, c) => sum + c.estimates.length, 0)
+      if (result.courts.length === 0) {
+        toast.info('No cascade impact — no pending operations')
+      } else {
+        toast.success(`Cascade preview: ${totalEstimates} slot(s) across ${result.courts.length} court(s)`)
+        // Log details for V1 — a dedicated panel can be added later
+        console.info('[Cascade Preview]', result)
+      }
+    } catch (err: unknown) {
+      toast.error((err as Error).message || 'Failed to preview cascade')
+    } finally {
+      setPreviewing(false)
+    }
+  }, [activeDraft, toast])
+
+  const handleCreateDraft = useCallback(async () => {
+    if (!channels.length) return
+    try {
+      const newDraft = await schedulesApi.createDraft({
+        channelId: channels[0].id,
+        dateRangeStart: date,
+        dateRangeEnd: date,
+      })
+      // Refetch all drafts and select the new one
+      const dr = await schedulesApi.listDrafts()
+      setDrafts(dr)
+      setActiveDraft(newDraft)
+      editor.reset()
+      toast.success('New draft created')
+    } catch (err: unknown) {
+      toast.error((err as Error).message || 'Failed to create draft')
+    }
+  }, [channels, date, editor, toast])
+
+  const handleSelectDraft = useCallback((draft: ScheduleDraft) => {
+    setActiveDraft(draft)
+    editor.reset()
   }, [editor])
 
   const handlePublish = useCallback(async () => {
@@ -327,11 +378,17 @@ export function ScheduleView() {
             onUndo={editor.undo}
             onRedo={editor.redo}
             draft={activeDraft}
+            drafts={drafts}
+            onCreateDraft={handleCreateDraft}
+            onSelectDraft={handleSelectDraft}
             operationCount={editor.operations.length}
+            onPreviewCascade={handlePreviewCascade}
             onValidate={handleValidate}
             onPublish={handlePublish}
+            previewing={previewing}
             validating={validating}
             publishing={publishing}
+            createDraftDisabled={channels.length === 0}
           />
 
           {loading ? (

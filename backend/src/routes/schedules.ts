@@ -5,7 +5,7 @@ import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { validateSchedule, type ValidationContext, type RightsPolicy } from '../services/validation/index.js'
 import { writeOutboxEvent } from '../services/outbox.js'
-import { executeOperations, type ScheduleOperation } from '../services/scheduleOperations.js'
+import { applyOperations, executeOperations, type ScheduleOperation, type SlotState } from '../services/scheduleOperations.js'
 import * as s from '../schemas/schedules.js'
 
 const router = Router()
@@ -262,6 +262,114 @@ router.post('/:id/validate-slot', authenticate, authorize('planner', 'admin'), a
 
     res.json({ results: slotResults })
   } catch (err) { next(err) }
+})
+
+// POST /api/schedule-drafts/:id/preview-cascade — read-only cascade what-if preview
+router.post('/:id/preview-cascade', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+  try {
+    const draft = await prisma.scheduleDraft.findFirst({
+      where: { id: req.params.id as string, tenantId: req.tenantId }
+    })
+
+    if (!draft) return next(createError(404, 'Schedule draft not found'))
+
+    const draftOps = ((draft.operations as any[]) || []) as ScheduleOperation[]
+    if (draftOps.length === 0) {
+      return res.json({ courts: [] })
+    }
+
+    // Load base slots for this channel in the date range
+    const baseSlots = await prisma.broadcastSlot.findMany({
+      where: {
+        tenantId: req.tenantId,
+        channelId: draft.channelId,
+        plannedStartUtc: {
+          gte: new Date(draft.dateRangeStart),
+          lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000)
+        }
+      },
+      orderBy: { plannedStartUtc: 'asc' }
+    })
+
+    // Convert DB slots to SlotState for applyOperations
+    const slotStates: SlotState[] = baseSlots.map(s => ({
+      id: s.id,
+      channelId: s.channelId ?? 0,
+      eventId: s.eventId ?? undefined,
+      schedulingMode: s.schedulingMode,
+      plannedStartUtc: s.plannedStartUtc?.toISOString() ?? '',
+      plannedEndUtc: s.plannedEndUtc?.toISOString() ?? '',
+      estimatedStartUtc: s.estimatedStartUtc?.toISOString(),
+      estimatedEndUtc: s.estimatedEndUtc?.toISOString(),
+      bufferBeforeMin: s.bufferBeforeMin ?? 15,
+      bufferAfterMin: s.bufferAfterMin ?? 10,
+      expectedDurationMin: s.expectedDurationMin ?? undefined,
+      overrunStrategy: s.overrunStrategy,
+      anchorType: s.anchorType,
+      contentSegment: s.contentSegment,
+      status: s.status,
+      sportMetadata: (s.sportMetadata as Record<string, unknown>) ?? {},
+    }))
+
+    // Apply pending operations (pure, no DB writes)
+    const computed = applyOperations(slotStates, draftOps)
+
+    // Group by court_id from sportMetadata
+    const courtGroups = new Map<number, SlotState[]>()
+    for (const slot of computed) {
+      const courtId = (slot.sportMetadata?.court_id as number) ?? 0
+      if (!courtGroups.has(courtId)) courtGroups.set(courtId, [])
+      courtGroups.get(courtId)!.push(slot)
+    }
+
+    const CHANGEOVER_MIN = 15
+    const CONFIDENCE_DECAY = 0.85
+
+    const courts = Array.from(courtGroups.entries()).map(([courtId, slots]) => {
+      // Sort by order_on_court or plannedStartUtc
+      slots.sort((a, b) => {
+        const orderA = (a.sportMetadata?.order_on_court as number) ?? Infinity
+        const orderB = (b.sportMetadata?.order_on_court as number) ?? Infinity
+        if (orderA !== orderB) return orderA - orderB
+        return new Date(a.plannedStartUtc).getTime() - new Date(b.plannedStartUtc).getTime()
+      })
+
+      let confidence = 1.0
+      let prevEndMs: number | null = null
+
+      const estimates = slots.map(slot => {
+        const plannedStart = new Date(slot.plannedStartUtc).getTime()
+        const plannedEnd = new Date(slot.plannedEndUtc).getTime()
+        const durationMs = slot.expectedDurationMin
+          ? slot.expectedDurationMin * 60_000
+          : plannedEnd - plannedStart
+
+        let estimatedStartMs: number
+        if (prevEndMs !== null) {
+          estimatedStartMs = prevEndMs + CHANGEOVER_MIN * 60_000
+          confidence *= CONFIDENCE_DECAY
+        } else {
+          estimatedStartMs = plannedStart
+        }
+
+        const estimatedEndMs = estimatedStartMs + durationMs
+        prevEndMs = estimatedEndMs
+
+        return {
+          slotId: slot.id,
+          estimatedStartUtc: new Date(estimatedStartMs).toISOString(),
+          estimatedEndUtc: new Date(estimatedEndMs).toISOString(),
+          confidence: Math.round(confidence * 100) / 100,
+        }
+      })
+
+      return { courtId, estimates }
+    })
+
+    res.json({ courts })
+  } catch (error) {
+    next(error)
+  }
 })
 
 // POST /api/schedule-drafts/:id/publish — validate + create ScheduleVersion

@@ -32,6 +32,18 @@ export const schedulesApi = {
     api.post<{ results: any[] }>(`/schedule-drafts/${id}/validate`, {}),
   validateSlot: (draftId: string, slot: Partial<BroadcastSlot>) =>
     api.post<{ results: any[] }>(`/schedule-drafts/${draftId}/validate-slot`, { slot }),
+  previewCascade: (draftId: string) =>
+    api.post<{
+      courts: Array<{
+        courtId: number
+        estimates: Array<{
+          slotId: string
+          estimatedStartUtc: string
+          estimatedEndUtc: string
+          confidence: number
+        }>
+      }>
+    }>(`/schedule-drafts/${draftId}/preview-cascade`, {}),
   publishDraft: (id: string, acknowledgeWarnings?: boolean) =>
     api.post<{ version: ScheduleVersion }>(`/schedule-drafts/${id}/publish`, { acknowledgeWarnings }),
 
