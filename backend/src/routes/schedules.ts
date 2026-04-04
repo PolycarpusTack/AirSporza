@@ -239,6 +239,30 @@ router.post('/:id/validate', authenticate, authorize('planner', 'admin'), async 
   }
 })
 
+// POST /api/schedule-drafts/:id/validate-slot — inline single-slot validation
+router.post('/:id/validate-slot', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
+  try {
+    const draft = await prisma.scheduleDraft.findFirst({
+      where: { id: req.params.id as string, tenantId: req.tenantId },
+    })
+    if (!draft) return next(createError(404, 'Draft not found'))
+
+    const { slot } = req.body as { slot: any }
+    if (!slot) return next(createError(400, 'slot is required'))
+
+    const allSlots = await prisma.broadcastSlot.findMany({
+      where: { tenantId: req.tenantId, channelId: draft.channelId },
+      include: { event: true, channel: true },
+    })
+
+    const slotsForValidation = allSlots.filter(s => s.id !== slot.id).concat([slot])
+    const results = validateSchedule(slotsForValidation, { rightsPolicies: [], events: [] })
+    const slotResults = results.filter(r => r.scope.includes(slot.id))
+
+    res.json({ results: slotResults })
+  } catch (err) { next(err) }
+})
+
 // POST /api/schedule-drafts/:id/publish — validate + create ScheduleVersion
 router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validate({ params: s.draftIdParam, body: s.draftPublishSchema }), async (req, res, next) => {
   try {

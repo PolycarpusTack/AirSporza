@@ -30,6 +30,8 @@ export const schedulesApi = {
     api.patch<ScheduleDraft>(`/schedule-drafts/${id}`, { version, operations }),
   validateDraft: (id: string) =>
     api.post<{ results: any[] }>(`/schedule-drafts/${id}/validate`, {}),
+  validateSlot: (draftId: string, slot: Partial<BroadcastSlot>) =>
+    api.post<{ results: any[] }>(`/schedule-drafts/${draftId}/validate-slot`, { slot }),
   publishDraft: (id: string, acknowledgeWarnings?: boolean) =>
     api.post<{ version: ScheduleVersion }>(`/schedule-drafts/${id}/publish`, { acknowledgeWarnings }),
 
