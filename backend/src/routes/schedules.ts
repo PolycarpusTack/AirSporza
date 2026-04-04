@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { validateSchedule, type ValidationContext, type RightsPolicy } from '../services/validation/index.js'
 import { writeOutboxEvent } from '../services/outbox.js'
+import { executeOperations, type ScheduleOperation } from '../services/scheduleOperations.js'
 import * as s from '../schemas/schedules.js'
 
 const router = Router()
@@ -278,7 +279,7 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
     }
 
     // Load slots for validation and snapshot
-    const slots = await prisma.broadcastSlot.findMany({
+    let slots = await prisma.broadcastSlot.findMany({
       where: {
         tenantId: req.tenantId,
         channelId: draft.channelId,
@@ -335,6 +336,27 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
       select: { versionNumber: true }
     })
     const nextVersionNumber = (lastVersion?.versionNumber ?? 0) + 1
+
+    // Execute pending operations to materialize slot changes
+    const draftOps = ((draft.operations as any[]) || []) as ScheduleOperation[]
+    if (draftOps.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        await executeOperations(tx, req.tenantId!, draftOps)
+      })
+      // Re-fetch slots after operations applied
+      slots = await prisma.broadcastSlot.findMany({
+        where: {
+          tenantId: req.tenantId,
+          channelId: draft.channelId,
+          plannedStartUtc: {
+            gte: new Date(draft.dateRangeStart),
+            lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000)
+          }
+        },
+        include: { event: true },
+        orderBy: { plannedStartUtc: 'asc' }
+      })
+    }
 
     // Create snapshot and version in a transaction
     const result = await prisma.$transaction(async (tx) => {
