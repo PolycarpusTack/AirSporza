@@ -144,8 +144,32 @@ export function startIntegrationPushWorker() {
               template.defaultFieldMappings,
               (integration.fieldOverrides as FieldOverride[]) || []
             )
+
+            // Enrich context with schedule slot data for EPG/feed templates
+            let scheduleSlots: unknown[] = []
+            let scheduleChannel: Record<string, unknown> | null = null
+            if (
+              (eventType === 'schedule.published' || eventType === 'schedule.emergency_published') &&
+              payload.versionId
+            ) {
+              const version = await prisma.scheduleVersion.findUnique({
+                where: { id: payload.versionId as string },
+                include: { channel: true },
+              })
+              if (version) {
+                scheduleSlots = Array.isArray(version.snapshot) ? version.snapshot : []
+                scheduleChannel = version.channel as Record<string, unknown> | null
+              }
+            }
+
             const compiled = getCompiledTemplate(template.code, template.payloadTemplate)
-            const rendered = compiled({ ...mapped, eventType, timestamp: new Date().toISOString() })
+            const rendered = compiled({
+              ...mapped,
+              eventType,
+              timestamp: new Date().toISOString(),
+              events: scheduleSlots,
+              channel: scheduleChannel,
+            })
 
             const credentials = integration.credentials
               ? decryptCredentials(integration.credentials)
