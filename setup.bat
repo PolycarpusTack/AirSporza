@@ -5,6 +5,9 @@ echo ========================================
 echo.
 
 echo [1/4] Installing frontend dependencies...
+REM Remove any node_modules left behind by a WSL/Linux install.
+REM Those contain Linux-only rollup/esbuild binaries that fail on Windows.
+if exist node_modules rmdir /s /q node_modules
 call npm install
 if %errorlevel% neq 0 (
     echo Failed to install frontend dependencies
@@ -14,6 +17,7 @@ if %errorlevel% neq 0 (
 echo.
 echo [2/4] Installing backend dependencies...
 cd backend
+if exist node_modules rmdir /s /q node_modules
 call npm install
 if %errorlevel% neq 0 (
     echo Failed to install backend dependencies

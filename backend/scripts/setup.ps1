@@ -83,13 +83,31 @@ try {
 Write-Host ""
 Write-Host "[4/7] Installing dependencies..." -ForegroundColor Yellow
 
+# Wipe any node_modules left behind by a prior WSL/Linux install — those
+# contain Linux-only rollup/esbuild binaries that break on Windows.
 Push-Location $projectRoot
-npm install --force 2>$null | Out-Null
+if (Test-Path "node_modules") {
+    Write-Host "  Removing stale node_modules (frontend)..." -ForegroundColor Gray
+    Remove-Item -Recurse -Force node_modules
+}
+npm install
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Frontend npm install failed" -ForegroundColor Red
+    exit 1
+}
 Write-Host "  Frontend dependencies installed" -ForegroundColor Green
 Pop-Location
 
 Push-Location $backendDir
-npm install --force 2>$null | Out-Null
+if (Test-Path "node_modules") {
+    Write-Host "  Removing stale node_modules (backend)..." -ForegroundColor Gray
+    Remove-Item -Recurse -Force node_modules
+}
+npm install
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Backend npm install failed" -ForegroundColor Red
+    exit 1
+}
 Write-Host "  Backend dependencies installed" -ForegroundColor Green
 
 Write-Host ""

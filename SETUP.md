@@ -74,7 +74,11 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO sporza;
 
 ### Linux packages on Windows
 
-If you see `EBADPLATFORM` errors for `@rollup/rollup-linux-*`, delete `node_modules` and reinstall from PowerShell (not WSL):
+If a prior install was done from WSL you'll see errors like
+`Cannot find module @rollup/rollup-win32-x64-msvc` or
+`EBADPLATFORM` for `@rollup/rollup-linux-*`. The setup scripts now wipe
+`node_modules` automatically, but to recover manually from PowerShell
+(not WSL):
 
 ```powershell
 Remove-Item -Recurse -Force node_modules
@@ -83,3 +87,7 @@ cd backend
 Remove-Item -Recurse -Force node_modules
 npm install
 ```
+
+Always run `npm install` and `npm run dev` from PowerShell on Windows —
+running them from WSL installs Linux-only native binaries that Vite
+won't be able to load when you launch the app from Windows.
