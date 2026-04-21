@@ -37,6 +37,7 @@ export interface CascadeResult {
   estDurationShortMin: number
   estDurationLongMin: number
   confidenceScore: number
+  inputsUsed: Record<string, unknown>
   computedAt: Date
 }
 
@@ -97,6 +98,8 @@ export async function runCascade(
 
     // Adapt Event rows to the pure CascadeItem shape, then run the shared
     // chain algorithm. Keeps engine + preview-cascade from drifting.
+    const nowMs = Date.now()
+    const inputsByEvent = new Map<number, Record<string, unknown>>()
     const items: CascadeItem[] = events.map(event => {
       const meta = asCascadeMeta(event.sportMetadata)
       const actuals = actualTimesByEvent.get(event.id)
@@ -105,15 +108,27 @@ export async function runCascade(
         event.status === 'completed' ? 'completed' :
         event.status === 'live' ? 'live' :
         event.status === 'approved' || event.status === 'published' ? 'scheduled' : 'draft'
+
+      // For a live match, elapsed = now - actualStartUtc. estimate() returns
+      // REMAINING duration when elapsed > 0, so the cascade chain correctly
+      // anchors the next event off "time left in this match" instead of
+      // treating it as if it just kicked off.
+      const actualStartMs = actuals?.actualStartUtc ? new Date(actuals.actualStartUtc).getTime() : null
+      const elapsedMin = status === 'live' && actualStartMs != null
+        ? Math.max(0, (nowMs - actualStartMs) / 60000)
+        : 0
+      const est = estimator.estimate(castEvent, elapsedMin > 0 ? { elapsedMin } : undefined)
+      inputsByEvent.set(event.id, est.inputsUsed)
+
       return {
         id: event.id,
         startMs: new Date(event.startDateBE).getTime(),
         status,
         notBeforeMs: meta.not_before_utc ? new Date(meta.not_before_utc).getTime() : null,
-        actualStartMs: actuals?.actualStartUtc ? new Date(actuals.actualStartUtc).getTime() : null,
+        actualStartMs,
         actualEndMs: actuals?.actualEndUtc ? new Date(actuals.actualEndUtc).getTime() : null,
-        shortMin: estimator.shortDuration(castEvent),
-        longMin: estimator.longDuration(castEvent),
+        shortMin: est.shortMin,
+        longMin: est.longMin,
       }
     })
 
@@ -128,6 +143,7 @@ export async function runCascade(
       estDurationShortMin: c.estDurationShortMin,
       estDurationLongMin: c.estDurationLongMin,
       confidenceScore: c.confidenceScore,
+      inputsUsed: inputsByEvent.get(c.id as number) ?? {},
       computedAt,
     }))
 
@@ -150,7 +166,7 @@ export async function runCascade(
           estDurationShortMin: r.estDurationShortMin,
           estDurationLongMin: r.estDurationLongMin,
           confidenceScore: r.confidenceScore,
-          inputsUsed: {},
+          inputsUsed: r.inputsUsed as Prisma.InputJsonValue,
           computedAt: r.computedAt,
         })),
       })

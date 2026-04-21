@@ -22,9 +22,11 @@ const EVENT_ROUTING: Record<string, string[]> = {
   'match.score_updated':        ['cascade'],
   // Cascade results
   'cascade.recomputed':         ['alerts'],
-  // Schedule lifecycle
-  'schedule.published':         ['webhook', 'integration'],
-  'schedule.emergency_published': ['webhook'],
+  // Schedule lifecycle — publishing can shift many events at once, so also
+  // trigger a cascade fan-out (cascadeWorker handles the scheduleVersionId
+  // path by enumerating affected courts).
+  'schedule.published':         ['webhook', 'integration', 'cascade'],
+  'schedule.emergency_published': ['webhook', 'cascade'],
   // Channel switches
   'channel_switch.confirmed':   ['socketio', 'webhook'],
   'channel_switch.created':     ['socketio'],

@@ -1,6 +1,6 @@
 import { createWorker, socketioQueue } from '../services/queue.js'
 import { prisma } from '../db/prisma.js'
-import { runCascade } from '../services/cascade/engine.js'
+import { runCascade, type CascadeResult } from '../services/cascade/engine.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { logger } from '../utils/logger.js'
 import { setTenantRLS } from '../utils/setTenantRLS.js'
@@ -19,72 +19,115 @@ function courtIdFromMeta(value: unknown): number | null {
   return Number.isFinite(n) ? Number(n) : null
 }
 
+/** Key used to dedupe court+date pairs affected by a schedule publish. */
+function courtDateKey(courtId: number, date: Date): string {
+  return `${courtId}:${date.toISOString().slice(0, 10)}`
+}
+
+/**
+ * Fan-out broadcast to clients + downstream subsystems after a cascade run.
+ * Mirrors alertWorker's pattern — outbox for canonical reactions, direct
+ * socketio for live client push.
+ */
+async function emitCascadeOutputs(
+  tenantId: string,
+  courtId: number,
+  dateStr: string,
+  estimates: CascadeResult[],
+) {
+  await prisma.$transaction(async (tx) => {
+    await writeOutboxEvent(tx, {
+      tenantId,
+      eventType: 'cascade.recomputed',
+      aggregateType: 'Court',
+      aggregateId: String(courtId),
+      payload: { courtId, date: dateStr, estimateCount: estimates.length },
+    })
+  })
+
+  await socketioQueue.add('cascade:updated', {
+    eventType: 'cascade:updated',
+    payload: estimates,
+    namespace: '/cascade',
+    room: `tenant:${tenantId}:court:${courtId}`,
+    _tenantId: tenantId,
+  })
+}
+
 export const cascadeWorker = createWorker(
   'cascade',
   async (job) => {
-    const { tenantId, eventId } = job.data as { tenantId: string; eventId: number }
+    const { tenantId, eventId, versionId } = job.data as {
+      tenantId: string
+      eventId?: number
+      /** Set when the job originates from schedule.(emergency_)published. */
+      versionId?: string
+    }
     if (tenantId) await setTenantRLS(tenantId)
-    if (!eventId) {
-      logger.warn('Cascade job missing eventId — skipping')
-      return { skipped: true }
+
+    // ── Path A: single-event trigger (event.status_changed, slot.status_changed,
+    //    match.score_updated, fixture.status_changed). Recompute the one court
+    //    this event lives on, for its date.
+    if (eventId) {
+      const event = await prisma.event.findUnique({ where: { id: eventId } })
+      if (!event) {
+        logger.warn(`Cascade job: event ${eventId} not found — skipping`)
+        return { skipped: true }
+      }
+      const courtId = courtIdFromMeta(event.sportMetadata)
+      if (!courtId) {
+        logger.warn(`Cascade job: event ${eventId} has no court_id — skipping`)
+        return { skipped: true }
+      }
+      const date = event.startDateBE
+      const dateStr = date.toISOString().slice(0, 10)
+      logger.info(`Cascade recompute (event): court=${courtId}, date=${dateStr}`)
+      const estimates = await runCascade(tenantId, courtId, new Date(date))
+      await emitCascadeOutputs(tenantId, courtId, dateStr, estimates)
+      return { estimateCount: estimates.length }
     }
 
-    const event = await prisma.event.findUnique({ where: { id: eventId } })
-    if (!event) {
-      logger.warn(`Cascade job: event ${eventId} not found — skipping`)
-      return { skipped: true }
-    }
-
-    const courtId = courtIdFromMeta(event.sportMetadata)
-    if (!courtId) {
-      logger.warn(`Cascade job: event ${eventId} has no court_id — skipping`)
-      return { skipped: true }
-    }
-
-    const date = event.startDateBE
-    const dateStr = date.toISOString().slice(0, 10)
-    logger.info(`Cascade recompute: court=${courtId}, date=${dateStr}`)
-
-    const estimates = await runCascade(tenantId, courtId, new Date(date))
-    logger.info(`Cascade complete: ${estimates.length} estimates updated`)
-
-    // ── Fan-out ──────────────────────────────────────────────────────────
-    // Two separate paths, mirroring alertWorker's pattern:
-    //
-    // 1. Outbox `cascade.recomputed` → alertWorker (which reads courtId from
-    //    the payload to scope its broadcast-slot query). This is the
-    //    canonical event-sourced trail; any future consumer that wants to
-    //    react to cascade completions (metrics, audit, standings refresh)
-    //    plugs in via EVENT_ROUTING.
-    //
-    // 2. Direct socketio enqueue → `/cascade` namespace, `cascade:updated`
-    //    event on the court room. Bypasses the outbox so the emit event
-    //    name (cascade:updated, consumed by useCascade.ts) stays separate
-    //    from the canonical outbox event name (cascade.recomputed) without
-    //    cross-wiring the routing map.
-    await prisma.$transaction(async (tx) => {
-      await writeOutboxEvent(tx, {
-        tenantId,
-        eventType: 'cascade.recomputed',
-        aggregateType: 'Court',
-        aggregateId: String(courtId),
-        payload: {
-          courtId,
-          date: dateStr,
-          estimateCount: estimates.length,
+    // ── Path B: schedule-publish fan-out. Enumerate the published version's
+    //    slots, group by (court_id, date), then cascade each unique pair. A
+    //    bulk publish can touch many courts; one cascade run per court is
+    //    correct because runCascade's advisory lock is court+date-scoped.
+    if (versionId) {
+      const slots = await prisma.broadcastSlot.findMany({
+        where: { scheduleVersionId: versionId, tenantId },
+        include: {
+          event: { select: { id: true, startDateBE: true, sportMetadata: true } },
         },
       })
-    })
 
-    await socketioQueue.add('cascade:updated', {
-      eventType: 'cascade:updated',
-      payload: estimates,
-      namespace: '/cascade',
-      room: `tenant:${tenantId}:court:${courtId}`,
-      _tenantId: tenantId,
-    })
+      const byCourtDate = new Map<string, { courtId: number; date: Date }>()
+      for (const slot of slots) {
+        if (!slot.event) continue
+        const courtId = courtIdFromMeta(slot.event.sportMetadata)
+        if (!courtId) continue
+        const key = courtDateKey(courtId, slot.event.startDateBE)
+        if (!byCourtDate.has(key)) {
+          byCourtDate.set(key, { courtId, date: slot.event.startDateBE })
+        }
+      }
 
-    return { estimateCount: estimates.length }
+      if (byCourtDate.size === 0) {
+        logger.info(`Cascade fan-out (schedule ${versionId}): no court-scoped events, skipping`)
+        return { skipped: true, courts: 0 }
+      }
+
+      logger.info(`Cascade fan-out (schedule ${versionId}): ${byCourtDate.size} court+date pairs`)
+      let totalEstimates = 0
+      for (const { courtId, date } of byCourtDate.values()) {
+        const dateStr = date.toISOString().slice(0, 10)
+        const estimates = await runCascade(tenantId, courtId, new Date(date))
+        await emitCascadeOutputs(tenantId, courtId, dateStr, estimates)
+        totalEstimates += estimates.length
+      }
+      return { estimateCount: totalEstimates, courts: byCourtDate.size }
+    }
+
+    logger.warn('Cascade job missing both eventId and versionId — skipping')
+    return { skipped: true }
   },
   { concurrency: 3 }
 )
