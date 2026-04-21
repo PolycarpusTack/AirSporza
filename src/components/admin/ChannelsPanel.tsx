@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit2, Trash2, ChevronRight, ChevronDown, GripVertical, Tv, Radio, Wifi, Zap, Monitor } from 'lucide-react'
+import { Plus, Edit2, Trash2, ChevronRight, ChevronDown, ChevronUp, Tv, Radio, Wifi, Zap, Monitor } from 'lucide-react'
 import { channelsApi } from '../../services/channels'
 import { useToast } from '../Toast'
 import type { Channel, ChannelType } from '../../data/types'
@@ -105,6 +105,33 @@ export function ChannelsPanel() {
     }
   }
 
+  /**
+   * Swap sortOrder with the adjacent sibling under the same parent.
+   * Drag-to-reorder between table rows is fussy (the HTML5 drag API
+   * doesn't play well with table semantics and @dnd-kit needs a
+   * Sortable context around a flat list), so up/down buttons give the
+   * same user outcome with zero drag surface area. The backend only
+   * sees two small PUT calls.
+   */
+  const handleReorder = async (ch: Channel, direction: 'up' | 'down') => {
+    const siblings = ch.parentId == null
+      ? channels.filter(c => c.parentId == null).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      : childrenOf(ch.parentId)
+    const idx = siblings.findIndex(s => s.id === ch.id)
+    const neighborIdx = direction === 'up' ? idx - 1 : idx + 1
+    const neighbor = siblings[neighborIdx]
+    if (!neighbor) return
+    try {
+      await Promise.all([
+        channelsApi.update(ch.id, { sortOrder: neighbor.sortOrder }),
+        channelsApi.update(neighbor.id, { sortOrder: ch.sortOrder }),
+      ])
+      reload()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reorder')
+    }
+  }
+
   const toggleType = (type: ChannelType) => {
     setForm(f => {
       const has = f.types.includes(type)
@@ -123,7 +150,22 @@ export function ChannelsPanel() {
         <tr className="hover:bg-surface-2 transition border-b border-border/40">
           <td className="px-4 py-2.5" style={{ paddingLeft: `${16 + depth * 24}px` }}>
             <div className="flex items-center gap-2">
-              <GripVertical className="w-3.5 h-3.5 text-muted/40 cursor-grab" />
+              <div className="flex flex-col gap-0">
+                <button
+                  onClick={() => handleReorder(ch, 'up')}
+                  title="Move up"
+                  className="p-0 text-muted/50 hover:text-text disabled:opacity-30 disabled:hover:text-muted/50 leading-none"
+                >
+                  <ChevronUp className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => handleReorder(ch, 'down')}
+                  title="Move down"
+                  className="p-0 text-muted/50 hover:text-text disabled:opacity-30 disabled:hover:text-muted/50 leading-none"
+                >
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </div>
               {hasChildren ? (
                 <button onClick={() => toggleExpand(ch.id)} className="p-0.5 text-muted hover:text-text">
                   {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}

@@ -11,6 +11,7 @@ import { useScheduleEditor } from '../hooks/useScheduleEditor'
 import { useSlotDrag, type DragResult } from '../hooks/useSlotDrag'
 import { useSlotContextMenu } from '../hooks/useSlotContextMenu'
 import { useToast } from '../components/Toast'
+import { useConfirmDialog } from '../components/ui/ConfirmDialog'
 import type { Channel, BroadcastSlot, ScheduleDraft, Alert } from '../data/types'
 import { Grid2X2, Activity } from 'lucide-react'
 
@@ -59,6 +60,7 @@ export function ScheduleView() {
   /* ---------- hooks ---------- */
   const editor = useScheduleEditor(activeDraft, baseSlots)
   const { menu, openMenu, closeMenu } = useSlotContextMenu()
+  const { confirm, dialog: confirmDialog } = useConfirmDialog()
 
   const handleDragComplete = useCallback((result: DragResult) => {
     const slot = editor.computedSlots.find(s => s.id === result.slotId)
@@ -172,12 +174,51 @@ export function ScheduleView() {
   const handlePublish = useCallback(async () => {
     setPublishing(true)
     try {
-      await editor.publish()
+      // Re-validate first so the warning list is fresh; operators shouldn't
+      // be asked to acknowledge stale warnings that a later edit removed.
+      await editor.validate()
+
+      const errors = editor.validationResults.filter(r => r.severity === 'ERROR')
+      const warnings = editor.validationResults.filter(r => r.severity === 'WARNING')
+
+      if (errors.length > 0) {
+        toast.error(`${errors.length} validation error${errors.length > 1 ? 's' : ''} must be resolved before publishing.`)
+        return
+      }
+
+      if (warnings.length > 0) {
+        const ok = await confirm({
+          title: `Publish with ${warnings.length} warning${warnings.length > 1 ? 's' : ''}?`,
+          confirmLabel: 'Publish anyway',
+          cancelLabel: 'Go back',
+          variant: 'warning',
+          message: (
+            <div className="space-y-2">
+              <p>These warnings will be logged on the published version so the decision is traceable:</p>
+              <ul className="list-disc pl-5 space-y-1 max-h-48 overflow-y-auto">
+                {warnings.slice(0, 8).map((w, idx) => (
+                  <li key={idx}>
+                    <span className="font-mono text-xs bg-surface-2 px-1 rounded mr-1">{w.code}</span>
+                    {w.message}
+                  </li>
+                ))}
+                {warnings.length > 8 && (
+                  <li className="text-muted italic">+{warnings.length - 8} more…</li>
+                )}
+              </ul>
+            </div>
+          ),
+        })
+        if (!ok) return
+        await editor.publish(true)
+      } else {
+        await editor.publish()
+      }
       await fetchData()
     } finally {
       setPublishing(false)
     }
-  }, [editor, fetchData])
+  }, [editor, fetchData, toast, confirm])
 
   /* ---------- grid callbacks ---------- */
   const handleSlotClick = useCallback((slotId: string) => {
@@ -447,6 +488,8 @@ export function ScheduleView() {
           onConfirmed={fetchData}
         />
       )}
+
+      {confirmDialog}
     </div>
   )
 }
