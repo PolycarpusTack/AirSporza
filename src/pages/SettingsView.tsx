@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Sliders, Trophy, Award, Monitor, Upload, Webhook, Building2, Users, LayoutTemplate, Zap, FileText, ClipboardList, Tv, Shield, Cable } from 'lucide-react'
+import { Sliders, Trophy, Award, Monitor, Upload, Webhook, Building2, Users, LayoutTemplate, Zap, FileText, ClipboardList, Tv, Shield, Cable, Plug } from 'lucide-react'
 import type { DashboardWidget } from '../data/types'
 import { AdminView } from './AdminView'
 import type { AdminTab } from './AdminView'
@@ -36,9 +36,10 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
   {
     label: 'Data',
     items: [
-      { id: 'csv',        label: 'CSV Import',         icon: Upload },
-      { id: 'publish',    label: 'Publish & Webhooks', icon: Webhook },
-      { id: 'audit-log',  label: 'Audit Log',          icon: FileText },
+      { id: 'csv',           label: 'CSV Import',         icon: Upload },
+      { id: 'integrations',  label: 'Integrations',       icon: Plug },
+      { id: 'publish',       label: 'Publish & Webhooks', icon: Webhook },
+      { id: 'audit-log',     label: 'Audit Log',          icon: FileText },
     ],
   },
   {

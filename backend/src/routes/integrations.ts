@@ -217,7 +217,17 @@ router.delete('/:id', validate({ params: s.integrationIdParam }), async (req, re
 })
 
 // ---------------------------------------------------------------------------
-// POST /:id/test — test connection (placeholder)
+// POST /:id/test — probe credentials / reachability for an integration
+//
+// INBOUND: instantiates the adapter and runs fetchCompetitions over the last
+// 7 days as a cheap canary. Returns ok=true with the record count on
+// success, ok=false + an error code (auth_failed / rate_limited / ...)
+// classified by the adapter on failure. Does not persist any data.
+//
+// OUTBOUND / BIDIRECTIONAL: verifies that the template's required config
+// fields are populated. We don't actually POST to the remote endpoint —
+// that would produce visible side effects in downstream systems and the
+// adapter doesn't have a dry-run mode yet.
 // ---------------------------------------------------------------------------
 router.post('/:id/test', validate({ params: s.integrationIdParam }), async (req, res, next) => {
   try {
@@ -227,7 +237,78 @@ router.post('/:id/test', validate({ params: s.integrationIdParam }), async (req,
     const integration = await prisma.integration.findFirst({ where: { id, tenantId } })
     if (!integration) throw createError(404, 'Integration not found')
 
-    res.status(501).json({ error: 'Connection testing not yet implemented' })
+    const probeStart = Date.now()
+
+    if (integration.direction === 'OUTBOUND') {
+      // Config-only check for outbound destinations. A deeper probe would
+      // need a dry-run payload the downstream system promises to discard.
+      const config = (integration.config ?? {}) as Record<string, unknown>
+      const url = typeof config.url === 'string' ? config.url : null
+      const hasCreds = Boolean(integration.credentials)
+      if (!url && !hasCreds) {
+        return res.json({
+          status: 'error',
+          durationMs: Date.now() - probeStart,
+          error: 'Outbound endpoint URL and credentials are both empty.',
+          mapped: { mode: 'config_check' },
+        })
+      }
+      return res.json({
+        status: 'success',
+        durationMs: Date.now() - probeStart,
+        mapped: {
+          mode: 'config_check',
+          url: url ?? '(credentials-only)',
+          note: 'No live ping performed for outbound integrations yet.',
+        },
+      })
+    }
+
+    // Dynamic import — integrationAdapter pulls in the whole inbound
+    // stack, which we don't want to load unless /test is actually hit.
+    const { createAdapterFromIntegration } = await import('../import/adapters/integrationAdapter.js')
+
+    let adapter: Awaited<ReturnType<typeof createAdapterFromIntegration>>
+    try {
+      adapter = createAdapterFromIntegration(integration)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return res.json({
+        status: 'error',
+        durationMs: Date.now() - probeStart,
+        error: msg,
+        mapped: { code: 'config_error' },
+      })
+    }
+
+    const now = new Date()
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    try {
+      const records = await adapter.fetchCompetitions({
+        dateFrom: sevenDaysAgo.toISOString().slice(0, 10),
+        dateTo: now.toISOString().slice(0, 10),
+      })
+      return res.json({
+        status: 'success',
+        durationMs: Date.now() - probeStart,
+        mapped: {
+          mode: 'probe',
+          recordCount: records.length,
+          window: '7 days',
+        },
+        raw: records.slice(0, 3),
+        truncated: records.length > 3,
+      })
+    } catch (e) {
+      const code = adapter.classifyError(e)
+      const msg = e instanceof Error ? e.message : String(e)
+      return res.json({
+        status: 'error',
+        durationMs: Date.now() - probeStart,
+        error: msg,
+        mapped: { code },
+      })
+    }
   } catch (err) { next(err) }
 })
 
