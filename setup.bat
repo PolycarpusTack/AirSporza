@@ -29,6 +29,9 @@ echo [3/4] Generating Prisma client...
 call npm run db:generate
 if %errorlevel% neq 0 (
     echo Failed to generate Prisma client
+    echo If you see "Could not resolve @prisma/client" this usually means
+    echo npm workspace hoisting left the package in the ROOT node_modules.
+    echo Try: from the repo root, run "npm install", then re-run this script.
     exit /b 1
 )
 
@@ -45,6 +48,10 @@ if %errorlevel% neq 0 (
 echo.
 echo Seeding database...
 call npm run db:seed
+if %errorlevel% neq 0 (
+    echo Failed to seed database
+    exit /b 1
+)
 
 cd ..
 echo.

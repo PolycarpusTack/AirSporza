@@ -111,15 +111,37 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "  Backend dependencies installed" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "[5/7] Pushing database schema..." -ForegroundColor Yellow
-npx prisma generate 2>$null | Out-Null
-npx prisma db push --accept-data-loss 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+Write-Host "[5/7] Generating Prisma Client & pushing schema..." -ForegroundColor Yellow
+# Errors here must surface — a silent failure here is what leaves users with
+# a @prisma/client that doesn't export newly added enums (e.g. AdapterDirection,
+# IntegrationDirection), causing cryptic SyntaxError crashes during seeding.
+npx prisma generate
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: prisma generate failed" -ForegroundColor Red
+    Write-Host "  If you see 'Could not resolve @prisma/client' this usually means" -ForegroundColor Yellow
+    Write-Host "  npm workspace hoisting left the package in the root node_modules." -ForegroundColor Yellow
+    Write-Host "  Try: from the repo root, run 'npm install', then re-run this script." -ForegroundColor Yellow
+    exit 1
+}
+npx prisma db push --accept-data-loss
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: prisma db push failed" -ForegroundColor Red
+    exit 1
+}
 Write-Host "  Schema pushed successfully" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "[6/7] Running migrations..." -ForegroundColor Yellow
 
+# Order matters: tenant tables first, then the RLS function + policies
+# (which require the Tenant row and tenantId columns), then triggers, then
+# everything else. `prisma db push` handles tables/columns/FKs but cannot
+# create postgres functions, triggers, or RLS policies — those live in these
+# SQL files and MUST run after db push or the backend will 500 with
+# "function set_tenant_context(text) does not exist".
 $migrations = @(
+    "add_tenant_id_and_rls.sql",
+    "add_outbox_notify_trigger.sql",
     "add_event_status.sql",
     "add_on_demand_channel.sql",
     "add_app_setting.sql",
@@ -146,7 +168,11 @@ foreach ($migration in $migrations) {
 
 Write-Host ""
 Write-Host "[7/7] Seeding test data..." -ForegroundColor Yellow
-npx tsx prisma/seed.ts 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+npx tsx prisma/seed.ts
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: seed failed" -ForegroundColor Red
+    exit 1
+}
 Write-Host "  Seed data loaded" -ForegroundColor Green
 
 Pop-Location

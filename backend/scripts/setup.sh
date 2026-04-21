@@ -108,7 +108,12 @@ echo "  Schema pushed successfully"
 echo ""
 echo "[6/7] Running migrations..."
 
+# Order matters: RLS function + policies first (required by tenantContext
+# middleware), then NOTIFY trigger, then everything else. prisma db push
+# handles tables but not postgres functions/triggers/RLS — those live here.
 MIGRATIONS=(
+    "add_tenant_id_and_rls.sql"
+    "add_outbox_notify_trigger.sql"
     "add_event_status.sql"
     "add_on_demand_channel.sql"
     "add_app_setting.sql"
