@@ -7,6 +7,7 @@ import { useAuth } from '../hooks'
 import { useToast } from '../components/Toast'
 import { handleApiError } from '../utils/apiError'
 import { ContractForm } from '../components/forms/ContractForm'
+import { RightsMatrixPanel } from '../components/contracts/RightsMatrixPanel'
 
 // ── Expandable detail panel ───────────────────────────────────────────────────
 
@@ -209,32 +210,9 @@ export function ContractsView({ widgets }: ContractsViewProps) {
       )}
 
       {showMatrix && (
-        <div className="card animate-fade-in p-4">
+        <div className="animate-fade-in">
           <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">Rights Matrix</h4>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-muted">
-                  <th className="text-left pb-2">Competition</th>
-                  <th className="text-center pb-2">Linear</th>
-                  <th className="text-center pb-2">VRT MAX</th>
-                  <th className="text-center pb-2">Radio</th>
-                  <th className="text-center pb-2">Sublicense</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map(c => (
-                  <tr key={c.id} className="border-t border-border/60">
-                    <td className="py-2 font-medium">{c.sport?.icon} {c.competition?.name}</td>
-                    <td className="text-center py-2">{(c as any).platforms?.includes('linear') ?? c.linearRights ? '✅' : '❌'}</td>
-                    <td className="text-center py-2">{(c as any).platforms?.includes('on-demand') ?? c.maxRights ? '✅' : '❌'}</td>
-                    <td className="text-center py-2">{(c as any).platforms?.includes('radio') ?? c.radioRights ? '✅' : '❌'}</td>
-                    <td className="text-center py-2">{c.sublicensing ? '✅' : '❌'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RightsMatrixPanel />
         </div>
       )}
 
