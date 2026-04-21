@@ -89,12 +89,19 @@ export async function syncEventToSlot(
     : (event.startDateBE as Date).toISOString().slice(0, 10)
   const timeStr = event.startTimeBE
 
-  // Get channel timezone (for UTC conversion)
-  const channel = event.channel ?? await db.channel.findUnique({
-    where: { id: event.channelId },
+  // Get channel timezone (for UTC conversion). Scope by tenantId so a
+  // stale/foreign channelId can't leak another tenant's timezone into our
+  // slot math. If the channel isn't visible to this tenant, skip the sync
+  // rather than silently defaulting — a silent Europe/Brussels fallback
+  // previously masked genuinely missing rows.
+  const channel = event.channel ?? await db.channel.findFirst({
+    where: { id: event.channelId, tenantId: event.tenantId },
     select: { timezone: true },
   })
-  const timezone = (channel as { timezone?: string })?.timezone ?? 'Europe/Brussels'
+  if (!channel) {
+    return null
+  }
+  const timezone = channel.timezone ?? 'Europe/Brussels'
 
   const plannedStartUtc = toUtc(dateStr, timeStr, timezone)
   const durationMin = event.durationMin ?? 90 // Default 90 min if unknown

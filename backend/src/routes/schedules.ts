@@ -535,58 +535,6 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
   }
 })
 
-// ─── SCHEDULE VERSIONS ───────────────────────────────────────────────────────
-
-// GET /api/schedule-drafts/versions/list — list published versions
-router.get('/versions/list', async (req, res, next) => {
-  try {
-    const where: Record<string, unknown> = { tenantId: req.tenantId }
-
-    if (req.query.channelId) {
-      where.channelId = Number(req.query.channelId)
-    }
-    if (req.query.draftId) {
-      where.draftId = req.query.draftId as string
-    }
-
-    const versions = await prisma.scheduleVersion.findMany({
-      where,
-      include: {
-        channel: { select: { id: true, name: true, color: true } },
-        draft: { select: { id: true, dateRangeStart: true, dateRangeEnd: true } }
-      },
-      orderBy: { publishedAt: 'desc' }
-    })
-
-    res.json(versions)
-  } catch (error) {
-    next(error)
-  }
-})
-
-// GET /api/schedule-drafts/versions/:id — get version snapshot
-router.get('/versions/:id', async (req, res, next) => {
-  try {
-    const version = await prisma.scheduleVersion.findFirst({
-      where: { id: req.params.id as string, tenantId: req.tenantId },
-      include: {
-        channel: true,
-        draft: { select: { id: true, dateRangeStart: true, dateRangeEnd: true, channelId: true } },
-        broadcastSlots: {
-          include: {
-            event: { select: { id: true, participants: true, sportId: true } }
-          },
-          orderBy: { plannedStartUtc: 'asc' }
-        }
-      }
-    })
-
-    if (!version) return next(createError(404, 'Schedule version not found'))
-
-    res.json(version)
-  } catch (error) {
-    next(error)
-  }
-})
+// Schedule version routes live at /api/schedule-versions — see routes/scheduleVersions.ts
 
 export default router

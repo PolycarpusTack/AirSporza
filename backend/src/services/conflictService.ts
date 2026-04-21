@@ -114,12 +114,17 @@ export async function detectConflicts(draft: EventDraft): Promise<{ warnings: Co
     },
   })
 
-  // Resolve channel types for rights checking
+  // Resolve channel types for rights checking.
+  // Scope by tenantId so a caller passing a foreign channelId can't read
+  // another tenant's channel metadata (cross-tenant leak).
   const allChannelIds = [draft.channelId, draft.radioChannelId, draft.onDemandChannelId].filter((id): id is number => id != null)
   let channelTypes: string[] = []
   if (allChannelIds.length > 0) {
     const channels = await prisma.channel.findMany({
-      where: { id: { in: allChannelIds } },
+      where: {
+        ...(draft.tenantId ? { tenantId: draft.tenantId } : {}),
+        id: { in: allChannelIds },
+      },
       select: { types: true },
     })
     channelTypes = channels.flatMap(c => c.types)
@@ -272,7 +277,7 @@ export async function detectConflictsBulk(
     }),
     allChannelIds.length > 0
       ? prisma.channel.findMany({
-          where: { id: { in: allChannelIds } },
+          where: { ...tenantClause, id: { in: allChannelIds } },
           select: { id: true, types: true },
         })
       : Promise.resolve([]),
