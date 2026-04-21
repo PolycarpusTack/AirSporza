@@ -175,12 +175,13 @@ export function ScheduleView() {
   const handlePublish = useCallback(async () => {
     setPublishing(true)
     try {
-      // Re-validate first so the warning list is fresh; operators shouldn't
-      // be asked to acknowledge stale warnings that a later edit removed.
-      await editor.validate()
-
-      const errors = editor.validationResults.filter(r => r.severity === 'ERROR')
-      const warnings = editor.validationResults.filter(r => r.severity === 'WARNING')
+      // Re-validate first and gate on the RETURNED results — reading
+      // editor.validationResults here races the React state update,
+      // so a just-fixed error could still be in state while the API
+      // already returned clean (or vice versa).
+      const freshResults = await editor.validate()
+      const errors = freshResults.filter(r => r.severity === 'ERROR')
+      const warnings = freshResults.filter(r => r.severity === 'WARNING')
 
       if (errors.length > 0) {
         toast.error(`${errors.length} validation error${errors.length > 1 ? 's' : ''} must be resolved before publishing.`)
@@ -262,10 +263,18 @@ export function ScheduleView() {
     ))
     const end = new Date(start.getTime() + 2 * 60 * 60_000) // 2h default
 
+    // Real UUID — must match the id the backend persists so the inverse
+    // DELETE_SLOT(op.data.id) actually targets the row that publish creates.
+    // crypto.randomUUID is available in all browsers we target; the short
+    // fallback is there only for older runtimes.
+    const newSlotId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `new-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
     editor.dispatch({
       type: 'CREATE_SLOT',
       data: {
-        id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: newSlotId,
         channelId,
         plannedStartUtc: start.toISOString(),
         plannedEndUtc: end.toISOString(),

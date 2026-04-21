@@ -111,8 +111,16 @@ export async function executeOperations(
   for (const op of operations) {
     switch (op.type) {
       case 'CREATE_SLOT': {
+        // Honor the client-chosen id so the local op stack's
+        // DELETE_SLOT(op.data.id) inverse targets the same DB row that
+        // publish creates. Without this, CREATE + UNDO on an unpublished
+        // slot left a ghost row behind at publish time because the DB
+        // minted a fresh UUID that the inverse DELETE couldn't match.
+        // Fall back to a generated UUID only for legacy callers that
+        // pass no id (tests, imports).
         await tx.broadcastSlot.create({
           data: {
+            ...(op.data.id ? { id: op.data.id } : {}),
             tenantId,
             channelId: op.data.channelId,
             eventId: op.data.eventId ?? null,
