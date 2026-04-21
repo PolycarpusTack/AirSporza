@@ -1,4 +1,5 @@
 import type { DashboardWidget } from '../data/types'
+import { getWidgetComponent } from '../components/dashboard/widgets/registry'
 
 interface Props {
   widgets: DashboardWidget[]
@@ -18,12 +19,19 @@ export function DashboardView({ widgets }: Props) {
             No widgets configured. Customise your dashboard in Settings.
           </p>
         )}
-        {visible.map(w => (
-          <div key={w.id} className="bg-surface border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium text-text-2">{w.label}</h3>
-            <p className="text-xs text-text-3 mt-1">Widget placeholder</p>
-          </div>
-        ))}
+        {visible.map(w => {
+          const Widget = getWidgetComponent(w.id)
+          return (
+            <div key={w.id} className="bg-surface border border-border rounded-xl p-4">
+              <h3 className="text-sm font-medium text-text-2">{w.label}</h3>
+              {Widget ? (
+                <Widget />
+              ) : (
+                <p className="text-xs text-text-3 mt-2 italic">Coming soon</p>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
