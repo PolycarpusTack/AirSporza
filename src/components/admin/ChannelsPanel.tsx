@@ -106,26 +106,35 @@ export function ChannelsPanel() {
   }
 
   /**
-   * Swap sortOrder with the adjacent sibling under the same parent.
-   * Drag-to-reorder between table rows is fussy (the HTML5 drag API
-   * doesn't play well with table semantics and @dnd-kit needs a
-   * Sortable context around a flat list), so up/down buttons give the
-   * same user outcome with zero drag surface area. The backend only
-   * sees two small PUT calls.
+   * Reorder the sibling at {@link ch} up or down, then renumber every
+   * sibling's sortOrder sequentially (0, 1, 2, …). A plain swap would
+   * be a no-op when siblings share the default sortOrder=0 (new
+   * channels are created with 0 by default) — the sort would then
+   * fall back to alphabetical and the reorder would appear to do
+   * nothing. Normalising after each move makes the behaviour
+   * deterministic regardless of history.
    */
   const handleReorder = async (ch: Channel, direction: 'up' | 'down') => {
     const siblings = ch.parentId == null
       ? channels.filter(c => c.parentId == null).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
       : childrenOf(ch.parentId)
     const idx = siblings.findIndex(s => s.id === ch.id)
-    const neighborIdx = direction === 'up' ? idx - 1 : idx + 1
-    const neighbor = siblings[neighborIdx]
-    if (!neighbor) return
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (targetIdx < 0 || targetIdx >= siblings.length) return
+
+    // Produce the new sibling order, then assign contiguous indices so
+    // two adjacent 0s can never reappear.
+    const reordered = [...siblings]
+    ;[reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]]
+
     try {
-      await Promise.all([
-        channelsApi.update(ch.id, { sortOrder: neighbor.sortOrder }),
-        channelsApi.update(neighbor.id, { sortOrder: ch.sortOrder }),
-      ])
+      await Promise.all(
+        reordered.map((sibling, newIndex) =>
+          sibling.sortOrder === newIndex
+            ? Promise.resolve()
+            : channelsApi.update(sibling.id, { sortOrder: newIndex }),
+        ),
+      )
       reload()
     } catch (err: any) {
       toast.error(err.message || 'Failed to reorder')
