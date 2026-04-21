@@ -157,7 +157,37 @@ export function CrewMatrixView({ plans, events, crewFields, conflicts, onCrewEdi
     )
   }, [crewFields, members, fieldLabelMap])
 
-  // Filter members
+  // Pre-compute role → set of member ids. This is the O(members × columns)
+  // work that previously re-ran inside filteredMembers on every keystroke in
+  // the search box. By keying it only on the structural inputs, typing
+  // doesn't trigger the inner walk.
+  const membersByRole = useMemo(() => {
+    const byRole = new Map<string, Set<number>>()
+    // Profile roles
+    for (const m of members) {
+      for (const role of m.roles) {
+        const set = byRole.get(role) ?? new Set<number>()
+        set.add(m.id)
+        byRole.set(role, set)
+      }
+    }
+    // Assigned roles from plans
+    const memberIdByName = new Map<string, number>()
+    for (const m of members) memberIdByName.set(m.name.toLowerCase(), m.id)
+    for (const [key, assignments] of assignmentMap) {
+      const name = key.slice(0, key.lastIndexOf(':'))
+      const memberId = memberIdByName.get(name)
+      if (memberId == null) continue
+      for (const a of assignments) {
+        const set = byRole.get(a.fieldId) ?? new Set<number>()
+        set.add(memberId)
+        byRole.set(a.fieldId, set)
+      }
+    }
+    return byRole
+  }, [members, assignmentMap])
+
+  // Filter members — now a cheap lookup, not a nested loop.
   const filteredMembers = useMemo(() => {
     let filtered = members
 
@@ -167,22 +197,12 @@ export function CrewMatrixView({ plans, events, crewFields, conflicts, onCrewEdi
     }
 
     if (roleFilter) {
-      // roleFilter is now a field ID
-      filtered = filtered.filter(m => {
-        // Check profile roles
-        if (m.roles.includes(roleFilter)) return true
-        // Check if assigned to that role in any plan
-        for (const col of columns) {
-          const key = `${m.name.toLowerCase()}:${col.event.id}`
-          const assignments = assignmentMap.get(key)
-          if (assignments?.some(a => a.fieldId === roleFilter)) return true
-        }
-        return false
-      })
+      const matchingIds = membersByRole.get(roleFilter) ?? new Set<number>()
+      filtered = filtered.filter(m => matchingIds.has(m.id))
     }
 
     return filtered
-  }, [members, search, roleFilter, columns, assignmentMap])
+  }, [members, search, roleFilter, membersByRole])
 
   const handleCellClick = useCallback((e: React.MouseEvent, member: CrewMember, col: EventColumn) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()

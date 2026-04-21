@@ -923,20 +923,24 @@ model WebhookEndpoint {
 }
 
 model WebhookDelivery {
-  id          String    @id @default(uuid())
-  webhookId   String
-  eventType   String
-  payload     Json
-  statusCode  Int?
-  attempts    Int       @default(0)
-  deliveredAt DateTime?
-  error       String?
-  tenantId    String    @db.Uuid
-  createdAt   DateTime  @default(now())
+  id             String    @id @default(uuid())
+  webhookId      String
+  // Outbox event this delivery corresponds to. Used for idempotent upsert on
+  // BullMQ retries instead of a JSONB equality scan over the payload column.
+  outboxEventId  String?   @db.Uuid
+  eventType      String
+  payload        Json
+  statusCode     Int?
+  attempts       Int       @default(0)
+  deliveredAt    DateTime?
+  error          String?
+  tenantId       String    @db.Uuid
+  createdAt      DateTime  @default(now())
 
   tenant  Tenant          @relation(fields: [tenantId], references: [id])
   webhook WebhookEndpoint @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
+  @@unique([webhookId, outboxEventId])
   @@index([webhookId, createdAt])
   @@index([eventType])
   @@index([deliveredAt])
@@ -1296,6 +1300,12 @@ model BroadcastSlot {
   contentSegment             ContentSegment      @default(FULL)
   scheduleVersionId          String?             @db.Uuid
   sportMetadata              Json                @default("{}")
+  // Marks slots managed by the Event → BroadcastSlot auto-bridge. A partial
+  // unique index on (tenantId, eventId) WHERE autoLinked enforces 1:1 for
+  // these rows so the bridge can use INSERT ... ON CONFLICT. Manually
+  // created slots and DUPLICATE_SLOT copies leave this false and can
+  // coexist with the bridge-managed slot for the same event.
+  autoLinked                 Boolean             @default(false)
   createdAt                  DateTime            @default(now())
   updatedAt                  DateTime            @updatedAt
 

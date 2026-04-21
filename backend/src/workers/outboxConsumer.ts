@@ -53,14 +53,35 @@ const QUEUE_MAP: Record<string, typeof cascadeQueue> = {
   integration: integrationQueue,
 }
 
+interface OutboxRow {
+  id: string
+  tenantId: string
+  eventType: string
+  payload: Record<string, unknown>
+  idempotencyKey: string
+  retryCount: number
+  maxRetries: number
+}
+
 /**
  * Poll unprocessed outbox events, route them to BullMQ queues,
  * and mark them as processed (or dead-letter on max retries).
+ *
+ * The Redis enqueue runs OUTSIDE the PG transaction that selected the rows.
+ * We rely on BullMQ's jobId idempotency (`${idempotencyKey}:${queueName}`)
+ * to guard against a concurrent consumer re-picking up a row in the window
+ * between the select-commit and the mark-processed update. Holding a PG
+ * lock across Redis I/O caused tail latency to bloat when queues were
+ * backpressured; this split caps each lock to two short statements.
  */
 export async function consumeOutbox(): Promise<number> {
-  return await prisma.$transaction(async (tx) => {
-    const events = await tx.$queryRaw<any[]>`
-      SELECT * FROM "OutboxEvent"
+  // Phase 1 — reserve a batch. `FOR UPDATE SKIP LOCKED` inside a short
+  // transaction means other consumer replicas skip these rows; the lock
+  // is released on commit, after which BullMQ's jobId dedup protects us.
+  const events = await prisma.$transaction(async (tx) => {
+    return await tx.$queryRaw<OutboxRow[]>`
+      SELECT id, "tenantId", "eventType", payload, "idempotencyKey", "retryCount", "maxRetries"
+      FROM "OutboxEvent"
       WHERE "processedAt" IS NULL AND "deadLetteredAt" IS NULL
       ORDER BY
         CASE priority
@@ -73,13 +94,23 @@ export async function consumeOutbox(): Promise<number> {
       LIMIT 50
       FOR UPDATE SKIP LOCKED
     `
+  })
 
-    for (const event of events) {
+  if (events.length === 0) return 0
+
+  // Phase 2 — enqueue to BullMQ outside any PG transaction. Per-event
+  // parallelization keeps Redis latency off the critical path.
+  const succeededIds: string[] = []
+  const failures: { id: string; nextRetry: number; maxRetries: number }[] = []
+
+  await Promise.all(
+    events.map(async (event) => {
       try {
-        const queues = EVENT_ROUTING[event.eventType] || []
-        for (const queueName of queues) {
-          const queue = QUEUE_MAP[queueName]
-          if (queue) {
+        const queueNames = EVENT_ROUTING[event.eventType] || []
+        await Promise.all(
+          queueNames.map(async (queueName) => {
+            const queue = QUEUE_MAP[queueName]
+            if (!queue) return
             await queue.add(
               event.eventType,
               {
@@ -88,31 +119,42 @@ export async function consumeOutbox(): Promise<number> {
                 _outboxEventId: event.id,
                 _tenantId: event.tenantId,
               },
-              {
-                jobId: `${event.idempotencyKey}:${queueName}`,
-              }
+              { jobId: `${event.idempotencyKey}:${queueName}` }
             )
-          }
-        }
-        await tx.outboxEvent.update({
-          where: { id: event.id },
-          data: { processedAt: new Date() },
-        })
+          })
+        )
+        succeededIds.push(event.id)
       } catch (err) {
         logger.error(`Outbox processing failed for ${event.id}:`, err)
-        const retryCount = (event.retryCount || 0) + 1
-        await tx.outboxEvent.update({
-          where: { id: event.id },
-          data:
-            retryCount >= event.maxRetries
-              ? { deadLetteredAt: new Date(), retryCount }
-              : { retryCount, failedAt: new Date() },
+        failures.push({
+          id: event.id,
+          nextRetry: (event.retryCount || 0) + 1,
+          maxRetries: event.maxRetries,
         })
       }
-    }
+    })
+  )
 
-    return events.length
+  // Phase 3 — mark processed / failed in a final short transaction.
+  await prisma.$transaction(async (tx) => {
+    if (succeededIds.length > 0) {
+      await tx.outboxEvent.updateMany({
+        where: { id: { in: succeededIds } },
+        data: { processedAt: new Date() },
+      })
+    }
+    for (const f of failures) {
+      await tx.outboxEvent.update({
+        where: { id: f.id },
+        data:
+          f.nextRetry >= f.maxRetries
+            ? { deadLetteredAt: new Date(), retryCount: f.nextRetry }
+            : { retryCount: f.nextRetry, failedAt: new Date() },
+      })
+    }
   })
+
+  return events.length
 }
 
 /**

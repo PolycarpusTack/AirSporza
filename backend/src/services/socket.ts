@@ -60,6 +60,12 @@ export function setupSocket(io: SocketServer) {
       logger.debug(`Client ${socket.id} subscribed to ${room}`)
     })
 
+    // Auto-join the tenant's settings room so setting.* broadcasts don't leak
+    // cross-tenant (previously they used io.emit with no room filter).
+    if (tenantId) {
+      socket.join(`tenant:${tenantId}:settings`)
+    }
+
     socket.on('disconnect', () => {
       logger.info(`Client disconnected: ${socket.id}`)
     })

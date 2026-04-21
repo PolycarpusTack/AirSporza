@@ -1,9 +1,17 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '../../db/prisma.js'
 import { heuristicEstimator, type CascadeEvent, type DurationEstimator } from './estimator.js'
-import { logger } from '../../utils/logger.js'
+import {
+  CHANGEOVER_MIN,
+  CONFIDENCE_DECAY,
+  addMinutes,
+  computeCascadeChain,
+  type CascadeItem,
+} from './compute.js'
 
-const CHANGEOVER_MIN = 15
-const CONFIDENCE_DECAY = 0.85
+// Re-export constants so callers that historically imported them from the
+// engine keep working.
+export { CHANGEOVER_MIN, CONFIDENCE_DECAY }
 
 export interface CascadeResult {
   eventId: number
@@ -55,6 +63,8 @@ export async function runCascade(
       return orderA - orderB
     })
 
+    if (events.length === 0) return []
+
     // Pre-load actual times from BroadcastSlots for completed events
     const completedEventIds = events
       .filter(e => e.status === 'completed' || e.status === 'live')
@@ -69,139 +79,85 @@ export async function runCascade(
       actualSlots.filter(s => s.eventId != null).map(s => [s.eventId!, s])
     )
 
-    const results: CascadeResult[] = []
-    let prevEnd: { earliest: Date | null; estimated: Date | null; latest: Date | null } = {
-      earliest: null,
-      estimated: null,
-      latest: null,
-    }
-    let prevConfidence = 1.0
-
-    for (const event of events) {
-      const castEvent = event as unknown as CascadeEvent
+    // Adapt Event rows to the pure CascadeItem shape, then run the shared
+    // chain algorithm. Keeps engine + preview-cascade from drifting.
+    const items: CascadeItem[] = events.map(event => {
       const meta = (event.sportMetadata as any) || {}
-      const status = event.status
-
-      if (status === 'completed' || status === 'live') {
-        // Use actual BroadcastSlot times if available, fall back to event start date
-        const actuals = actualTimesByEvent.get(event.id)
-        const startTime = actuals?.actualStartUtc
-          ? new Date(actuals.actualStartUtc)
-          : new Date(event.startDateBE)
-
-        const shortMin = estimator.shortDuration(castEvent)
-        const longMin = estimator.longDuration(castEvent)
-
-        const est: CascadeResult = {
-          eventId: event.id,
-          estimatedStartUtc: startTime,
-          earliestStartUtc: startTime,
-          latestStartUtc: startTime,
-          estDurationShortMin: status === 'completed' && actuals?.actualEndUtc ? 0 : shortMin,
-          estDurationLongMin: status === 'completed' && actuals?.actualEndUtc ? 0 : longMin,
-          confidenceScore: 1.0,
-          computedAt: new Date(),
-        }
-
-        // Use actual end time if completed, otherwise estimate
-        if (status === 'completed' && actuals?.actualEndUtc) {
-          const actualEnd = new Date(actuals.actualEndUtc)
-          prevEnd = { earliest: actualEnd, estimated: actualEnd, latest: actualEnd }
-        } else {
-          prevEnd = {
-            earliest: addMinutes(startTime, shortMin),
-            estimated: addMinutes(startTime, shortMin),
-            latest: addMinutes(startTime, shortMin),
-          }
-        }
-        prevConfidence = 1.0
-        results.push(est)
-        continue
+      const actuals = actualTimesByEvent.get(event.id)
+      const castEvent = event as unknown as CascadeEvent
+      const status: CascadeItem['status'] =
+        event.status === 'completed' ? 'completed' :
+        event.status === 'live' ? 'live' :
+        event.status === 'approved' || event.status === 'published' ? 'scheduled' : 'draft'
+      return {
+        id: event.id,
+        startMs: new Date(event.startDateBE).getTime(),
+        status,
+        notBeforeMs: meta.not_before_utc ? new Date(meta.not_before_utc).getTime() : null,
+        actualStartMs: actuals?.actualStartUtc ? new Date(actuals.actualStartUtc).getTime() : null,
+        actualEndMs: actuals?.actualEndUtc ? new Date(actuals.actualEndUtc).getTime() : null,
+        shortMin: estimator.shortDuration(castEvent),
+        longMin: estimator.longDuration(castEvent),
       }
+    })
 
-      const shortMin = estimator.shortDuration(castEvent)
-      const longMin = estimator.longDuration(castEvent)
-      const midMin = (shortMin + longMin) / 2
-      const confidence = prevConfidence * CONFIDENCE_DECAY
+    const chain = computeCascadeChain(items)
 
-      const notBefore = meta.not_before_utc ? new Date(meta.not_before_utc) : null
+    const computedAt = new Date()
+    const results: CascadeResult[] = chain.map(c => ({
+      eventId: c.id as number,
+      estimatedStartUtc: new Date(c.estimatedStartMs),
+      earliestStartUtc: new Date(c.earliestStartMs),
+      latestStartUtc: new Date(c.latestStartMs),
+      estDurationShortMin: c.estDurationShortMin,
+      estDurationLongMin: c.estDurationLongMin,
+      confidenceScore: c.confidenceScore,
+      computedAt,
+    }))
 
-      let earliest: Date
-      let estimated: Date
-      let latest: Date
+    // ── Batch write: replace 2N per-event round-trips with 2 bulk statements.
+    if (results.length > 0) {
+      const eventIds = results.map(r => r.eventId)
 
-      if (!prevEnd.earliest) {
-        // First match — use event start time
-        const courtOpen = new Date(event.startDateBE)
-        earliest = notBefore ? maxDate(courtOpen, notBefore) : courtOpen
-        estimated = earliest
-        latest = earliest
-      } else {
-        const changeover = CHANGEOVER_MIN * 60 * 1000
-        earliest = maxDate(
-          new Date(prevEnd.earliest.getTime() + changeover),
-          notBefore || new Date(0)
-        )
-        estimated = maxDate(
-          new Date(prevEnd.estimated!.getTime() + changeover),
-          notBefore || new Date(0)
-        )
-        latest = maxDate(
-          new Date(prevEnd.latest!.getTime() + changeover),
-          notBefore || new Date(0)
-        )
-      }
-
-      const est: CascadeResult = {
-        eventId: event.id,
-        estimatedStartUtc: estimated,
-        earliestStartUtc: earliest,
-        latestStartUtc: latest,
-        estDurationShortMin: shortMin,
-        estDurationLongMin: longMin,
-        confidenceScore: Math.round(confidence * 100) / 100,
-        computedAt: new Date(),
-      }
-
-      prevEnd = {
-        earliest: addMinutes(earliest, shortMin),
-        estimated: addMinutes(estimated, midMin),
-        latest: addMinutes(latest, longMin),
-      }
-      prevConfidence = confidence
-      results.push(est)
-    }
-
-    // Batch all DB writes
-    for (const est of results) {
-      await tx.cascadeEstimate.upsert({
-        where: { tenantId_eventId: { tenantId, eventId: est.eventId } },
-        create: { tenantId, ...est, inputsUsed: {} },
-        update: { ...est, inputsUsed: {} },
+      // 1. Upsert CascadeEstimate rows. Inside the advisory lock, delete+insert
+      //    is equivalent to upsert and maps to createMany's bulk insert path.
+      await tx.cascadeEstimate.deleteMany({
+        where: { tenantId, eventId: { in: eventIds } },
+      })
+      await tx.cascadeEstimate.createMany({
+        data: results.map(r => ({
+          tenantId,
+          eventId: r.eventId,
+          estimatedStartUtc: r.estimatedStartUtc,
+          earliestStartUtc: r.earliestStartUtc,
+          latestStartUtc: r.latestStartUtc,
+          estDurationShortMin: r.estDurationShortMin,
+          estDurationLongMin: r.estDurationLongMin,
+          confidenceScore: r.confidenceScore,
+          inputsUsed: {},
+          computedAt: r.computedAt,
+        })),
       })
 
-      // Update linked BroadcastSlot estimated times
-      await tx.broadcastSlot.updateMany({
-        where: { tenantId, eventId: est.eventId },
-        data: {
-          estimatedStartUtc: est.estimatedStartUtc,
-          estimatedEndUtc: addMinutes(est.estimatedStartUtc, est.estDurationLongMin || 0),
-          earliestStartUtc: est.earliestStartUtc,
-          latestStartUtc: est.latestStartUtc,
-        },
-      })
+      // 2. Update linked BroadcastSlot estimated fields in a single statement
+      //    via UPDATE ... FROM (VALUES ...). Each row carries its event id
+      //    and four timestamps; Postgres joins on eventId.
+      const valueRows = results.map(r =>
+        Prisma.sql`(${r.eventId}::int, ${r.estimatedStartUtc}::timestamptz, ${addMinutes(r.estimatedStartUtc, r.estDurationLongMin || 0)}::timestamptz, ${r.earliestStartUtc}::timestamptz, ${r.latestStartUtc}::timestamptz)`
+      )
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "BroadcastSlot" AS bs
+        SET "estimatedStartUtc" = v.est_start,
+            "estimatedEndUtc"   = v.est_end,
+            "earliestStartUtc"  = v.earliest,
+            "latestStartUtc"    = v.latest
+        FROM (VALUES ${Prisma.join(valueRows)}) AS v(event_id, est_start, est_end, earliest, latest)
+        WHERE bs."tenantId" = ${tenantId}::uuid AND bs."eventId" = v.event_id
+      `)
     }
 
     return results
   })
-}
-
-function addMinutes(date: Date, min: number): Date {
-  return new Date(date.getTime() + min * 60 * 1000)
-}
-
-function maxDate(a: Date, b: Date): Date {
-  return a > b ? a : b
 }
 
 function hashCode(str: string): number {

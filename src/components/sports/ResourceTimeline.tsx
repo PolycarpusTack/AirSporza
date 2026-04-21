@@ -144,6 +144,17 @@ export function ResourceTimeline({ resources, assignments, events, sports }: Res
     return map
   }, [allBars])
 
+  // Precompute sport → color so we don't re-hash + re-allocate hsla() strings
+  // inside every cell render (weekly has ~resources × 7 days × bars cells;
+  // daily has bars-per-resource).
+  const sportColorByName = useMemo(() => {
+    const map = new Map<string, { bg: string; border: string; text: string }>()
+    for (const b of allBars) {
+      if (!map.has(b.sportName)) map.set(b.sportName, sportColor(b.sportName))
+    }
+    return map
+  }, [allBars])
+
   // Navigation
   const monday = weekMonday(weekOffset)
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
@@ -234,6 +245,7 @@ export function ResourceTimeline({ resources, assignments, events, sports }: Res
           weekDays={weekDays}
           todayKey={todayKey}
           getUsage={getUsage}
+          sportColorByName={sportColorByName}
         />
       ) : (
         <DailyView
@@ -243,6 +255,7 @@ export function ResourceTimeline({ resources, assignments, events, sports }: Res
           todayKey={todayKey}
           hours={hours}
           getUsage={getUsage}
+          sportColorByName={sportColorByName}
         />
       )}
     </div>
@@ -259,9 +272,12 @@ interface WeeklyViewProps {
   weekDays: Date[]
   todayKey: string
   getUsage: (resourceId: number, dk: string) => number
+  sportColorByName: Map<string, { bg: string; border: string; text: string }>
 }
 
-function WeeklyView({ resources, barsByResource, weekDays, todayKey, getUsage }: WeeklyViewProps) {
+const FALLBACK_SPORT_COLOR = { bg: 'hsla(0, 0%, 50%, 0.15)', border: 'hsla(0, 0%, 50%, 0.6)', text: 'hsla(0, 0%, 35%, 1)' }
+
+function WeeklyView({ resources, barsByResource, weekDays, todayKey, getUsage, sportColorByName }: WeeklyViewProps) {
   const weekKeys = weekDays.map(dateStr)
 
   return (
@@ -314,7 +330,7 @@ function WeeklyView({ resources, barsByResource, weekDays, todayKey, getUsage }:
                       )}
                       <div className="space-y-0.5">
                         {dayBars.map(bar => {
-                          const colors = sportColor(bar.sportName)
+                          const colors = sportColorByName.get(bar.sportName) ?? FALLBACK_SPORT_COLOR
                           return (
                             <div
                               key={bar.assignmentId}
@@ -355,12 +371,13 @@ interface DailyViewProps {
   todayKey: string
   hours: number[]
   getUsage: (resourceId: number, dk: string) => number
+  sportColorByName: Map<string, { bg: string; border: string; text: string }>
 }
 
 const BAR_HEIGHT = 28
 const ROW_PADDING = 8
 
-function DailyView({ resources, barsByResource, dailyKey, todayKey, hours, getUsage }: DailyViewProps) {
+function DailyView({ resources, barsByResource, dailyKey, todayKey, hours, getUsage, sportColorByName }: DailyViewProps) {
   const isToday = dailyKey === todayKey
 
   return (
@@ -439,7 +456,7 @@ function DailyView({ resources, barsByResource, dailyKey, todayKey, hours, getUs
                     (bar.durationMinutes / CAL_TOTAL_MINUTES) * 100,
                     100 - leftPct
                   )
-                  const colors = sportColor(bar.sportName)
+                  const colors = sportColorByName.get(bar.sportName) ?? FALLBACK_SPORT_COLOR
 
                   return (
                     <div

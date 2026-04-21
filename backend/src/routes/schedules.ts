@@ -6,6 +6,7 @@ import { createError } from '../middleware/errorHandler.js'
 import { validateSchedule, type ValidationContext, type RightsPolicy } from '../services/validation/index.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { applyOperations, executeOperations, type ScheduleOperation, type SlotState } from '../services/scheduleOperations.js'
+import { CHANGEOVER_MIN, CONFIDENCE_DECAY } from '../services/cascade/compute.js'
 import * as s from '../schemas/schedules.js'
 
 const router = Router()
@@ -251,8 +252,17 @@ router.post('/:id/validate-slot', authenticate, authorize('planner', 'admin'), a
     const { slot } = req.body as { slot: any }
     if (!slot) return next(createError(400, 'slot is required'))
 
+    // Only load temporal neighbors — a single-slot validation can't care about
+    // slots outside the draft's date window.
     const allSlots = await prisma.broadcastSlot.findMany({
-      where: { tenantId: req.tenantId, channelId: draft.channelId },
+      where: {
+        tenantId: req.tenantId,
+        channelId: draft.channelId,
+        plannedStartUtc: {
+          gte: new Date(draft.dateRangeStart),
+          lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000),
+        },
+      },
       include: { event: true, channel: true },
     })
 
@@ -322,9 +332,6 @@ router.post('/:id/preview-cascade', authenticate, authorize('planner', 'admin'),
       courtGroups.get(courtId)!.push(slot)
     }
 
-    const CHANGEOVER_MIN = 15
-    const CONFIDENCE_DECAY = 0.85
-
     const courts = Array.from(courtGroups.entries()).map(([courtId, slots]) => {
       // Sort by order_on_court or plannedStartUtc
       slots.sort((a, b) => {
@@ -334,6 +341,10 @@ router.post('/:id/preview-cascade', authenticate, authorize('planner', 'admin'),
         return new Date(a.plannedStartUtc).getTime() - new Date(b.plannedStartUtc).getTime()
       })
 
+      // Preview semantics: first slot is certain (confidence = 1.0); downstream
+      // slots decay by CONFIDENCE_DECAY. This intentionally differs from
+      // engine.ts which decays on the first uncertain item too. Constants
+      // come from the shared compute module so they can't drift.
       let confidence = 1.0
       let prevEndMs: number | null = null
 

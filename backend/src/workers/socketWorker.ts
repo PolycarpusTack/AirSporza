@@ -8,7 +8,7 @@ function deriveRoomFromEventType(eventType: string): string | undefined {
   if (eventType.startsWith('techPlan.')) return 'techPlans'
   if (eventType.startsWith('encoder.')) return 'encoders'
   if (eventType.startsWith('contract.')) return 'events' // contracts affect event views
-  if (eventType.startsWith('setting.')) return undefined // broadcast to all connected clients
+  if (eventType.startsWith('setting.')) return 'settings' // tenant-scoped admin notification
   if (eventType.startsWith('slot.')) return 'events'
   return undefined
 }

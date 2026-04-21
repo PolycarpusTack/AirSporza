@@ -9,10 +9,19 @@ import { logger } from '../utils/logger.js'
  * Processes outbox events routed to the 'webhook' queue.
  * Finds matching webhook endpoints, creates delivery records,
  * and attempts HTTP delivery. BullMQ handles retries natively.
+ *
+ * Idempotency: each delivery row is keyed by (webhookId, outboxEventId)
+ * via a unique constraint, so retries of the same BullMQ job upsert
+ * the same row rather than scanning the JSONB payload column.
  */
 export function startWebhookWorker() {
   return createWorker('webhook', async (job) => {
-    const { eventType, payload, _tenantId: tenantId } = job.data
+    const { eventType, _tenantId: tenantId, _outboxEventId: outboxEventId, ...payload } = job.data as {
+      eventType: string
+      _tenantId: string
+      _outboxEventId?: string
+      [k: string]: unknown
+    }
 
     const webhooks = await prisma.webhookEndpoint.findMany({
       where: {
@@ -40,18 +49,23 @@ export function startWebhookWorker() {
     for (const webhook of webhooks) {
       const signature = 'sha256=' + createHmac('sha256', webhook.secret).update(body, 'utf8').digest('hex')
 
-      // Upsert delivery record to avoid duplicates on BullMQ retry
-      const existingDelivery = await prisma.webhookDelivery.findFirst({
-        where: {
-          webhookId: webhook.id,
-          eventType,
-          payload: { path: ['data'], equals: payload as any },
-        },
-        orderBy: { createdAt: 'desc' },
-      })
-
-      const delivery = existingDelivery
-        ? existingDelivery
+      // Dedupe retries via (webhookId, outboxEventId) unique. For legacy
+      // callers that don't supply _outboxEventId we fall back to create.
+      const delivery = outboxEventId
+        ? await prisma.webhookDelivery.upsert({
+            where: {
+              webhookId_outboxEventId: { webhookId: webhook.id, outboxEventId },
+            },
+            create: {
+              tenantId: webhook.tenantId,
+              webhookId: webhook.id,
+              outboxEventId,
+              eventType,
+              payload: envelope as object,
+              attempts: 0,
+            },
+            update: {}, // retries bump attempts via the update below
+          })
         : await prisma.webhookDelivery.create({
             data: {
               tenantId: webhook.tenantId,

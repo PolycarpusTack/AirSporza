@@ -6,7 +6,7 @@ import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { canTransition } from '../services/eventTransitions.js'
 import { createNotification } from '../services/notificationService.js'
-import { detectConflicts, type ConflictWarning } from '../services/conflictService.js'
+import { detectConflicts, detectConflictsBulk, type ConflictWarning } from '../services/conflictService.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { syncEventToSlot, shouldSync, unlinkEventSlot } from '../services/eventSlotBridge.js'
 import { parseDurationToMinutes } from '../utils/parseDuration.js'
@@ -127,31 +127,29 @@ router.post('/conflicts/bulk', authenticate, validate({ body: s.bulkConflictSche
       },
     })
 
-    const results = await Promise.all(
-      events.map(async ev => {
-        const { warnings } = await detectConflicts({
-          id: ev.id,
-          competitionId: ev.competitionId,
-          channelId: ev.channelId ?? undefined,
-          radioChannelId: ev.radioChannelId ?? undefined,
-          onDemandChannelId: ev.onDemandChannelId ?? undefined,
-          linearChannel: ev.linearChannel ?? undefined,
-          onDemandChannel: ev.onDemandChannel ?? undefined,
-          radioChannel: ev.radioChannel ?? undefined,
-          startDateBE: ev.startDateBE.toISOString().slice(0, 10),
-          startTimeBE: ev.startTimeBE,
-          status: ev.status ?? undefined,
-        })
-        return { id: ev.id, warnings }
-      })
-    )
+    const drafts = events.map(ev => ({
+      id: ev.id,
+      competitionId: ev.competitionId,
+      channelId: ev.channelId ?? undefined,
+      radioChannelId: ev.radioChannelId ?? undefined,
+      onDemandChannelId: ev.onDemandChannelId ?? undefined,
+      linearChannel: ev.linearChannel ?? undefined,
+      onDemandChannel: ev.onDemandChannel ?? undefined,
+      radioChannel: ev.radioChannel ?? undefined,
+      startDateBE: ev.startDateBE.toISOString().slice(0, 10),
+      startTimeBE: ev.startTimeBE,
+      status: ev.status ?? undefined,
+      tenantId: req.tenantId,
+    }))
+
+    const results = await detectConflictsBulk(drafts, req.tenantId)
 
     const conflictMap: Record<number, ConflictWarning[]> = {}
     for (const id of eventIds) {
       conflictMap[id] = []
     }
-    for (const { id, warnings } of results) {
-      conflictMap[id] = warnings
+    for (const r of results) {
+      if (r.id != null) conflictMap[r.id] = r.warnings
     }
 
     res.json(conflictMap)

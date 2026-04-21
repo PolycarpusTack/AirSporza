@@ -1,0 +1,210 @@
+<h2>Schedule Editor Grid Layout</h2>
+<p class="subtitle">Channels as columns, time as Y-axis, slots as positioned blocks</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Schedule Editor — Main Grid</div>
+    <div class="mockup-body" style="background:#1a1a2e;color:#e0e0e0;padding:0;font-family:system-ui;font-size:12px;">
+      <!-- Top bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#16213e;border-bottom:1px solid #334;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button style="background:#0f3460;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:11px;">← Prev</button>
+          <span style="font-weight:bold;font-size:13px;">Thu 15 Mar 2026</span>
+          <button style="background:#0f3460;color:#fff;border:none;padding:4px 10px;border-radius:4px;font-size:11px;">Next →</button>
+          <span style="background:#1a1a3e;padding:2px 8px;border-radius:3px;font-size:10px;border:1px solid #445;">CET ▾</span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button style="background:#533483;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:11px;">↶ Undo</button>
+          <button style="background:#533483;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:11px;">↷ Redo</button>
+          <span style="background:#1a1a3e;padding:3px 8px;border-radius:3px;font-size:10px;border:1px solid #445;">Draft v3 • 4 ops</span>
+          <button style="background:#e94560;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:11px;">Validate</button>
+          <button style="background:#0f3460;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:11px;">Publish</button>
+        </div>
+      </div>
+
+      <!-- Grid -->
+      <div style="display:flex;height:420px;overflow:hidden;">
+        <!-- Time gutter -->
+        <div style="width:50px;flex-shrink:0;border-right:1px solid #334;padding-top:32px;">
+          <div style="height:60px;padding:2px 6px;text-align:right;color:#888;font-size:10px;">06:00</div>
+          <div style="height:60px;padding:2px 6px;text-align:right;color:#888;font-size:10px;">08:00</div>
+          <div style="height:60px;padding:2px 6px;text-align:right;color:#888;font-size:10px;">10:00</div>
+          <div style="height:60px;padding:2px 6px;text-align:right;color:#888;font-size:10px;">12:00</div>
+          <div style="height:60px;padding:2px 6px;text-align:right;color:#888;font-size:10px;">14:00</div>
+          <div style="height:60px;padding:2px 6px;text-align:right;color:#888;font-size:10px;">16:00</div>
+          <div style="height:60px;padding:2px 6px;text-align:right;color:#888;font-size:10px;">18:00</div>
+        </div>
+
+        <!-- Channel 1: Sporza 1 -->
+        <div style="flex:1;border-right:1px solid #222;position:relative;">
+          <div style="text-align:center;padding:8px;font-weight:bold;font-size:11px;background:#16213e;border-bottom:1px solid #334;color:#7ec8e3;">Sporza 1</div>
+          <div style="position:relative;height:388px;">
+            <!-- Hour lines -->
+            <div style="position:absolute;top:0;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:60px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:120px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:180px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:240px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:300px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:360px;left:0;right:0;height:1px;background:#222;"></div>
+
+            <!-- Slot: Morning recap 08:00-09:30 -->
+            <div style="position:absolute;top:60px;left:4px;right:4px;height:45px;background:#0f3460;border:2px solid #1a5276;border-radius:4px;padding:4px 6px;cursor:grab;font-size:10px;overflow:hidden;">
+              <div style="font-weight:bold;">Morning Recap</div>
+              <div style="color:#aaa;font-size:9px;">08:00–09:30 • FIXED</div>
+              <!-- Resize handle -->
+              <div style="position:absolute;bottom:0;left:0;right:0;height:4px;cursor:ns-resize;background:linear-gradient(transparent, rgba(255,255,255,0.1));"></div>
+            </div>
+
+            <!-- Slot: Football 14:00-16:00 (with validation warning) -->
+            <div style="position:absolute;top:240px;left:4px;right:4px;height:60px;background:#1a5c2a;border:2px solid #f0a500;border-radius:4px;padding:4px 6px;cursor:grab;font-size:10px;overflow:hidden;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:bold;">Anderlecht vs Club Brugge</span>
+                <span style="background:#f0a500;color:#000;padding:1px 4px;border-radius:2px;font-size:8px;">⚠</span>
+              </div>
+              <div style="color:#aaa;font-size:9px;">14:00–16:00 • FLOATING</div>
+              <div style="position:absolute;bottom:4px;left:6px;right:6px;height:3px;background:#333;border-radius:2px;">
+                <div style="width:78%;height:100%;background:#2ecc71;border-radius:2px;"></div>
+              </div>
+              <div style="position:absolute;bottom:0;left:0;right:0;height:4px;cursor:ns-resize;background:linear-gradient(transparent, rgba(255,255,255,0.1));"></div>
+            </div>
+
+            <!-- Slot: Evening news 18:00-18:30 -->
+            <div style="position:absolute;top:360px;left:4px;right:4px;height:15px;background:#0f3460;border:2px solid #1a5276;border-radius:4px;padding:2px 6px;cursor:grab;font-size:9px;overflow:hidden;">
+              <span style="font-weight:bold;">Evening News</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Channel 2: Sporza 2 -->
+        <div style="flex:1;border-right:1px solid #222;position:relative;">
+          <div style="text-align:center;padding:8px;font-weight:bold;font-size:11px;background:#16213e;border-bottom:1px solid #334;color:#e8a87c;">Sporza 2</div>
+          <div style="position:relative;height:388px;">
+            <div style="position:absolute;top:0;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:60px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:120px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:180px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:240px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:300px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:360px;left:0;right:0;height:1px;background:#222;"></div>
+
+            <!-- Slot: Tennis 10:00-14:00 (long slot) -->
+            <div style="position:absolute;top:120px;left:4px;right:4px;height:120px;background:#6a0572;border:2px solid #8b2090;border-radius:4px;padding:4px 6px;cursor:grab;font-size:10px;overflow:hidden;">
+              <div style="font-weight:bold;">Roland Garros QF</div>
+              <div style="color:#ccc;font-size:9px;">10:00–14:00 • WINDOW</div>
+              <div style="margin-top:4px;color:#aaa;font-size:9px;">Overrun: CONDITIONAL_SWITCH</div>
+              <div style="position:absolute;bottom:4px;left:6px;right:6px;height:3px;background:#333;border-radius:2px;">
+                <div style="width:62%;height:100%;background:#e94560;border-radius:2px;"></div>
+              </div>
+              <div style="position:absolute;bottom:0;left:0;right:0;height:4px;cursor:ns-resize;background:linear-gradient(transparent, rgba(255,255,255,0.1));"></div>
+            </div>
+
+            <!-- Slot: Cycling 16:00-17:30 (ERROR validation) -->
+            <div style="position:absolute;top:300px;left:4px;right:4px;height:45px;background:#5c1a1a;border:2px solid #e94560;border-radius:4px;padding:4px 6px;cursor:grab;font-size:10px;overflow:hidden;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:bold;">Tour de France Stage 4</span>
+                <span style="background:#e94560;color:#fff;padding:1px 4px;border-radius:2px;font-size:8px;">✕</span>
+              </div>
+              <div style="color:#aaa;font-size:9px;">16:00–17:30 • FIXED</div>
+              <div style="position:absolute;bottom:0;left:0;right:0;height:4px;cursor:ns-resize;background:linear-gradient(transparent, rgba(255,255,255,0.1));"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Channel 3: Sporza Extra -->
+        <div style="flex:1;position:relative;">
+          <div style="text-align:center;padding:8px;font-weight:bold;font-size:11px;background:#16213e;border-bottom:1px solid #334;color:#95d5b2;">Sporza Extra</div>
+          <div style="position:relative;height:388px;">
+            <div style="position:absolute;top:0;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:60px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:120px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:180px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:240px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:300px;left:0;right:0;height:1px;background:#222;"></div>
+            <div style="position:absolute;top:360px;left:0;right:0;height:1px;background:#222;"></div>
+
+            <!-- Empty channel - shows create affordance -->
+            <div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;opacity:0.3;pointer-events:none;">
+              <div style="text-align:center;">
+                <div style="font-size:24px;">+</div>
+                <div style="font-size:10px;">Click to create slot</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right panel: Editor -->
+        <div style="width:240px;flex-shrink:0;border-left:1px solid #334;background:#16213e;padding:12px;font-size:11px;overflow-y:auto;">
+          <div style="font-weight:bold;font-size:13px;margin-bottom:12px;color:#7ec8e3;">Edit Slot</div>
+
+          <div style="margin-bottom:10px;">
+            <div style="color:#888;font-size:9px;text-transform:uppercase;margin-bottom:3px;">Event</div>
+            <div style="background:#1a1a3e;padding:6px 8px;border-radius:4px;border:1px solid #334;">Anderlecht vs Club Brugge</div>
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <div style="color:#888;font-size:9px;text-transform:uppercase;margin-bottom:3px;">Start Time</div>
+            <input style="width:100%;background:#1a1a3e;color:#fff;padding:6px 8px;border-radius:4px;border:1px solid #334;font-size:11px;" value="14:00" />
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <div style="color:#888;font-size:9px;text-transform:uppercase;margin-bottom:3px;">Duration (min)</div>
+            <input style="width:100%;background:#1a1a3e;color:#fff;padding:6px 8px;border-radius:4px;border:1px solid #334;font-size:11px;" value="120" />
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <div style="color:#888;font-size:9px;text-transform:uppercase;margin-bottom:3px;">Mode</div>
+            <select style="width:100%;background:#1a1a3e;color:#fff;padding:6px 8px;border-radius:4px;border:1px solid #334;font-size:11px;">
+              <option>FLOATING</option>
+              <option>FIXED</option>
+              <option>WINDOW</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <div style="color:#888;font-size:9px;text-transform:uppercase;margin-bottom:3px;">Overrun Strategy</div>
+            <select style="width:100%;background:#1a1a3e;color:#fff;padding:6px 8px;border-radius:4px;border:1px solid #334;font-size:11px;">
+              <option>EXTEND</option>
+              <option>CONDITIONAL_SWITCH</option>
+              <option>HARD_CUT</option>
+              <option>SIMULCAST</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <div style="color:#888;font-size:9px;text-transform:uppercase;margin-bottom:3px;">Buffer Before / After</div>
+            <div style="display:flex;gap:6px;">
+              <input style="flex:1;background:#1a1a3e;color:#fff;padding:6px 8px;border-radius:4px;border:1px solid #334;font-size:11px;" value="15" />
+              <input style="flex:1;background:#1a1a3e;color:#fff;padding:6px 8px;border-radius:4px;border:1px solid #334;font-size:11px;" value="10" />
+            </div>
+          </div>
+
+          <!-- Validation warning -->
+          <div style="background:#3a2a00;border:1px solid #f0a500;border-radius:4px;padding:8px;margin-bottom:10px;">
+            <div style="color:#f0a500;font-weight:bold;font-size:10px;">⚠ SLOT_OVERLAP_PROBABLE</div>
+            <div style="color:#ccc;font-size:9px;margin-top:2px;">Estimated end may overlap Evening News at 18:00</div>
+          </div>
+
+          <div style="display:flex;gap:6px;">
+            <button style="flex:1;background:#0f3460;color:#fff;border:none;padding:6px;border-radius:4px;font-size:11px;">Save</button>
+            <button style="flex:1;background:#333;color:#fff;border:none;padding:6px;border-radius:4px;font-size:11px;">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <h3>Key Interactions</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;">
+    <div><strong>Click empty area</strong> → Create slot at that time/channel</div>
+    <div><strong>Click slot</strong> → Select, show editor panel</div>
+    <div><strong>Drag slot body</strong> → Move (vertical=time, horizontal=channel)</div>
+    <div><strong>Drag bottom edge</strong> → Resize duration</div>
+    <div><strong>Right-click slot</strong> → Context menu (Edit, Delete, Duplicate)</div>
+    <div><strong>Ctrl+Z / Ctrl+Y</strong> → Undo / Redo via draft operations</div>
+    <div><strong>5-min snap</strong> → All drag/resize snaps to 5-minute grid</div>
+    <div><strong>Yellow border</strong> = validation warning, <strong>Red border</strong> = validation error</div>
+  </div>
+</div>

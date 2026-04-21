@@ -5,7 +5,7 @@
  * create or sync a linked BroadcastSlot. This ensures the schedule grid
  * always reflects events that have been assigned to a channel.
  */
-import { PrismaClient, BroadcastSlotStatus, type Event, type Channel, type BroadcastSlot } from '@prisma/client'
+import { Prisma, PrismaClient, BroadcastSlotStatus, type Event, type Channel, type BroadcastSlot } from '@prisma/client'
 import { prisma as defaultPrisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
 
@@ -66,11 +66,18 @@ function toUtc(dateStr: string, timeStr: string, timezone: string): Date {
 
 /**
  * Create or update a BroadcastSlot linked to this event.
+ *
+ * Uses a single `INSERT ... ON CONFLICT` keyed on the partial unique index
+ * `(tenantId, eventId) WHERE autoLinked = true`. One round-trip instead of
+ * findFirst + conditional update/create. DUPLICATE_SLOT and manual
+ * POST /broadcast-slots callers stay outside the partial index because they
+ * leave `autoLinked = false`, so this never clobbers them.
+ *
  * Call inside a transaction for atomicity.
  */
 export async function syncEventToSlot(
   event: Event & { channel?: Channel | null },
-  db: PrismaClient = defaultPrisma,
+  db: PrismaClient | Prisma.TransactionClient = defaultPrisma,
 ): Promise<BroadcastSlot | null> {
   // Skip if event has no channel or no date/time
   if (!event.channelId || !event.startDateBE || !event.startTimeBE) {
@@ -99,54 +106,61 @@ export async function syncEventToSlot(
     : event.status === 'completed' ? BroadcastSlotStatus.COMPLETED
     : BroadcastSlotStatus.PLANNED
 
-  // Find existing linked slot
-  const existingSlot = await db.broadcastSlot.findFirst({
-    where: { eventId: event.id, tenantId: event.tenantId },
-  })
+  const rows = await db.$queryRaw<BroadcastSlot[]>(Prisma.sql`
+    INSERT INTO "BroadcastSlot" (
+      id, "tenantId", "eventId", "channelId",
+      "schedulingMode", "anchorType", "overrunStrategy", "contentSegment",
+      "sportMetadata", "plannedStartUtc", "plannedEndUtc",
+      "expectedDurationMin", status, "autoLinked",
+      "bufferBeforeMin", "bufferAfterMin", "coveragePriority",
+      "createdAt", "updatedAt"
+    ) VALUES (
+      gen_random_uuid(),
+      ${event.tenantId}::uuid,
+      ${event.id},
+      ${event.channelId},
+      'FIXED'::"SchedulingMode",
+      'FIXED_TIME'::"AnchorType",
+      'EXTEND'::"OverrunStrategy",
+      'FULL'::"ContentSegment",
+      '{}'::jsonb,
+      ${plannedStartUtc}::timestamptz,
+      ${plannedEndUtc}::timestamptz,
+      ${durationMin},
+      ${slotStatus}::"BroadcastSlotStatus",
+      true,
+      15, 25, 1,
+      NOW(), NOW()
+    )
+    ON CONFLICT ("tenantId", "eventId") WHERE "autoLinked" = true AND "eventId" IS NOT NULL
+    DO UPDATE SET
+      "channelId" = EXCLUDED."channelId",
+      "plannedStartUtc" = EXCLUDED."plannedStartUtc",
+      "plannedEndUtc" = EXCLUDED."plannedEndUtc",
+      "expectedDurationMin" = EXCLUDED."expectedDurationMin",
+      status = EXCLUDED.status,
+      "updatedAt" = NOW()
+    RETURNING *
+  `)
 
-  const slotData = {
-    channelId: event.channelId,
-    plannedStartUtc,
-    plannedEndUtc,
-    expectedDurationMin: durationMin,
-    status: slotStatus,
+  const slot = rows[0] ?? null
+  if (slot) {
+    logger.debug('Auto-bridge: upserted slot', { slotId: slot.id, eventId: event.id })
   }
-
-  if (existingSlot) {
-    const updated = await db.broadcastSlot.update({
-      where: { id: existingSlot.id },
-      data: slotData,
-    })
-    logger.debug('Auto-bridge: updated slot', { slotId: updated.id, eventId: event.id })
-    return updated
-  }
-
-  const created = await db.broadcastSlot.create({
-    data: {
-      tenantId: event.tenantId,
-      eventId: event.id,
-      schedulingMode: 'FIXED',
-      anchorType: 'FIXED_TIME',
-      overrunStrategy: 'EXTEND',
-      contentSegment: 'FULL',
-      sportMetadata: {},
-      ...slotData,
-    },
-  })
-  logger.debug('Auto-bridge: created slot', { slotId: created.id, eventId: event.id })
-  return created
+  return slot
 }
 
 /**
  * Remove the linked BroadcastSlot when an event loses its channel assignment.
+ * Only removes bridge-managed slots so manual/duplicate slots are preserved.
  */
 export async function unlinkEventSlot(
   eventId: number,
   tenantId: string,
-  db: PrismaClient = defaultPrisma,
+  db: PrismaClient | Prisma.TransactionClient = defaultPrisma,
 ): Promise<void> {
   const deleted = await db.broadcastSlot.deleteMany({
-    where: { eventId, tenantId },
+    where: { eventId, tenantId, autoLinked: true },
   })
   if (deleted.count > 0) {
     logger.debug('Auto-bridge: removed slot for unlinked event', { eventId })
