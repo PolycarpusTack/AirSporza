@@ -4,6 +4,7 @@ import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
+import { isWorkflowToggleEnabled } from '../utils/workflowToggles.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import * as s from '../schemas/techPlans.js'
 
@@ -65,14 +66,21 @@ router.post('/', authenticate, authorize('sports', 'admin'), validate({ body: s.
   try {
     const user = req.user as { id: string }
 
-    // Auto-fill crew from plan-type default template if crew is empty
+    // Auto-fill crew from plan-type default template if crew is empty.
+    // Gated on the auto_crew_template workflow toggle so operators can
+    // opt out (e.g. on projects where empty crew is the desired starting
+    // state). Previously this ran unconditionally, making the Settings
+    // toggle a visual lie.
     let crew = req.body.crew || {}
     if (Object.keys(crew).length === 0 && req.body.planType) {
-      const defaultTemplate = await prisma.crewTemplate.findFirst({
-        where: { tenantId: req.tenantId, planType: req.body.planType, createdById: null },
-      })
-      if (defaultTemplate) {
-        crew = defaultTemplate.crewData as Record<string, unknown>
+      const autoApplyEnabled = await isWorkflowToggleEnabled(req.tenantId!, 'auto_crew_template')
+      if (autoApplyEnabled) {
+        const defaultTemplate = await prisma.crewTemplate.findFirst({
+          where: { tenantId: req.tenantId, planType: req.body.planType, createdById: null },
+        })
+        if (defaultTemplate) {
+          crew = defaultTemplate.crewData as Record<string, unknown>
+        }
       }
     }
 
