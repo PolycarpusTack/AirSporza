@@ -5,6 +5,7 @@ import { SlotEditorPanel } from '../components/schedule/SlotEditorPanel'
 import { SlotContextMenu } from '../components/schedule/SlotContextMenu'
 import { SwitchConfirmModal } from '../components/schedule/SwitchConfirmModal'
 import { CascadeDashboard } from '../components/schedule/CascadeDashboard'
+import { VersionHistoryPanel } from '../components/schedule/VersionHistoryPanel'
 import { schedulesApi } from '../services/schedules'
 import { channelsApi } from '../services/channels'
 import { useScheduleEditor } from '../hooks/useScheduleEditor'
@@ -13,7 +14,7 @@ import { useSlotContextMenu } from '../hooks/useSlotContextMenu'
 import { useToast } from '../components/Toast'
 import { useConfirmDialog } from '../components/ui/ConfirmDialog'
 import type { Channel, BroadcastSlot, ScheduleDraft, Alert } from '../data/types'
-import { Grid2X2, Activity } from 'lucide-react'
+import { Grid2X2, Activity, History } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -50,7 +51,7 @@ export function ScheduleView() {
   /* ---------- UI state ---------- */
   const [date, setDate] = useState(todayStr)
   const [timezone, setTimezone] = useState('UTC')
-  const [activeTab, setActiveTab] = useState<'grid' | 'cascade'>('grid')
+  const [activeTab, setActiveTab] = useState<'grid' | 'cascade' | 'history'>('grid')
   const [loading, setLoading] = useState(true)
   const [previewing, setPreviewing] = useState(false)
   const [validating, setValidating] = useState(false)
@@ -390,6 +391,14 @@ export function ScheduleView() {
           >
             <Activity className="w-3.5 h-3.5" /> Cascade
           </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium transition-colors ${
+              activeTab === 'history' ? 'bg-surface text-text shadow-sm' : 'text-text-3 hover:text-text-2'
+            }`}
+          >
+            <History className="w-3.5 h-3.5" /> History
+          </button>
         </div>
       </div>
 
@@ -451,6 +460,14 @@ export function ScheduleView() {
           date={date}
           onDateChange={setDate}
           onSwitchAction={setSwitchAlert}
+        />
+      )}
+
+      {/* Version history tab */}
+      {activeTab === 'history' && (
+        <VersionHistoryPanel
+          channelId={activeDraft?.channelId}
+          channels={channels}
         />
       )}
 

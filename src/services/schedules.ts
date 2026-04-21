@@ -52,4 +52,6 @@ export const schedulesApi = {
     const qs = params?.channelId ? `?channelId=${params.channelId}` : ''
     return api.get<ScheduleVersion[]>(`/schedule-versions${qs}`)
   },
+  getVersion: (id: string) =>
+    api.get<ScheduleVersion & { broadcastSlots: BroadcastSlot[] }>(`/schedule-versions/${id}`),
 }
