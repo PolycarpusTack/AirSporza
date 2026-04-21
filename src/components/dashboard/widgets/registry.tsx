@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import { LiveNowWidget } from './LiveNowWidget'
 import { UpcomingTodayWidget } from './UpcomingTodayWidget'
 import { ExpiringRightsWidget } from './ExpiringRightsWidget'
+import { RightsIssuesWidget } from './RightsIssuesWidget'
 
 /**
  * Map widget id → React component. Ids are the same strings used in
@@ -14,6 +15,7 @@ export const WIDGET_REGISTRY: Record<string, ComponentType> = {
   liveNow: LiveNowWidget,
   upcomingToday: UpcomingTodayWidget,
   expiryAlerts: ExpiringRightsWidget,
+  rightsIssues: RightsIssuesWidget,
 }
 
 export function getWidgetComponent(id: string): ComponentType | null {

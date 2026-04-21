@@ -90,7 +90,8 @@ export const DEFAULT_DASHBOARD_WIDGETS: Record<string, DashboardWidget[]> = {
     { id: "channelTimeline", label: "Channel Timeline", visible: true, order: 0 },
     { id: "liveNow", label: "Live Now", visible: true, order: 1 },
     { id: "upcomingToday", label: "Upcoming Today", visible: true, order: 2 },
-    { id: "maxConditions", label: "VRT MAX Conditions", visible: true, order: 3 },
+    { id: "rightsIssues", label: "Rights Issues", visible: true, order: 3 },
+    { id: "maxConditions", label: "VRT MAX Conditions", visible: true, order: 4 },
   ],
   sports: [
     { id: "sportTree", label: "Sport / Event Tree", visible: true, order: 0 },
@@ -102,7 +103,8 @@ export const DEFAULT_DASHBOARD_WIDGETS: Record<string, DashboardWidget[]> = {
     { id: "statusSummary", label: "Status Summary Cards", visible: true, order: 0 },
     { id: "contractTable", label: "Contract Table", visible: true, order: 1 },
     { id: "expiryAlerts", label: "Expiry Alerts", visible: true, order: 2 },
-    { id: "rightsMatrix", label: "Rights Matrix", visible: true, order: 3 },
+    { id: "rightsIssues", label: "Rights Issues", visible: true, order: 3 },
+    { id: "rightsMatrix", label: "Rights Matrix", visible: true, order: 4 },
   ],
   admin: [
     { id: "systemStatus", label: "System Status", visible: true, order: 0 },
