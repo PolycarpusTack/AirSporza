@@ -259,12 +259,7 @@ export function ScheduleView() {
     const endTime = slot.plannedEndUtc
       ? new Date(new Date(slot.plannedEndUtc).getTime() + 30 * 60_000).toISOString()
       : new Date().toISOString()
-    editor.dispatch({
-      type: 'DUPLICATE_SLOT',
-      sourceSlotId: menu.slotId,
-      newChannelId: slot.channelId,
-      newStartUtc: endTime,
-    })
+    editor.dispatchDuplicate(menu.slotId, slot.channelId, endTime)
     closeMenu()
   }, [menu, editor, closeMenu])
 
@@ -306,12 +301,7 @@ export function ScheduleView() {
             const newStart = slot.plannedEndUtc
               ? new Date(new Date(slot.plannedEndUtc).getTime() + 30 * 60_000).toISOString()
               : new Date().toISOString()
-            editor.dispatch({
-              type: 'DUPLICATE_SLOT',
-              sourceSlotId: editor.selectedSlotId,
-              newChannelId: slot.channelId,
-              newStartUtc: newStart,
-            })
+            editor.dispatchDuplicate(editor.selectedSlotId, slot.channelId, newStart)
           }
         }
       } else if (e.key === 'Escape') {

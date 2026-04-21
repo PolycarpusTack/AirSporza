@@ -28,7 +28,7 @@ export type ScheduleOperation =
   | { type: 'MOVE_SLOT'; slotId: string; newChannelId?: number; newStartUtc: string; newEndUtc: string }
   | { type: 'RESIZE_SLOT'; slotId: string; newEndUtc: string }
   | { type: 'DELETE_SLOT'; slotId: string }
-  | { type: 'DUPLICATE_SLOT'; sourceSlotId: string; newChannelId: number; newStartUtc: string }
+  | { type: 'DUPLICATE_SLOT'; sourceSlotId: string; newChannelId: number; newStartUtc: string; newSlotId?: string }
 
 function applySingle(slots: SlotState[], op: ScheduleOperation): SlotState[] {
   switch (op.type) {
@@ -73,7 +73,11 @@ function applySingle(slots: SlotState[], op: ScheduleOperation): SlotState[] {
         ...slots,
         {
           ...source,
-          id: uuidv4(),
+          // Prefer the id the client chose, so its local state and any later
+          // undo (which needs to DELETE_SLOT on this exact id) match the
+          // server. Fall back to uuidv4 when the op wasn't minted by a
+          // modern client.
+          id: op.newSlotId ?? uuidv4(),
           channelId: op.newChannelId,
           plannedStartUtc: op.newStartUtc,
           plannedEndUtc: newEndUtc,
@@ -177,6 +181,10 @@ export async function executeOperations(
           const dur = source.plannedEndUtc!.getTime() - source.plannedStartUtc!.getTime()
           await tx.broadcastSlot.create({
             data: {
+              // Honor client-chosen id so in-editor undo (which references
+              // newSlotId) and the eventually-published slot refer to the
+              // same row.
+              ...(op.newSlotId ? { id: op.newSlotId } : {}),
               tenantId,
               channelId: op.newChannelId,
               eventId: source.eventId,
