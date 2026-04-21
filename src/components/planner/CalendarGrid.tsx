@@ -8,6 +8,7 @@ import {
 } from '../../utils/calendarLayout'
 import { isEventLocked } from '../../utils/eventLock'
 import { computeReadiness, type ReadinessResult } from '../../utils/eventReadiness'
+import { useRightsCheck } from '../../hooks/useRightsCheck'
 import { useApp } from '../../context/AppProvider'
 import type { ConflictWarning } from '../../services/events'
 import { useDrawToCreate, minutesToTime } from '../../hooks/useDrawToCreate'
@@ -96,6 +97,12 @@ export function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChan
     }
     return map
   }, [events, techPlans, contracts, crewFields])
+
+  // Rights-check map. Batched + debounced by the hook so we hit
+  // /api/rights/check/batch at most once per quiet period. Absence of an
+  // entry means "not yet fetched" and the card renders no badge.
+  const eventIds = useMemo(() => events.map(e => e.id), [events])
+  const rightsMap = useRightsCheck(eventIds)
 
   // Current time indicator
   const [nowMinutes, setNowMinutes] = useState(() => {
@@ -316,6 +323,7 @@ export function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChan
                     hasConflict={hasConflict}
                     conflictTooltip={hasConflict ? conflicts!.map(w => w.message).join('\n') : undefined}
                     readiness={readinessMap.get(ev.id)}
+                    rights={rightsMap[ev.id]}
                     selectionMode={selectionMode}
                     cardHeight={cardH}
                     onClick={() => selectionMode ? onToggleSelect(ev.id) : onEventClick?.(ev)}

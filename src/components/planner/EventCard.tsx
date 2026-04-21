@@ -6,6 +6,8 @@ import { Badge } from '../ui'
 import type { Event } from '../../data/types'
 import { statusVariant } from '../../utils/calendarLayout'
 import type { ReadinessResult } from '../../utils/eventReadiness'
+import type { RightsStatus } from '../../hooks/useRightsCheck'
+import { RightsStatusBadge } from './RightsStatusBadge'
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,8 @@ export interface EventCardProps {
   hasConflict: boolean
   conflictTooltip?: string
   readiness?: ReadinessResult
+  /** Optional rights-check outcome. Absent or 'ok' renders nothing. */
+  rights?: RightsStatus
   selectionMode: boolean
   cardHeight: number                   // numeric height for conditional rendering
   onClick: (e: React.MouseEvent) => void
@@ -73,6 +77,7 @@ export const EventCard = React.memo(function EventCard({
   hasConflict,
   conflictTooltip,
   readiness,
+  rights,
   selectionMode,
   cardHeight,
   onClick,
@@ -99,6 +104,15 @@ export const EventCard = React.memo(function EventCard({
     >
       {isLocked && height > 30 && (
         <Lock className="absolute top-1 right-1 w-3 h-3 text-warning/70 z-10" />
+      )}
+      {rights && rights.severity !== 'ok' && height > 20 && (
+        // Tuck the rights dot next to the lock when both are present; fall
+        // back to the same slot when there's no lock.
+        <span
+          className={`absolute top-1 ${isLocked && height > 30 ? 'right-5' : 'right-1'} z-10`}
+        >
+          <RightsStatusBadge status={rights} />
+        </span>
       )}
       {selectionMode && (
         <input
