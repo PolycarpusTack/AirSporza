@@ -13,6 +13,22 @@ import {
 // engine keep working.
 export { CHANGEOVER_MIN, CONFIDENCE_DECAY }
 
+/**
+ * Cascade-specific shape of Event.sportMetadata. The JSON field is untyped in
+ * Prisma, so we narrow at the extraction sites instead of leaking `any`.
+ * Unknown keys pass through — this is only what the cascade engine reads.
+ */
+type CascadeMeta = {
+  order_on_court?: number
+  court_id?: number | string
+  not_before_utc?: string
+  [key: string]: unknown
+}
+
+function asCascadeMeta(value: unknown): CascadeMeta {
+  return (value && typeof value === 'object' ? value : {}) as CascadeMeta
+}
+
 export interface CascadeResult {
   eventId: number
   estimatedStartUtc: Date
@@ -58,8 +74,8 @@ export async function runCascade(
 
     // Sort by order_on_court from sportMetadata
     events.sort((a, b) => {
-      const orderA = (a.sportMetadata as any)?.order_on_court ?? 999
-      const orderB = (b.sportMetadata as any)?.order_on_court ?? 999
+      const orderA = asCascadeMeta(a.sportMetadata).order_on_court ?? 999
+      const orderB = asCascadeMeta(b.sportMetadata).order_on_court ?? 999
       return orderA - orderB
     })
 
@@ -82,7 +98,7 @@ export async function runCascade(
     // Adapt Event rows to the pure CascadeItem shape, then run the shared
     // chain algorithm. Keeps engine + preview-cascade from drifting.
     const items: CascadeItem[] = events.map(event => {
-      const meta = (event.sportMetadata as any) || {}
+      const meta = asCascadeMeta(event.sportMetadata)
       const actuals = actualTimesByEvent.get(event.id)
       const castEvent = event as unknown as CascadeEvent
       const status: CascadeItem['status'] =

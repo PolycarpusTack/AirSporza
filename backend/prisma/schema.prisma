@@ -275,6 +275,10 @@ model Event {
   @@index([tenantId])
   @@index([tenantId, startDateBE])
   @@index([tenantId, sportId, startDateBE])
+  // Expression index `event_court_day_idx` on ((sportMetadata->>'court_id')::int,
+  // tenantId, startDateBE) is defined in add_performance_followup_indexes.sql.
+  // Prisma's DSL can't express expression/partial indexes, so it lives in raw
+  // SQL and `prisma db push` leaves it alone (doesn't manage it).
 }
 
 model TechPlan {

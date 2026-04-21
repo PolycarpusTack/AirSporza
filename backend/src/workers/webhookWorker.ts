@@ -19,8 +19,15 @@ export function startWebhookWorker() {
     const { eventType, _tenantId: tenantId, _outboxEventId: outboxEventId, ...payload } = job.data as {
       eventType: string
       _tenantId: string
-      _outboxEventId?: string
+      _outboxEventId: string
       [k: string]: unknown
+    }
+    if (!outboxEventId) {
+      // All webhook jobs are produced by outboxConsumer, which always sets
+      // _outboxEventId. A missing value means someone enqueued a job by a
+      // path that bypasses the outbox — reject loudly rather than silently
+      // deduplicating on a NULL key.
+      throw new Error(`webhook job missing _outboxEventId (eventType=${eventType})`)
     }
 
     const webhooks = await prisma.webhookEndpoint.findMany({
@@ -49,32 +56,23 @@ export function startWebhookWorker() {
     for (const webhook of webhooks) {
       const signature = 'sha256=' + createHmac('sha256', webhook.secret).update(body, 'utf8').digest('hex')
 
-      // Dedupe retries via (webhookId, outboxEventId) unique. For legacy
-      // callers that don't supply _outboxEventId we fall back to create.
-      const delivery = outboxEventId
-        ? await prisma.webhookDelivery.upsert({
-            where: {
-              webhookId_outboxEventId: { webhookId: webhook.id, outboxEventId },
-            },
-            create: {
-              tenantId: webhook.tenantId,
-              webhookId: webhook.id,
-              outboxEventId,
-              eventType,
-              payload: envelope as object,
-              attempts: 0,
-            },
-            update: {}, // retries bump attempts via the update below
-          })
-        : await prisma.webhookDelivery.create({
-            data: {
-              tenantId: webhook.tenantId,
-              webhookId: webhook.id,
-              eventType,
-              payload: envelope as object,
-              attempts: 0,
-            },
-          })
+      // Dedupe retries via (webhookId, outboxEventId) unique. outboxEventId
+      // is guaranteed non-null by the check at the top of the worker, so we
+      // always take the upsert path — NULL keys would defeat the unique.
+      const delivery = await prisma.webhookDelivery.upsert({
+        where: {
+          webhookId_outboxEventId: { webhookId: webhook.id, outboxEventId },
+        },
+        create: {
+          tenantId: webhook.tenantId,
+          webhookId: webhook.id,
+          outboxEventId,
+          eventType,
+          payload: envelope as object,
+          attempts: 0,
+        },
+        update: {}, // retries bump attempts via the update below
+      })
 
       let statusCode: number | null = null
       let error: string | null = null
