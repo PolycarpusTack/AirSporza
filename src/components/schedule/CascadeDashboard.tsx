@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { CourtTimeline } from './CourtTimeline'
 import { AlertPanel } from './AlertPanel'
 import { useCascade } from '../../hooks/useCascade'
 import { api } from '../../utils/api'
-import type { Court, CascadeEstimate, Alert } from '../../data/types'
+import type { Court, Alert } from '../../data/types'
 import { Activity, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useToast } from '../Toast'
 import { handleApiError } from '../../utils/apiError'
@@ -32,19 +32,13 @@ export function CascadeDashboard({ date, onDateChange, onSwitchAction }: Cascade
     }
   }, [courts, selectedCourtId])
 
-  // Group estimates by court (using eventId -> court mapping from sportMetadata)
-  // For now, show all estimates on the selected court timeline
-  const courtEstimates = useMemo(() => {
-    const map = new Map<number, CascadeEstimate[]>()
-    for (const court of courts) {
-      map.set(court.id, [])
-    }
-    // All estimates go to selected court for now
-    if (selectedCourtId) {
-      map.set(selectedCourtId, estimates)
-    }
-    return map
-  }, [courts, estimates, selectedCourtId])
+  // The cascade socket namespace is room-scoped by court (see services/socket.ts
+  // cascadeNs: `tenant:{tid}:court:{courtId}`), so `estimates` already
+  // contains only the currently-selected court's rows. Switching court
+  // chips triggers useCascade to re-subscribe to the new room and
+  // refetch — the old courtEstimates Map indirection was a leftover from
+  // a planned "show every court side by side" design that was never
+  // wired up. Keep the dashboard honest about what it shows.
 
   const prevDay = () => {
     const d = new Date(date)
@@ -118,14 +112,15 @@ export function CascadeDashboard({ date, onDateChange, onSwitchAction }: Cascade
               ))}
             </div>
 
-            {/* Court columns — show selected or all */}
+            {/* Only the selected court renders. Other courts surface as
+                chips above; clicking one re-subscribes and re-fetches. */}
             {courts
-              .filter(c => !selectedCourtId || c.id === selectedCourtId)
+              .filter(c => c.id === selectedCourtId)
               .map(court => (
                 <CourtTimeline
                   key={court.id}
                   courtName={court.name}
-                  estimates={courtEstimates.get(court.id) || []}
+                  estimates={estimates}
                 />
               ))}
           </div>
