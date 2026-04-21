@@ -330,6 +330,13 @@ model Contract {
   windowEndUtc        DateTime? @db.Timestamptz
   tapeDelayHoursMin   Int?
 
+  // Array<{ start: ISO, end: ISO, reason?: string }>. Sub-periods inside the
+  // main window where broadcast is forbidden (e.g. exclusive simulcast
+  // lockout, league-mandated blackout). Stored as JSON rather than a
+  // separate table because lifecycle is tied to the contract and we rarely
+  // query blackouts independently.
+  blackoutPeriods Json @default("[]")
+
   geoRestriction String?
   fee            String?
   notes          String?

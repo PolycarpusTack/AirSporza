@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import { checkRightsForEvent, checkRightsForEvents, getRightsMatrix } from '../services/rightsChecker.js'
 import * as s from '../schemas/rights.js'
 
 const router = Router()
@@ -296,6 +297,77 @@ router.get('/run-ledger/count/:eventId', authenticate, async (req, res, next) =>
   } catch (error) {
     next(error)
   }
+})
+
+// ─── RIGHTS VALIDATION ──────────────────────────────────────────────────────
+
+/**
+ * GET /api/rights/check?eventId=123[&territory=BE]
+ * Single-event rights evaluation. Resolves contracts, tallies RunLedger,
+ * returns ValidationResult[].
+ */
+router.get('/check', authenticate, async (req, res, next) => {
+  try {
+    const eventId = Number(req.query.eventId)
+    if (!Number.isFinite(eventId) || eventId <= 0) {
+      throw createError(400, 'eventId query param is required and must be a positive integer')
+    }
+    const territory = typeof req.query.territory === 'string' ? req.query.territory : undefined
+
+    // Tenant scope: guard against checking an event that doesn't belong to
+    // this tenant. The event lookup inside checkRightsForEvent doesn't
+    // filter by tenantId (it's called from workers too), so we verify here.
+    const event = await prisma.event.findFirst({
+      where: { id: eventId, tenantId: req.tenantId },
+      select: { id: true },
+    })
+    if (!event) throw createError(404, 'Event not found')
+
+    const result = await checkRightsForEvent(eventId, { territory })
+    res.json(result)
+  } catch (error) { next(error) }
+})
+
+/**
+ * GET /api/rights/check/batch?eventIds=1,2,3[&territory=BE]
+ * Batched variant for list views (planner, dashboard widgets).
+ */
+router.get('/check/batch', authenticate, async (req, res, next) => {
+  try {
+    const raw = typeof req.query.eventIds === 'string' ? req.query.eventIds : ''
+    const eventIds = raw.split(',')
+      .map(s => Number(s.trim()))
+      .filter(n => Number.isFinite(n) && n > 0)
+    if (eventIds.length === 0) {
+      return res.json({})
+    }
+    if (eventIds.length > 200) {
+      throw createError(400, 'Up to 200 eventIds per request')
+    }
+    const territory = typeof req.query.territory === 'string' ? req.query.territory : undefined
+
+    // Tenant scope: fetch the subset of requested ids that actually belong
+    // to this tenant; silently drop the rest rather than leaking existence.
+    const owned = await prisma.event.findMany({
+      where: { id: { in: eventIds }, tenantId: req.tenantId },
+      select: { id: true },
+    })
+    const ownedIds = owned.map(e => e.id)
+    const results = await checkRightsForEvents(ownedIds, { territory })
+    res.json(results)
+  } catch (error) { next(error) }
+})
+
+/**
+ * GET /api/rights/matrix
+ * Per-contract summary for the Rights Matrix page: runs used, days until
+ * expiry, platforms, territory, severity bucket.
+ */
+router.get('/matrix', authenticate, async (req, res, next) => {
+  try {
+    const rows = await getRightsMatrix(req.tenantId!)
+    res.json(rows)
+  } catch (error) { next(error) }
 })
 
 export default router
