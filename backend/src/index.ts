@@ -37,6 +37,7 @@ import channelRoutes from './routes/channels.js'
 import broadcastSlotRoutes from './routes/broadcastSlots.js'
 import scheduleRoutes from './routes/schedules.js'
 import scheduleVersionRoutes from './routes/scheduleVersions.js'
+import cascadeRoutes from './routes/cascade.js'
 import rightsRoutes from './routes/rights.js'
 import channelSwitchRoutes from './routes/channelSwitches.js'
 import adapterRoutes from './routes/adapters.js'
@@ -118,6 +119,7 @@ export function buildApp() {
   app.use('/api/broadcast-slots', authenticate, setTenantContext, standardLimiter, broadcastSlotRoutes)
   app.use('/api/schedule-drafts', authenticate, setTenantContext, standardLimiter, scheduleRoutes)
   app.use('/api/schedule-versions', authenticate, setTenantContext, standardLimiter, scheduleVersionRoutes)
+  app.use('/api/cascade', authenticate, setTenantContext, standardLimiter, cascadeRoutes)
   app.use('/api/rights', authenticate, setTenantContext, standardLimiter, rightsRoutes)
   app.use('/api/channel-switches', authenticate, setTenantContext, standardLimiter, channelSwitchRoutes)
 

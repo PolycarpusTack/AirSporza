@@ -14,16 +14,19 @@ export function useCascade(courtId?: number, date?: string) {
   const cascadeRef = useRef<Socket | null>(null)
   const alertsRef = useRef<Socket | null>(null)
 
-  // REST fallback — fetch initial data
+  // REST fallback — backfill persisted CascadeEstimate rows for this
+  // court+date so the dashboard isn't blank before the first
+  // `cascade:updated` socket push arrives. Socket events supersede this
+  // payload once they start flowing.
   const fetchEstimates = useCallback(async () => {
     if (!courtId || !date) return
     setLoading(true)
     try {
-      const data = await api.get<CascadeEstimate[]>(`/broadcast-slots?courtId=${courtId}&date=${date}`)
-      // cascade estimates may come from a dedicated endpoint later; for now use slots
+      const data = await api.get<CascadeEstimate[]>(`/cascade/estimates?courtId=${courtId}&date=${date}`)
       setEstimates(Array.isArray(data) ? data : [])
     } catch {
-      // Endpoint may not exist yet — use empty array
+      // If the endpoint fails we still let the UI render — the socket
+      // path can backfill once it connects.
       setEstimates([])
     } finally {
       setLoading(false)
