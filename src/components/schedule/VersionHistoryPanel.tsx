@@ -1,9 +1,44 @@
 import { useEffect, useState } from 'react'
-import { History, AlertTriangle, CheckCircle2, Zap } from 'lucide-react'
+import { History, AlertTriangle, CheckCircle2, Zap, Download } from 'lucide-react'
 import { schedulesApi } from '../../services/schedules'
 import type { ScheduleVersion, BroadcastSlot, Channel } from '../../data/types'
 import { Btn } from '../ui'
 import { useToast } from '../Toast'
+
+/**
+ * Serialize a snapshot as CSV. Escapes embedded quotes and commas per
+ * RFC 4180. Times stay in UTC (the column header advertises it) so
+ * downstream consumers don't have to guess a timezone.
+ */
+function snapshotToCsv(slots: BroadcastSlot[], channelById: Map<number, Channel>): string {
+  const escape = (v: unknown): string => {
+    const s = v == null ? '' : String(v)
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+    return s
+  }
+  const header = ['Planned Start (UTC)', 'Planned End (UTC)', 'Channel', 'Event ID', 'Participants', 'Status']
+  const rows = slots.map(slot => [
+    slot.plannedStartUtc ?? '',
+    slot.plannedEndUtc ?? '',
+    channelById.get(slot.channelId)?.name ?? '',
+    slot.eventId ?? '',
+    slot.event?.participants ?? '',
+    slot.status,
+  ])
+  return [header, ...rows].map(row => row.map(escape).join(',')).join('\n')
+}
+
+function triggerCsvDownload(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 interface Props {
   channelId?: number
@@ -160,7 +195,23 @@ export function VersionHistoryPanel({ channelId, channels }: Props) {
                   {formatTimestamp(detail.publishedAt)} · {detail.publishedBy}
                 </div>
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto flex gap-2">
+                <Btn
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const slots = detail.broadcastSlots ?? []
+                    if (slots.length === 0) {
+                      toast.warning('No slots to export.')
+                      return
+                    }
+                    const csv = snapshotToCsv(slots, channelById)
+                    const fname = `schedule-v${detail.versionNumber}-${detail.publishedAt.slice(0, 10)}.csv`
+                    triggerCsvDownload(fname, csv)
+                  }}
+                >
+                  <Download className="w-3.5 h-3.5 mr-1" /> Export CSV
+                </Btn>
                 <Btn
                   variant="secondary"
                   size="sm"
