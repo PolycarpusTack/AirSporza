@@ -246,13 +246,21 @@ export function useScheduleEditor(draft: ScheduleDraft | null, baseSlots: Broadc
 
   /* ---- validate / publish / reset -------------------------------- */
 
-  const validate = useCallback(async () => {
-    if (!draft) return
+  /**
+   * Re-run schedule validation. Returns the fresh results alongside
+   * setting state, so callers that need to gate on validation (e.g.
+   * publish confirmation) don't race the React state update.
+   */
+  const validate = useCallback(async (): Promise<ValidationResult[]> => {
+    if (!draft) return []
     try {
       const resp = await schedulesApi.validateDraft(draft.id)
-      setValidationResults(resp.results as ValidationResult[])
+      const results = resp.results as ValidationResult[]
+      setValidationResults(results)
+      return results
     } catch {
       toast.error('Validation request failed.')
+      return []
     }
   }, [draft, toast])
 
