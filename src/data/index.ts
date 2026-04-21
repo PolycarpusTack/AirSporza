@@ -86,43 +86,54 @@ export const DEFAULT_CREW_FIELDS: FieldConfig[] = [
 ]
 
 /**
- * Default widget layout per role. Only widget ids that have a
- * corresponding entry in `WIDGET_REGISTRY` (src/components/dashboard/
- * widgets/registry.tsx) are `visible: true` by default — the rest
- * stay in the layout (so operators can still toggle them on via
- * dashboard settings) but start hidden, so a fresh user doesn't
- * see a screen full of "Coming soon" placeholders.
+ * Default widget layout per role. Widget ids serve two purposes:
  *
- * When a widget lands, flip its entry to visible:true here and add
- * it to the registry.
+ *  - On /dashboard they look up a component in WIDGET_REGISTRY
+ *    (src/components/dashboard/widgets/registry.tsx) — ids without
+ *    an entry render as "Coming soon".
+ *  - On the role's main page (PlannerView, SportsWorkspace,
+ *    ContractsView, AdminView) the same ids gate inline sections
+ *    (e.g. `showMatrix = widgets.some(w => w.id === 'rightsMatrix')`).
+ *
+ * That double duty means "visible" here must reflect what the user
+ * expects to see on their role's main page, NOT only what's in the
+ * widget registry. The only ids we keep hidden by default are the
+ * ones that drive neither a registered widget nor an inline page
+ * section — they'd otherwise render as a bare "Coming soon" tile on
+ * /dashboard with no way to land anywhere useful.
  */
 export const DEFAULT_DASHBOARD_WIDGETS: Record<string, DashboardWidget[]> = {
   planner: [
     { id: "liveNow",         label: "Live Now",              visible: true,  order: 0 },
     { id: "upcomingToday",   label: "Upcoming Today",        visible: true,  order: 1 },
     { id: "rightsIssues",    label: "Rights Issues",         visible: true,  order: 2 },
+    // Hidden — no registry component, no inline renderer.
     { id: "channelTimeline", label: "Channel Timeline",      visible: false, order: 3 },
     { id: "maxConditions",   label: "VRT MAX Conditions",    visible: false, order: 4 },
   ],
   sports: [
-    { id: "liveNow",      label: "Live Now",           visible: true,  order: 0 },
-    { id: "sportTree",    label: "Sport / Event Tree", visible: false, order: 1 },
-    { id: "eventDetail",  label: "Event Detail",       visible: false, order: 2 },
-    { id: "techPlans",    label: "Technical Plans",    visible: false, order: 3 },
-    { id: "crewOverview", label: "Crew Overview",      visible: false, order: 4 },
+    // Each of these gates an inline panel in SportsWorkspace.
+    { id: "sportTree",    label: "Sport / Event Tree", visible: true, order: 0 },
+    { id: "eventDetail",  label: "Event Detail",       visible: true, order: 1 },
+    { id: "techPlans",    label: "Technical Plans",    visible: true, order: 2 },
+    { id: "crewOverview", label: "Crew Overview",      visible: true, order: 3 },
   ],
   contracts: [
-    { id: "expiryAlerts",    label: "Expiry Alerts",         visible: true,  order: 0 },
-    { id: "rightsIssues",    label: "Rights Issues",         visible: true,  order: 1 },
-    { id: "rightsMatrix",    label: "Rights Matrix",         visible: true,  order: 2 },
-    { id: "statusSummary",   label: "Status Summary Cards",  visible: false, order: 3 },
-    { id: "contractTable",   label: "Contract Table",        visible: false, order: 4 },
+    // statusSummary + contractTable + expiryAlerts + rightsMatrix drive
+    // inline sections in ContractsView. rightsIssues is a registered
+    // dashboard widget.
+    { id: "statusSummary", label: "Status Summary Cards", visible: true, order: 0 },
+    { id: "contractTable", label: "Contract Table",       visible: true, order: 1 },
+    { id: "expiryAlerts",  label: "Expiry Alerts",        visible: true, order: 2 },
+    { id: "rightsIssues",  label: "Rights Issues",        visible: true, order: 3 },
+    { id: "rightsMatrix",  label: "Rights Matrix",        visible: true, order: 4 },
   ],
   admin: [
-    { id: "systemStatus",   label: "System Status",   visible: false, order: 0 },
-    { id: "userManagement", label: "User Management", visible: false, order: 1 },
-    { id: "auditLog",       label: "Audit Log",       visible: false, order: 2 },
-    { id: "settings",       label: "Settings",        visible: false, order: 3 },
+    // Each gates an inline section in AdminView.
+    { id: "systemStatus",   label: "System Status",   visible: true, order: 0 },
+    { id: "userManagement", label: "User Management", visible: true, order: 1 },
+    { id: "auditLog",       label: "Audit Log",       visible: true, order: 2 },
+    { id: "settings",       label: "Settings",        visible: true, order: 3 },
   ],
 }
 
