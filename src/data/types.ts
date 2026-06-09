@@ -247,6 +247,12 @@ export interface Team {
   shortName?: string
   country?: string
   logoUrl?: string
+  sportId?: number | null
+  canonicalTeamId?: string | null
+  notes?: string | null
+  isManaged?: boolean
+  externalRefs?: Record<string, unknown>
+  sport?: { id: number; name: string; icon: string } | null
 }
 
 export interface Court {

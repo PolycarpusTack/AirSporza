@@ -1,6 +1,8 @@
 export { eventsApi } from './events'
 export type { ConflictWarning } from './events'
 export { sportsApi, competitionsApi } from './sports'
+export { teamsApi } from './teams'
+export type { TeamListParams, TeamInput } from './teams'
 export { techPlansApi } from './techPlans'
 export { contractsApi } from './contracts'
 export { encodersApi } from './encoders'

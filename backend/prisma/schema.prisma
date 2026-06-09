@@ -163,6 +163,7 @@ model Sport {
   tenant                Tenant                 @relation(fields: [tenantId], references: [id])
   competitions          Competition[]
   events                Event[]
+  teams                 Team[]
   canonicalTeams        CanonicalTeam[]
   canonicalCompetitions CanonicalCompetition[]
   mandatoryFieldConfig  MandatoryFieldConfig?
@@ -782,6 +783,7 @@ model CanonicalTeam {
   sport         Sport         @relation(fields: [sportId], references: [id])
   primarySource ImportSource? @relation("CanonicalTeamSource", fields: [primarySourceId], references: [id])
   aliases       TeamAlias[]
+  teams         Team[]
 
   @@unique([sportId, primaryName])
   @@index([tenantId])
@@ -1119,20 +1121,33 @@ model Venue {
 }
 
 model Team {
-  id           Int      @id @default(autoincrement())
-  tenantId     String   @db.Uuid
-  name         String
-  shortName    String?
-  country      String?
-  logoUrl      String?
-  externalRefs Json     @default("{}")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  tenantId        String   @db.Uuid
+  name            String
+  shortName       String?
+  country         String?
+  logoUrl         String?
+  sportId         Int?
+  // Bridge to the import/dedup layer. Populated when an imported CanonicalTeam
+  // is projected into this operational record; null for manually-created teams.
+  canonicalTeamId String?  @db.Uuid
+  // Editorial remarks — manual-only, never written by an import sync.
+  notes           String?
+  // True once a human has curated this record. Imports still refresh it, but
+  // field-level provenance (`manual`) protects edited fields from overwrite.
+  isManaged       Boolean  @default(false)
+  externalRefs    Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  sport         Sport?         @relation(fields: [sportId], references: [id])
+  canonicalTeam CanonicalTeam? @relation(fields: [canonicalTeamId], references: [id])
 
   @@unique([tenantId, name])
   @@index([tenantId])
+  @@index([tenantId, sportId])
+  @@index([canonicalTeamId])
 }
 
 model Court {

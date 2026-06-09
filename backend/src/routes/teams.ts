@@ -7,18 +7,23 @@ import * as s from '../schemas/teams.js'
 
 const router = Router()
 
-// List all teams for tenant (with optional search)
+// List all teams for tenant (with optional search / sport / managed filters)
 router.get('/', async (req, res, next) => {
   try {
-    const { search } = req.query
+    const { search, sportId, managed } = req.query
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (search && typeof search === 'string') {
       where.name = { contains: search, mode: 'insensitive' }
     }
+    if (sportId && typeof sportId === 'string' && !Number.isNaN(Number(sportId))) {
+      where.sportId = Number(sportId)
+    }
+    if (managed === 'true') where.isManaged = true
 
     const teams = await prisma.team.findMany({
       where,
+      include: { sport: { select: { id: true, name: true, icon: true } } },
       orderBy: { name: 'asc' }
     })
     res.json(teams)
@@ -66,7 +71,7 @@ router.get('/:id', validate({ params: s.idParam }), async (req, res, next) => {
 // Create team
 router.post('/', authenticate, authorize('admin'), validate({ body: s.teamCreateSchema }), async (req, res, next) => {
   try {
-    const { name, shortName, country, logoUrl, externalRefs } = req.body
+    const { name, shortName, country, logoUrl, sportId, notes, isManaged, externalRefs } = req.body
 
     const team = await prisma.team.create({
       data: {
@@ -74,6 +79,9 @@ router.post('/', authenticate, authorize('admin'), validate({ body: s.teamCreate
         shortName,
         country,
         logoUrl,
+        sportId,
+        notes,
+        isManaged: isManaged ?? false,
         externalRefs,
         tenantId: req.tenantId!
       }
@@ -93,10 +101,30 @@ router.put('/:id', authenticate, authorize('admin'), validate({ params: s.idPara
     })
     if (!existing) return next(createError(404, 'Team not found'))
 
-    const { name, shortName, country, logoUrl, externalRefs } = req.body
+    const { name, shortName, country, logoUrl, sportId, notes, isManaged, externalRefs } = req.body
     const team = await prisma.team.update({
       where: { id: existing.id },
-      data: { name, shortName, country, logoUrl, externalRefs }
+      data: { name, shortName, country, logoUrl, sportId, notes, isManaged, externalRefs }
+    })
+
+    res.json(team)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Update editorial remarks only (manual-only field, protected from import sync).
+// Editable by sports planners and admins — not gated to admin like structural edits.
+router.patch('/:id/notes', authenticate, authorize('admin', 'sports'), validate({ params: s.idParam, body: s.teamNotesSchema }), async (req, res, next) => {
+  try {
+    const existing = await prisma.team.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
+    })
+    if (!existing) return next(createError(404, 'Team not found'))
+
+    const team = await prisma.team.update({
+      where: { id: existing.id },
+      data: { notes: req.body.notes }
     })
 
     res.json(team)

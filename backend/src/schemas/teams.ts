@@ -8,6 +8,9 @@ export const teamCreateSchema = z.object({
   shortName: z.string().nullable().optional(),
   country: z.string().nullable().optional(),
   logoUrl: z.string().url().or(z.literal('')).nullable().optional(),
+  sportId: z.number().int().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  isManaged: z.boolean().optional(),
   externalRefs: z.record(z.string(), z.unknown()).default({}),
 })
 
@@ -16,5 +19,13 @@ export const teamUpdateSchema = z.object({
   shortName: z.string().nullable().optional(),
   country: z.string().nullable().optional(),
   logoUrl: z.string().url().or(z.literal('')).nullable().optional(),
+  sportId: z.number().int().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  isManaged: z.boolean().optional(),
   externalRefs: z.record(z.string(), z.unknown()).optional(),
+})
+
+// Remarks-only update — editable by sports planners, not just admins.
+export const teamNotesSchema = z.object({
+  notes: z.string().nullable(),
 })
