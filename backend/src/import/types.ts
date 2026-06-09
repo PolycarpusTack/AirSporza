@@ -41,6 +41,9 @@ export interface NormalizedTeam {
   sport: string
   country?: string
   logoUrl?: string
+  // Source record ids of the competitions/leagues this team belongs to, used to
+  // auto-create TeamCompetition memberships during import.
+  competitionSourceIds?: string[]
 }
 
 export interface CanonicalImportEvent {

@@ -107,6 +107,7 @@ model Tenant {
   importSchedules       ImportSchedule[]
   venues                Venue[]
   teams                 Team[]
+  teamCompetitions      TeamCompetition[]
   courts                Court[]
   seasons               Season[]
   stages                Stage[]
@@ -182,12 +183,13 @@ model Competition {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  sport          Sport          @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  sport          Sport             @relation(fields: [sportId], references: [id], onDelete: Cascade)
   events         Event[]
   contracts      Contract[]
   seasons        Season[]
   rightsPolicies RightsPolicy[]
+  teamLinks      TeamCompetition[]
 
   @@unique([sportId, name, season])
   @@index([sportId])
@@ -1140,14 +1142,38 @@ model Team {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
-  sport         Sport?         @relation(fields: [sportId], references: [id])
-  canonicalTeam CanonicalTeam? @relation(fields: [canonicalTeamId], references: [id])
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  sport            Sport?            @relation(fields: [sportId], references: [id])
+  canonicalTeam    CanonicalTeam?    @relation(fields: [canonicalTeamId], references: [id])
+  competitionLinks TeamCompetition[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
   @@index([tenantId, sportId])
   @@index([canonicalTeamId])
+}
+
+// Team ↔ competition/season membership ("assign to league"). A team in multiple
+// competitions has one row each. seasonId null = "all seasons". The DB-level
+// @@unique can't dedupe the null-season case (NULLs are distinct in Postgres);
+// the route guards against that with an explicit existence check.
+model TeamCompetition {
+  id            Int      @id @default(autoincrement())
+  tenantId      String   @db.Uuid
+  teamId        Int
+  competitionId Int
+  seasonId      Int?
+  source        String   @default("manual") // manual | the_sports_db | ...
+  createdAt     DateTime @default(now())
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  team        Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  season      Season?     @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, competitionId, seasonId])
+  @@index([tenantId, competitionId])
+  @@index([teamId])
 }
 
 model Court {
@@ -1184,12 +1210,13 @@ model Season {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  competition    Competition    @relation(fields: [competitionId], references: [id])
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  competition    Competition       @relation(fields: [competitionId], references: [id])
   stages         Stage[]
   events         Event[]
   contracts      Contract[]
   rightsPolicies RightsPolicy[]
+  teamLinks      TeamCompetition[]
 
   @@unique([tenantId, competitionId, name])
   @@index([tenantId])

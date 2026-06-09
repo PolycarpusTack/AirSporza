@@ -967,6 +967,8 @@ async function projectCanonicalTeamToOperational(params: {
     (await prisma.team.findFirst({ where: { tenantId, canonicalTeamId } })) ??
     (await prisma.team.findFirst({ where: { tenantId, name: normalized.name } }))
 
+  let teamId: number
+
   if (!existing) {
     const created = await prisma.team.create({
       data: {
@@ -980,6 +982,7 @@ async function projectCanonicalTeamToOperational(params: {
         externalRefs: { [normalized.sourceCode]: normalized.sourceId },
       },
     })
+    teamId = created.id
 
     await recordFieldProvenance({
       entityType: 'team',
@@ -989,10 +992,7 @@ async function projectCanonicalTeamToOperational(params: {
       sourceRecordId: normalized.sourceId,
       sourceUpdatedAt: null,
     })
-    return
-  }
-
-  if (existing.isManaged) {
+  } else if (existing.isManaged) {
     await prisma.team.update({
       where: { id: existing.id },
       data: {
@@ -1001,36 +1001,88 @@ async function projectCanonicalTeamToOperational(params: {
         logoUrl: existing.logoUrl ?? normalized.logoUrl ?? null,
       },
     })
-    return
+    teamId = existing.id
+  } else {
+    const currentSources = await getFieldSourceCodes('team', String(existing.id))
+    const data: Prisma.TeamUpdateInput = { canonicalTeam: { connect: { id: canonicalTeamId } }, sport: { connect: { id: sportId } } }
+    const applied: string[] = []
+
+    if (shouldApplyImportedField('name', normalized.sourceCode, currentSources.name)) {
+      data.name = normalized.name
+      applied.push('name')
+    }
+    if (shouldApplyImportedField('country', normalized.sourceCode, currentSources.country)) {
+      data.country = normalized.country ?? null
+      applied.push('country')
+    }
+    if (shouldApplyImportedField('logoUrl', normalized.sourceCode, currentSources.logoUrl)) {
+      data.logoUrl = normalized.logoUrl ?? null
+      applied.push('logoUrl')
+    }
+
+    await prisma.team.update({ where: { id: existing.id }, data })
+    teamId = existing.id
+
+    if (applied.length > 0) {
+      await recordFieldProvenance({
+        entityType: 'team',
+        entityId: String(existing.id),
+        fieldNames: applied,
+        sourceId,
+        sourceRecordId: normalized.sourceId,
+        sourceUpdatedAt: null,
+      })
+    }
   }
 
-  const currentSources = await getFieldSourceCodes('team', String(existing.id))
-  const data: Prisma.TeamUpdateInput = { canonicalTeam: { connect: { id: canonicalTeamId } }, sport: { connect: { id: sportId } } }
-  const applied: string[] = []
-
-  if (shouldApplyImportedField('name', normalized.sourceCode, currentSources.name)) {
-    data.name = normalized.name
-    applied.push('name')
-  }
-  if (shouldApplyImportedField('country', normalized.sourceCode, currentSources.country)) {
-    data.country = normalized.country ?? null
-    applied.push('country')
-  }
-  if (shouldApplyImportedField('logoUrl', normalized.sourceCode, currentSources.logoUrl)) {
-    data.logoUrl = normalized.logoUrl ?? null
-    applied.push('logoUrl')
-  }
-
-  await prisma.team.update({ where: { id: existing.id }, data })
-
-  if (applied.length > 0) {
-    await recordFieldProvenance({
-      entityType: 'team',
-      entityId: String(existing.id),
-      fieldNames: applied,
+  // Auto-assign the team to the competition(s) it was imported under.
+  if (normalized.competitionSourceIds?.length) {
+    await linkImportedTeamCompetitions({
+      tenantId,
+      teamId,
+      competitionSourceIds: normalized.competitionSourceIds,
       sourceId,
-      sourceRecordId: normalized.sourceId,
-      sourceUpdatedAt: null,
+      sourceCode: normalized.sourceCode,
+    })
+  }
+}
+
+/**
+ * Create TeamCompetition memberships for an imported team, resolving each league
+ * source-record id to a local competition via its ImportSourceLink. Idempotent:
+ * skips memberships that already exist (incl. the null-season case the DB unique
+ * can't dedupe). Unknown competitions are skipped silently.
+ */
+async function linkImportedTeamCompetitions(params: {
+  tenantId: string
+  teamId: number
+  competitionSourceIds: string[]
+  sourceId: string
+  sourceCode: string
+}) {
+  const { tenantId, teamId, competitionSourceIds, sourceId, sourceCode } = params
+
+  for (const competitionSourceId of competitionSourceIds) {
+    const link = await prisma.importSourceLink.findUnique({
+      where: {
+        sourceId_sourceRecordId_entityType: {
+          sourceId,
+          sourceRecordId: competitionSourceId,
+          entityType: 'competition',
+        },
+      },
+    })
+
+    const competitionId = link?.entityId ? Number(link.entityId) : NaN
+    if (Number.isNaN(competitionId)) continue
+
+    const existingMembership = await prisma.teamCompetition.findFirst({
+      where: { teamId, competitionId, seasonId: null },
+    })
+    if (existingMembership) continue
+
+    await prisma.teamCompetition.create({
+      data: { tenantId, teamId, competitionId, seasonId: null, source: sourceCode },
     })
   }
 }

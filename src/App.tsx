@@ -196,6 +196,7 @@ function AppContent() {
                     <div className="p-4 sm:p-5">
                       <TeamsView
                         sports={sports}
+                        competitions={competitions}
                         canEdit={user?.role === 'sports' || user?.role === 'admin'}
                       />
                     </div>

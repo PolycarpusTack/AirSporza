@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Plus, X, ShieldCheck, Lock, RefreshCw, Users } from 'lucide-react'
-import type { Sport, Team } from '../data/types'
-import { teamsApi, type TeamInput } from '../services'
+import {
+  Search, Plus, X, ShieldCheck, Lock, RefreshCw, Users, ChevronDown, ChevronRight, Trophy,
+} from 'lucide-react'
+import type { Competition, Sport, Team } from '../data/types'
+import { teamsApi, type TeamCompetitionLink, type TeamInput } from '../services'
 import { Badge, Button, EmptyState, Modal, Toggle } from '../components/ui'
 import { useToast } from '../components/Toast'
 
 interface TeamsViewProps {
   sports: Sport[]
+  competitions: Competition[]
   canEdit: boolean
 }
 
@@ -44,22 +47,35 @@ function Crest({ team, size = 34 }: { team: Pick<Team, 'name' | 'logoUrl'>; size
   )
 }
 
-export function TeamsView({ sports, canEdit }: TeamsViewProps) {
+export function TeamsView({ sports, competitions, canEdit }: TeamsViewProps) {
   const toast = useToast()
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
   const [sportId, setSportId] = useState<number | null>(null)
+  const [competitionId, setCompetitionId] = useState<number | null>(null)
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [search, setSearch] = useState('')
   const [managedOnly, setManagedOnly] = useState(false)
   const [selected, setSelected] = useState<Team | null>(null)
   const [tab, setTab] = useState<DrawerTab>('overview')
   const [showAdd, setShowAdd] = useState(false)
 
+  const competitionsBySport = useMemo(() => {
+    const m = new Map<number, Competition[]>()
+    for (const c of competitions) {
+      const list = m.get(c.sportId) ?? []
+      list.push(c)
+      m.set(c.sportId, list)
+    }
+    return m
+  }, [competitions])
+
   const loadTeams = useCallback(async () => {
     setLoading(true)
     try {
       const data = await teamsApi.list({
-        sportId: sportId ?? undefined,
+        sportId: competitionId == null ? (sportId ?? undefined) : undefined,
+        competitionId: competitionId ?? undefined,
         managed: managedOnly || undefined,
       })
       setTeams(data)
@@ -68,7 +84,7 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
     } finally {
       setLoading(false)
     }
-  }, [sportId, managedOnly, toast])
+  }, [sportId, competitionId, managedOnly, toast])
 
   useEffect(() => {
     void loadTeams()
@@ -82,11 +98,33 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
     )
   }, [teams, search])
 
-  const countsBySport = useMemo(() => {
-    const m = new Map<number, number>()
-    for (const t of teams) if (t.sportId != null) m.set(t.sportId, (m.get(t.sportId) ?? 0) + 1)
-    return m
-  }, [teams])
+  const scopeLabel = useMemo(() => {
+    if (competitionId != null) return competitions.find((c) => c.id === competitionId)?.name ?? null
+    if (sportId != null) return sports.find((s) => s.id === sportId)?.name ?? null
+    return null
+  }, [competitionId, sportId, competitions, sports])
+
+  function selectAll() {
+    setSportId(null)
+    setCompetitionId(null)
+  }
+  function selectSport(id: number) {
+    setSportId(id)
+    setCompetitionId(null)
+    setExpanded((prev) => new Set(prev).add(id))
+  }
+  function selectCompetition(c: Competition) {
+    setCompetitionId(c.id)
+    setSportId(c.sportId)
+  }
+  function toggleExpand(id: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   async function handleToggleManaged(team: Team) {
     try {
@@ -103,41 +141,63 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
     }
   }
 
-  function openTeam(team: Team) {
-    setSelected(team)
-    setTab('overview')
-  }
+  const treeBtn = (active: boolean) =>
+    `w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+      active ? 'bg-primary/10 text-primary' : 'text-text-2 hover:bg-surface-2 hover:text-text'
+    }`
 
   return (
     <div className="flex gap-4 min-h-[calc(100vh-7rem)]">
       {/* Tree */}
-      <aside className="w-52 flex-shrink-0">
+      <aside className="w-56 flex-shrink-0">
         <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-text-3 font-mono mb-1">
           Repository
         </p>
-        <button
-          onClick={() => setSportId(null)}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-            sportId === null ? 'bg-primary/10 text-primary' : 'text-text-2 hover:bg-surface-2 hover:text-text'
-          }`}
-        >
+        <button onClick={selectAll} className={treeBtn(sportId === null && competitionId === null)}>
           <Users className="w-4 h-4" />
           <span className="flex-1 text-left">All teams</span>
-          <span className="text-[10px] font-mono text-text-3">{teams.length}</span>
         </button>
-        {sports.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setSportId(s.id)}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              sportId === s.id ? 'bg-primary/10 text-primary' : 'text-text-2 hover:bg-surface-2 hover:text-text'
-            }`}
-          >
-            <span className="text-base leading-none">{s.icon}</span>
-            <span className="flex-1 text-left truncate">{s.name}</span>
-            <span className="text-[10px] font-mono text-text-3">{countsBySport.get(s.id) ?? 0}</span>
-          </button>
-        ))}
+
+        {sports.map((s) => {
+          const comps = competitionsBySport.get(s.id) ?? []
+          const isOpen = expanded.has(s.id)
+          return (
+            <div key={s.id}>
+              <div className={treeBtn(sportId === s.id && competitionId === null)}>
+                {comps.length > 0 ? (
+                  <button
+                    onClick={() => toggleExpand(s.id)}
+                    className="text-text-3 hover:text-text -ml-1"
+                    aria-label={isOpen ? 'Collapse' : 'Expand'}
+                  >
+                    {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  </button>
+                ) : (
+                  <span className="w-3.5" />
+                )}
+                <button onClick={() => selectSport(s.id)} className="flex items-center gap-2.5 flex-1 min-w-0">
+                  <span className="text-base leading-none">{s.icon}</span>
+                  <span className="flex-1 text-left truncate">{s.name}</span>
+                </button>
+              </div>
+              {isOpen &&
+                comps.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => selectCompetition(c)}
+                    className={`w-full flex items-center gap-2 pl-9 pr-3 py-1.5 rounded-md text-[12.5px] transition-all border-l border-border ml-4 ${
+                      competitionId === c.id
+                        ? 'bg-primary/10 text-primary border-primary'
+                        : 'text-text-2 hover:bg-surface-2 hover:text-text'
+                    }`}
+                  >
+                    <Trophy className="w-3 h-3 flex-shrink-0 opacity-70" />
+                    <span className="flex-1 text-left truncate">{c.name}</span>
+                  </button>
+                ))}
+            </div>
+          )
+        })}
       </aside>
 
       {/* Main */}
@@ -147,7 +207,7 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
             <h1 className="font-head text-2xl font-bold tracking-tight">Squads &amp; Athletes</h1>
             <p className="text-text-2 text-sm mt-0.5">
               {loading ? 'Loading…' : `${filtered.length} team${filtered.length === 1 ? '' : 's'}`}
-              {sportId !== null && ` · ${sports.find((s) => s.id === sportId)?.name ?? ''}`}
+              {scopeLabel && ` · ${scopeLabel}`}
             </p>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -186,7 +246,7 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon="🏟️"
-            title="No teams yet"
+            title="No teams here yet"
             subtitle={
               canEdit
                 ? 'Add a team manually, or import a competition from the Import workspace.'
@@ -212,7 +272,10 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
                 {filtered.map((t) => (
                   <tr
                     key={t.id}
-                    onClick={() => openTeam(t)}
+                    onClick={() => {
+                      setSelected(t)
+                      setTab('overview')
+                    }}
                     className="border-b border-border/60 last:border-0 hover:bg-surface-2 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-2.5">
@@ -255,6 +318,7 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
       {selected && (
         <TeamDrawer
           team={selected}
+          competitions={competitions}
           tab={tab}
           setTab={setTab}
           canEdit={canEdit}
@@ -263,13 +327,16 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
             setTeams((prev) => prev.map((t) => (t.id === selected.id ? { ...t, notes } : t)))
             setSelected({ ...selected, notes })
           }}
+          onMembershipChange={loadTeams}
         />
       )}
 
       {showAdd && (
         <AddTeamModal
           sports={sports}
+          competitions={competitions}
           defaultSportId={sportId}
+          defaultCompetitionId={competitionId}
           onClose={() => setShowAdd(false)}
           onCreated={(team) => {
             setShowAdd(false)
@@ -286,18 +353,22 @@ export function TeamsView({ sports, canEdit }: TeamsViewProps) {
 
 function TeamDrawer({
   team,
+  competitions,
   tab,
   setTab,
   canEdit,
   onClose,
   onSavedNotes,
+  onMembershipChange,
 }: {
   team: Team
+  competitions: Competition[]
   tab: DrawerTab
   setTab: (t: DrawerTab) => void
   canEdit: boolean
   onClose: () => void
   onSavedNotes: (notes: string | null) => void
+  onMembershipChange: () => void
 }) {
   const toast = useToast()
   const [notes, setNotes] = useState(team.notes ?? '')
@@ -377,13 +448,20 @@ function TeamDrawer({
                 Identity
               </p>
               {fields.map(([label, value]) => (
-                <div key={label} className="py-3 border-b border-border/50 last:border-0">
+                <div key={label} className="py-3 border-b border-border/50">
                   <div className="text-[10.5px] font-semibold uppercase tracking-wide text-text-3 font-mono mb-1">
                     {label}
                   </div>
                   <div className="text-sm">{value || <span className="text-text-3">—</span>}</div>
                 </div>
               ))}
+
+              <CompetitionMemberships
+                team={team}
+                competitions={competitions}
+                canEdit={canEdit}
+                onChange={onMembershipChange}
+              />
             </div>
           )}
 
@@ -443,16 +521,148 @@ function TeamDrawer({
   )
 }
 
+/* ---------------- Competition memberships ---------------- */
+
+function CompetitionMemberships({
+  team,
+  competitions,
+  canEdit,
+  onChange,
+}: {
+  team: Team
+  competitions: Competition[]
+  canEdit: boolean
+  onChange: () => void
+}) {
+  const toast = useToast()
+  const [links, setLinks] = useState<TeamCompetitionLink[]>([])
+  const [loading, setLoading] = useState(true)
+  const [addId, setAddId] = useState<number | ''>('')
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setLinks(await teamsApi.listCompetitions(team.id))
+    } catch {
+      /* non-fatal */
+    } finally {
+      setLoading(false)
+    }
+  }, [team.id])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const linkedIds = new Set(links.map((l) => l.competitionId))
+  const assignable = competitions.filter(
+    (c) => !linkedIds.has(c.id) && (team.sportId == null || c.sportId === team.sportId),
+  )
+
+  async function add() {
+    if (!addId) return
+    setBusy(true)
+    try {
+      await teamsApi.addCompetition(team.id, Number(addId))
+      setAddId('')
+      await load()
+      onChange()
+      toast.success('Assigned to competition')
+    } catch {
+      toast.error('Could not assign')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(link: TeamCompetitionLink) {
+    setBusy(true)
+    try {
+      await teamsApi.removeCompetition(team.id, link.id)
+      await load()
+      onChange()
+    } catch {
+      toast.error('Could not remove')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="pt-4">
+      <p className="text-[10.5px] font-semibold uppercase tracking-widest text-text-3 font-mono mb-2.5">
+        Competitions
+      </p>
+
+      {loading ? (
+        <div className="h-8 bg-surface-2 rounded-md animate-pulse" />
+      ) : links.length === 0 ? (
+        <p className="text-sm text-text-3 mb-2">Not assigned to any competition yet.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {links.map((l) => (
+            <span
+              key={l.id}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-surface-3 text-text-2 text-[11.5px]"
+            >
+              <Trophy className="w-3 h-3 opacity-70" />
+              {l.competition?.name ?? `Competition ${l.competitionId}`}
+              {l.source !== 'manual' && (
+                <span className="text-[9px] font-mono text-text-3 uppercase">· {l.source}</span>
+              )}
+              {canEdit && (
+                <button
+                  onClick={() => remove(l)}
+                  disabled={busy}
+                  className="ml-0.5 rounded-full hover:bg-danger-bg hover:text-danger p-0.5"
+                  aria-label="Remove"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {canEdit && assignable.length > 0 && (
+        <div className="flex items-center gap-2 mt-2">
+          <select
+            value={addId}
+            onChange={(e) => setAddId(e.target.value ? Number(e.target.value) : '')}
+            className="flex-1 bg-surface-2 border border-border rounded-md px-2.5 py-1.5 text-[13px] outline-none focus:border-primary"
+          >
+            <option value="">Assign to competition…</option>
+            {assignable.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" variant="secondary" onClick={add} disabled={!addId || busy}>
+            Assign
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ---------------- Add team modal ---------------- */
 
 function AddTeamModal({
   sports,
+  competitions,
   defaultSportId,
+  defaultCompetitionId,
   onClose,
   onCreated,
 }: {
   sports: Sport[]
+  competitions: Competition[]
   defaultSportId: number | null
+  defaultCompetitionId: number | null
   onClose: () => void
   onCreated: (team: Team) => void
 }) {
@@ -464,12 +674,15 @@ function AddTeamModal({
     sportId: defaultSportId,
     isManaged: true,
   })
+  const [competitionId, setCompetitionId] = useState<number | ''>(defaultCompetitionId ?? '')
   const [saving, setSaving] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     nameRef.current?.focus()
   }, [])
+
+  const assignable = competitions.filter((c) => form.sportId == null || c.sportId === form.sportId)
 
   async function submit() {
     if (!form.name.trim()) {
@@ -483,6 +696,13 @@ function AddTeamModal({
         shortName: form.shortName || null,
         country: form.country || null,
       })
+      if (competitionId) {
+        try {
+          await teamsApi.addCompetition(team.id, Number(competitionId))
+        } catch {
+          /* team created; membership is best-effort */
+        }
+      }
       onCreated(team)
     } catch {
       toast.error('Could not create team (name may already exist)')
@@ -528,20 +748,41 @@ function AddTeamModal({
             />
           </div>
         </div>
-        <div>
-          <label className={label}>Sport</label>
-          <select
-            className={input}
-            value={form.sportId ?? ''}
-            onChange={(e) => setForm({ ...form, sportId: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">— none —</option>
-            {sports.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={label}>Sport</label>
+            <select
+              className={input}
+              value={form.sportId ?? ''}
+              onChange={(e) => {
+                const v = e.target.value ? Number(e.target.value) : null
+                setForm({ ...form, sportId: v })
+                setCompetitionId('')
+              }}
+            >
+              <option value="">— none —</option>
+              {sports.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={label}>Competition</label>
+            <select
+              className={input}
+              value={competitionId}
+              onChange={(e) => setCompetitionId(e.target.value ? Number(e.target.value) : '')}
+            >
+              <option value="">— optional —</option>
+              {assignable.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
       <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">

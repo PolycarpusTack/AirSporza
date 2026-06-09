@@ -29,3 +29,9 @@ export const teamUpdateSchema = z.object({
 export const teamNotesSchema = z.object({
   notes: z.string().nullable(),
 })
+
+// Assign a team to a competition (optionally scoped to a season).
+export const teamCompetitionCreateSchema = z.object({
+  competitionId: z.number().int(),
+  seasonId: z.number().int().nullable().optional(),
+})

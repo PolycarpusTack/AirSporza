@@ -125,6 +125,7 @@ export class TheSportsDbAdapter extends BaseAdapter {
       sport,
       country: data.strCountry ? String(data.strCountry) : undefined,
       logoUrl: data.strBadge ? String(data.strBadge) : undefined,
+      competitionSourceIds: data.idLeague ? [String(data.idLeague)] : undefined,
     }
   }
 

@@ -10,7 +10,7 @@ const router = Router()
 // List all teams for tenant (with optional search / sport / managed filters)
 router.get('/', async (req, res, next) => {
   try {
-    const { search, sportId, managed } = req.query
+    const { search, sportId, competitionId, managed } = req.query
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (search && typeof search === 'string') {
@@ -18,6 +18,9 @@ router.get('/', async (req, res, next) => {
     }
     if (sportId && typeof sportId === 'string' && !Number.isNaN(Number(sportId))) {
       where.sportId = Number(sportId)
+    }
+    if (competitionId && typeof competitionId === 'string' && !Number.isNaN(Number(competitionId))) {
+      where.competitionLinks = { some: { competitionId: Number(competitionId) } }
     }
     if (managed === 'true') where.isManaged = true
 
@@ -128,6 +131,85 @@ router.patch('/:id/notes', authenticate, authorize('admin', 'sports'), validate(
     })
 
     res.json(team)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// List a team's competition memberships
+router.get('/:id/competitions', validate({ params: s.idParam }), async (req, res, next) => {
+  try {
+    const team = await prisma.team.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
+    })
+    if (!team) return next(createError(404, 'Team not found'))
+
+    const links = await prisma.teamCompetition.findMany({
+      where: { teamId: team.id, tenantId: req.tenantId },
+      include: {
+        competition: { select: { id: true, name: true, season: true, sportId: true } },
+        season: { select: { id: true, name: true } },
+      },
+      orderBy: { id: 'asc' },
+    })
+    res.json(links)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Assign a team to a competition
+router.post('/:id/competitions', authenticate, authorize('admin', 'sports'), validate({ params: s.idParam, body: s.teamCompetitionCreateSchema }), async (req, res, next) => {
+  try {
+    const team = await prisma.team.findFirst({
+      where: { id: Number(req.params.id), tenantId: req.tenantId }
+    })
+    if (!team) return next(createError(404, 'Team not found'))
+
+    const { competitionId, seasonId } = req.body
+    const competition = await prisma.competition.findFirst({
+      where: { id: competitionId, tenantId: req.tenantId }
+    })
+    if (!competition) return next(createError(404, 'Competition not found'))
+
+    // Guard the null-season case the DB-level @@unique can't dedupe.
+    const existing = await prisma.teamCompetition.findFirst({
+      where: { teamId: team.id, competitionId, seasonId: seasonId ?? null },
+    })
+    if (existing) {
+      return res.status(200).json(existing)
+    }
+
+    const link = await prisma.teamCompetition.create({
+      data: {
+        tenantId: req.tenantId!,
+        teamId: team.id,
+        competitionId,
+        seasonId: seasonId ?? null,
+        source: 'manual',
+      },
+      include: { competition: { select: { id: true, name: true, season: true } } },
+    })
+    res.status(201).json(link)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Remove a team's competition membership
+router.delete('/:id/competitions/:linkId', authenticate, authorize('admin', 'sports'), async (req, res, next) => {
+  try {
+    const teamId = Number(req.params.id)
+    const linkId = Number(req.params.linkId)
+    if (Number.isNaN(teamId) || Number.isNaN(linkId)) return next(createError(400, 'Invalid id'))
+
+    const link = await prisma.teamCompetition.findFirst({
+      where: { id: linkId, teamId, tenantId: req.tenantId },
+    })
+    if (!link) return next(createError(404, 'Membership not found'))
+
+    await prisma.teamCompetition.delete({ where: { id: link.id } })
+    res.json({ message: 'Membership removed' })
   } catch (error) {
     next(error)
   }
