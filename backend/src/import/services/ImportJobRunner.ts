@@ -927,7 +927,112 @@ async function upsertTeam(sourceId: string, tenantId: string, normalized: Normal
     sourceUpdatedAt: null,
   })
 
+  // Bridge: project the canonical record into the operational `Team` table that
+  // the Squads UI and event linking target. Manual edits are preserved (see below).
+  await projectCanonicalTeamToOperational({
+    tenantId,
+    sportId: sport.id,
+    canonicalTeamId: canonicalTeam.id,
+    normalized,
+    sourceId,
+  })
+
   return existingLink ? 'updated' as const : 'created' as const
+}
+
+/**
+ * Mirror an imported CanonicalTeam into the operational `Team` table.
+ *
+ * Match order: existing bridge link (canonicalTeamId) → unique (tenantId, name).
+ * - New team: created from the imported fields.
+ * - Managed team (curated by a human): only the canonical link, sport, and logo
+ *   are refreshed; identity fields (name/country/shortName/notes) are left intact
+ *   so manual edits survive re-sync.
+ * - Unmanaged team: imported fields are applied subject to cross-source field
+ *   priority via `shouldApplyImportedField`, and provenance is recorded.
+ *
+ * Note: slight name variants across sources can still create a duplicate operational
+ * row; reconciling those is handled by the merge-candidate flow (later phase).
+ */
+async function projectCanonicalTeamToOperational(params: {
+  tenantId: string
+  sportId: number
+  canonicalTeamId: string
+  normalized: NormalizedTeam
+  sourceId: string
+}) {
+  const { tenantId, sportId, canonicalTeamId, normalized, sourceId } = params
+
+  const existing =
+    (await prisma.team.findFirst({ where: { tenantId, canonicalTeamId } })) ??
+    (await prisma.team.findFirst({ where: { tenantId, name: normalized.name } }))
+
+  if (!existing) {
+    const created = await prisma.team.create({
+      data: {
+        tenantId,
+        name: normalized.name,
+        country: normalized.country ?? null,
+        logoUrl: normalized.logoUrl ?? null,
+        sportId,
+        canonicalTeamId,
+        isManaged: false,
+        externalRefs: { [normalized.sourceCode]: normalized.sourceId },
+      },
+    })
+
+    await recordFieldProvenance({
+      entityType: 'team',
+      entityId: String(created.id),
+      fieldNames: ['name', 'country', 'logoUrl'],
+      sourceId,
+      sourceRecordId: normalized.sourceId,
+      sourceUpdatedAt: null,
+    })
+    return
+  }
+
+  if (existing.isManaged) {
+    await prisma.team.update({
+      where: { id: existing.id },
+      data: {
+        canonicalTeamId,
+        sportId: existing.sportId ?? sportId,
+        logoUrl: existing.logoUrl ?? normalized.logoUrl ?? null,
+      },
+    })
+    return
+  }
+
+  const currentSources = await getFieldSourceCodes('team', String(existing.id))
+  const data: Prisma.TeamUpdateInput = { canonicalTeam: { connect: { id: canonicalTeamId } }, sport: { connect: { id: sportId } } }
+  const applied: string[] = []
+
+  if (shouldApplyImportedField('name', normalized.sourceCode, currentSources.name)) {
+    data.name = normalized.name
+    applied.push('name')
+  }
+  if (shouldApplyImportedField('country', normalized.sourceCode, currentSources.country)) {
+    data.country = normalized.country ?? null
+    applied.push('country')
+  }
+  if (shouldApplyImportedField('logoUrl', normalized.sourceCode, currentSources.logoUrl)) {
+    data.logoUrl = normalized.logoUrl ?? null
+    applied.push('logoUrl')
+  }
+
+  await prisma.team.update({ where: { id: existing.id }, data })
+
+  if (applied.length > 0) {
+    await recordFieldProvenance({
+      entityType: 'team',
+      entityId: String(existing.id),
+      fieldNames: applied,
+      sourceId,
+      sourceRecordId: normalized.sourceId,
+      sourceUpdatedAt: null,
+    })
+  }
 }
 
 async function upsertEvent(sourceId: string, tenantId: string, rawRecord: RawSourceRecord, normalized: CanonicalImportEvent) {

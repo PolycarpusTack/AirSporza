@@ -1,5 +1,5 @@
 import { BaseAdapter } from './BaseAdapter.js'
-import type { FetchWindow, RawSourceRecord, NormalizedCompetition, CanonicalImportEvent } from '../types.js'
+import type { FetchWindow, RawSourceRecord, NormalizedCompetition, NormalizedTeam, CanonicalImportEvent } from '../types.js'
 
 interface TheSportsDbConfig {
   apiKey: string
@@ -8,6 +8,7 @@ interface TheSportsDbConfig {
 
 type SportsDbEnvelope<T> = {
   leagues?: T[]
+  teams?: T[]
   events?: T[]
 }
 
@@ -53,6 +54,25 @@ export class TheSportsDbAdapter extends BaseAdapter {
     }))
   }
 
+  async fetchTeams(input: FetchWindow): Promise<RawSourceRecord[]> {
+    const leagueIds = input.competitionIds || []
+    const records: RawSourceRecord[] = []
+
+    for (const leagueId of leagueIds) {
+      const data = await this.request<Record<string, unknown>>(`lookup_all_teams.php?id=${leagueId}`)
+      for (const team of data.teams || []) {
+        records.push({
+          id: String(team.idTeam),
+          type: 'team' as const,
+          raw: team,
+          fetchedAt: new Date(),
+        })
+      }
+    }
+
+    return records
+  }
+
   async fetchFixtures(input: FetchWindow): Promise<RawSourceRecord[]> {
     const dates = enumerateDates(input.dateFrom, input.dateTo)
     const records: RawSourceRecord[] = []
@@ -87,6 +107,23 @@ export class TheSportsDbAdapter extends BaseAdapter {
       sport,
       country: data.strCountry ? String(data.strCountry) : undefined,
       season: data.strCurrentSeason ? String(data.strCurrentSeason) : undefined,
+      logoUrl: data.strBadge ? String(data.strBadge) : undefined,
+    }
+  }
+
+  normalizeTeam(raw: RawSourceRecord): NormalizedTeam | null {
+    const data = raw.raw as Record<string, unknown>
+    const sport = mapSportName(data.strSport)
+    if (!data.idTeam || !data.strTeam || !sport) {
+      return null
+    }
+
+    return {
+      sourceCode: 'the_sports_db',
+      sourceId: String(data.idTeam),
+      name: String(data.strTeam),
+      sport,
+      country: data.strCountry ? String(data.strCountry) : undefined,
       logoUrl: data.strBadge ? String(data.strBadge) : undefined,
     }
   }
