@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Btn } from '../ui'
-import { weekMonday, addDays, dateStr, timeToMinutes } from '../../utils/dateTime'
+import { weekMonday, addDays, dateStr, timeToMinutes, effectiveDurationMin } from '../../utils/dateTime'
 import type { Resource, ResourceAssignment } from '../../services/resources'
 import type { Event, Sport } from '../../data/types'
 
@@ -51,7 +51,6 @@ function sportColor(sportName: string): { bg: string; border: string; text: stri
 const CAL_START_HOUR = 8
 const CAL_END_HOUR = 23
 const CAL_TOTAL_MINUTES = (CAL_END_HOUR - CAL_START_HOUR) * 60
-const DEFAULT_DURATION_HOURS = 3
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -113,8 +112,12 @@ export function ResourceTimeline({ resources, assignments, events, sports }: Res
 
         const startTime = ev.startTimeBE ?? '12:00'
         const startMin = timeToMinutes(startTime)
-        const durHours = ev.duration ? parseFloat(ev.duration) : DEFAULT_DURATION_HOURS
-        const durMin = Math.max(durHours * 60, 30)
+        // quality-pass fix (C-quality): unified duration accessor — durations
+        // are MINUTES app-wide (was parseFloat-as-HOURS + 3h default, so '120'
+        // rendered a 120-hour bar). Default fallback 90; the existing 30-min
+        // visual minimum is kept purely for RENDERING so zero/tiny durations
+        // still produce a visible, hoverable bar (no conflict semantics here).
+        const durMin = Math.max(effectiveDurationMin(ev), 30)
 
         bars.push({
           assignmentId: a.id,

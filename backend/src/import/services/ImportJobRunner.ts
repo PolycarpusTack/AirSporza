@@ -16,7 +16,7 @@ import { mergeImportJobStats, nextLeaseExpiry, readImportJobStats } from './Impo
 import type { RawSourceRecord } from '../types.js'
 import { loadJob, normalizeRecordType, readCount, scopeToRecordType, type JobWithSource } from '../stages/shared.js'
 import { createProgressController } from '../stages/progress.js'
-import { handleJobFailure } from '../stages/failure.js'
+import { handleJobFailure, writeSyncHistory } from '../stages/failure.js'
 import { getSourceCompetitionIds } from '../stages/records.js'
 import { formatDateOffset } from '../stages/provision.js'
 import { processCompetitionRecord, processEventRecord, processTeamRecord } from '../stages/process.js'
@@ -114,22 +114,15 @@ export async function runImportJob(jobId: string, options: RunImportJobOptions =
       data: { lastFetchAt: new Date() }
     })
 
-    await prisma.syncHistory.create({
-      data: {
-        tenantId: job.tenantId,
-        entityType: job.entityScope,
-        entityId: null,
-        sourceCode: job.source.code,
-        syncType: 'manual',
-        triggeredBy: String(finalStats.requestedBy || 'system'),
-        status: result.status === 'completed' ? 'success' : 'partial',
-        recordsProcessed: finalStats.recordsProcessed || 0,
-        recordsCreated: finalStats.recordsCreated || 0,
-        recordsUpdated: finalStats.recordsUpdated || 0,
-        recordsSkipped: finalStats.recordsSkipped || 0,
-        errorMessage: result.message ?? null,
-      }
-    })
+    // quality-pass fix: use the shared (guarded) helper — the previous inline
+    // create was unguarded, so a syncHistory write failure after a COMPLETED
+    // import fell into catch -> handleJobFailure and misclassified the job.
+    await writeSyncHistory(
+      job,
+      finalStats,
+      result.status === 'completed' ? 'success' : 'partial',
+      result.message ?? null
+    )
   } catch (error) {
     await progress.stop()
     await handleJobFailure(job, adapter, progress.snapshot(), error)

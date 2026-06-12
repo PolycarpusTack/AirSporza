@@ -165,6 +165,35 @@ describe('detectCrewConflicts', () => {
     expect(detectCrewConflicts([planFor(1, 100), planFor(3, 101)], [e1, at2145]).size).toBe(0)
   })
 
+  it('honors the numeric durationMin field over the deprecated duration string', () => {
+    // quality-pass fix (C-quality): unified duration accessor — conflict
+    // windows previously ignored durationMin entirely, so migrated events got
+    // the wrong window. durationMin 120 → 20:00–22:00 despite duration '30'.
+    const e1 = makeEvent({ id: 1, startTimeBE: '20:00', durationMin: 120, duration: '30' })
+    const inside = makeEvent({ id: 2, startTimeBE: '21:30' })
+    const outside = makeEvent({ id: 3, startTimeBE: '22:30' })
+    const planFor = (eventId: number, id: number) => makePlan({ id, eventId, crew: { director: 'Jane' } })
+
+    expect(detectCrewConflicts([planFor(1, 100), planFor(2, 101)], [e1, inside]).size).toBe(2)
+    expect(detectCrewConflicts([planFor(1, 100), planFor(3, 101)], [e1, outside]).size).toBe(0)
+  })
+
+  it('applies a conservative 90-min floor to zero-duration events (placeholder feeds still conflict)', () => {
+    // quality-pass fix (C-quality): unified duration accessor — a zero-width
+    // window can never overlap, so placeholder '00:00:00' / durationMin 0
+    // would silently disable conflict detection. The floor keeps it on.
+    const zeroStr = makeEvent({ id: 1, startTimeBE: '20:00', duration: '00:00:00' }) // floored: 20:00–21:30
+    const zeroMin = makeEvent({ id: 2, startTimeBE: '20:00', durationMin: 0 })       // floored: 20:00–21:30
+    const at2030 = makeEvent({ id: 3, startTimeBE: '20:30' })
+    const at2145 = makeEvent({ id: 4, startTimeBE: '21:45' })
+    const planFor = (eventId: number, id: number) => makePlan({ id, eventId, crew: { director: 'Jane' } })
+
+    expect(detectCrewConflicts([planFor(1, 100), planFor(3, 101)], [zeroStr, at2030]).size).toBe(2)
+    expect(detectCrewConflicts([planFor(2, 100), planFor(3, 101)], [zeroMin, at2030]).size).toBe(2)
+    // the floor is exactly 90 min — 21:45 is outside the floored window
+    expect(detectCrewConflicts([planFor(1, 100), planFor(4, 101)], [zeroStr, at2145]).size).toBe(0)
+  })
+
   it('detects multi-day spans (a 30-hour duration conflicts with an event the next day)', () => {
     // TD-15 fix (C-0-T1): 30 hours expressed in minutes ('1800'), not hours ('30')
     const e1 = makeEvent({ id: 1, startDateBE: '2026-06-12', startTimeBE: '20:00', duration: '1800' }) // ends 2026-06-14 02:00

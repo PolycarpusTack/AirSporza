@@ -184,6 +184,33 @@ describe('computeReadiness', () => {
     expect(onDemand.checks.find(c => c.key === 'channel')?.status).toBe('pass')
   })
 
+  it('accepts a numeric durationMin as satisfying the duration check', () => {
+    // quality-pass fix (C-quality): unified duration accessor — mirrors the
+    // TD-17 channelId pattern: events migrated to durationMin (no legacy
+    // duration string) previously FAILED the duration check.
+    const event = makeEvent({ duration: undefined, durationMin: 120 })
+    const result = computeReadiness(event, [makePlan()], [makeContract()], [])
+
+    expect(result.checks.find(c => c.key === 'duration')?.status).toBe('pass')
+  })
+
+  it('treats durationMin = 0 as a real (set) duration, not a missing one', () => {
+    // quality-pass fix (C-quality): unified duration accessor — 0 is a valid
+    // explicit zero-minute duration (TD-16 semantics), not "unset".
+    const event = makeEvent({ duration: undefined, durationMin: 0 })
+    const result = computeReadiness(event, [makePlan()], [makeContract()], [])
+
+    expect(result.checks.find(c => c.key === 'duration')?.status).toBe('pass')
+  })
+
+  it('still fails the duration check when durationMin is null and no duration string is set', () => {
+    // quality-pass fix (C-quality): unified duration accessor
+    const event = makeEvent({ duration: undefined, durationMin: null })
+    const result = computeReadiness(event, [makePlan()], [makeContract()], [])
+
+    expect(result.checks.find(c => c.key === 'duration')?.status).toBe('fail')
+  })
+
   it('still fails the channel check when ids are null and no string field is set', () => {
     // TD-17 fix (C-0-T3): null ids are "unset", not a pass
     const event = makeEvent({

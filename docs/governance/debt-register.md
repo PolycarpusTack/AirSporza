@@ -12,16 +12,11 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 
 ---
 
-## TD-1 — `ImportJobRunner.ts` god file
+## TD-1 — `ImportJobRunner.ts` god file — ✅ SETTLED (C-1, 2026-06-12)
 
-- **Artifact:** `backend/src/import/services/ImportJobRunner.ts` (**1660 lines** — verified)
-- **Type:** code
-- **Cause:** import pipeline grew stage-by-stage (fetch → normalize → dedupe → merge → provision) inside one class under delivery pressure; no extraction pass.
-- **Principal:** L
-- **Interest:** **high** — every import feature (new adapters, Players entity scope) navigates 1660 lines; change risk and review cost grow per touch.
-- **Compounding:** **yes** — EPIC G (Players) would clone the team path through it; the checkpoint's "clone the team path" advice is explicitly superseded for this reason.
-- **Servicing decision:** **pay down in EPIC C story C-1** (characterize, then split into stage modules) — hard prerequisite ordering: before EPIC G builds on it.
-- **Origin:** 2026-06-12 evaluation (Code Health: 7 god files).
+- **Resolution:** decomposed to a 330-line orchestrator + `stages/` (shared, provision, records, process, progress, failure); pure moves, suite green with zero test edits; `ImportStages` contract snapshot is the EPIC G interface.
+- **Residual (carried as TD-21):** the three `process*Record` functions are near-identical copies — collapse into a generic `processRecord(normalizeFn, upsertFn)` when EPIC G adds the player path (do NOT add a fourth copy).
+- **Origin:** 2026-06-12 evaluation.
 
 ## TD-2 — `routes/import.ts` god file
 
@@ -199,6 +194,14 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** fix with TD-15's story; until then readiness badges under-report for channelId-only events (known limitation).
 - **Origin:** B-3-T1 finding 15.
 
+## TD-15 → TD-18 status (C-0 + C-quality pass, 2026-06-12)
+
+- **TD-15 ✅ settled** (crewConflicts on minutes via shared accessor) — except finding 3 (unparseable date/time silently drops assignments), carried here: principal S, interest low, fix when `detectCrewConflicts` return shape next changes.
+- **TD-16 ✅ settled** — `parseDurationMin` handles HH:MM:SS/'45m'/'0'; `effectiveDurationMin` is THE app-wide accessor (dateTime.ts), honored by calendarLayout, CalendarGrid height/drag, crewConflicts, resourceConflicts, ResourceTimeline, eventReadiness. `getDateKey`/`timeToMinutes`/`fmtAgo` quirks remain pinned (out of scope, low interest).
+- **TD-17 ✅ settled** (readiness accepts channelId/radioChannelId/onDemandChannelId + durationMin).
+- **TD-18 ✅ settled + hardened**: fail-visible preflight; quality pass closed a review-found hole — confirmation is now keyed to the exact warning-set signature the user saw (a stale/clean/unavailable confirmation never auto-passes fresh warnings; `useConflictCheck.test.ts`).
+- **Quality-pass extras:** resourceConflicts/ResourceTimeline still had the pre-TD-15 HOURS logic (fixed — the split-brain was app-wide, not crew-only); runner success path now uses guarded `writeSyncHistory` (a syncHistory write failure no longer misclassifies a completed import as failed); AppProvider incremental loading got cancellation on user-switch + failure reset (stale-events leak).
+
 ## TD-18 — Conflict preflight fails open
 
 - **Artifact:** `src/components/forms/hooks/useConflictCheck.ts:49-54` — pinned by `DynamicEventForm.test.tsx`
@@ -220,6 +223,28 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Compounding:** yes — EPIC C's PlannerView decomposition (TD-3) touches this code.
 - **Servicing decision:** fix within **EPIC C TD-3 story** via the B-3-T3 extraction note (`usePlannerUndo` hook); the characterization suite is the safety net.
 - **Origin:** B-3-T3 findings 1-7 (+ finding 8: `PlannerView.dnd.test.tsx` replicates logic in-test and cannot catch src changes — retire it into the new suite during the same story).
+
+## TD-20 — Import progress stats can regress after a swallowed write failure
+
+- **Artifact:** `backend/src/import/stages/progress.ts` (~line 88, `checkCancelled` merge) — pinned by `cascade-engine`-style review, moved code (pre-existing)
+- **Type:** code (reliability)
+- **Cause:** `queueWrite` swallows statsJson UPDATE failures while `checkCancelled` merges DB stats OVER in-memory stats — one transient write failure regresses counters to stale DB values; subsequent increments build on the regressed numbers.
+- **Principal:** S
+- **Interest:** **low-med** — final job stats and syncHistory undercount after transient DB hiccups mid-import.
+- **Compounding:** no.
+- **Servicing decision:** fix when the import pipeline is next touched (EPIC G): merge direction should prefer in-memory counters for monotonic fields.
+- **Origin:** C-quality review pass (Angle A finding 5), 2026-06-12.
+
+## TD-21 — `process*Record` triplication in the process stage
+
+- **Artifact:** `backend/src/import/stages/process.ts`
+- **Type:** code
+- **Cause:** C-1 moved the three near-identical processors verbatim (pure-move discipline — collapsing them would have been a behavior-risk in a refactor commit).
+- **Principal:** S
+- **Interest:** none until EPIC G, then **med** (a fourth copy for players would compound).
+- **Compounding:** yes (EPIC G).
+- **Servicing decision:** **collapse into generic `processRecord(normalizeFn, upsertFn, onReview?)` as the FIRST task of EPIC G story G-3** — the player path must not be a fourth copy.
+- **Origin:** C-quality review pass (cleanup angle), 2026-06-12.
 
 ---
 

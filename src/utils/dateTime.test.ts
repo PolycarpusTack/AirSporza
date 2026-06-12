@@ -23,6 +23,7 @@ import {
   getDateKey,
   timeToMinutes,
   parseDurationMin,
+  effectiveDurationMin,
   fmtAgo,
   fmtDateTime,
 } from './dateTime'
@@ -210,6 +211,38 @@ describe('parseDurationMin', () => {
     // durations are now parsed.
     expect(parseDurationMin('45m')).toBe(45)
     expect(parseDurationMin('120 min')).toBe(120)
+  })
+})
+
+// quality-pass fix (C-quality): unified duration accessor
+describe('effectiveDurationMin', () => {
+  it('returns the numeric durationMin when present (preferred over the duration string)', () => {
+    expect(effectiveDurationMin({ durationMin: 600 })).toBe(600)
+    expect(effectiveDurationMin({ durationMin: 30, duration: '600' })).toBe(30)
+  })
+
+  it('returns 0 for durationMin = 0 (a real zero, not a fallback trigger)', () => {
+    expect(effectiveDurationMin({ durationMin: 0 })).toBe(0)
+    expect(effectiveDurationMin({ durationMin: 0, duration: '120' })).toBe(0)
+    expect(effectiveDurationMin({ durationMin: 0 }, 45)).toBe(0)
+  })
+
+  it('falls back to parsing the duration string when durationMin is null or undefined', () => {
+    expect(effectiveDurationMin({ durationMin: null, duration: '120' })).toBe(120)
+    expect(effectiveDurationMin({ duration: '01:30:00' })).toBe(90)
+    expect(effectiveDurationMin({ duration: '0' })).toBe(0)
+  })
+
+  it('ignores a negative durationMin and falls through to the string / fallback', () => {
+    expect(effectiveDurationMin({ durationMin: -5, duration: '60' })).toBe(60)
+    expect(effectiveDurationMin({ durationMin: -5 })).toBe(90)
+  })
+
+  it('returns the fallback (default 90) when neither field yields a duration', () => {
+    expect(effectiveDurationMin({})).toBe(90)
+    expect(effectiveDurationMin({ durationMin: null, duration: null })).toBe(90)
+    expect(effectiveDurationMin({ duration: 'garbage' }, 45)).toBe(45)
+    expect(effectiveDurationMin({}, 45)).toBe(45)
   })
 })
 

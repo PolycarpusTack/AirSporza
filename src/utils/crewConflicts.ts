@@ -1,5 +1,5 @@
 import type { Event, TechPlan } from '../data/types'
-import { parseDurationMin } from './dateTime'
+import { effectiveDurationMin } from './dateTime'
 
 export interface CrewConflict {
   personName: string
@@ -24,10 +24,16 @@ function parseEventWindow(event: Event): { start: number; end: number } | null {
   const start = new Date(`${dateStr}T${event.startTimeBE}:00`).getTime()
   if (isNaN(start)) return null
 
-  // TD-15 fix: durations are MINUTES app-wide via parseDurationMin (default
-  // 90 min) — previously parseFloat-as-HOURS with a 3h default, so '01:30:00'
-  // became a 1-hour window and explicit durations were 60x too long.
-  const durationMs = parseDurationMin(event.duration) * 60000
+  // TD-15 fix: durations are MINUTES app-wide — previously parseFloat-as-HOURS
+  // with a 3h default, so '01:30:00' became a 1-hour window and explicit
+  // durations were 60x too long.
+  // quality-pass fix (C-quality): unified duration accessor — durationMin is
+  // now honored too (it was ignored here). CONFLICT WINDOWS additionally get a
+  // conservative 90-min floor: a zero-width window can never overlap anything,
+  // so placeholder durations like '00:00:00' (common in imported feeds) would
+  // silently disable conflict detection for that event.
+  const durationMin = effectiveDurationMin(event)
+  const durationMs = (durationMin === 0 ? 90 : durationMin) * 60000
 
   return { start, end: start + durationMs }
 }

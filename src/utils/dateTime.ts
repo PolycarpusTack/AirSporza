@@ -84,6 +84,24 @@ export function parseDurationMin(duration?: string | null, fallback = 90): numbe
   return fallback
 }
 
+/**
+ * THE app-wide accessor for an event's effective duration in minutes.
+ * quality-pass fix (C-quality): unified duration accessor — every consumer
+ * (calendar layout, crew/resource conflicts, readiness, card rendering) must
+ * interpret durations through this one function so they always agree.
+ *
+ * Prefers the numeric `durationMin` field (0 is a real zero-minute duration,
+ * per TD-16), falling back to parsing the deprecated `duration` string via
+ * parseDurationMin (minutes app-wide, default fallback 90).
+ */
+export function effectiveDurationMin(
+  ev: { durationMin?: number | null; duration?: string | null },
+  fallbackMin = 90
+): number {
+  if (typeof ev.durationMin === 'number' && ev.durationMin >= 0) return ev.durationMin
+  return parseDurationMin(ev.duration || '', fallbackMin)
+}
+
 /** Format a relative "X ago" label from an ISO timestamp. */
 export function fmtAgo(iso: string | null): string {
   if (!iso) return '—'

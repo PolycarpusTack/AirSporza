@@ -80,11 +80,17 @@ export function computeReadiness(
     status: hasChannel ? 'pass' : 'fail',
   })
 
-  // duration: duration is truthy
+  // duration: numeric durationMin (0 is a real, explicit zero-minute duration
+  // per TD-16) OR the deprecated duration string.
+  // quality-pass fix (C-quality): unified duration accessor — mirrors the
+  // TD-17 channelId pattern: events migrated to durationMin previously FAILED.
+  const hasDuration =
+    (typeof event.durationMin === 'number' && event.durationMin >= 0) ||
+    Boolean(event.duration)
   checks.push({
     key: 'duration',
     label: 'Duration',
-    status: event.duration ? 'pass' : 'fail',
+    status: hasDuration ? 'pass' : 'fail',
   })
 
   const scored = checks.filter(c => c.status !== 'na')

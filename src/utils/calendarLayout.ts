@@ -1,6 +1,6 @@
 // ── Calendar layout constants & helpers ──────────────────────────────────────
 
-import { timeToMinutes, parseDurationMin } from './dateTime'
+import { timeToMinutes, effectiveDurationMin } from './dateTime'
 import type { Event, EventStatus, BadgeVariant } from '../data/types'
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -22,15 +22,11 @@ export const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
 
 // ── Layout functions ─────────────────────────────────────────────────────────
 
-/**
- * Effective event duration in minutes for layout.
- * TD-16 fix (finding 12): honor the numeric `durationMin` field when present,
- * falling back to parsing the deprecated `duration` string.
- */
-function effectiveDurationMin(ev: Event): number {
-  if (typeof ev.durationMin === 'number' && ev.durationMin >= 0) return ev.durationMin
-  return parseDurationMin(ev.duration)
-}
+// Durations: the shared dateTime.effectiveDurationMin accessor (durationMin
+// preferred, else parseDurationMin on the deprecated string, fallback 90).
+// quality-pass fix (C-quality): unified duration accessor — the former private
+// copy moved to dateTime.ts unchanged, so layout keeps its zero-duration
+// semantics (a true 0 stays 0: zero-width events don't collide).
 
 export function eventTopPx(time: string): number {
   const mins = timeToMinutes(time)

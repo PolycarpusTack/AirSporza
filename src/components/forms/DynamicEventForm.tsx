@@ -218,7 +218,7 @@ export function DynamicEventForm({
         startDateBE: form.startDateBE as string,
         startTimeBE: form.startTimeBE as string,
         status: editEvent?.status,
-      }, !!conflictCheck.conflicts)
+      })
 
       // TD-18 fix: anything but an explicit 'pass' halts the save —
       // 'unavailable' (preflight API failure) now blocks with a visible

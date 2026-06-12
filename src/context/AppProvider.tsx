@@ -101,6 +101,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       return
     }
+    // Cancellation guard: when the user changes mid-stream, in-flight page
+    // callbacks from the previous run must not write into the new state
+    // (quality-pass fix: stale pages leaked across user switches).
+    let cancelled = false
     const fetchData = async () => {
       try {
         setLoading(true)
@@ -114,6 +118,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               {
                 pageSize: 200,
                 onPage: (items, { first }) => {
+                  if (cancelled) return
                   if (first) {
                     setEvents(items)
                     setLoading(false)
@@ -122,7 +127,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   }
                 },
               }
-            ).then(() => [] as Event[]).catch(() => null)
+            ).then(() => true).catch(() => null)
           : eventsApi.list().catch(() => null)
 
         const [eventsData, plansData, sportsData, competitionsData] = await Promise.all([
@@ -131,9 +136,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           sportsApi.list().catch(() => null),
           competitionsApi.list().catch(() => null),
         ])
+        if (cancelled) return
 
         if (!incremental) {
-          setEvents(eventsData ? eventsData as Event[] : [])
+          setEvents(Array.isArray(eventsData) ? eventsData as Event[] : [])
+        } else if (!eventsData) {
+          // Incremental fetch failed: reset like the legacy path does, so a
+          // failed reload (e.g. after a user switch) never shows stale events.
+          setEvents([])
         }
         setTechPlans(plansData ? plansData as TechPlan[] : [])
         if (sportsData) setSports(sportsData)
@@ -152,14 +162,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       } catch (error) {
         console.error('Failed to fetch data:', error)
-        setEvents([])
-        setTechPlans([])
-        toast.error('Failed to connect to API — please check your connection')
+        if (!cancelled) {
+          setEvents([])
+          setTechPlans([])
+          toast.error('Failed to connect to API — please check your connection')
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     fetchData()
+    return () => { cancelled = true }
   }, [user])
 
   const prevRoleRef = useRef<Role | null>(null)
