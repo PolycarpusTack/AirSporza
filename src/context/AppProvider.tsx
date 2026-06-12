@@ -19,6 +19,7 @@ import {
   COMPETITIONS,
 } from '../data'
 import { eventsApi, settingsApi, techPlansApi, sportsApi, competitionsApi } from '../services'
+import { fetchAllPages, isIncrementalLoadingEnabled, mergeById } from '../utils/pagedFetch'
 import { useToast } from '../components/Toast'
 import { useAuth, useSocket } from '../hooks'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, OrgConfig, Role, RoleConfig, Sport, Competition } from '../data/types'
@@ -100,18 +101,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       return
     }
+    // Cancellation guard: when the user changes mid-stream, in-flight page
+    // callbacks from the previous run must not write into the new state
+    // (quality-pass fix: stale pages leaked across user switches).
+    let cancelled = false
     const fetchData = async () => {
       try {
         setLoading(true)
+        const incremental = isIncrementalLoadingEnabled()
+
+        const eventsPromise = incremental
+          // INCREMENTAL_LOADING (B-4-T3): first page renders immediately,
+          // remaining pages stream in and merge without clobbering socket inserts
+          ? fetchAllPages<Event>(
+              (limit, offset) => eventsApi.listPaged(limit, offset),
+              {
+                pageSize: 200,
+                onPage: (items, { first }) => {
+                  if (cancelled) return
+                  if (first) {
+                    setEvents(items)
+                    setLoading(false)
+                  } else {
+                    setEvents(prev => mergeById(prev, items))
+                  }
+                },
+              }
+            ).then(() => true).catch(() => null)
+          : eventsApi.list().catch(() => null)
+
         const [eventsData, plansData, sportsData, competitionsData] = await Promise.all([
-          eventsApi.list().catch(() => null),
+          eventsPromise,
           techPlansApi.list().catch(() => null),
           sportsApi.list().catch(() => null),
           competitionsApi.list().catch(() => null),
         ])
+        if (cancelled) return
 
-
-        setEvents(eventsData ? eventsData as Event[] : [])
+        if (!incremental) {
+          setEvents(Array.isArray(eventsData) ? eventsData as Event[] : [])
+        } else if (!eventsData) {
+          // Incremental fetch failed: reset like the legacy path does, so a
+          // failed reload (e.g. after a user switch) never shows stale events.
+          setEvents([])
+        }
         setTechPlans(plansData ? plansData as TechPlan[] : [])
         if (sportsData) setSports(sportsData)
         if (competitionsData) setCompetitions(competitionsData)
@@ -129,14 +162,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       } catch (error) {
         console.error('Failed to fetch data:', error)
-        setEvents([])
-        setTechPlans([])
-        toast.error('Failed to connect to API — please check your connection')
+        if (!cancelled) {
+          setEvents([])
+          setTechPlans([])
+          toast.error('Failed to connect to API — please check your connection')
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     fetchData()
+    return () => { cancelled = true }
   }, [user])
 
   const prevRoleRef = useRef<Role | null>(null)

@@ -253,7 +253,7 @@ async function main() {
   }
 
   const jplRegular = await ensureStage(jplSeason.id, 'Regular Season', StageType.LEAGUE, 1)
-  const jplPlayoffs = await ensureStage(jplSeason.id, 'Championship Playoffs', StageType.KNOCKOUT, 2)
+  await ensureStage(jplSeason.id, 'Championship Playoffs', StageType.KNOCKOUT, 2)
   const clGroup = await ensureStage(clSeason.id, 'Group Stage', StageType.GROUP, 1)
 
   async function ensureRound(stageId: number, name: string, roundNumber: number, start?: Date, end?: Date) {

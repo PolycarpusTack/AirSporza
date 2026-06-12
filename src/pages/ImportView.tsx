@@ -272,7 +272,7 @@ function JobsTab() {
   }, [])
 
   const toggleExpand = (id: string) =>
-    setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    setExpanded(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   const handleCancel = async (id: string) => {
     const res = await importsApi.cancelJob(id).catch(err => { handleApiError(err, 'Failed to cancel job', toast); return null })

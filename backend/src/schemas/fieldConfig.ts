@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { positiveInt } from './common.js'
 
 const fieldTypeEnum = z.enum([
   'text',

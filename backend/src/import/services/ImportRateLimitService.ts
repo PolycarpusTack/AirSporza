@@ -25,11 +25,6 @@ type AdapterRateConfig = {
   burstLimit?: number
 }
 
-type AcquireResult =
-  | { action: 'acquired' }
-  | { action: 'wait'; waitMs: number }
-  | { action: 'daily_exceeded'; retryAt: Date }
-
 const MINUTE_MS = 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 

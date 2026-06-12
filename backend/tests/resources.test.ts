@@ -32,14 +32,6 @@ const mockResource = (prisma as unknown as {
 
 const mockTransaction = (prisma as unknown as { $transaction: ReturnType<typeof vi.fn> }).$transaction
 
-const mockAssignment = (prisma as unknown as {
-  resourceAssignment: {
-    create: ReturnType<typeof vi.fn>
-    delete: ReturnType<typeof vi.fn>
-    findMany: ReturnType<typeof vi.fn>
-  }
-}).resourceAssignment
-
 describe('GET /api/resources', () => {
   it('returns list', async () => {
     mockResource.findMany.mockResolvedValue([{ id: 1, name: 'OB Van 1', type: 'ob_van', capacity: 1 }])

@@ -11,10 +11,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
     "dev:full": "concurrently \"npm run dev\" \"cd backend && npm run dev\" \"cd backend && npm run worker:dev\"",
-    "setup:db": "cd backend && npm run db:push && npm run db:seed",
-    "setup": "npm install && cd backend && npm install && npm run db:generate && npm run db:push && npm run db:seed"
+    "setup:db": "cd backend && npm run db:deploy && npm run db:seed",
+    "setup": "npm install && cd backend && npm install && npm run db:generate && npm run db:deploy && npm run db:seed"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -27,6 +29,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
@@ -36,11 +41,12 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "globals": "^15.14.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.18.2",
-    "vite": "^6.0.5"
-  },
-  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017"
+    "vite": "^6.0.5",
+    "vitest": "^3.2.6"
+  }
 }

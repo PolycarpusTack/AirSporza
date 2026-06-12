@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getValueByPath, applyTransform, applyFieldMappings } from '../src/integrations/fieldMapper'
-import type { FieldMapping, FieldOverride, TransformType } from '../src/integrations/types'
+import type { FieldMapping, FieldOverride } from '../src/integrations/types'
 
 describe('getValueByPath', () => {
   it('extracts nested values', () => {

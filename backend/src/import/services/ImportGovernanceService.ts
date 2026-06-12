@@ -1,7 +1,7 @@
 import { prisma } from '../../db/prisma.js'
 import { FIELD_SOURCE_PRIORITY, PROTECTED_FIELDS, type EntityType, type SourceCode } from '../types.js'
 
-type GovernedEntityType = Extract<EntityType, 'competition' | 'team' | 'event'>
+type GovernedEntityType = Extract<EntityType, 'competition' | 'team' | 'player' | 'event'>
 
 export function isProtectedImportedField(fieldName: string) {
   return PROTECTED_FIELDS.includes(fieldName)

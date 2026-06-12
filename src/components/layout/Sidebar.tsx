@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Calendar, Users, FileText, Settings, Upload, Tv } from 'lucide-react'
+import { Calendar, Users, FileText, Settings, Upload, Tv, Shirt } from 'lucide-react'
 import type { Role, RoleConfig, User } from '../../data/types'
 import { useApp } from '../../context/AppProvider'
 
@@ -12,6 +12,7 @@ interface SidebarProps {
 const NAV_MAIN = [
   { label: 'Planner',   icon: Calendar,  path: '/planner',   roles: ['planner','sports','contracts','admin'] as Role[] },
   { label: 'Sports',    icon: Users,     path: '/sports',    roles: ['planner','sports','admin'] as Role[] },
+  { label: 'Squads',    icon: Shirt,     path: '/teams',     roles: ['planner','sports','admin'] as Role[] },
   { label: 'Contracts', icon: FileText,  path: '/contracts', roles: ['planner','contracts','admin'] as Role[] },
   { label: 'Import',    icon: Upload,    path: '/import',    roles: ['planner','admin'] as Role[] },
   { label: 'Schedule',  icon: Tv,        path: '/schedule',  roles: ['planner','sports','admin'] as Role[] },

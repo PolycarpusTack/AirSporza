@@ -1,5 +1,6 @@
 import type { Event } from '../data/types'
 import type { Resource, ResourceAssignment } from '../services/resources'
+import { effectiveDurationMin } from './dateTime'
 
 export interface ResourceConflict {
   resourceName: string
@@ -16,8 +17,6 @@ export interface ResourceConflict {
   }[]
 }
 
-const DEFAULT_DURATION_HOURS = 3
-
 function parseEventWindow(event: Event): { start: number; end: number } | null {
   const dateStr = typeof event.startDateBE === 'string'
     ? event.startDateBE
@@ -27,11 +26,15 @@ function parseEventWindow(event: Event): { start: number; end: number } | null {
   const start = new Date(`${dateStr}T${event.startTimeBE}:00`).getTime()
   if (isNaN(start)) return null
 
-  let durationMs = DEFAULT_DURATION_HOURS * 3600000
-  if (event.duration) {
-    const parsed = parseFloat(event.duration)
-    if (!isNaN(parsed) && parsed > 0) durationMs = parsed * 3600000
-  }
+  // quality-pass fix (C-quality): unified duration accessor — durations are
+  // MINUTES app-wide via effectiveDurationMin (durationMin preferred, else the
+  // parsed duration string, default 90). This replaces the last PRE-TD-15
+  // parseFloat-as-HOURS + 3h-default logic, under which '120' meant 120 HOURS
+  // and '01:30:00' truncated to 1 hour. CONFLICT WINDOWS get a conservative
+  // 90-min floor: a zero-width window can never overlap anything, so
+  // placeholder '00:00:00' feeds would silently disable conflict detection.
+  const durationMin = effectiveDurationMin(event)
+  const durationMs = (durationMin === 0 ? 90 : durationMin) * 60000
 
   return { start, end: start + durationMs }
 }

@@ -1,5 +1,10 @@
 # Planza — Session Status
 
+> **⚠️ STALE (superseded 2026-06-12):** the "pending database migrations" below were verified
+> APPLIED, and schema is now owned by `prisma migrate` (see `docs/governance/migration-audit-2026-06.md`
+> and `docs/governance/runbook-ci-and-migrations.md`). Current project state lives in
+> `docs/plans/2026-06-12-epic-a-phase-summary.md` and the task backlog.
+
 _Last updated: 2026-03-04_
 
 ---

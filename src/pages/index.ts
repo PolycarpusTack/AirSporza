@@ -1,5 +1,6 @@
 export { PlannerView } from './PlannerView'
 export { SportsWorkspace } from './SportsWorkspace'
+export { TeamsView } from './TeamsView'
 export { ContractsView } from './ContractsView'
 export { IntegrationSettings } from './IntegrationSettings'
 export { AdminView } from './AdminView'

@@ -31,6 +31,7 @@ coverage/
 .cache/
 
 # ── Database ──────────────────────────────────────────────────────────────────
+backups/
 *.db
 *.db-journal
 *.db-shm

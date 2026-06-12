@@ -84,7 +84,6 @@ export function ContractsView({ widgets }: ContractsViewProps) {
   const canManageContracts = user?.role === 'admin' || user?.role === 'contracts'
 
   const visWidgets = widgets.filter(w => w.visible).sort((a, b) => a.order - b.order)
-  const showSummary = visWidgets.some(w => w.id === 'statusSummary')
   const showTable   = visWidgets.some(w => w.id === 'contractTable')
   const showAlerts  = visWidgets.some(w => w.id === 'expiryAlerts')
   const showMatrix  = visWidgets.some(w => w.id === 'rightsMatrix')
@@ -181,19 +180,6 @@ export function ContractsView({ widgets }: ContractsViewProps) {
           )
         })}
       </div>
-
-      {/* Legacy widgets */}
-      {showSummary && false /* pipeline replaces summary */ && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-fade-in">
-          {Object.entries(statusConf).map(([k, v]) => (
-            <div key={k} className="card p-4">
-              <div className="text-2xl mb-1">{v.i}</div>
-              <div className="score text-foreground">{data.filter(c => c.status === k).length}</div>
-              <div className="text-xs text-muted">{v.l}</div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {showAlerts && expiringContracts.length > 0 && (
         <div className="animate-fade-in rounded-md border border-warning/25 bg-warning/10 p-4">

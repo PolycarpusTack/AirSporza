@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, type ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import type { Event, Contract, FieldConfig } from '../../data/types'
-import { dateStr, getDateKey, timeToMinutes, parseDurationMin } from '../../utils/dateTime'
+import { dateStr, getDateKey, timeToMinutes, effectiveDurationMin } from '../../utils/dateTime'
 import {
   CAL_START_HOUR, CAL_END_HOUR, PX_PER_HOUR, CAL_HEIGHT,
   eventTopPx, eventHeightPx, computeOverlapLayout,
@@ -283,7 +283,11 @@ export function CalendarGrid({ weekDays, todayStr, events, onEventClick, getChan
               {dayEvs.map(ev => {
                 const time = ev.linearStartTime || ev.startTimeBE
                 const top = eventTopPx(time)
-                const durationMin = parseDurationMin(ev.duration)
+                // quality-pass fix (C-quality): unified duration accessor —
+                // card height and drag duration previously ignored durationMin,
+                // so the card height disagreed with computeOverlapLayout's
+                // columns (which honor it). Same accessor everywhere now.
+                const durationMin = effectiveDurationMin(ev)
                 const height = eventHeightPx(durationMin)
                 const col = getChannelColor(ev.channelId)
                 const sp = sportsMap.get(ev.sportId)

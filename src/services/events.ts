@@ -30,18 +30,34 @@ function stripEventPayload(data: Partial<Event>): Record<string, unknown> {
   return rest
 }
 
+// One serialization rule for event list filters — list and listPaged must
+// never encode filters differently (flag-dependent data splits are invisible).
+function buildEventParams(filters?: EventFilters): URLSearchParams {
+  const params = new URLSearchParams()
+  if (filters) {
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+  }
+  return params
+}
+
 export const eventsApi = {
   list: (filters?: EventFilters) => {
-    const params = new URLSearchParams()
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== '') {
-          params.append(key, String(value))
-        }
-      })
-    }
-    const query = params.toString()
+    const query = buildEventParams(filters).toString()
     return api.get<Event[]>(`/events${query ? `?${query}` : ''}`)
+  },
+
+  // Paginated variant (ADR-009 envelope); used by INCREMENTAL_LOADING (B-4-T3)
+  listPaged: (limit: number, offset: number, filters?: EventFilters) => {
+    const params = buildEventParams(filters)
+    params.append('limit', String(limit))
+    params.append('offset', String(offset))
+    return api.get<{ data: Event[]; pagination: { total: number; limit: number | null; offset: number } }>(
+      `/events?${params.toString()}`
+    )
   },
 
   get: (id: number) => 

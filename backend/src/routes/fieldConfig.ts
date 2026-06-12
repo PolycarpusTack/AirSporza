@@ -4,6 +4,7 @@ import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
+import { isFieldVisibilityEnforced, filterFieldDefs } from '../services/fieldVisibility.js'
 import * as s from '../schemas/fieldConfig.js'
 
 const router = Router()
@@ -21,6 +22,10 @@ router.get('/', async (req, res, next) => {
       where: { tenantId: req.tenantId, ...(section ? { section: section as 'event' | 'crew' | 'contract' } : {}) },
       orderBy: [{ section: 'asc' }, { sortOrder: 'asc' }],
     })
+    if (isFieldVisibilityEnforced()) {
+      const role = (req.user as { role?: string } | undefined)?.role ?? ''
+      return res.json(filterFieldDefs(fields, role))
+    }
     res.json(fields)
   } catch (error) {
     next(error)

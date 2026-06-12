@@ -9,6 +9,8 @@ import { createNotification } from '../services/notificationService.js'
 import { detectConflicts, detectConflictsBulk, type ConflictWarning } from '../services/conflictService.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { syncEventToSlot, shouldSync, unlinkEventSlot } from '../services/eventSlotBridge.js'
+import { restrictionsForRequest, stripRestrictedValues } from '../services/fieldVisibility.js'
+import { getPagination, paginationEnvelope } from '../utils/pagination.js'
 import { parseDurationToMinutes } from '../utils/parseDuration.js'
 import * as s from '../schemas/events.js'
 import type { EventStatus, Role } from '@prisma/client'
@@ -26,7 +28,7 @@ function enrichDuration(data: Record<string, any>): void {
 
 router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
   try {
-    const { sportId, competitionId, channel, channelId: chId, from, to, search } = req.query as {
+    const { sportId, competitionId, channel, channelId: chId, from, to, search, limit, offset } = req.query as {
       sportId?: number
       competitionId?: number
       channel?: string
@@ -34,6 +36,8 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
       from?: string
       to?: string
       search?: string
+      limit?: number
+      offset?: number
     }
 
     const where: Record<string, unknown> = { tenantId: req.tenantId }
@@ -66,6 +70,8 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
       ]
     }
 
+    const pagination = getPagination({ limit, offset })
+
     const events = await prisma.event.findMany({
       where,
       include: {
@@ -73,10 +79,11 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
         competition: true,
         channel: { select: { id: true, name: true, color: true, types: true } },
       },
-      orderBy: [
-        { startDateBE: 'asc' },
-        { startTimeBE: 'asc' }
-      ]
+      orderBy: pagination
+        // id tiebreak keeps pages stable when events share the same start
+        ? [{ startDateBE: 'asc' }, { startTimeBE: 'asc' }, { id: 'asc' }]
+        : [{ startDateBE: 'asc' }, { startTimeBE: 'asc' }],
+      ...(pagination ? { take: pagination.limit, skip: pagination.offset } : {}),
     })
 
     const eventIds = events.map(e => String(e.id))
@@ -91,7 +98,18 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
       valuesByEvent.set(v.entityId, arr)
     }
 
-    res.json(events.map(e => ({ ...e, customValues: valuesByEvent.get(String(e.id)) ?? [] })))
+    const payload = events.map(e => ({ ...e, customValues: valuesByEvent.get(String(e.id)) ?? [] }))
+    const restricted = await restrictionsForRequest(
+      () => prisma.fieldDefinition.findMany({ where: { tenantId: req.tenantId, section: 'event' } }),
+      (req.user as { role?: string } | undefined)?.role
+    )
+    const shaped = restricted ? stripRestrictedValues(payload, restricted) : payload
+
+    if (pagination) {
+      const total = await prisma.event.count({ where })
+      return res.json(paginationEnvelope(shaped, total, pagination))
+    }
+    res.json(shaped)
   } catch (error) {
     next(error)
   }
@@ -364,7 +382,14 @@ router.get('/:id', validate({ params: s.idParam }), async (req, res, next) => {
       where: { tenantId: req.tenantId, entityType: 'event', entityId: String(event.id) }
     })
 
-    res.json({ ...event, customValues })
+    const restricted = await restrictionsForRequest(
+      () => prisma.fieldDefinition.findMany({ where: { tenantId: req.tenantId, section: 'event' } }),
+      (req.user as { role?: string } | undefined)?.role
+    )
+    const [payload] = restricted
+      ? stripRestrictedValues([{ ...event, customValues }], restricted)
+      : [{ ...event, customValues }]
+    res.json(payload)
   } catch (error) {
     next(error)
   }

@@ -1,7 +1,6 @@
 import type { Integration } from '@prisma/client'
 import { decryptCredentials } from '../../services/credentialService.js'
 import { getTemplateOrThrow } from '../../integrations/templates/index.js'
-import type { InboundTemplate } from '../../integrations/types.js'
 import { createImportAdapter } from './index.js'
 
 /**
@@ -9,7 +8,8 @@ import { createImportAdapter } from './index.js'
  * Decrypts credentials and delegates to existing createImportAdapter.
  */
 export function createAdapterFromIntegration(integration: Integration) {
-  const template = getTemplateOrThrow(integration.templateCode) as InboundTemplate
+  // Validates the template code exists before building the adapter
+  getTemplateOrThrow(integration.templateCode)
 
   const credentials = integration.credentials
     ? decryptCredentials(integration.credentials)

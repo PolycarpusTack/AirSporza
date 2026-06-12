@@ -26,6 +26,9 @@ const PlannerView = lazy(() =>
 const SportsWorkspace = lazy(() =>
   import('./pages/SportsWorkspace').then((m) => ({ default: m.SportsWorkspace }))
 )
+const TeamsView = lazy(() =>
+  import('./pages/TeamsView').then((m) => ({ default: m.TeamsView }))
+)
 const ContractsView = lazy(() =>
   import('./pages/ContractsView').then((m) => ({ default: m.ContractsView }))
 )
@@ -178,6 +181,20 @@ function AppContent() {
                         setTechPlans={setTechPlans}
                         crewFields={crewFields}
                         widgets={currentWidgets}
+                        sports={sports}
+                        competitions={competitions}
+                        canEdit={user?.role === 'sports' || user?.role === 'admin'}
+                      />
+                    </div>
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/teams"
+                element={
+                  <RequireRole roles={['admin', 'sports', 'planner']}>
+                    <div className="p-4 sm:p-5">
+                      <TeamsView
                         sports={sports}
                         competitions={competitions}
                         canEdit={user?.role === 'sports' || user?.role === 'admin'}

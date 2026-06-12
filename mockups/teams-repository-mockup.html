@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Planza · Squads & Athletes — Repository Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#F59E0B; --primary-hover:#FBB012; --primary-fg:#000;
+  --bg:#0B0F19; --surface:#111827; --surface-2:#1C2333; --surface-3:#232E45; --surface-4:#2A3855;
+  --text:#F0F4FF; --text-2:#9BAAC4; --text-3:#5E6F8A; --text-dim:#3D4F68;
+  --border:#1F2D45; --border-s:#2E3F5C; --border-hi:#3D5070;
+  --success:#2DD4BF; --success-dim:#0F5E56; --success-bg:#051412;
+  --warning:#F59E0B; --warning-bg:#1A1205;
+  --danger:#F87171; --danger-dim:#7A1515; --danger-bg:#1A0505;
+  --info:#60A5FA; --info-dim:#1E3A6B; --info-bg:#050D1A;
+  --purple:#A78BFA; --purple-dim:#3D2070; --purple-bg:#0A0515;
+  --r-sm:4px; --r-md:6px; --r-lg:10px; --r-full:9999px;
+  --sh-sm:0 2px 8px rgba(0,0,0,.30); --sh-md:0 4px 20px rgba(0,0,0,.40); --sh-lg:0 8px 40px rgba(0,0,0,.50);
+  --ease:cubic-bezier(0.22,0.61,0.36,1);
+  --font:'IBM Plex Sans',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace; --head:'Space Grotesk',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-family:var(--font);background:var(--bg);color-scheme:dark;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--text);line-height:1.55;font-size:14px;overflow:hidden}
+::selection{background:var(--primary);color:#fff}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--border-s);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-3)}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea{font-family:inherit}
+.mono{font-family:var(--mono)}
+.head{font-family:var(--head)}
+
+/* ---------- App shell ---------- */
+.app{display:flex;height:100vh;width:100vw}
+.sidebar{width:224px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.brand{height:56px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--border)}
+.brand-logo{width:28px;height:28px;border-radius:var(--r-lg);display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#D97706,#F59E0B);box-shadow:var(--sh-md);flex-shrink:0}
+.brand-logo span{color:#000;font-weight:700;font-size:12px}
+.brand-name{font-family:var(--head);font-weight:700;font-size:14px;letter-spacing:-.02em}
+.brand-name b{color:var(--primary);font-weight:700}
+nav{flex:1;padding:12px 8px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nav-label{padding:4px 12px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-family:var(--mono);margin-top:4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:var(--r-lg);font-size:13px;font-weight:500;color:var(--text-2);border-left:2px solid transparent;margin-left:-1px;transition:all .15s var(--ease)}
+.nav-item:hover{background:var(--surface-2);color:var(--text)}
+.nav-item.active{background:rgba(245,158,11,.10);color:var(--primary);border-left:2px solid var(--primary)}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+.nav-item .badge-count{margin-left:auto;font-size:10px;background:var(--surface-3);color:var(--text-2);padding:1px 7px;border-radius:var(--r-full);font-family:var(--mono)}
+.nav-item.active .badge-count{background:rgba(245,158,11,.2);color:var(--primary)}
+.live-pill{margin:8px 12px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--r-lg);background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2)}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.live-pill span{font-size:11px;font-weight:500;color:var(--danger);font-family:var(--mono)}
+.user{padding:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#374151,#111827);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0}
+.user-info{flex:1;min-width:0}
+.user-info .n{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-info .r{font-size:11px;color:var(--text-3);text-transform:capitalize}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+header{height:56px;flex-shrink:0;border-bottom:1px solid var(--border);background:rgba(17,24,39,.8);backdrop-filter:blur(8px);display:flex;align-items:center;gap:16px;padding:0 20px;position:relative;z-index:5}
+.search{flex:1;max-width:420px;display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:7px 12px}
+.search:focus-within{border-color:var(--primary)}
+.search input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:13px}
+.search input::placeholder{color:var(--text-3)}
+.search kbd{font-family:var(--mono);font-size:10px;color:var(--text-3);background:var(--surface-3);padding:1px 5px;border-radius:3px;border:1px solid var(--border)}
+.spacer{flex:1}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:600;border-radius:var(--r-sm);font-size:13px;transition:all .15s var(--ease);white-space:nowrap}
+.btn svg{width:15px;height:15px}
+.btn-p{background:var(--primary);color:var(--primary-fg);padding:8px 16px;border:1px solid transparent}
+.btn-p:hover{background:var(--primary-hover)}
+.btn-s{background:var(--surface);color:var(--text);padding:8px 16px;border:1px solid var(--border)}
+.btn-s:hover{border-color:var(--primary);color:var(--primary)}
+.btn-g{background:transparent;color:var(--text-2);padding:7px 11px;border:1px solid transparent}
+.btn-g:hover{background:var(--surface-2);color:var(--text)}
+.btn-xs{padding:4px 10px;font-size:12px}
+.btn-icon{padding:7px;border-radius:var(--r-md)}
+.btn-danger-g{color:var(--danger)}
+.btn-danger-g:hover{background:var(--danger-bg)}
+
+/* ---------- Content area ---------- */
+.content{flex:1;display:flex;min-height:0}
+.tree{width:248px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;padding:12px 8px}
+.tree-h{padding:6px 12px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-family:var(--mono)}
+.tree-sport{margin-bottom:2px}
+.tree-sport-head{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:var(--r-md);font-size:13px;font-weight:600;color:var(--text);transition:all .12s}
+.tree-sport-head:hover{background:var(--surface-2)}
+.tree-sport-head .ico{font-size:15px}
+.tree-sport-head .chev{margin-left:auto;color:var(--text-3);transition:transform .15s}
+.tree-sport-head .cnt{font-size:10px;color:var(--text-3);font-family:var(--mono)}
+.tree-sport.collapsed .chev{transform:rotate(-90deg)}
+.tree-sport.collapsed .tree-comps{display:none}
+.tree-comps{padding-left:8px;margin:2px 0 6px}
+.tree-comp{display:flex;align-items:center;gap:8px;padding:6px 11px 6px 20px;border-radius:var(--r-md);font-size:12.5px;color:var(--text-2);border-left:1px solid var(--border);margin-left:8px;transition:all .12s}
+.tree-comp:hover{background:var(--surface-2);color:var(--text)}
+.tree-comp.active{background:rgba(245,158,11,.08);color:var(--primary);border-left-color:var(--primary)}
+.tree-comp .cnt{margin-left:auto;font-size:10px;font-family:var(--mono);color:var(--text-3)}
+.tree-comp.active .cnt{color:var(--primary)}
+
+.list{flex:1;overflow-y:auto;min-width:0}
+.list-head{padding:20px 24px 0}
+.crumbs{font-size:11px;color:var(--text-3);font-family:var(--mono);margin-bottom:6px}
+.crumbs b{color:var(--text-2)}
+.title-row{display:flex;align-items:flex-start;gap:16px;margin-bottom:4px}
+.title-row h1{font-family:var(--head);font-size:22px;font-weight:700;letter-spacing:-.02em}
+.title-row p{color:var(--text-2);font-size:13px;margin-top:2px}
+.title-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+/* sync banner */
+.sync-banner{margin:16px 24px;display:flex;align-items:center;gap:12px;padding:11px 16px;border-radius:var(--r-lg);background:var(--info-bg);border:1px solid var(--info-dim)}
+.sync-banner .ic{color:var(--info)}
+.sync-banner .txt{font-size:12.5px;color:var(--text-2)}
+.sync-banner .txt b{color:var(--text)}
+.sync-banner .when{margin-left:auto;font-size:11px;color:var(--text-3);font-family:var(--mono)}
+
+/* toolbar */
+.toolbar{padding:0 24px;display:flex;align-items:center;gap:10px;margin:14px 0}
+.segmented{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:2px}
+.segmented button{padding:5px 14px;font-size:12.5px;font-weight:600;border-radius:4px;color:var(--text-2)}
+.segmented button.active{background:var(--surface-4);color:var(--text)}
+.filter-search{display:flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:6px 11px;width:240px}
+.filter-search input{background:none;border:none;outline:none;color:var(--text);font-size:13px;width:100%}
+.filter-search input::placeholder{color:var(--text-3)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;font-size:12px;border-radius:var(--r-full);background:var(--surface-2);border:1px solid var(--border);color:var(--text-2)}
+.chip:hover{border-color:var(--border-hi);color:var(--text)}
+.chip.on{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.35);color:var(--primary)}
+
+/* table */
+.tbl-wrap{margin:0 24px 24px;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--sh-sm)}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--surface-2);text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-family:var(--mono);padding:10px 16px;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid rgba(31,45,69,.6);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--surface-2);cursor:pointer}
+tbody td{padding:11px 16px;font-size:13px;vertical-align:middle}
+.team-cell{display:flex;align-items:center;gap:12px}
+.crest{width:34px;height:34px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:var(--head);flex-shrink:0;border:1px solid var(--border-s)}
+.team-cell .nm{font-weight:600}
+.team-cell .sub{font-size:11px;color:var(--text-3);font-family:var(--mono)}
+.flag{font-size:15px}
+.league-chips{display:flex;gap:4px;flex-wrap:wrap}
+.lchip{font-size:10.5px;padding:2px 8px;border-radius:var(--r-full);background:var(--surface-3);color:var(--text-2);font-family:var(--mono)}
+
+/* badges */
+.bdg{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:var(--r-full);font-family:var(--mono);text-transform:uppercase;letter-spacing:.03em}
+.bdg .d{width:6px;height:6px;border-radius:50%}
+.bdg-synced{background:var(--success-bg);color:var(--success);border:1px solid var(--success-dim)}
+.bdg-edited{background:var(--warning-bg);color:var(--warning);border:1px solid rgba(245,158,11,.3)}
+.bdg-conflict{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-dim)}
+.bdg-stale{background:var(--surface-2);color:var(--text-3);border:1px solid var(--border)}
+.bdg-info{background:var(--info-bg);color:var(--info);border:1px solid var(--info-dim)}
+
+/* toggle */
+.tg{width:36px;height:20px;border-radius:var(--r-full);background:var(--surface-4);position:relative;transition:background .2s;flex-shrink:0}
+.tg.on{background:var(--success)}
+.tg::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s var(--ease)}
+.tg.on::after{transform:translateX(16px)}
+
+.src-dots{display:flex;gap:4px}
+.src-dot{width:22px;height:22px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;font-family:var(--mono);border:1px solid var(--border-s)}
+
+/* ---------- Detail drawer ---------- */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s;z-index:40}
+.scrim.show{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100vh;width:520px;max-width:92vw;background:var(--surface);border-left:1px solid var(--border-s);box-shadow:var(--sh-lg);transform:translateX(100%);transition:transform .3s var(--ease);z-index:50;display:flex;flex-direction:column}
+.drawer.show{transform:translateX(0)}
+.drawer-head{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:14px}
+.drawer-head .crest{width:52px;height:52px;font-size:18px;border-radius:var(--r-lg)}
+.dh-info{flex:1;min-width:0}
+.dh-info h2{font-family:var(--head);font-size:19px;font-weight:700;display:flex;align-items:center;gap:9px}
+.dh-info .meta{font-size:12px;color:var(--text-2);margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--border);background:var(--surface)}
+.tab{padding:11px 14px;font-size:13px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent;transition:all .12s}
+.tab:hover{color:var(--text-2)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tab .tc{font-size:10px;font-family:var(--mono);background:var(--surface-3);padding:1px 6px;border-radius:var(--r-full);margin-left:5px;color:var(--text-2)}
+.drawer-body{flex:1;overflow-y:auto;padding:20px 22px}
+
+/* field rows w/ provenance */
+.field{padding:12px 0;border-bottom:1px solid rgba(31,45,69,.5)}
+.field:last-child{border:none}
+.field-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.field-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);font-family:var(--mono)}
+.field-val{font-size:14px;color:var(--text);display:flex;align-items:center;gap:10px}
+.field-val .v{flex:1}
+.revert{font-size:11px;color:var(--info);display:none;align-items:center;gap:4px}
+.revert:hover{text-decoration:underline}
+.field.is-edited .revert{display:inline-flex}
+.prov{margin-left:auto}
+
+/* roster */
+.roster-tools{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.roster-tools .filter-search{width:auto;flex:1}
+.player-row{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:var(--r-md);transition:background .1s}
+.player-row:hover{background:var(--surface-2)}
+.pnum{width:26px;text-align:center;font-family:var(--mono);font-weight:700;font-size:13px;color:var(--text-3)}
+.pface{width:32px;height:32px;border-radius:50%;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:var(--head);color:var(--text-2);flex-shrink:0;border:1px solid var(--border-s)}
+.pinfo{flex:1;min-width:0}
+.pinfo .pn{font-size:13.5px;font-weight:600}
+.pinfo .pp{font-size:11px;color:var(--text-3)}
+.ppos{font-size:11px;font-family:var(--mono);color:var(--text-2);background:var(--surface-2);padding:2px 8px;border-radius:var(--r-full)}
+
+/* remarks */
+.remark-box{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;color:var(--text);font-size:13.5px;line-height:1.6;min-height:120px;resize:vertical;outline:none}
+.remark-box:focus{border-color:var(--primary)}
+.remark-meta{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--text-3);font-family:var(--mono)}
+.note-callout{display:flex;gap:10px;padding:11px 14px;border-radius:var(--r-md);background:var(--warning-bg);border:1px solid rgba(245,158,11,.25);margin-bottom:16px;font-size:12.5px;color:var(--text-2)}
+.note-callout b{color:var(--warning)}
+
+/* sources tab */
+.src-card{border:1px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:12px;background:var(--surface-2)}
+.src-card .sc-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.src-card .sc-name{font-weight:600;font-size:13.5px}
+.src-card .sc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:12px}
+.src-card .sc-grid .k{color:var(--text-3);font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+.src-card .sc-grid .vv{color:var(--text);margin-top:1px}
+.conf-bar{height:5px;border-radius:var(--r-full);background:var(--surface-4);overflow:hidden;margin-top:3px}
+.conf-bar i{display:block;height:100%;background:var(--success);border-radius:var(--r-full)}
+
+/* section heading inside body */
+.sec-h{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-family:var(--mono);margin:4px 0 10px}
+
+/* ---------- Modal ---------- */
+.modal-scrim{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+.modal-scrim.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border-s);border-radius:var(--r-lg);box-shadow:var(--sh-lg);width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;animation:scaleIn .2s var(--ease)}
+.modal.wide{max-width:760px}
+@keyframes scaleIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+.modal-head{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.modal-head h3{font-family:var(--head);font-size:16px;font-weight:700;flex:1}
+.modal-body{padding:20px;overflow-y:auto}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);font-family:var(--mono);margin-bottom:6px}
+.inp{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;color:var(--text);font-size:13.5px;outline:none}
+.inp:focus{border-color:var(--primary)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* merge review diff */
+.merge-row{display:grid;grid-template-columns:140px 1fr 1fr;gap:0;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:8px;font-size:12.5px}
+.merge-row .mk{background:var(--surface-2);padding:9px 12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);display:flex;align-items:center}
+.merge-row .mc{padding:9px 12px;border-left:1px solid var(--border)}
+.merge-row .mc.diff{background:rgba(245,158,11,.07)}
+.merge-row .mc.diff .val{color:var(--warning);font-weight:600}
+.merge-hdr{display:grid;grid-template-columns:140px 1fr 1fr;gap:0;margin-bottom:8px;font-size:10.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)}
+.merge-hdr div{padding:0 12px}
+.merge-hdr .h2{color:var(--info)}
+.merge-hdr .h3{color:var(--primary)}
+.conf-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:var(--r-full);background:var(--success-bg);border:1px solid var(--success-dim);color:var(--success);font-size:12px;font-family:var(--mono);font-weight:600}
+
+/* athlete card grid (individual sports) */
+.ath-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;padding:0 24px 24px}
+.ath-card{border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;background:var(--surface);transition:all .15s;cursor:pointer}
+.ath-card:hover{border-color:var(--border-hi);box-shadow:var(--sh-sm);transform:translateY(-1px)}
+.ath-top{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+.ath-card .pface{width:42px;height:42px;font-size:13px}
+.ath-card .an{font-weight:600;font-size:14px}
+.ath-card .as{font-size:11px;color:var(--text-3);font-family:var(--mono)}
+.ath-stats{display:flex;gap:14px;font-size:11px;color:var(--text-2)}
+.ath-stats .st b{color:var(--text);font-family:var(--head)}
+.ath-foot{display:flex;align-items:center;gap:6px;margin-top:11px;padding-top:11px;border-top:1px solid var(--border)}
+
+/* toast */
+.toasts{position:fixed;bottom:22px;right:22px;z-index:80;display:flex;flex-direction:column;gap:10px}
+.toast{display:flex;align-items:center;gap:11px;padding:12px 16px;border-radius:var(--r-md);background:var(--surface-3);border:1px solid var(--border-s);box-shadow:var(--sh-lg);font-size:13px;min-width:280px;animation:slideIn .25s var(--ease)}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+.toast .ti{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.toast.success .ti{background:var(--success)}
+.toast.info .ti{background:var(--info)}
+.toast.warning .ti{background:var(--warning)}
+
+.empty{text-align:center;padding:64px 20px;color:var(--text-3)}
+.empty svg{width:40px;height:40px;margin-bottom:12px;opacity:.5}
+.hide{display:none!important}
+.demo-tag{position:fixed;bottom:14px;left:14px;z-index:90;font-size:10px;font-family:var(--mono);color:var(--text-3);background:var(--surface-2);border:1px solid var(--border);padding:4px 10px;border-radius:var(--r-full)}
+.muted{color:var(--text-3)}
+small.hint{font-size:11px;color:var(--text-3);display:block;margin-top:5px;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><span>S</span></div>
+      <div class="brand-name">Sporza<b>Planner</b></div>
+    </div>
+    <nav>
+      <div class="nav-label">Workspace</div>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Planner</a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Sports</a>
+      <a class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2v6l3 1.5M9.5 2v6l-3 1.5"/><circle cx="12" cy="14" r="8"/><path d="M12 10v8M8 14h8"/></svg>Squads<span class="badge-count">214</span></a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>Contracts</a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>Import</a>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M17 2l-5 5-5-5"/></svg>Schedule</a>
+      <div class="nav-label">Admin</div>
+      <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</a>
+    </nav>
+    <div class="live-pill"><span class="live-dot"></span><span>3 live now</span></div>
+    <div class="user">
+      <div class="avatar">Y</div>
+      <div class="user-info"><div class="n">Yannick V.</div><div class="r">admin</div></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header>
+      <div class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="Search teams, athletes, competitions…" />
+        <kbd>Ctrl K</kbd>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-g" onclick="toast('Sync started for all enabled sources…','info'); setTimeout(()=>toast('TheSportsDB sync complete · 6 teams updated, 1 merge candidate','success'),1400)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M21 8a9 9 0 0 0-15-3L3 8M3 16a9 9 0 0 0 15 3l3-3"/></svg>Sync now
+      </button>
+      <button class="btn btn-p" onclick="openModal('addTeamModal')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add team
+      </button>
+    </header>
+
+    <div class="content">
+      <!-- TREE -->
+      <div class="tree" id="tree">
+        <div class="tree-h">Repository</div>
+      </div>
+
+      <!-- LIST -->
+      <div class="list">
+        <div class="list-head">
+          <div class="crumbs" id="crumbs"><b>Football</b> / Jupiler Pro League</div>
+          <div class="title-row">
+            <div>
+              <h1 id="listTitle">Jupiler Pro League</h1>
+              <p id="listSub">18 teams · 2025–26 season · synced from 2 sources</p>
+            </div>
+            <div class="title-actions">
+              <button class="btn btn-s btn-xs" onclick="openModal('mergeModal')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M18 8a3 3 0 1 0-6 0c0 4-6 4-6 8a3 3 0 1 0 6 0"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="2"/></svg>
+                Review merges <span class="bdg bdg-edited" style="margin-left:4px;padding:1px 6px">1</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sync-banner">
+          <svg class="ic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M22 4 12 14.01l-3-3"/></svg>
+          <div class="txt"><b>Auto-sync enabled</b> · TheSportsDB (primary) + football-data.org (squads). Manual edits are protected and never overwritten.</div>
+          <div class="when">last run 14 min ago</div>
+        </div>
+
+        <div class="toolbar">
+          <div class="segmented" id="viewSeg">
+            <button class="active" data-view="teams" onclick="setView('teams')">Teams</button>
+            <button data-view="athletes" onclick="setView('athletes')">Athletes</button>
+          </div>
+          <div class="filter-search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="rowFilter" placeholder="Filter…" oninput="renderTeams()" />
+          </div>
+          <div class="chip" id="chipManaged" onclick="toggleChip(this)">Managed only</div>
+          <div class="chip" id="chipStale" onclick="toggleChip(this)">Needs review</div>
+          <div class="spacer" style="flex:1"></div>
+        </div>
+
+        <!-- TEAMS TABLE -->
+        <div id="teamsView">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Team</th><th>Country</th><th>Competitions</th><th>Squad</th><th>Sources</th><th>Status</th><th style="text-align:center">Managed</th>
+              </tr></thead>
+              <tbody id="teamsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ATHLETES GRID -->
+        <div id="athletesView" class="hide">
+          <div class="ath-grid" id="athGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL DRAWER -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="crest" id="dCrest">CB</div>
+    <div class="dh-info">
+      <h2 id="dName">—</h2>
+      <div class="meta" id="dMeta"></div>
+    </div>
+    <button class="btn btn-g btn-icon" onclick="closeDrawer()" title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="tabs" id="dTabs">
+    <button class="tab active" data-tab="overview" onclick="setTab('overview')">Overview</button>
+    <button class="tab" data-tab="roster" onclick="setTab('roster')">Roster <span class="tc" id="rosterCount">0</span></button>
+    <button class="tab" data-tab="remarks" onclick="setTab('remarks')">Remarks</button>
+    <button class="tab" data-tab="sources" onclick="setTab('sources')">Sources</button>
+  </div>
+  <div class="drawer-body" id="dBody"></div>
+</aside>
+
+<!-- ADD TEAM MODAL -->
+<div class="modal-scrim" id="addTeamModal">
+  <div class="modal">
+    <div class="modal-head">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      <h3>Add team</h3>
+      <button class="btn btn-g btn-icon" onclick="closeModal('addTeamModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="note-callout"><b>Tip</b><span>Search the connected APIs first — most teams already exist and can be linked instead of created manually (avoids duplicates).</span></div>
+      <div class="form-row">
+        <label>Search external sources</label>
+        <div class="filter-search" style="width:100%"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="e.g. Royal Antwerp, Lille OSC…" /></div>
+        <small class="hint">Querying TheSportsDB · football-data.org</small>
+      </div>
+      <div class="grid2">
+        <div class="form-row"><label>Team name</label><input class="inp" value="Royal Antwerp FC" /></div>
+        <div class="form-row"><label>Short name</label><input class="inp" value="ANT" /></div>
+      </div>
+      <div class="grid2">
+        <div class="form-row"><label>Sport</label><input class="inp" value="Football" /></div>
+        <div class="form-row"><label>Country</label><input class="inp" value="Belgium 🇧🇪" /></div>
+      </div>
+      <div class="form-row"><label>Assign to competitions</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="lchip" style="padding:4px 10px">Jupiler Pro League ✕</span><span class="chip btn-xs">+ Add league</span></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-s" onclick="closeModal('addTeamModal')">Cancel</button>
+      <button class="btn btn-p" onclick="closeModal('addTeamModal');toast('Royal Antwerp FC added & linked to TheSportsDB','success')">Create team</button>
+    </div>
+  </div>
+</div>
+
+<!-- MERGE REVIEW MODAL -->
+<div class="modal-scrim" id="mergeModal">
+  <div class="modal wide">
+    <div class="modal-head">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M18 8a3 3 0 1 0-6 0c0 4-6 4-6 8a3 3 0 1 0 6 0"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="2"/></svg>
+      <h3>Merge review · 1 candidate</h3>
+      <button class="btn btn-g btn-icon" onclick="closeModal('mergeModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div style="font-size:13px;color:var(--text-2)">Incoming record from <b style="color:var(--info)">football-data.org</b> likely matches an existing team. Review the differences before linking.</div>
+        <div class="spacer" style="flex:1"></div>
+        <span class="conf-pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>94% match</span>
+      </div>
+      <div class="merge-hdr"><div>Field</div><div class="h2">Incoming (football-data.org)</div><div class="h3">Existing (Club Brugge KV)</div></div>
+      <div class="merge-row"><div class="mk">Name</div><div class="mc"><span class="val">Club Brugge</span></div><div class="mc"><span class="val">Club Brugge KV</span></div></div>
+      <div class="merge-row"><div class="mk">Short</div><div class="mc diff"><span class="val">CLB</span></div><div class="mc"><span class="val">CLU</span></div></div>
+      <div class="merge-row"><div class="mk">Country</div><div class="mc"><span class="val">Belgium</span></div><div class="mc"><span class="val">Belgium</span></div></div>
+      <div class="merge-row"><div class="mk">Founded</div><div class="mc diff"><span class="val">1891</span></div><div class="mc"><span class="val muted">—</span></div></div>
+      <div class="merge-row"><div class="mk">Venue</div><div class="mc"><span class="val">Jan Breydel Stadion</span></div><div class="mc"><span class="val">Jan Breydel Stadion</span></div></div>
+      <small class="hint" style="margin-top:12px">Approving will enrich the existing team with non-conflicting fields (e.g. Founded). The amber field (Short name) is manually set and will be kept — football-data.org's value is added as an alias.</small>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-g btn-danger-g" onclick="closeModal('mergeModal');toast('Marked as separate team — new record will be created','warning')">Not a match</button>
+      <button class="btn btn-s" onclick="closeModal('mergeModal')">Decide later</button>
+      <button class="btn btn-p" onclick="closeModal('mergeModal');toast('Merged & linked · Founded year enriched, alias added','success')">Approve merge</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="demo-tag">◆ Interactive mockup · not production data</div>
+
+<script>
+/* ============ DATA ============ */
+const SPORTS = [
+  { id:'football', name:'Football', icon:'⚽', type:'team', comps:[
+    {id:'jpl', name:'Jupiler Pro League', count:18, label:'2025–26 season · synced from 2 sources'},
+    {id:'ucl', name:'UEFA Champions League', count:36, label:'League phase · 2025–26'},
+    {id:'pl',  name:'Premier League', count:20, label:'2025–26 season'},
+  ]},
+  { id:'cycling', name:'Cycling', icon:'🚴', type:'individual', comps:[
+    {id:'rvv', name:'Ronde van Vlaanderen', count:25, label:'WorldTour · individual athletes'},
+    {id:'tdf', name:'Tour de France', count:22, label:'Grand Tour · 184 riders'},
+  ]},
+  { id:'tennis', name:'Tennis', icon:'🎾', type:'individual', comps:[
+    {id:'ao', name:'Australian Open', count:128, label:'Grand Slam · main draw'},
+  ]},
+];
+
+const PROV = { the_sports_db:{abbr:'TSD',color:'#2DD4BF',name:'TheSportsDB'}, football_data:{abbr:'FD',color:'#60A5FA',name:'football-data.org'}, manual:{abbr:'YOU',color:'#F59E0B',name:'Manual edit'} };
+
+function P(value, source, editedBy){ return {value, source, editedBy}; }
+
+const TEAMS = [
+  { id:'clb', crest:'CB', color:'#1453A8', name:'Club Brugge KV', short:'CLU', country:'Belgium', flag:'🇧🇪',
+    leagues:['Jupiler Pro League','UEFA Champions League'], comps:['jpl','ucl'], managed:true, status:'edited', sources:['the_sports_db','football_data'],
+    fields:{ 'Full name':P('Club Brugge Koninklijke Voetbalclub','the_sports_db'), 'Short name':P('CLU','manual','Yannick V.'),
+      'Founded':P('1891','football_data'), 'Home venue':P('Jan Breydel Stadion','the_sports_db'), 'City':P('Bruges','the_sports_db'),
+      'Manager':P('Nicky Hayen','manual','Yannick V.'), 'Primary colour':P('#1453A8','the_sports_db') },
+    remark:'Champions League nights are priority A coverage. Confirmed dedicated crew + Jan Breydel fixed encoder slot. Manager change reflected manually pending TSD update.',
+    players:[
+      {n:'Simon Mignolet',pos:'GK',num:22,age:37,c:'🇧🇪',st:'active'},
+      {n:'Brandon Mechele',pos:'CB',num:44,age:32,c:'🇧🇪',st:'active'},
+      {n:'Joel Ordóñez',pos:'CB',num:5,age:21,c:'🇪🇨',st:'active'},
+      {n:'Hans Vanaken',pos:'AM',num:20,age:33,c:'🇧🇪',st:'active'},
+      {n:'Raphael Onyedika',pos:'DM',num:8,age:24,c:'🇳🇬',st:'injured'},
+      {n:'Hugo Vetlesen',pos:'CM',num:10,age:25,c:'🇳🇴',st:'active'},
+      {n:'Ferran Jutglà',pos:'ST',num:9,age:26,c:'🇪🇸',st:'active'},
+      {n:'Chemsdine Talbi',pos:'RW',num:17,age:20,c:'🇲🇦',st:'active'},
+    ]},
+  { id:'and', crest:'AN', color:'#7A1515', name:'RSC Anderlecht', short:'AND', country:'Belgium', flag:'🇧🇪',
+    leagues:['Jupiler Pro League'], comps:['jpl'], managed:true, status:'synced', sources:['the_sports_db','football_data'],
+    fields:{ 'Full name':P('Royal Sporting Club Anderlecht','the_sports_db'), 'Short name':P('AND','the_sports_db'),
+      'Founded':P('1908','football_data'), 'Home venue':P('Lotto Park','the_sports_db'), 'City':P('Brussels','the_sports_db'),
+      'Manager':P('Besnik Hasi','the_sports_db'), 'Primary colour':P('#5A1A2B','the_sports_db') },
+    remark:'',
+    players:[
+      {n:'Colin Coosemans',pos:'GK',num:1,age:33,c:'🇧🇪',st:'active'},
+      {n:'Jan Vertonghen',pos:'CB',num:5,age:38,c:'🇧🇪',st:'active'},
+      {n:'Yari Verschaeren',pos:'AM',num:10,age:24,c:'🇧🇪',st:'active'},
+      {n:'Kasper Dolberg',pos:'ST',num:12,age:28,c:'🇩🇰',st:'active'},
+      {n:'Mario Stroeykens',pos:'AM',num:21,age:21,c:'🇧🇪',st:'active'},
+    ]},
+  { id:'gnk', crest:'GK', color:'#1B6CB3', name:'KRC Genk', short:'GNK', country:'Belgium', flag:'🇧🇪',
+    leagues:['Jupiler Pro League'], comps:['jpl'], managed:false, status:'stale', sources:['the_sports_db'],
+    fields:{ 'Full name':P('Koninklijke Racing Club Genk','the_sports_db'), 'Short name':P('GNK','the_sports_db'),
+      'Founded':P('1988','the_sports_db'), 'Home venue':P('Cegeka Arena','the_sports_db'), 'City':P('Genk','the_sports_db'),
+      'Manager':P('Thorsten Fink','the_sports_db'), 'Primary colour':P('#1B6CB3','the_sports_db') },
+    remark:'',
+    players:[
+      {n:'Hendrik Van Crombrugge',pos:'GK',num:1,age:32,c:'🇧🇪',st:'active'},
+      {n:'Tolu Arokodare',pos:'ST',num:9,age:25,c:'🇳🇬',st:'active'},
+      {n:'Bryan Heynen',pos:'CM',num:14,age:28,c:'🇧🇪',st:'active'},
+    ]},
+  { id:'usg', crest:'US', color:'#D9B310', name:'Union Saint-Gilloise', short:'USG', country:'Belgium', flag:'🇧🇪',
+    leagues:['Jupiler Pro League','UEFA Champions League'], comps:['jpl','ucl'], managed:true, status:'conflict', sources:['the_sports_db','football_data'],
+    fields:{ 'Full name':P('Royale Union Saint-Gilloise','the_sports_db'), 'Short name':P('USG','manual','Yannick V.'),
+      'Founded':P('1897','football_data'), 'Home venue':P('Stade Joseph Marien','the_sports_db'), 'City':P('Brussels','the_sports_db'),
+      'Manager':P('Sébastien Pocognoli','manual','Yannick V.'), 'Primary colour':P('#D9B310','the_sports_db') },
+    remark:'Plays some European fixtures at Lotto Park / King Baudouin — confirm venue per fixture. Conflict: TSD reports Stade Joseph Marien, but UCL games relocate. Flagged for planner.',
+    players:[
+      {n:'Kjell Scherpen',pos:'GK',num:30,age:25,c:'🇳🇱',st:'active'},
+      {n:'Christian Burgess',pos:'CB',num:6,age:34,c:'🏴',st:'active'},
+      {n:'Promise David',pos:'ST',num:19,age:24,c:'🇨🇦',st:'active'},
+    ]},
+  { id:'rma', crest:'RM', color:'#FEBE10', name:'Real Madrid CF', short:'RMA', country:'Spain', flag:'🇪🇸',
+    leagues:['UEFA Champions League'], comps:['ucl'], managed:false, status:'synced', sources:['the_sports_db'],
+    fields:{ 'Full name':P('Real Madrid Club de Fútbol','the_sports_db'), 'Short name':P('RMA','the_sports_db'),
+      'Founded':P('1902','the_sports_db'), 'Home venue':P('Santiago Bernabéu','the_sports_db'), 'City':P('Madrid','the_sports_db'),
+      'Manager':P('Xabi Alonso','the_sports_db'), 'Primary colour':P('#FEBE10','the_sports_db') },
+    remark:'',
+    players:[
+      {n:'Thibaut Courtois',pos:'GK',num:1,age:33,c:'🇧🇪',st:'active'},
+      {n:'Jude Bellingham',pos:'AM',num:5,age:22,c:'🏴',st:'active'},
+      {n:'Kylian Mbappé',pos:'ST',num:9,age:27,c:'🇫🇷',st:'active'},
+    ]},
+  { id:'ars', crest:'AR', color:'#EF0107', name:'Arsenal FC', short:'ARS', country:'England', flag:'🏴',
+    leagues:['Premier League','UEFA Champions League'], comps:['pl','ucl'], managed:false, status:'stale', sources:['the_sports_db'],
+    fields:{ 'Full name':P('Arsenal Football Club','the_sports_db'), 'Short name':P('ARS','the_sports_db'),
+      'Founded':P('1886','the_sports_db'), 'Home venue':P('Emirates Stadium','the_sports_db'), 'City':P('London','the_sports_db'),
+      'Manager':P('Mikel Arteta','the_sports_db'), 'Primary colour':P('#EF0107','the_sports_db') },
+    remark:'',
+    players:[
+      {n:'David Raya',pos:'GK',num:22,age:30,c:'🇪🇸',st:'active'},
+      {n:'William Saliba',pos:'CB',num:2,age:24,c:'🇫🇷',st:'active'},
+      {n:'Bukayo Saka',pos:'RW',num:7,age:24,c:'🏴',st:'active'},
+    ]},
+  { id:'mci', crest:'MC', color:'#6CABDD', name:'Manchester City FC', short:'MCI', country:'England', flag:'🏴',
+    leagues:['Premier League','UEFA Champions League'], comps:['pl','ucl'], managed:true, status:'synced', sources:['the_sports_db','football_data'],
+    fields:{ 'Full name':P('Manchester City Football Club','the_sports_db'), 'Short name':P('MCI','the_sports_db'),
+      'Founded':P('1880','football_data'), 'Home venue':P('Etihad Stadium','the_sports_db'), 'City':P('Manchester','the_sports_db'),
+      'Manager':P('Pep Guardiola','the_sports_db'), 'Primary colour':P('#6CABDD','the_sports_db') },
+    remark:'',
+    players:[
+      {n:'Ederson',pos:'GK',num:31,age:32,c:'🇧🇷',st:'active'},
+      {n:'Rúben Dias',pos:'CB',num:3,age:28,c:'🇵🇹',st:'active'},
+      {n:'Erling Haaland',pos:'ST',num:9,age:25,c:'🇳🇴',st:'active'},
+    ]},
+];
+
+const ATHLETES = {
+  cycling:[
+    {crest:'WV',color:'#0B5C3B',n:'Wout van Aert',team:'Team Visma | Lease a Bike',c:'🇧🇪',sub:'BEL · b.1994',comps:['rvv','tdf'],stats:[['UCI #',7],['Wins ’25',9]],status:'synced'},
+    {crest:'RE',color:'#1B1B1B',n:'Remco Evenepoel',team:'Soudal Quick-Step',c:'🇧🇪',sub:'BEL · b.2000',comps:['tdf'],stats:[['UCI #',3],['Wins ’25',12]],status:'edited'},
+    {crest:'TP',color:'#C8102E',n:'Tadej Pogačar',team:'UAE Team Emirates',c:'🇸🇮',sub:'SLO · b.1998',comps:['rvv','tdf'],stats:[['UCI #',1],['Wins ’25',24]],status:'synced'},
+    {crest:'MV',color:'#FF6900',n:'Mathieu van der Poel',team:'Alpecin–Deceuninck',c:'🇳🇱',sub:'NED · b.1995',comps:['rvv'],stats:[['UCI #',5],['Wins ’25',8]],status:'synced'},
+    {crest:'JP',color:'#C8102E',n:'Jasper Philipsen',team:'Alpecin–Deceuninck',c:'🇧🇪',sub:'BEL · b.1998',comps:['rvv','tdf'],stats:[['UCI #',9],['Wins ’25',15]],status:'synced'},
+    {crest:'TM',color:'#0033A0',n:'Tiesj Benoot',team:'Team Visma | Lease a Bike',c:'🇧🇪',sub:'BEL · b.1994',comps:['rvv'],stats:[['UCI #',41],['Wins ’25',2]],status:'stale'},
+  ],
+  tennis:[
+    {crest:'JS',color:'#0B5C3B',n:'Jannik Sinner',team:'—',c:'🇮🇹',sub:'ITA · b.2001',comps:['ao'],stats:[['ATP #',1],['Titles',6]],status:'synced'},
+    {crest:'CA',color:'#C8102E',n:'Carlos Alcaraz',team:'—',c:'🇪🇸',sub:'ESP · b.2003',comps:['ao'],stats:[['ATP #',2],['Titles',5]],status:'synced'},
+    {crest:'EM',color:'#1B6CB3',n:'Elise Mertens',team:'—',c:'🇧🇪',sub:'BEL · b.1995',comps:['ao'],stats:[['WTA #',24],['Titles',2]],status:'edited'},
+  ],
+};
+
+/* ============ STATE ============ */
+let activeSport='football', activeComp='jpl', view='teams';
+const STATUS_BDG={synced:['bdg-synced','Synced'],edited:['bdg-edited','Edited'],conflict:['bdg-conflict','Conflict'],stale:['bdg-stale','Stale']};
+
+/* ============ TREE ============ */
+function renderTree(){
+  const t=document.getElementById('tree');
+  let h='<div class="tree-h">Repository</div>';
+  SPORTS.forEach(s=>{
+    const open = s.id===activeSport;
+    h+=`<div class="tree-sport ${open?'':'collapsed'}" id="sp-${s.id}">
+      <div class="tree-sport-head" onclick="toggleSport('${s.id}')">
+        <span class="ico">${s.icon}</span><span>${s.name}</span>
+        <span class="cnt">${s.comps.length}</span>
+        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+      </div><div class="tree-comps">`;
+    s.comps.forEach(c=>{
+      h+=`<div class="tree-comp ${c.id===activeComp&&s.id===activeSport?'active':''}" onclick="selectComp('${s.id}','${c.id}')">${c.name}<span class="cnt">${c.count}</span></div>`;
+    });
+    h+='</div></div>';
+  });
+  t.innerHTML=h;
+}
+function toggleSport(id){ document.getElementById('sp-'+id).classList.toggle('collapsed'); }
+function selectComp(sid,cid){
+  activeSport=sid; activeComp=cid;
+  const s=SPORTS.find(x=>x.id===sid), c=s.comps.find(x=>x.id===cid);
+  document.getElementById('crumbs').innerHTML=`<b>${s.name}</b> / ${c.name}`;
+  document.getElementById('listTitle').textContent=c.name;
+  const imported = s.type==='team'
+    ? TEAMS.filter(t=>t.comps.includes(c.id)).length
+    : (ATHLETES[s.id]||[]).filter(a=>a.comps.includes(c.id)).length;
+  const noun = s.type==='team'?'teams':'athletes';
+  document.getElementById('listSub').textContent=`${imported} of ${c.count} ${noun} imported · ${c.label}`;
+  // auto-switch view to match sport type
+  setView(s.type==='team'?'teams':'athletes', true);
+  renderTree();
+}
+
+/* ============ VIEW SWITCH ============ */
+function setView(v, silent){
+  view=v;
+  document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.getElementById('teamsView').classList.toggle('hide',v!=='teams');
+  document.getElementById('athletesView').classList.toggle('hide',v!=='athletes');
+  if(v==='teams') renderTeams(); else renderAthletes();
+}
+
+/* ============ TEAMS TABLE ============ */
+function srcDots(sources){
+  return '<div class="src-dots">'+sources.map(s=>{const p=PROV[s];return `<div class="src-dot" title="${p.name}" style="color:${p.color};border-color:${p.color}55;background:${p.color}14">${p.abbr}</div>`}).join('')+'</div>';
+}
+function renderTeams(){
+  const f=(document.getElementById('rowFilter').value||'').toLowerCase();
+  const onlyManaged=document.getElementById('chipManaged').classList.contains('on');
+  const onlyStale=document.getElementById('chipStale').classList.contains('on');
+  const body=document.getElementById('teamsBody');
+  const inComp=TEAMS.filter(t=>t.comps.includes(activeComp));
+  const rows=inComp.filter(t=>{
+    if(f && !t.name.toLowerCase().includes(f) && !t.short.toLowerCase().includes(f)) return false;
+    if(onlyManaged && !t.managed) return false;
+    if(onlyStale && !(t.status==='stale'||t.status==='conflict')) return false;
+    return true;
+  });
+  if(!rows.length){ body.innerHTML='<tr><td colspan="7"><div class="empty">No teams match your filter.</div></td></tr>'; return; }
+  body.innerHTML=rows.map(t=>{
+    const [bc,bl]=STATUS_BDG[t.status];
+    return `<tr onclick="openTeam('${t.id}')">
+      <td><div class="team-cell"><div class="crest" style="background:${t.color}1f;color:${t.color}">${t.crest}</div>
+        <div><div class="nm">${t.name}</div><div class="sub">${t.short}</div></div></div></td>
+      <td><span class="flag">${t.flag}</span> ${t.country}</td>
+      <td><div class="league-chips">${t.leagues.map(l=>`<span class="lchip">${l.replace('UEFA Champions League','UCL').replace('Jupiler Pro League','JPL').replace('Premier League','PL')}</span>`).join('')}</div></td>
+      <td><span class="mono">${t.players.length}</span></td>
+      <td>${srcDots(t.sources)}</td>
+      <td><span class="bdg ${bc}"><span class="d" style="background:currentColor"></span>${bl}</span></td>
+      <td style="text-align:center"><div class="tg ${t.managed?'on':''}" onclick="event.stopPropagation();toggleManaged('${t.id}',this)"></div></td>
+    </tr>`;
+  }).join('');
+}
+function toggleManaged(id,el){
+  const t=TEAMS.find(x=>x.id===id); t.managed=!t.managed; el.classList.toggle('on',t.managed);
+  toast(`${t.name} ${t.managed?'marked as managed (manual edits protected)':'unmanaged'}`, t.managed?'success':'info');
+}
+function toggleChip(el){ el.classList.toggle('on'); renderTeams(); }
+
+/* ============ ATHLETES ============ */
+function renderAthletes(){
+  const list=(ATHLETES[activeSport]||[]).filter(a=>a.comps.includes(activeComp));
+  const g=document.getElementById('athGrid');
+  if(!list.length){ g.innerHTML='<div class="empty" style="grid-column:1/-1">No athletes loaded for this sport yet. Run a sync to import.</div>'; return; }
+  g.innerHTML=list.map(a=>{
+    const [bc,bl]=STATUS_BDG[a.status];
+    return `<div class="ath-card" onclick="toast('Athlete profile: ${a.n}','info')">
+      <div class="ath-top"><div class="pface" style="background:${a.color}22;color:${a.color}">${a.crest}</div>
+        <div><div class="an">${a.c} ${a.n}</div><div class="as">${a.sub}</div></div></div>
+      <div class="ath-stats">${a.stats.map(s=>`<div class="st">${s[0]} <b>${s[1]}</b></div>`).join('')}</div>
+      <div class="ath-foot"><span class="lchip">${a.team==='—'?'Individual':a.team}</span><div class="spacer" style="flex:1"></div><span class="bdg ${bc}"><span class="d" style="background:currentColor"></span>${bl}</span></div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ DRAWER ============ */
+let curTeam=null, curTab='overview';
+function openTeam(id){
+  curTeam=TEAMS.find(t=>t.id===id); curTab='overview';
+  document.getElementById('dCrest').textContent=curTeam.crest;
+  document.getElementById('dCrest').style.background=curTeam.color+'22';
+  document.getElementById('dCrest').style.color=curTeam.color;
+  document.getElementById('dName').textContent=curTeam.name;
+  const [bc,bl]=STATUS_BDG[curTeam.status];
+  document.getElementById('dMeta').innerHTML=`<span class="flag">${curTeam.flag}</span> ${curTeam.country} · <span class="mono">${curTeam.short}</span> <span class="bdg ${bc}" style="margin-left:4px"><span class="d" style="background:currentColor"></span>${bl}</span> ${srcDots(curTeam.sources)}`;
+  document.getElementById('rosterCount').textContent=curTeam.players.length;
+  document.querySelectorAll('#dTabs .tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='overview'));
+  renderBody();
+  document.getElementById('scrim').classList.add('show');
+  document.getElementById('drawer').classList.add('show');
+}
+function closeDrawer(){ document.getElementById('scrim').classList.remove('show'); document.getElementById('drawer').classList.remove('show'); }
+function setTab(t){ curTab=t; document.querySelectorAll('#dTabs .tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t)); renderBody(); }
+
+function provBadge(src){ const p=PROV[src];
+  if(src==='manual') return `<span class="bdg bdg-edited prov" title="Manually edited — protected from sync"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>${p.name}</span>`;
+  return `<span class="bdg bdg-synced prov" title="From ${p.name}"><span class="d" style="background:currentColor"></span>${p.name}</span>`;
+}
+function renderBody(){
+  const b=document.getElementById('dBody'); const t=curTeam;
+  if(curTab==='overview'){
+    let h='<div class="sec-h">Identity · field provenance</div>';
+    for(const [k,fld] of Object.entries(t.fields)){
+      const edited=fld.source==='manual';
+      h+=`<div class="field ${edited?'is-edited':''}">
+        <div class="field-top"><span class="field-label">${k}</span>${provBadge(fld.source)}</div>
+        <div class="field-val"><span class="v">${k==='Primary colour'?`<span style="display:inline-flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:4px;display:inline-block;background:${fld.value};border:1px solid var(--border-hi)"></span>${fld.value}</span>`:fld.value}</span>
+        <a class="revert" onclick="revert('${k}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg> revert to source</a></div>
+      </div>`;
+    }
+    b.innerHTML=h;
+  } else if(curTab==='roster'){
+    let h=`<div class="roster-tools"><div class="filter-search" style="flex:1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Filter players…" oninput="filterRoster(this.value)"/></div>
+      <button class="btn btn-s btn-xs" onclick="toast('Player editor (mockup)','info')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M12 5v14M5 12h14"/></svg>Add player</button></div>
+      <div class="sec-h">${t.players.length} players · synced from football-data.org squads</div><div id="rosterList">`;
+    h+=t.players.map(p=>playerRow(p)).join('');
+    h+='</div>';
+    b.innerHTML=h;
+  } else if(curTab==='remarks'){
+    b.innerHTML=`<div class="note-callout"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;color:var(--warning)"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span><b>Editorial remarks are manual-only.</b> They are never imported or overwritten by a sync — your team's planning notes are safe.</span></div>
+      <div class="sec-h">Planning remarks</div>
+      <textarea class="remark-box" id="remarkBox" placeholder="Add planning notes, coverage priority, venue caveats…">${t.remark}</textarea>
+      <div class="remark-meta"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span id="remarkStatus">${t.remark?'Last edited by Yannick V. · 2 days ago':'No remarks yet'}</span><div class="spacer" style="flex:1"></div><button class="btn btn-p btn-xs" onclick="saveRemark()">Save remark</button></div>`;
+  } else {
+    let h='<div class="sec-h">Contributing sources</div>';
+    const map={the_sports_db:{conf:97,last:'14 min ago',rec:'event_'+t.id,fields:'Identity, venue, colours, fixtures'},football_data:{conf:94,last:'3 h ago',rec:'FD-'+t.id,fields:'Squad, founded year'}};
+    t.sources.forEach(s=>{ const p=PROV[s], m=map[s];
+      h+=`<div class="src-card"><div class="sc-top"><div class="src-dot" style="color:${p.color};border-color:${p.color}55;background:${p.color}14;width:26px;height:26px">${p.abbr}</div><div class="sc-name">${p.name}</div><div class="spacer" style="flex:1"></div><span class="bdg bdg-synced"><span class="d" style="background:currentColor"></span>linked</span></div>
+        <div class="sc-grid"><div><div class="k">Source record</div><div class="vv mono">${m.rec}</div></div><div><div class="k">Last sync</div><div class="vv">${m.last}</div></div>
+        <div style="grid-column:1/-1"><div class="k">Match confidence</div><div class="vv">${m.conf}%</div><div class="conf-bar"><i style="width:${m.conf}%;background:${p.color}"></i></div></div>
+        <div style="grid-column:1/-1"><div class="k">Provides fields</div><div class="vv">${m.fields}</div></div></div></div>`;
+    });
+    h+='<div class="src-card" style="background:transparent;border-style:dashed;text-align:center;color:var(--text-3)"><span style="font-size:12.5px">+ Connect another source for this team</span></div>';
+    b.innerHTML=h;
+  }
+}
+function playerRow(p){
+  const stb={active:['bdg-synced','Active'],injured:['bdg-conflict','Injured'],loaned:['bdg-info','Loan']}[p.st];
+  return `<div class="player-row" data-name="${p.n.toLowerCase()}"><div class="pnum">${p.num}</div>
+    <div class="pface">${p.n.split(' ').map(x=>x[0]).join('').slice(0,2)}</div>
+    <div class="pinfo"><div class="pn">${p.c} ${p.n}</div><div class="pp">Age ${p.age}</div></div>
+    <span class="ppos">${p.pos}</span><span class="bdg ${stb[0]}" style="margin-left:8px"><span class="d" style="background:currentColor"></span>${stb[1]}</span></div>`;
+}
+function filterRoster(v){ v=v.toLowerCase(); document.querySelectorAll('#rosterList .player-row').forEach(r=>{ r.style.display=r.dataset.name.includes(v)?'':'none'; }); }
+function revert(k){
+  const fld=curTeam.fields[k]; fld.source='the_sports_db';
+  // recompute team status
+  curTeam.status = Object.values(curTeam.fields).some(f=>f.source==='manual')?'edited':'synced';
+  renderBody(); renderTeams();
+  toast(`"${k}" reverted to TheSportsDB value — will sync automatically again`,'info');
+}
+function saveRemark(){
+  curTeam.remark=document.getElementById('remarkBox').value;
+  document.getElementById('remarkStatus').textContent='Saved just now by Yannick V.';
+  toast('Remark saved (manual-only, protected from sync)','success');
+}
+
+/* ============ MODALS / TOASTS ============ */
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+function toast(msg,type='success'){
+  const el=document.createElement('div'); el.className='toast '+type;
+  el.innerHTML=`<span class="ti"></span><span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transform='translateX(20px)';el.style.transition='all .3s';setTimeout(()=>el.remove(),300)},4200);
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeDrawer(); document.querySelectorAll('.modal-scrim.show').forEach(m=>m.classList.remove('show')); }});
+
+/* ============ INIT ============ */
+renderTree(); selectComp('football','jpl');
+</script>
+</body>
+</html>
