@@ -96,3 +96,12 @@ jobs:
         run: npx vitest run tests/db-smoke.test.ts
         env:
           DB_SMOKE: "1"
+
+      - name: RLS enforcement proof (planza_app non-owner role, ADR-011)
+        working-directory: backend
+        run: |
+          PGPASSWORD=planza psql -h localhost -U planza -d planza -c "ALTER ROLE planza_app LOGIN PASSWORD 'planza_app_ci';"
+          npx vitest run tests/rls-enforcement.test.ts
+        env:
+          RLS_TEST: "1"
+          APP_DATABASE_URL: postgresql://planza_app:planza_app_ci@localhost:5432/planza?schema=public

@@ -45,6 +45,17 @@ cd .. && DATABASE_URL=<url> bash scripts/verify-migrations.sh
   `DROP TABLE "TeamCompetition"; ALTER TABLE "Team" DROP COLUMN "sportId", DROP COLUMN "canonicalTeamId", DROP COLUMN "notes", DROP COLUMN "isManaged";` then `DELETE FROM _prisma_migrations WHERE migration_name='20260612100000_add_team_repository';`
 - **Baseline metadata only:** `DELETE FROM _prisma_migrations WHERE migration_name='0_init';` (does not touch schema).
 
+## RLS enforcement role (ADR-011 — staged, do NOT activate yet)
+
+- `planza_app` exists NOLOGIN with full grants; CI proves enforcement per run
+  (`tests/rls-enforcement.test.ts` as the bound role).
+- **Do not set `APP_DATABASE_URL` in production yet**: the app's per-request `setTenantRLS()`
+  context is transaction-local and does not survive pooling — routes would fail-empty. The
+  remaining activation story is the per-request transaction wrapper (ADR-011).
+- Local experimentation: `ALTER ROLE planza_app LOGIN PASSWORD '...'` then set
+  `APP_DATABASE_URL=postgresql://planza_app:...@localhost:5433/sporza_planner?schema=public`
+  for the API only (`DATABASE_URL` stays owner — migrate + worker need it).
+
 ## Environment facts (verified 2026-06-12)
 
 - Live DB: `localhost:5433`, PostgreSQL **17.6**, db `sporza_planner` (`backend/.env`). CI must use `postgres:17` (the baseline dump uses PG17 syntax).
