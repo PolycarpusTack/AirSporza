@@ -8,6 +8,7 @@ import type { CanonicalImportEvent } from '../import/types.js'
 import { mergeImportJobStats, readImportJobStats } from '../import/services/ImportJobState.js'
 import { manualCreateNormalizedEvent, manualMergeNormalizedEvent } from '../import/services/ImportJobRunner.js'
 import { ensureImportSchemaReady, normalizeImportSchemaError } from '../import/services/ImportSchemaService.js'
+import { getOffsetPagination, paginationEnvelope } from '../utils/pagination.js'
 import * as s from '../schemas/import.js'
 
 const router = Router()
@@ -265,10 +266,12 @@ router.get('/records/unlinked', authenticate, async (req, res, next) => {
     }
 
     where.tenantId = req.tenantId
+    const pagination = getOffsetPagination(req.query.offset, take)
     const records = await prisma.importRecord.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: pagination ? [{ createdAt: 'desc' }, { id: 'asc' }] : { createdAt: 'desc' },
       take,
+      ...(pagination ? { skip: pagination.offset } : {}),
       select: {
         id: true,
         sourceRecordId: true,
@@ -280,6 +283,10 @@ router.get('/records/unlinked', authenticate, async (req, res, next) => {
       },
     })
 
+    if (pagination) {
+      const total = await prisma.importRecord.count({ where })
+      return res.json(paginationEnvelope(records, total, pagination))
+    }
     res.json(records)
   } catch (error) {
     next(error)
@@ -360,6 +367,7 @@ router.get('/jobs', authenticate, authorize('planner', 'sports', 'admin'), async
       where.entityScope = req.query.entityScope
     }
 
+    const pagination = getOffsetPagination(req.query.offset, limit)
     const jobs = await prisma.importJob.findMany({
       where,
       include: {
@@ -377,10 +385,15 @@ router.get('/jobs', authenticate, authorize('planner', 'sports', 'admin'), async
           }
         }
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: pagination ? [{ createdAt: 'desc' }, { id: 'asc' }] : { createdAt: 'desc' },
       take: limit,
+      ...(pagination ? { skip: pagination.offset } : {}),
     })
 
+    if (pagination) {
+      const total = await prisma.importJob.count({ where })
+      return res.json(paginationEnvelope(jobs, total, pagination))
+    }
     res.json(jobs)
   } catch (error) {
     next(normalizeImportSchemaError(error))
@@ -433,6 +446,7 @@ router.get('/merge-candidates', authenticate, authorize('planner', 'sports', 'ad
       where.entityType = req.query.entityType
     }
 
+    const pagination = getOffsetPagination(req.query.offset, limit)
     const candidates = await prisma.mergeCandidate.findMany({
       where,
       include: {
@@ -448,10 +462,15 @@ router.get('/merge-candidates', authenticate, authorize('planner', 'sports', 'ad
           }
         }
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: pagination ? [{ createdAt: 'desc' }, { id: 'asc' }] : { createdAt: 'desc' },
       take: limit,
+      ...(pagination ? { skip: pagination.offset } : {}),
     })
 
+    if (pagination) {
+      const total = await prisma.mergeCandidate.count({ where })
+      return res.json(paginationEnvelope(candidates, total, pagination))
+    }
     res.json(candidates)
   } catch (error) {
     next(normalizeImportSchemaError(error))
@@ -876,6 +895,7 @@ router.post('/jobs/:id/retry', authenticate, authorize('planner', 'sports', 'adm
 router.get('/dead-letters', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 20, 100)
+    const pagination = getOffsetPagination(req.query.offset, limit)
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (req.query.sourceCode) {
@@ -906,10 +926,15 @@ router.get('/dead-letters', authenticate, authorize('planner', 'sports', 'admin'
           }
         }
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: pagination ? [{ createdAt: 'desc' }, { id: 'asc' }] : { createdAt: 'desc' },
       take: limit,
+      ...(pagination ? { skip: pagination.offset } : {}),
     })
 
+    if (pagination) {
+      const total = await prisma.importDeadLetter.count({ where })
+      return res.json(paginationEnvelope(deadLetters, total, pagination))
+    }
     res.json(deadLetters)
   } catch (error) {
     next(normalizeImportSchemaError(error))

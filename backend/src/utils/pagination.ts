@@ -25,6 +25,18 @@ export function getPagination(query: { limit?: number; offset?: number }): Pagin
   return { limit: query.limit, offset: query.offset ?? 0 }
 }
 
+/**
+ * Variant for endpoints where `limit` predates the envelope (import listings):
+ * legacy consumers pass limit and expect plain arrays, so the envelope keys on
+ * the NEW `offset` param only. Lenient parsing: invalid offset = legacy mode.
+ */
+export function getOffsetPagination(offsetRaw: unknown, limit?: number): Pagination | null {
+  if (offsetRaw == null) return null
+  const offset = Number(offsetRaw)
+  if (Number.isNaN(offset) || offset < 0 || !Number.isInteger(offset)) return null
+  return { limit, offset }
+}
+
 export type PaginationEnvelope<T> = {
   data: T[]
   pagination: { total: number; limit: number | null; offset: number }

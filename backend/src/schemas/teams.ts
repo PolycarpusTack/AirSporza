@@ -1,7 +1,17 @@
 import { z } from 'zod'
 import { idParam } from './common.js'
+import { paginationQueryFields } from '../utils/pagination.js'
 
 export { idParam }
+
+// GET /api/teams — filters stay strings (route parses them); pagination coerced.
+export const teamsListQuery = z.object({
+  search: z.string().optional(),
+  sportId: z.string().optional(),
+  competitionId: z.string().optional(),
+  managed: z.string().optional(),
+  ...paginationQueryFields,
+})
 
 export const teamCreateSchema = z.object({
   name: z.string().min(1),

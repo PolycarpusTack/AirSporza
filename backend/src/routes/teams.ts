@@ -3,14 +3,18 @@ import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import { getPagination, paginationEnvelope } from '../utils/pagination.js'
 import * as s from '../schemas/teams.js'
 
 const router = Router()
 
 // List all teams for tenant (with optional search / sport / managed filters)
-router.get('/', async (req, res, next) => {
+router.get('/', validate({ query: s.teamsListQuery }), async (req, res, next) => {
   try {
-    const { search, sportId, competitionId, managed } = req.query
+    const { search, sportId, competitionId, managed, limit, offset } = req.query as {
+      search?: string; sportId?: string; competitionId?: string; managed?: string
+      limit?: number; offset?: number
+    }
     const where: Record<string, unknown> = { tenantId: req.tenantId }
 
     if (search && typeof search === 'string') {
@@ -24,11 +28,17 @@ router.get('/', async (req, res, next) => {
     }
     if (managed === 'true') where.isManaged = true
 
+    const pagination = getPagination({ limit, offset })
     const teams = await prisma.team.findMany({
       where,
       include: { sport: { select: { id: true, name: true, icon: true } } },
-      orderBy: { name: 'asc' }
+      orderBy: pagination ? [{ name: 'asc' }, { id: 'asc' }] : { name: 'asc' },
+      ...(pagination ? { take: pagination.limit, skip: pagination.offset } : {}),
     })
+    if (pagination) {
+      const total = await prisma.team.count({ where })
+      return res.json(paginationEnvelope(teams, total, pagination))
+    }
     res.json(teams)
   } catch (error) {
     next(error)

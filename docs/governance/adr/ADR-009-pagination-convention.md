@@ -30,8 +30,12 @@ so the migration can be coordinated rather than versioned.
 
 ## Consequences
 
-- Applied to `/api/events` (B-4-T1), `/api/teams` + import-record listings (B-4-T2); remaining
+- Applied to `/api/events` (B-4-T1), `/api/teams` + import listings (B-4-T2); remaining
   `findMany` routes adopt the helper opportunistically (TD-7 servicing decision).
+- **Amendment (B-4-T2):** the import listings (`/records/unlinked`, `/jobs`, `/merge-candidates`,
+  `/dead-letters`) already accepted `limit` with plain-array responses, so for those endpoints the
+  envelope keys on the NEW `offset` param only (`getOffsetPagination`); their lenient legacy `limit`
+  parsing is preserved. Greenfield endpoints use the standard either-param rule.
 - Field-visibility shaping (B-1) runs on the page slice before enveloping — order matters and is tested.
 
 ## Review date
