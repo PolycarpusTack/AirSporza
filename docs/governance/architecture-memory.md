@@ -8,10 +8,10 @@ Components:
   Workers (backend/src/worker.ts + 8 modules): cascade/alerts/standings/bracket/socketio/webhook/integration + outbox; separate process — stable
   Cascade (services/cascade): compute+estimator tested; engine.ts orchestrator untested (TD-5) — stable/at-risk
   Import pipeline (import/ImportJobRunner + adapters): fetch→normalize→dedupe→merge→provision; TheSportsDB live; ImportDeadLetter+replay — stable, god file (TD-1)
-  Teams repository (/teams UI + teams routes + CanonicalTeam→Team bridge): Phases 0–2 committed, applied to NO database — in-progress
+  Teams repository (/teams UI + teams routes + CanonicalTeam→Team bridge): Phases 0–2 deployed to DB (migration add_team_repository), route smoke green — stable
   Players domain: Phase 3 — planned (EPIC G, gated on A-2)
   Frontend (React/Vite SPA, src/): PlannerView core; ~0% test coverage — stable/untested
-  DB (Postgres 16 + Prisma 5): RLS multi-tenancy; raw-SQL migration history pending baseline (A-2) — at-risk
+  DB (native Postgres 17.6 @ :5433 + Prisma 5): RLS multi-tenancy; prisma-migrate owned (0_init baseline + add_team_repository) — stable
   Quality loop (CI, .github/workflows/ci.yml): typecheck+lint+tests both workspaces per push — stable (A-1)
 
 Key ADRs (current):
