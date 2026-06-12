@@ -133,6 +133,72 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** **pay down after EPIC B story B-3** — record a threshold proposal at the B-3 retro (based on actual achieved coverage), then enforce it in CI.
 - **Origin:** backlog A-1 TD consideration (recorded at task A-1 design time, 2026-06-12).
 
+## TD-12 — Cascade engine: midnight anchoring + confidence divergence
+
+- **Artifact:** `backend/src/services/cascade/engine.ts:125` (anchor), `compute.ts:97-98` (decay) — pinned by `tests/cascade-engine.test.ts`
+- **Type:** code (behavior defect, Core Domain)
+- **Cause:** engine reads `startDateBE` (date-only) and never `startTimeBE` → first event anchored at 00:00 UTC; unconditional confidence decay diverges from the preview's (correct) first-slot-certain convention.
+- **Principal:** M
+- **Interest:** **high** — every cascade estimate for a chain-first event is wrong by the event's start time; planner trust erodes.
+- **Compounding:** yes — alerts/handoffs consume these estimates.
+- **Servicing decision:** **dedicated flagged story (`CASCADE_PREVIEW_PARITY`), scheduled with EPIC C cascade work** — fix anchor + confidence together per **ADR-008** (fixing either alone makes things worse). Characterization suite is the contract.
+- **Origin:** B-2-T1 findings 1-2 (2026-06-12).
+
+## TD-13 — Cascade outbox idempotency key is not idempotent
+
+- **Artifact:** `backend/src/workers/cascadeWorker.ts:39-45` + `services/outbox.ts:30-32`
+- **Type:** code (reliability)
+- **Cause:** no explicit idempotency key passed → fresh UUID per call; BullMQ jobId dedup never fires for cascade retries.
+- **Principal:** S
+- **Interest:** **med** — duplicate `cascade.recomputed` outbox rows + duplicate alert jobs on every worker retry.
+- **Compounding:** yes — interacts with TD-14's retry path.
+- **Servicing decision:** fix with TD-12's story (key: `cascade.recomputed:<courtId>:<dateStr>:<bucket>`), per ADR-008.
+- **Origin:** B-2-T1 finding 4.
+
+## TD-14 — Cascade estimates and outbox write in separate transactions
+
+- **Artifact:** `engine.ts:59-192` (tx 1) vs `cascadeWorker.ts:38-46` (tx 2) vs socket push (no tx)
+- **Type:** architecture (violates the project's own ADR-001 outbox-in-tx pattern)
+- **Cause:** worker added fan-out after the engine's transaction instead of inside it.
+- **Principal:** S
+- **Interest:** **med** — failure window = committed estimates with no fan-out; retry double-writes (with TD-13).
+- **Compounding:** yes.
+- **Servicing decision:** fix with TD-12's story (move outbox write into the engine transaction), per ADR-008.
+- **Origin:** B-2-T1 finding 5.
+
+## TD-15 — `crewConflicts` duration unit confusion (hours vs minutes)
+
+- **Artifact:** `src/utils/crewConflicts.ts:30-34` — pinned by `crewConflicts.test.ts`
+- **Type:** code (behavior defect)
+- **Cause:** `parseFloat(event.duration)` interpreted as **hours** (default 3h) while `dateTime.parseDurationMin` treats the same strings as **minutes**; SMPTE `01:30:00` parses to 1 hour.
+- **Principal:** S
+- **Interest:** **high** — crew conflict detection windows are wrong for any explicit duration → false negatives/positives in conflict warnings.
+- **Compounding:** no.
+- **Servicing decision:** **dedicated FEATURE fix early in EPIC C** (desired-semantics test first; unify on `parseDurationMin`); pinned tests updated deliberately.
+- **Origin:** B-3-T1 findings 1-3.
+
+## TD-16 — `dateTime`/`calendarLayout` parsing gaps
+
+- **Artifact:** `src/utils/dateTime.ts:50-87`, `src/utils/calendarLayout.ts:25-54` — pinned by B-3-T1 suites
+- **Type:** code
+- **Cause:** `parseDurationMin` can't parse plain `HH:MM:SS` or `45m` and falls back to 90; zero-duration inexpressible; `getDateKey` mixes UTC/local semantics; layout ignores `durationMin` entirely.
+- **Principal:** M
+- **Interest:** **med** — calendar rendering correct only by coincidence for common formats (the 90-min fallback masks failures).
+- **Compounding:** yes — B-4-T3/EPIC C UI work builds on these utils.
+- **Servicing decision:** fix with TD-15's story (same module family, one desired-semantics pass).
+- **Origin:** B-3-T1 findings 5-12.
+
+## TD-17 — `eventReadiness` ignores `channelId`
+
+- **Artifact:** `src/utils/eventReadiness.ts:70-74`
+- **Type:** code
+- **Cause:** channel check reads only deprecated string fields (`linearChannel` etc.); events migrated to `channelId` fail readiness.
+- **Principal:** S
+- **Interest:** **low now, rises** as events migrate to `channelId` (the legacy fields are already deprecated in schema).
+- **Compounding:** no.
+- **Servicing decision:** fix with TD-15's story; until then readiness badges under-report for channelId-only events (known limitation).
+- **Origin:** B-3-T1 finding 15.
+
 ---
 
 ## Verification notes (ASM-10 re-check, 2026-06-12)
