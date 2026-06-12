@@ -9,6 +9,7 @@ import { createNotification } from '../services/notificationService.js'
 import { detectConflicts, detectConflictsBulk, type ConflictWarning } from '../services/conflictService.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { syncEventToSlot, shouldSync, unlinkEventSlot } from '../services/eventSlotBridge.js'
+import { restrictionsForRequest, stripRestrictedValues } from '../services/fieldVisibility.js'
 import { parseDurationToMinutes } from '../utils/parseDuration.js'
 import * as s from '../schemas/events.js'
 import type { EventStatus, Role } from '@prisma/client'
@@ -91,7 +92,12 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
       valuesByEvent.set(v.entityId, arr)
     }
 
-    res.json(events.map(e => ({ ...e, customValues: valuesByEvent.get(String(e.id)) ?? [] })))
+    const payload = events.map(e => ({ ...e, customValues: valuesByEvent.get(String(e.id)) ?? [] }))
+    const restricted = await restrictionsForRequest(
+      () => prisma.fieldDefinition.findMany({ where: { tenantId: req.tenantId, section: 'event' } }),
+      (req.user as { role?: string } | undefined)?.role
+    )
+    res.json(restricted ? stripRestrictedValues(payload, restricted) : payload)
   } catch (error) {
     next(error)
   }
@@ -364,7 +370,14 @@ router.get('/:id', validate({ params: s.idParam }), async (req, res, next) => {
       where: { tenantId: req.tenantId, entityType: 'event', entityId: String(event.id) }
     })
 
-    res.json({ ...event, customValues })
+    const restricted = await restrictionsForRequest(
+      () => prisma.fieldDefinition.findMany({ where: { tenantId: req.tenantId, section: 'event' } }),
+      (req.user as { role?: string } | undefined)?.role
+    )
+    const [payload] = restricted
+      ? stripRestrictedValues([{ ...event, customValues }], restricted)
+      : [{ ...event, customValues }]
+    res.json(payload)
   } catch (error) {
     next(error)
   }

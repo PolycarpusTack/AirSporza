@@ -6,6 +6,7 @@ import { createError } from '../middleware/errorHandler.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { isWorkflowToggleEnabled } from '../utils/workflowToggles.js'
 import { writeOutboxEvent } from '../services/outbox.js'
+import { restrictionsForRequest, stripRestrictedCrew } from '../services/fieldVisibility.js'
 import * as s from '../schemas/techPlans.js'
 
 export const LOCK_TTL_MS = 30_000
@@ -34,7 +35,11 @@ router.get('/', authenticate, async (req, res, next) => {
       orderBy: { createdAt: 'desc' }
     })
 
-    res.json(plans)
+    const restricted = await restrictionsForRequest(
+      () => prisma.fieldDefinition.findMany({ where: { tenantId: req.tenantId, section: 'crew' } }),
+      (req.user as { role?: string } | undefined)?.role
+    )
+    res.json(restricted ? stripRestrictedCrew(plans, restricted) : plans)
   } catch (error) {
     next(error)
   }
@@ -56,7 +61,11 @@ router.get('/:id', authenticate, validate({ params: s.idParam }), async (req, re
       return next(createError(404, 'Tech plan not found'))
     }
 
-    res.json(plan)
+    const restricted = await restrictionsForRequest(
+      () => prisma.fieldDefinition.findMany({ where: { tenantId: req.tenantId, section: 'crew' } }),
+      (req.user as { role?: string } | undefined)?.role
+    )
+    res.json(restricted ? stripRestrictedCrew([plan], restricted)[0] : plan)
   } catch (error) {
     next(error)
   }
