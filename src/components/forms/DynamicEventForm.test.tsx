@@ -474,7 +474,11 @@ describe('DynamicEventForm — conflict preflight gating', () => {
     expect(conflictCheck).toHaveBeenCalledTimes(2)
   })
 
-  it('conflict API failure fails OPEN — the save proceeds (PINNED)', async () => {
+  it('conflict API failure fails VISIBLE — warning shown, save blocked until explicit second save', async () => {
+    // TD-18 fix (C-0-T4): the preflight previously returned 'pass' on API
+    // failure and the save proceeded silently (B-3-T2 finding 6). It now
+    // surfaces an "unavailable" warning through the existing conflict-warning
+    // UI and requires the same click-Save-again confirm as real warnings.
     const user = userEvent.setup()
     conflictCheck.mockRejectedValue(new Error('network down'))
     const { container, onSave } = await renderForm()
@@ -482,7 +486,18 @@ describe('DynamicEventForm — conflict preflight gating', () => {
 
     await user.click(saveButton())
 
+    expect(
+      await screen.findByText('Conflict check unavailable — conflicts could not be verified.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Warnings found — click Save again to proceed anyway.'),
+    ).toBeInTheDocument()
+    expect(onSave).not.toHaveBeenCalled()
+    expect(saveButton()).toBeEnabled() // back to idle, awaiting explicit confirm
+
+    await user.click(saveButton())
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(conflictCheck).toHaveBeenCalledTimes(2)
   })
 })
 

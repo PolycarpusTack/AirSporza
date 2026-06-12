@@ -13,7 +13,10 @@ export interface ConflictCheckParams {
   status?: EventStatus
 }
 
-type CheckOutcome = 'pass' | 'blocked'
+// TD-18 fix: 'unavailable' is a distinct outcome for preflight API failure —
+// callers must treat it like a warning (block until explicitly confirmed),
+// never as a silent 'pass'.
+export type CheckOutcome = 'pass' | 'blocked' | 'unavailable'
 
 export function useConflictCheck() {
   const [conflicts, setConflicts] = useState<ConflictResult | null>(null)
@@ -27,7 +30,9 @@ export function useConflictCheck() {
    *
    * - Hard errors always block.
    * - Warnings block on first sight (`alreadySeen=false`), pass on second (`alreadySeen=true`).
-   * - API failure (network error) returns 'pass' so we don't block the user.
+   * - API failure (network error) is fail-VISIBLE (TD-18 fix): a synthetic
+   *   'preflight_unavailable' warning is surfaced and 'unavailable' is
+   *   returned; like real warnings, an explicit second confirm passes.
    */
   const checkOrConfirm = useCallback(
     async (params: ConflictCheckParams, alreadySeen: boolean): Promise<CheckOutcome> => {
@@ -48,10 +53,21 @@ export function useConflictCheck() {
         })
         .catch(() => null)
 
-      setConflicts(result)
+      // TD-18 fix: the check itself failed — fail visible, not open. Surface a
+      // synthetic warning through the normal conflict UI and require the same
+      // explicit "save again to proceed" confirm as a real warning.
+      if (!result) {
+        setConflicts({
+          warnings: [{
+            type: 'preflight_unavailable',
+            message: 'Conflict check unavailable — conflicts could not be verified.',
+          }],
+          errors: [],
+        })
+        return alreadySeen ? 'pass' : 'unavailable'
+      }
 
-      // Network error — don't block
-      if (!result) return 'pass'
+      setConflicts(result)
 
       // Hard errors always block
       if (result.errors.length > 0) return 'blocked'

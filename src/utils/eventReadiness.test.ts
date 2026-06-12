@@ -163,9 +163,33 @@ describe('computeReadiness', () => {
     expect(result.checks.find(c => c.key === 'channel')?.status).toBe('pass')
   })
 
-  it('reads only the deprecated string channel fields, not channelId', () => {
-    // PINNED: an event migrated to channelId with no legacy strings fails the channel check
+  it('accepts a numeric channelId as satisfying the channel check', () => {
+    // TD-17 fix (C-0-T3): events migrated to channelId (no legacy strings)
+    // previously FAILED the channel check; the numeric id now passes.
     const event = makeEvent({ linearChannel: undefined, channelId: 5 })
+    const result = computeReadiness(event, [makePlan()], [makeContract()], [])
+
+    expect(result.checks.find(c => c.key === 'channel')?.status).toBe('pass')
+  })
+
+  it('accepts radioChannelId / onDemandChannelId too (same migration as channelId)', () => {
+    // TD-17 fix (C-0-T3): the register cites "channelId etc." — all three
+    // numeric id fields replace their deprecated string counterparts.
+    const base = { linearChannel: undefined, onDemandChannel: undefined, radioChannel: undefined } as const
+
+    const radio = computeReadiness(makeEvent({ ...base, radioChannelId: 3 }), [makePlan()], [makeContract()], [])
+    expect(radio.checks.find(c => c.key === 'channel')?.status).toBe('pass')
+
+    const onDemand = computeReadiness(makeEvent({ ...base, onDemandChannelId: 9 }), [makePlan()], [makeContract()], [])
+    expect(onDemand.checks.find(c => c.key === 'channel')?.status).toBe('pass')
+  })
+
+  it('still fails the channel check when ids are null and no string field is set', () => {
+    // TD-17 fix (C-0-T3): null ids are "unset", not a pass
+    const event = makeEvent({
+      linearChannel: undefined, onDemandChannel: undefined, radioChannel: undefined,
+      channelId: null, radioChannelId: null, onDemandChannelId: null,
+    })
     const result = computeReadiness(event, [makePlan()], [makeContract()], [])
 
     expect(result.checks.find(c => c.key === 'channel')?.status).toBe('fail')

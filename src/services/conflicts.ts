@@ -1,7 +1,9 @@
 import { api } from '../utils/api'
 import type { EventStatus } from '../data/types'
 
-export type ConflictWarning = { type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan'; message: string }
+// 'preflight_unavailable' is synthesized client-side by useConflictCheck when
+// the conflict API itself fails (TD-18 fix: fail visible, not open).
+export type ConflictWarning = { type: 'channel_overlap' | 'rights_window' | 'missing_tech_plan' | 'preflight_unavailable'; message: string }
 export type ConflictError   = { type: 'encoder_locked' | 'rights_violation'; message: string }
 export type ConflictResult  = { warnings: ConflictWarning[]; errors: ConflictError[] }
 

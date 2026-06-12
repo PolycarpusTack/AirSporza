@@ -1,11 +1,14 @@
 /**
- * Characterization tests for crewConflicts (B-3-T1).
- * Pins CURRENT behavior — surprising results are documented in the task
- * findings list, not fixed here.
+ * Characterization tests for crewConflicts (B-3-T1), updated by C-0-T1 (TD-15).
  *
- * Key pinned semantics: `event.duration` is parsed with parseFloat and
- * interpreted as HOURS here (default 3h), unlike dateTime.parseDurationMin
- * which interprets durations as MINUTES.
+ * TD-15 fix: `event.duration` now flows through dateTime.parseDurationMin, so
+ * a duration string means the same MINUTES everywhere in the app (previously
+ * parseFloat-as-HOURS with a 3h default). The default window is now the
+ * parseDurationMin fallback of 90 minutes — the 3h default was part of the bug.
+ *
+ * Finding 3 (events with unparseable date/time silently drop their crew
+ * assignments) is deliberately NOT fixed here: reporting unverifiable
+ * assignments needs a return-shape change, not a one-liner. Still pinned below.
  */
 import { describe, it, expect } from 'vitest'
 import { detectCrewConflicts, groupConflictsByPerson } from './crewConflicts'
@@ -81,9 +84,11 @@ describe('detectCrewConflicts', () => {
     expect(conflicts.get('101:director')![0].eventId).toBe(1)
   })
 
-  it('flags overlapping (non-identical) windows as PARTIAL using the 3h default duration', () => {
-    const e1 = makeEvent({ id: 1, startTimeBE: '20:00' }) // 20:00–23:00
-    const e2 = makeEvent({ id: 2, startTimeBE: '21:00' }) // 21:00–00:00
+  it('flags overlapping (non-identical) windows as PARTIAL using the 90-min default duration', () => {
+    // TD-15 fix (C-0-T1): default window is now parseDurationMin's 90-min
+    // fallback (was a 3h default — part of the unit-confusion bug).
+    const e1 = makeEvent({ id: 1, startTimeBE: '20:00' }) // 20:00–21:30
+    const e2 = makeEvent({ id: 2, startTimeBE: '21:00' }) // 21:00–22:30
     const plans = [
       makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
       makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
@@ -92,8 +97,21 @@ describe('detectCrewConflicts', () => {
     expect(conflicts.get('100:director')![0].severity).toBe('partial')
   })
 
+  it('uses the 90-minute fallback when duration is missing (no phantom 3h window)', () => {
+    // TD-15 fix (C-0-T1): under the old 3h default, the 21:45 event fell
+    // inside e1's 20:00–23:00 window and was a false-positive conflict.
+    const e1 = makeEvent({ id: 1, startTimeBE: '20:00' }) // 20:00–21:30
+    const e2 = makeEvent({ id: 2, startTimeBE: '21:45' })
+    const plans = [
+      makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
+      makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
+    ]
+    expect(detectCrewConflicts(plans, [e1, e2]).size).toBe(0)
+  })
+
   it('does NOT flag exact boundary touch (A ends exactly when B starts)', () => {
-    const e1 = makeEvent({ id: 1, startTimeBE: '20:00', duration: '3' }) // ends 23:00
+    // TD-15 fix (C-0-T1): duration '180' = 180 MINUTES (was '3' hours)
+    const e1 = makeEvent({ id: 1, startTimeBE: '20:00', duration: '180' }) // ends 23:00
     const e2 = makeEvent({ id: 2, startTimeBE: '23:00' })
     const plans = [
       makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
@@ -123,8 +141,9 @@ describe('detectCrewConflicts', () => {
     expect(detectCrewConflicts(plans, [e1]).size).toBe(0)
   })
 
-  it('interprets event.duration as HOURS via parseFloat (duration "2" = 2 hours)', () => {
-    const e1 = makeEvent({ id: 1, startTimeBE: '20:00', duration: '2' }) // ends 22:00
+  it('interprets event.duration as MINUTES via parseDurationMin (duration "120" = 2 hours)', () => {
+    // TD-15 fix (C-0-T1): was parseFloat-as-HOURS ('2' = 2h); now '120' minutes
+    const e1 = makeEvent({ id: 1, startTimeBE: '20:00', duration: '120' }) // ends 22:00
     const inside = makeEvent({ id: 2, startTimeBE: '21:30' })
     const outside = makeEvent({ id: 3, startTimeBE: '22:30' })
     const planFor = (eventId: number, id: number) => makePlan({ id, eventId, crew: { director: 'Jane' } })
@@ -133,21 +152,22 @@ describe('detectCrewConflicts', () => {
     expect(detectCrewConflicts([planFor(1, 100), planFor(3, 101)], [e1, outside]).size).toBe(0)
   })
 
-  it('parseFloats "01:30:00" to 1 — a 90-minute timecode becomes a 1-HOUR window', () => {
-    // PINNED: inconsistent with parseDurationMin (which would treat durations as minutes).
-    // e1 window is 20:00–21:00, so an event at 20:45 conflicts but 21:15 does not —
-    // even though a true 90-minute reading (20:00–21:30) would conflict at 21:15.
+  it('parses "01:30:00" as a true 90-MINUTE window (20:00–21:30)', () => {
+    // TD-15 fix (C-0-T1): parseFloat used to truncate '01:30:00' to 1 HOUR
+    // (20:00–21:00), so 21:15 was a false negative. With parseDurationMin the
+    // window is 20:00–21:30: 21:15 now conflicts; 21:45 still does not.
     const e1 = makeEvent({ id: 1, startTimeBE: '20:00', duration: '01:30:00' })
-    const at2045 = makeEvent({ id: 2, startTimeBE: '20:45' })
-    const at2115 = makeEvent({ id: 3, startTimeBE: '21:15' })
+    const at2115 = makeEvent({ id: 2, startTimeBE: '21:15' })
+    const at2145 = makeEvent({ id: 3, startTimeBE: '21:45' })
     const planFor = (eventId: number, id: number) => makePlan({ id, eventId, crew: { director: 'Jane' } })
 
-    expect(detectCrewConflicts([planFor(1, 100), planFor(2, 101)], [e1, at2045]).size).toBe(2)
-    expect(detectCrewConflicts([planFor(1, 100), planFor(3, 101)], [e1, at2115]).size).toBe(0)
+    expect(detectCrewConflicts([planFor(1, 100), planFor(2, 101)], [e1, at2115]).size).toBe(2)
+    expect(detectCrewConflicts([planFor(1, 100), planFor(3, 101)], [e1, at2145]).size).toBe(0)
   })
 
-  it('detects multi-day spans (30h duration conflicts with an event the next day)', () => {
-    const e1 = makeEvent({ id: 1, startDateBE: '2026-06-12', startTimeBE: '20:00', duration: '30' }) // ends 2026-06-14 02:00
+  it('detects multi-day spans (a 30-hour duration conflicts with an event the next day)', () => {
+    // TD-15 fix (C-0-T1): 30 hours expressed in minutes ('1800'), not hours ('30')
+    const e1 = makeEvent({ id: 1, startDateBE: '2026-06-12', startTimeBE: '20:00', duration: '1800' }) // ends 2026-06-14 02:00
     const e2 = makeEvent({ id: 2, startDateBE: '2026-06-13', startTimeBE: '10:00' })
     const plans = [
       makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
@@ -165,7 +185,9 @@ describe('detectCrewConflicts', () => {
       makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
       makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
     ]
-    // PINNED: the broken event's assignment vanishes, so no conflict is reported
+    // PINNED (TD-15 finding 3, deliberately NOT fixed in C-0-T1): the broken
+    // event's assignment vanishes, so no conflict is reported. Surfacing
+    // unverifiable assignments needs a return-shape change — left on TD-15.
     expect(detectCrewConflicts(plans, [broken, e2]).size).toBe(0)
   })
 
@@ -225,7 +247,8 @@ describe('groupConflictsByPerson', () => {
   })
 
   it('returns an empty array when there are no overlaps', () => {
-    const e1 = makeEvent({ id: 1, startTimeBE: '08:00', duration: '2' })
+    // TD-15 fix (C-0-T1): duration in minutes ('120' = 2h, was '2' hours)
+    const e1 = makeEvent({ id: 1, startTimeBE: '08:00', duration: '120' })
     const e2 = makeEvent({ id: 2, startTimeBE: '20:00' })
     const plans = [
       makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),

@@ -2,6 +2,9 @@
  * Characterization tests for dateTime utils (B-3-T1).
  * Pins CURRENT behavior — surprising results are documented in the task
  * findings list, not fixed here.
+ * C-0-T2 (TD-16): parseDurationMin expectations deliberately updated to the
+ * fixed semantics (plain HH:MM:SS, 'Xm', '0' → 0). getDateKey / timeToMinutes /
+ * fmtAgo pins are intentionally untouched (out of C-0 scope).
  *
  * Timezone: pinned to Europe/Brussels (the app's operating context) by
  * setting process.env.TZ before any Date use. Node (incl. Windows) picks up
@@ -168,13 +171,19 @@ describe('parseDurationMin', () => {
     expect(parseDurationMin('90.5')).toBe(90.5)
   })
 
-  it('falls back for zero, negative, empty, and nullish inputs', () => {
-    // PINNED: '0' is not parsed as 0 minutes — it falls back to 90
-    expect(parseDurationMin('0')).toBe(90)
+  it('treats "0" as a real zero-minute duration, not the fallback', () => {
+    // TD-16 fix (C-0-T2): '0' previously fell back to 90 — zero duration was
+    // inexpressible. It now parses as 0 minutes regardless of the fallback.
+    expect(parseDurationMin('0')).toBe(0)
+    expect(parseDurationMin('0', 60)).toBe(0)
+  })
+
+  it('falls back for negative, empty, whitespace, and nullish inputs', () => {
     expect(parseDurationMin('-30')).toBe(90)
     expect(parseDurationMin(undefined)).toBe(90)
     expect(parseDurationMin(null)).toBe(90)
     expect(parseDurationMin('')).toBe(90)
+    expect(parseDurationMin('   ')).toBe(90)
     expect(parseDurationMin(undefined, 45)).toBe(45) // custom fallback honoured
   })
 
@@ -185,18 +194,22 @@ describe('parseDurationMin', () => {
     expect(parseDurationMin('0:45')).toBe(45)
   })
 
-  it('does NOT parse plain HH:MM:SS (no frames) — falls back instead', () => {
-    // PINNED: '01:30:00' only "works" by coincidence (fallback is also 90).
-    // A custom fallback exposes that it is not actually parsed.
+  it('parses plain HH:MM:SS (no frames) as minutes, ignoring seconds', () => {
+    // TD-16 fix (C-0-T2): '01:30:00' previously hit the 90-min fallback by
+    // coincidence (a custom fallback exposed it). It is now actually parsed,
+    // consistent with the SMPTE branch.
     expect(parseDurationMin('01:30:00')).toBe(90)
-    expect(parseDurationMin('01:30:00', 60)).toBe(60)
+    expect(parseDurationMin('01:30:00', 60)).toBe(90) // no longer fallback-dependent
+    expect(parseDurationMin('00:45:30')).toBe(45)
   })
 
-  it('parses "Xh Ym" style but not minutes-only "Xm"', () => {
+  it('parses "Xh Ym" style and minutes-only "Xm"/"X min"', () => {
     expect(parseDurationMin('1h 30m')).toBe(90)
     expect(parseDurationMin('2h')).toBe(120)
-    // PINNED: '45m' is unsupported and falls back to 90
-    expect(parseDurationMin('45m')).toBe(90)
+    // TD-16 fix (C-0-T2): '45m' previously fell back to 90; minutes-only
+    // durations are now parsed.
+    expect(parseDurationMin('45m')).toBe(45)
+    expect(parseDurationMin('120 min')).toBe(120)
   })
 })
 

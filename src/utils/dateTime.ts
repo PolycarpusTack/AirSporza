@@ -60,21 +60,27 @@ export function timeToMinutes(time: string): number {
 
 /**
  * Parse a duration string to minutes.
- * Supports: plain number, SMPTE timecode (HH:MM:SS;FF), HH:MM, "Xh Ym".
+ * Supports: plain number (incl. "0" → 0), SMPTE timecode (HH:MM:SS;FF),
+ * plain HH:MM:SS, HH:MM, "Xh Ym", and minutes-only "Xm"/"X min".
  * Returns `fallback` (default 90) when the input is empty or unrecognised.
  */
 export function parseDurationMin(duration?: string | null, fallback = 90): number {
-  if (!duration) return fallback
+  if (!duration || !duration.trim()) return fallback
   const n = Number(duration)
-  if (!isNaN(n) && n > 0) return n
-  // SMPTE timecode: HH:MM:SS;FF or HH:MM:SS:FF
-  const smpte = duration.match(/^(\d{1,2}):(\d{2}):(\d{2})[;:](\d{2})$/)
-  if (smpte) return Number(smpte[1]) * 60 + Number(smpte[2])
+  // TD-16 fix: '0' is a real zero-minute duration, not a fallback trigger
+  if (!isNaN(n) && n >= 0) return n
+  // SMPTE timecode (HH:MM:SS;FF / HH:MM:SS:FF) or plain HH:MM:SS —
+  // seconds and frames are ignored (TD-16 fix: frames are now optional)
+  const hms = duration.match(/^(\d{1,2}):(\d{2}):(\d{2})(?:[;:]\d{2})?$/)
+  if (hms) return Number(hms[1]) * 60 + Number(hms[2])
   // Standard HH:MM format (e.g., "02:00" → 120min)
   const hhmm = duration.match(/^(\d{1,2}):(\d{2})$/)
   if (hhmm) return Number(hhmm[1]) * 60 + Number(hhmm[2])
   const match = duration.match(/(\d+)h\s*(\d+)?m?/)
   if (match) return Number(match[1]) * 60 + Number(match[2] || 0)
+  // TD-16 fix: minutes-only "45m" / "120 min"
+  const minOnly = duration.match(/^(\d+(?:\.\d+)?)\s*m(?:in)?s?$/i)
+  if (minOnly) return Number(minOnly[1])
   return fallback
 }
 

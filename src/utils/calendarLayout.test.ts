@@ -4,7 +4,8 @@
  * findings list, not fixed here.
  *
  * Grid facts: CAL_START_HOUR 08:00, CAL_END_HOUR 23:00, 60px/hour, height 900px.
- * Durations flow through dateTime.parseDurationMin (minutes, fallback 90).
+ * Durations: numeric `durationMin` preferred, else dateTime.parseDurationMin on
+ * the deprecated `duration` string (minutes, fallback 90) — TD-16 fix (C-0-T2).
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -113,13 +114,15 @@ describe('computeOverlapLayout', () => {
     expect(layout.get(1)!.col).toBe(1)
   })
 
-  it('treats duration "0" as the 90-minute fallback, so "zero-duration" events still collide', () => {
-    // PINNED: parseDurationMin('0') -> 90, there is no true zero-width event
+  it('treats duration "0" as a true zero-width event that does not collide with later events', () => {
+    // TD-16 fix (C-0-T2): parseDurationMin('0') now returns 0 — previously the
+    // 90-min fallback made "zero-duration" events collide with events inside
+    // the phantom 10:00–11:30 window.
     const zero = makeEvent({ id: 1, startTimeBE: '10:00', duration: '0' })
-    const other = makeEvent({ id: 2, startTimeBE: '11:00', duration: '60' }) // inside 10:00–11:30
+    const other = makeEvent({ id: 2, startTimeBE: '11:00', duration: '60' })
     const layout = computeOverlapLayout([zero, other])
-    expect(layout.get(1)!.totalCols).toBe(2)
-    expect(layout.get(2)!.totalCols).toBe(2)
+    expect(layout.get(1)).toEqual({ col: 0, totalCols: 1 })
+    expect(layout.get(2)).toEqual({ col: 0, totalCols: 1 })
   })
 
   it('prefers linearStartTime over startTimeBE', () => {
@@ -131,13 +134,32 @@ describe('computeOverlapLayout', () => {
     expect(layout.get(3)).toEqual({ col: 0, totalCols: 1 })
   })
 
-  it('ignores durationMin entirely — only the deprecated duration string is read', () => {
-    // PINNED: a 10-hour durationMin has no effect; fallback 90min applies
+  it('honors the numeric durationMin field (preferred over the deprecated duration string)', () => {
+    // TD-16 fix (C-0-T2, finding 12): layout previously ignored durationMin
+    // entirely — a 10-hour durationMin event got the 90-min fallback and did
+    // not collide with a 12:00 event. It now spans 10:00–20:00 and collides.
     const long = makeEvent({ id: 1, startTimeBE: '10:00', durationMin: 600, duration: undefined })
     const later = makeEvent({ id: 2, startTimeBE: '12:00', duration: '60' })
     const layout = computeOverlapLayout([long, later])
+    expect(layout.get(1)).toEqual({ col: 0, totalCols: 2 })
+    expect(layout.get(2)).toEqual({ col: 1, totalCols: 2 })
+  })
+
+  it('prefers durationMin when both fields are set, and falls back to the duration string when durationMin is null', () => {
+    // TD-16 fix (C-0-T2, finding 12): durationMin (30) wins over duration '600',
+    // so the 10:00 event ends at 10:30 and never reaches the 11:00 event.
+    const both = makeEvent({ id: 1, startTimeBE: '10:00', durationMin: 30, duration: '600' })
+    const later = makeEvent({ id: 2, startTimeBE: '11:00', duration: '60' })
+    const layout = computeOverlapLayout([both, later])
     expect(layout.get(1)).toEqual({ col: 0, totalCols: 1 })
     expect(layout.get(2)).toEqual({ col: 0, totalCols: 1 })
+
+    // durationMin: null is "absent" — the duration string ('120' → 10:00–12:00) applies
+    const nullMin = makeEvent({ id: 3, startTimeBE: '10:00', durationMin: null, duration: '120' })
+    const inside = makeEvent({ id: 4, startTimeBE: '11:00', duration: '30' })
+    const layout2 = computeOverlapLayout([nullMin, inside])
+    expect(layout2.get(3)).toEqual({ col: 0, totalCols: 2 })
+    expect(layout2.get(4)).toEqual({ col: 1, totalCols: 2 })
   })
 
   it('defaults missing times to 00:00 (events sort and render at the top)', () => {

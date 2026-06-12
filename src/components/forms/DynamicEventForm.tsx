@@ -220,7 +220,10 @@ export function DynamicEventForm({
         status: editEvent?.status,
       }, !!conflictCheck.conflicts)
 
-      if (outcome === 'blocked') { setSaveState('idle'); return }
+      // TD-18 fix: anything but an explicit 'pass' halts the save —
+      // 'unavailable' (preflight API failure) now blocks with a visible
+      // warning and needs the same second-save confirm as real warnings.
+      if (outcome !== 'pass') { setSaveState('idle'); return }
     }
 
     // 3. Validate custom fields

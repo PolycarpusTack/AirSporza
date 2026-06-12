@@ -66,11 +66,18 @@ export function computeReadiness(
     })
   }
 
-  // channel: linearChannel OR onDemandChannel OR radioChannel truthy
+  // channel: numeric channel ids (channelId / radioChannelId / onDemandChannelId)
+  // OR the deprecated string fields (linearChannel / onDemandChannel / radioChannel).
+  // TD-17 fix: events migrated to the numeric id fields previously failed this check.
+  const hasChannel =
+    event.channelId != null ||
+    event.radioChannelId != null ||
+    event.onDemandChannelId != null ||
+    Boolean(event.linearChannel || event.onDemandChannel || event.radioChannel)
   checks.push({
     key: 'channel',
     label: 'Channel',
-    status: (event.linearChannel || event.onDemandChannel || event.radioChannel) ? 'pass' : 'fail',
+    status: hasChannel ? 'pass' : 'fail',
   })
 
   // duration: duration is truthy

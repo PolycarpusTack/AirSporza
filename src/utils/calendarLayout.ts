@@ -22,6 +22,16 @@ export const HOUR_LABELS = Array.from({ length: CAL_HOURS }, (_, i) => {
 
 // ── Layout functions ─────────────────────────────────────────────────────────
 
+/**
+ * Effective event duration in minutes for layout.
+ * TD-16 fix (finding 12): honor the numeric `durationMin` field when present,
+ * falling back to parsing the deprecated `duration` string.
+ */
+function effectiveDurationMin(ev: Event): number {
+  if (typeof ev.durationMin === 'number' && ev.durationMin >= 0) return ev.durationMin
+  return parseDurationMin(ev.duration)
+}
+
 export function eventTopPx(time: string): number {
   const mins = timeToMinutes(time)
   const calStartMin = CAL_START_HOUR * 60
@@ -42,7 +52,7 @@ export function computeOverlapLayout(events: Event[]): Map<number, { col: number
     const ta = timeToMinutes(a.linearStartTime || a.startTimeBE || '00:00')
     const tb = timeToMinutes(b.linearStartTime || b.startTimeBE || '00:00')
     if (ta !== tb) return ta - tb
-    return parseDurationMin(b.duration) - parseDurationMin(a.duration)
+    return effectiveDurationMin(b) - effectiveDurationMin(a)
   })
 
   // Track active columns: each entry is the end-minute of the event in that column
@@ -51,7 +61,7 @@ export function computeOverlapLayout(events: Event[]): Map<number, { col: number
 
   for (const ev of sorted) {
     const start = timeToMinutes(ev.linearStartTime || ev.startTimeBE || '00:00')
-    const end = start + parseDurationMin(ev.duration)
+    const end = start + effectiveDurationMin(ev)
 
     // Find first column where this event doesn't overlap
     let placed = -1
@@ -73,13 +83,13 @@ export function computeOverlapLayout(events: Event[]): Map<number, { col: number
   for (let i = 0; i < eventCols.length; i++) {
     const ev = sorted[i]
     const start = timeToMinutes(ev.linearStartTime || ev.startTimeBE || '00:00')
-    const end = start + parseDurationMin(ev.duration)
+    const end = start + effectiveDurationMin(ev)
     let maxCol = eventCols[i].col
     for (let j = 0; j < eventCols.length; j++) {
       if (i === j) continue
       const ej = sorted[j]
       const sj = timeToMinutes(ej.linearStartTime || ej.startTimeBE || '00:00')
-      const ej_end = sj + parseDurationMin(ej.duration)
+      const ej_end = sj + effectiveDurationMin(ej)
       if (sj < end && ej_end > start) {
         maxCol = Math.max(maxCol, eventCols[j].col)
       }

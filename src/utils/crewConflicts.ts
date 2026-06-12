@@ -1,4 +1,5 @@
 import type { Event, TechPlan } from '../data/types'
+import { parseDurationMin } from './dateTime'
 
 export interface CrewConflict {
   personName: string
@@ -14,8 +15,6 @@ export interface CrewConflict {
 // Key format: "planId:fieldId" — identifies a specific crew assignment
 export type ConflictMap = Map<string, CrewConflict[]>
 
-const DEFAULT_DURATION_HOURS = 3
-
 function parseEventWindow(event: Event): { start: number; end: number } | null {
   const dateStr = typeof event.startDateBE === 'string'
     ? event.startDateBE
@@ -25,13 +24,10 @@ function parseEventWindow(event: Event): { start: number; end: number } | null {
   const start = new Date(`${dateStr}T${event.startTimeBE}:00`).getTime()
   if (isNaN(start)) return null
 
-  let durationMs = DEFAULT_DURATION_HOURS * 3600000
-  if (event.duration) {
-    const parsed = parseFloat(event.duration)
-    if (!isNaN(parsed) && parsed > 0) {
-      durationMs = parsed * 3600000
-    }
-  }
+  // TD-15 fix: durations are MINUTES app-wide via parseDurationMin (default
+  // 90 min) — previously parseFloat-as-HOURS with a 3h default, so '01:30:00'
+  // became a 1-hour window and explicit durations were 60x too long.
+  const durationMs = parseDurationMin(event.duration) * 60000
 
   return { start, end: start + durationMs }
 }
