@@ -33,7 +33,12 @@ echo "==> Asserting non-Prisma-modelable objects exist"
 ASSERT=$("$PSQL" "$VERIFY_URL" -tA -v ON_ERROR_STOP=1 -c "
   SELECT
     (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='Tenant')
-  + (SELECT CASE WHEN count(*) >= 40 THEN 1 ELSE 0 END FROM pg_policies)
+  + (SELECT CASE WHEN count(*) >= 60 THEN 1 ELSE 0 END FROM pg_policies)
+  + (SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END
+       FROM information_schema.columns col
+       JOIN information_schema.tables t ON t.table_name=col.table_name AND t.table_schema='public'
+       WHERE col.table_schema='public' AND col.column_name='tenantId' AND t.table_type='BASE TABLE'
+         AND NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.tablename=t.table_name))
   + (SELECT count(*) FROM pg_trigger WHERE tgname='outbox_event_notify')
   + (SELECT count(*) FROM pg_indexes WHERE indexname='event_court_day_idx')
   + (SELECT count(*) FROM pg_indexes WHERE indexname='BroadcastSlot_tenant_event_autolinked_key')
@@ -43,8 +48,8 @@ ASSERT=$("$PSQL" "$VERIFY_URL" -tA -v ON_ERROR_STOP=1 -c "
   + (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='Player')
   + (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='PlayerTeam');")
 
-if [ "$ASSERT" != "9" ]; then
-  echo "FAIL: expected 9 assertion points, got $ASSERT (Tenant / >=40 RLS policies / outbox trigger / court index / autoLinked unique / TeamCompetition / Team repository columns / Player / PlayerTeam)"
+if [ "$ASSERT" != "10" ]; then
+  echo "FAIL: expected 10 assertion points, got $ASSERT (Tenant / >=60 RLS policies / NO tenant table without a policy (FF-2, TD-22) / outbox trigger / court index / autoLinked unique / TeamCompetition / Team repository columns / Player / PlayerTeam)"
   exit 1
 fi
 
