@@ -15,8 +15,8 @@
     "test:watch": "vitest",
     "preview": "vite preview",
     "dev:full": "concurrently \"npm run dev\" \"cd backend && npm run dev\" \"cd backend && npm run worker:dev\"",
-    "setup:db": "cd backend && npm run db:push && npm run db:seed",
-    "setup": "npm install && cd backend && npm install && npm run db:generate && npm run db:push && npm run db:seed"
+    "setup:db": "cd backend && npm run db:deploy && npm run db:seed",
+    "setup": "npm install && cd backend && npm install && npm run db:generate && npm run db:deploy && npm run db:seed"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
