@@ -31,7 +31,7 @@ afterAll(() => {
 
 /** Normalize Intl spacing quirks (NBSP / narrow NBSP) for stable comparison. */
 function normSpace(s: string): string {
-  return s.replace(/[  ]/g, ' ')
+  return s.replace(/[\u00A0\u202F]/g, ' ')
 }
 
 describe('timezone harness guard', () => {
