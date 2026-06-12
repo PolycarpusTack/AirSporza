@@ -46,5 +46,53 @@ jobs:
       - name: Frontend tests
         run: npm run test
 
-  # Extension point (A-2-T4): "migrations" job with a postgres:16 service container
-  # running `prisma migrate deploy` + `prisma migrate status` + DB-backed smoke tests.
+  migrations:
+    name: Migrations + DB smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        # postgres:17 required — the 0_init baseline is a PG 17.6 dump (see ADR-007)
+        image: postgres:17
+        env:
+          POSTGRES_USER: planza
+          POSTGRES_PASSWORD: planza
+          POSTGRES_DB: planza
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U planza"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://planza:planza@localhost:5432/planza?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Verify migration history builds a complete DB
+        run: bash scripts/verify-migrations.sh
+
+      - name: Migrate deploy + status (drift = 0 SLO)
+        working-directory: backend
+        run: |
+          npx prisma migrate deploy
+          npx prisma migrate status
+
+      - name: DB-backed smoke test (Prisma through RLS context)
+        working-directory: backend
+        run: npx vitest run tests/db-smoke.test.ts
+        env:
+          DB_SMOKE: "1"
