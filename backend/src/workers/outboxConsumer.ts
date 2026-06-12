@@ -9,6 +9,7 @@ import {
   integrationQueue,
 } from '../services/queue.js'
 import { logger } from '../utils/logger.js'
+import { requestContext } from '../utils/requestContext.js'
 
 const EVENT_ROUTING: Record<string, string[]> = {
   // Event lifecycle — notify clients + external systems
@@ -107,33 +108,49 @@ export async function consumeOutbox(): Promise<number> {
 
   await Promise.all(
     events.map(async (event) => {
-      try {
-        const queueNames = EVENT_ROUTING[event.eventType] || []
-        await Promise.all(
-          queueNames.map(async (queueName) => {
-            const queue = QUEUE_MAP[queueName]
-            if (!queue) return
-            await queue.add(
-              event.eventType,
-              {
-                ...event.payload,
-                eventType: event.eventType,
-                _outboxEventId: event.id,
-                _tenantId: event.tenantId,
-              },
-              { jobId: `${event.idempotencyKey}:${queueName}` }
-            )
+      // D-1: outbox writers stamp the request's correlation id into
+      // payload._meta. Lift it out of the payload (so downstream consumers
+      // see the original shape) and copy it into the BullMQ job data as
+      // `_correlationId`, mirroring the `_outboxEventId`/`_tenantId` keys.
+      const { _meta, ...payloadData } = event.payload ?? {}
+      const metaCid = (_meta as { correlationId?: unknown } | undefined)?.correlationId
+      const correlationId = typeof metaCid === 'string' && metaCid ? metaCid : undefined
+
+      const processEvent = async () => {
+        try {
+          const queueNames = EVENT_ROUTING[event.eventType] || []
+          await Promise.all(
+            queueNames.map(async (queueName) => {
+              const queue = QUEUE_MAP[queueName]
+              if (!queue) return
+              await queue.add(
+                event.eventType,
+                {
+                  ...payloadData,
+                  eventType: event.eventType,
+                  _outboxEventId: event.id,
+                  _tenantId: event.tenantId,
+                  ...(correlationId ? { _correlationId: correlationId } : {}),
+                },
+                { jobId: `${event.idempotencyKey}:${queueName}` }
+              )
+            })
+          )
+          succeededIds.push(event.id)
+        } catch (err) {
+          logger.error(`Outbox processing failed for ${event.id}:`, err)
+          failures.push({
+            id: event.id,
+            nextRetry: (event.retryCount || 0) + 1,
+            maxRetries: event.maxRetries,
           })
-        )
-        succeededIds.push(event.id)
-      } catch (err) {
-        logger.error(`Outbox processing failed for ${event.id}:`, err)
-        failures.push({
-          id: event.id,
-          nextRetry: (event.retryCount || 0) + 1,
-          maxRetries: event.maxRetries,
-        })
+        }
       }
+
+      // Run inside the correlation context so consumer logs carry the cid.
+      await (correlationId
+        ? requestContext.run({ correlationId }, processEvent)
+        : processEvent())
     })
   )
 

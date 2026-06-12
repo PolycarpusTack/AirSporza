@@ -82,7 +82,14 @@ export function createProgressController(jobId: string, initialStats: ImportJobS
         throw new ImportJobCancelledError('Import job no longer exists.')
       }
 
-      stats = mergeImportJobStats(stats, readImportJobStats(latest.statsJson))
+      // TD-20 fix: adopt only externally-written CONTROL fields from the DB
+      // read. Counters are owned by this process — merging the full DB stats
+      // regressed them to stale values after a swallowed write failure.
+      const dbStats = readImportJobStats(latest.statsJson)
+      stats = mergeImportJobStats(stats, {
+        ...(dbStats.cancelRequested !== undefined ? { cancelRequested: dbStats.cancelRequested } : {}),
+        ...(dbStats.cancelledBy !== undefined ? { cancelledBy: dbStats.cancelledBy } : {}),
+      })
 
       if (latest.status !== 'running' || stats.cancelRequested) {
         throw new ImportJobCancelledError(

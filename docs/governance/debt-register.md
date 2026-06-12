@@ -224,7 +224,11 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** fix within **EPIC C TD-3 story** via the B-3-T3 extraction note (`usePlannerUndo` hook); the characterization suite is the safety net.
 - **Origin:** B-3-T3 findings 1-7 (+ finding 8: `PlannerView.dnd.test.tsx` replicates logic in-test and cannot catch src changes — retire it into the new suite during the same story).
 
-## TD-20 — Import progress stats can regress after a swallowed write failure
+## TD-20 — Import progress stats regression — ✅ SETTLED (EPIC D, 2026-06-12)
+
+> checkCancelled now adopts only externally-written control fields (cancelRequested/cancelledBy) from the DB read; counters never regress (tests/import-progress.test.ts, red-first).
+
+### Original entry: Import progress stats can regress after a swallowed write failure
 
 - **Artifact:** `backend/src/import/stages/progress.ts` (~line 88, `checkCancelled` merge) — pinned by `cascade-engine`-style review, moved code (pre-existing)
 - **Type:** code (reliability)

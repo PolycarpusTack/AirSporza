@@ -3,6 +3,7 @@ import { ContractStatus } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
 import { writeOutboxEvent } from './outbox.js'
 import { logger } from '../utils/logger.js'
+import { getCorrelationId } from '../utils/requestContext.js'
 
 type WebhookEndpoint = {
   id: string
@@ -49,6 +50,8 @@ async function attemptDelivery(
 ): Promise<void> {
   const body = JSON.stringify(payload)
   const signature = sign(webhook.secret, body)
+  // D-1: forward the correlation id when delivering inside a request/job context.
+  const correlationId = getCorrelationId()
 
   let statusCode: number | null = null
   let error: string | null = null
@@ -61,6 +64,7 @@ async function attemptDelivery(
         'X-Planza-Signature': signature,
         'X-Planza-Event': (payload as Record<string, string>).event,
         'User-Agent': 'SportzaPlanner/1.0',
+        ...(correlationId ? { 'X-Correlation-Id': correlationId } : {}),
       },
       body,
       signal: AbortSignal.timeout(10_000), // 10s timeout

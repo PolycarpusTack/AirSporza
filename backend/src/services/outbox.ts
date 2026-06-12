@@ -1,5 +1,25 @@
 import { Prisma } from '@prisma/client'
 import { v4 as uuid } from 'uuid'
+import { getCorrelationId } from '../utils/requestContext.js'
+
+/**
+ * D-1: when a correlation id is present in the current request context,
+ * stamp it into the payload under an additive `_meta` key so it survives
+ * the outbox round-trip. Payload is returned untouched when there is no
+ * correlation id or when it is not a plain object (non-breaking).
+ */
+function withCorrelationMeta(payload: unknown): unknown {
+  const correlationId = getCorrelationId()
+  if (!correlationId || typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return payload
+  }
+  const obj = payload as Record<string, unknown>
+  const existingMeta =
+    typeof obj._meta === 'object' && obj._meta !== null && !Array.isArray(obj._meta)
+      ? (obj._meta as Record<string, unknown>)
+      : {}
+  return { ...obj, _meta: { ...existingMeta, correlationId } }
+}
 
 interface WriteOutboxParams {
   tenantId: string
@@ -25,7 +45,7 @@ export async function writeOutboxEvent(
       eventType: params.eventType,
       aggregateType: params.aggregateType,
       aggregateId: params.aggregateId,
-      payload: params.payload as Prisma.JsonObject,
+      payload: withCorrelationMeta(params.payload) as Prisma.JsonObject,
       priority: params.priority ?? 'NORMAL',
       idempotencyKey:
         params.idempotencyKey ??

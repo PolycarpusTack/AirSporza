@@ -2,6 +2,7 @@ import { createHmac } from 'crypto'
 import { createWorker } from '../services/queue.js'
 import { prisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
+import { getCorrelationId } from '../utils/requestContext.js'
 
 /**
  * Webhook Worker
@@ -16,12 +17,16 @@ import { logger } from '../utils/logger.js'
  */
 export function startWebhookWorker() {
   return createWorker('webhook', async (job) => {
-    const { eventType, _tenantId: tenantId, _outboxEventId: outboxEventId, ...payload } = job.data as {
+    const { eventType, _tenantId: tenantId, _outboxEventId: outboxEventId, _correlationId, ...payload } = job.data as {
       eventType: string
       _tenantId: string
       _outboxEventId: string
+      _correlationId?: string
       [k: string]: unknown
     }
+    // D-1: prefer the explicit job-data id; fall back to the ALS context
+    // (set by createWorker) so the header survives either path.
+    const correlationId = _correlationId ?? getCorrelationId()
     if (!outboxEventId) {
       // All webhook jobs are produced by outboxConsumer, which always sets
       // _outboxEventId. A missing value means someone enqueued a job by a
@@ -85,6 +90,7 @@ export function startWebhookWorker() {
             'X-Planza-Signature': signature,
             'X-Planza-Event': eventType,
             'User-Agent': 'Planza/1.0',
+            ...(correlationId ? { 'X-Correlation-Id': correlationId } : {}),
           },
           body,
           signal: AbortSignal.timeout(10_000),
