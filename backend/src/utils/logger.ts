@@ -1,4 +1,5 @@
 import winston from 'winston'
+import { getCorrelationId } from './requestContext.js'
 
 const { combine, timestamp, printf, colorize } = winston.format
 
@@ -6,6 +7,12 @@ const logFormat = printf(({ level, message, timestamp, ...metadata }) => {
   let msg = `${timestamp} [${level}]: ${message}`
   if (Object.keys(metadata).length > 0) {
     msg += ` ${JSON.stringify(metadata)}`
+  }
+  // D-1: suffix the correlation id when the log happens inside a
+  // request/job context. Output shape is unchanged otherwise.
+  const correlationId = getCorrelationId()
+  if (correlationId) {
+    msg += ` [cid=${correlationId}]`
   }
   return msg
 })

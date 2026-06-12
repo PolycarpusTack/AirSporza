@@ -1,6 +1,7 @@
 import { Queue, Worker, type Processor, type ConnectionOptions } from 'bullmq'
 import { logger } from '../utils/logger.js'
 import { env } from '../config/env.js'
+import { requestContext } from '../utils/requestContext.js'
 
 const REDIS_URL = env.REDIS_URL
 
@@ -26,7 +27,17 @@ export function createWorker(
   processor: Processor,
   opts?: { concurrency?: number }
 ): Worker {
-  const worker = new Worker(name, processor, {
+  // D-1: jobs produced by the outbox consumer carry a `_correlationId`.
+  // Run the processor inside the requestContext scope so all logs emitted
+  // during job processing carry the originating request's correlation id.
+  const contextualProcessor: Processor = (job, token) => {
+    const correlationId = (job.data as Record<string, unknown> | null | undefined)?.['_correlationId']
+    if (typeof correlationId === 'string' && correlationId) {
+      return requestContext.run({ correlationId }, () => processor(job, token))
+    }
+    return processor(job, token)
+  }
+  const worker = new Worker(name, contextualProcessor, {
     connection: connectionOpts,
     concurrency: opts?.concurrency ?? 1,
   })

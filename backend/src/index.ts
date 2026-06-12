@@ -46,6 +46,8 @@ import integrationsRoutes from './routes/integrations.js'
 import { setupSocket } from './services/socket.js'
 import { setSocketServer } from './services/socketInstance.js'
 import { errorHandler } from './middleware/errorHandler.js'
+import { correlationMiddleware } from './middleware/correlation.js'
+import { metricsMiddleware, metricsHandler } from './metrics.js'
 import { authenticate, authorize } from './middleware/auth.js'
 import { setTenantContext } from './middleware/tenantContext.js'
 import { publishService } from './services/publishService.js'
@@ -62,6 +64,10 @@ export function buildApp() {
   const app = express()
 
   app.set('trust proxy', 1)
+  // D-1/D-2: correlation context + request duration metrics — mounted first
+  // so every subsequent middleware/route runs inside the cid scope and is timed.
+  app.use(correlationMiddleware)
+  app.use(metricsMiddleware)
   app.use(helmet({ contentSecurityPolicy: false }))
   app.use(cors({ origin: corsOrigins }))
 
@@ -87,6 +93,10 @@ export function buildApp() {
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() })
   })
+
+  // D-2: Prometheus scrape endpoint — unauthenticated by design (standard
+  // scrape posture); gated by METRICS_ENABLED !== 'false' inside the handler.
+  app.get('/metrics', metricsHandler)
 
   app.use('/api/auth', authLimiter, authRoutes)
 
