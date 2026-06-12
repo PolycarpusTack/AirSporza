@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { paginationQueryFields } from '../utils/pagination.js'
 import {
   positiveInt,
   eventStatusEnum,
@@ -103,4 +104,5 @@ export const eventsQuery = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
   search: z.string().max(200).optional(),
+  ...paginationQueryFields,
 })

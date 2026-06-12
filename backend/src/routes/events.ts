@@ -10,6 +10,7 @@ import { detectConflicts, detectConflictsBulk, type ConflictWarning } from '../s
 import { writeOutboxEvent } from '../services/outbox.js'
 import { syncEventToSlot, shouldSync, unlinkEventSlot } from '../services/eventSlotBridge.js'
 import { restrictionsForRequest, stripRestrictedValues } from '../services/fieldVisibility.js'
+import { getPagination, paginationEnvelope } from '../utils/pagination.js'
 import { parseDurationToMinutes } from '../utils/parseDuration.js'
 import * as s from '../schemas/events.js'
 import type { EventStatus, Role } from '@prisma/client'
@@ -27,7 +28,7 @@ function enrichDuration(data: Record<string, any>): void {
 
 router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
   try {
-    const { sportId, competitionId, channel, channelId: chId, from, to, search } = req.query as {
+    const { sportId, competitionId, channel, channelId: chId, from, to, search, limit, offset } = req.query as {
       sportId?: number
       competitionId?: number
       channel?: string
@@ -35,6 +36,8 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
       from?: string
       to?: string
       search?: string
+      limit?: number
+      offset?: number
     }
 
     const where: Record<string, unknown> = { tenantId: req.tenantId }
@@ -67,6 +70,8 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
       ]
     }
 
+    const pagination = getPagination({ limit, offset })
+
     const events = await prisma.event.findMany({
       where,
       include: {
@@ -74,10 +79,11 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
         competition: true,
         channel: { select: { id: true, name: true, color: true, types: true } },
       },
-      orderBy: [
-        { startDateBE: 'asc' },
-        { startTimeBE: 'asc' }
-      ]
+      orderBy: pagination
+        // id tiebreak keeps pages stable when events share the same start
+        ? [{ startDateBE: 'asc' }, { startTimeBE: 'asc' }, { id: 'asc' }]
+        : [{ startDateBE: 'asc' }, { startTimeBE: 'asc' }],
+      ...(pagination ? { take: pagination.limit, skip: pagination.offset } : {}),
     })
 
     const eventIds = events.map(e => String(e.id))
@@ -97,7 +103,13 @@ router.get('/', validate({ query: s.eventsQuery }), async (req, res, next) => {
       () => prisma.fieldDefinition.findMany({ where: { tenantId: req.tenantId, section: 'event' } }),
       (req.user as { role?: string } | undefined)?.role
     )
-    res.json(restricted ? stripRestrictedValues(payload, restricted) : payload)
+    const shaped = restricted ? stripRestrictedValues(payload, restricted) : payload
+
+    if (pagination) {
+      const total = await prisma.event.count({ where })
+      return res.json(paginationEnvelope(shaped, total, pagination))
+    }
+    res.json(shaped)
   } catch (error) {
     next(error)
   }
