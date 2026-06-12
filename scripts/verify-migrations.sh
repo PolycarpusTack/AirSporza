@@ -36,10 +36,13 @@ ASSERT=$("$PSQL" "$VERIFY_URL" -tA -v ON_ERROR_STOP=1 -c "
   + (SELECT CASE WHEN count(*) >= 40 THEN 1 ELSE 0 END FROM pg_policies)
   + (SELECT count(*) FROM pg_trigger WHERE tgname='outbox_event_notify')
   + (SELECT count(*) FROM pg_indexes WHERE indexname='event_court_day_idx')
-  + (SELECT count(*) FROM pg_indexes WHERE indexname='BroadcastSlot_tenant_event_autolinked_key');")
+  + (SELECT count(*) FROM pg_indexes WHERE indexname='BroadcastSlot_tenant_event_autolinked_key')
+  + (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='TeamCompetition')
+  + (SELECT CASE WHEN count(*) = 4 THEN 1 ELSE 0 END FROM information_schema.columns
+       WHERE table_name='Team' AND column_name IN ('sportId','canonicalTeamId','notes','isManaged'));")
 
-if [ "$ASSERT" != "5" ]; then
-  echo "FAIL: expected 5 assertion points, got $ASSERT (Tenant table / >=40 RLS policies / outbox trigger / court expression index / autoLinked partial unique)"
+if [ "$ASSERT" != "7" ]; then
+  echo "FAIL: expected 7 assertion points, got $ASSERT (Tenant / >=40 RLS policies / outbox trigger / court index / autoLinked unique / TeamCompetition / Team repository columns)"
   exit 1
 fi
 

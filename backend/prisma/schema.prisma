@@ -1132,7 +1132,8 @@ model Team {
   sportId         Int?
   // Bridge to the import/dedup layer. Populated when an imported CanonicalTeam
   // is projected into this operational record; null for manually-created teams.
-  canonicalTeamId String?  @db.Uuid
+  // String (text), not @db.Uuid — must match CanonicalTeam.id's column type
+  canonicalTeamId String?
   // Editorial remarks — manual-only, never written by an import sync.
   notes           String?
   // True once a human has curated this record. Imports still refresh it, but

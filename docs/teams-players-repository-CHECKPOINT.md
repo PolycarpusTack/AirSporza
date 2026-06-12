@@ -7,8 +7,15 @@ _Branch: `feat/teams-repository-phase0` · Plan: [`teams-players-repository-plan
 Phases 0–2 of the Teams repository are **implemented, typechecked, and committed**. The client's
 core ask — a teams repository that self-updates from a free API, supports league assignment, and
 holds protected editorial remarks — is feature-complete. **Players (Phase 3) is the next big piece
-and has not been started.** Nothing has been applied to a database yet (`prisma db push` pending —
-needs Postgres).
+and has not been started.**
+
+> **2026-06-12 update (A-2-T3): applied to the database ✅.** Migration
+> `20260612100000_add_team_repository` is deployed to the live DB via `prisma migrate` (see
+> ADR-007 — `db push` is retired for shared DBs). Route smoke passed against real Postgres:
+> `GET /api/teams` returns the new columns, `POST`, `PATCH /:id/notes`, `DELETE` all work.
+> One schema bug found & fixed at first DB contact: `Team.canonicalTeamId` was `@db.Uuid`
+> but `CanonicalTeam.id` is text — FK could not be created; now plain `String` matching the
+> `TeamAlias` pattern. Phase 3 work must use `prisma migrate dev`, not `db push`.
 
 ## Done this session (all on branch `feat/teams-repository-phase0`)
 | Commit | Phase | What |
@@ -26,9 +33,9 @@ needs Postgres).
 - ⚠️ ESLint — could not run (this sandbox lacks root lint tooling `@eslint/js`/`typescript-eslint`); unrelated to the code
 - ⛔ Not run against a DB — see "Pending" below
 
-## Pending — to make it live (needs your Postgres + a free TheSportsDB key)
+## Pending — to make it live (needs a free TheSportsDB key)
 ```bash
-cd backend && npm run db:push     # adds Team columns + TeamCompetition table (additive, no data migration)
+# DB schema: DONE 2026-06-12 (prisma migrate deploy — do NOT use db:push on shared DBs, see ADR-007)
 npm run dev:full                  # open /teams as an admin or sports user
 ```
 Then to actually populate teams from the API:
