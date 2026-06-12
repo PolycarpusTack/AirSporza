@@ -249,7 +249,13 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 
 ## TD-22 — RLS coverage ◐ NARROWED (coverage done 2026-06-12; enforcement story remains)
 
-> **Layer 1 DONE** (migration `add_tenant_rls_coverage`, ADR-011): 61 policies, 0 uncovered tenant tables, ratcheted by fitness assertion FF-2 in verify-migrations.sh. **Layer 2 discovery:** FORCE RLS = 0 and the app owns all tables, so policies have never bound app queries — enforcement requires the non-owner `planza_app` role story (EPIC D, prerequisites in ADR-011: login pre-context lookup, cross-tenant workers).
+> **Layer 1 DONE** (61 policies, 0 uncovered, FF-2 ratchet). **Layer 2 scaffolding DONE**
+> (2026-06-12, PR #3): `planza_app` non-owner role + grants + `auth_lookup` policy; all 61
+> policies NULLIF-hardened (expired context fails empty, not 22P02); worker pins owner role;
+> **CI proves enforcement every run** (6-test suite as the bound role). **Remaining: activation
+> story** — `set_tenant_context` is transaction-local, so routes need the per-request
+> transaction wrapper (or Prisma client extension) before APP_DATABASE_URL can be set in prod.
+> Principal: M (route-layer change + regression pass). All details: ADR-011.
 
 ### Original entry (for history): RLS coverage is partial
 
