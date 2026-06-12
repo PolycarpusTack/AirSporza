@@ -199,6 +199,28 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** fix with TD-15's story; until then readiness badges under-report for channelId-only events (known limitation).
 - **Origin:** B-3-T1 finding 15.
 
+## TD-18 — Conflict preflight fails open
+
+- **Artifact:** `src/components/forms/hooks/useConflictCheck.ts:49-54` — pinned by `DynamicEventForm.test.tsx`
+- **Type:** code (behavior defect)
+- **Cause:** API/network failure during the pre-save conflict check returns `'pass'`; the save proceeds with no warning.
+- **Principal:** S
+- **Interest:** **med** — exactly when the backend is degraded (the riskiest moment), conflict protection silently disappears.
+- **Compounding:** no.
+- **Servicing decision:** **dedicated FEATURE fix early in EPIC C** (fail-visible: warn + allow with explicit confirm); pinned test updated deliberately.
+- **Origin:** B-3-T2 finding 6.
+
+## TD-19 — Undo gaps: no lock check, slot consumed pre-API, no history
+
+- **Artifact:** `src/pages/PlannerView.tsx:340-370` — pinned by `PlannerView.undoRedo.test.tsx`
+- **Type:** code
+- **Cause:** single-slot `lastDragRef` design: undo bypasses the freeze/lock confirm flow, the slot is nulled before the API call (failed undo unretryable), 5s auto-dismiss destroys the affordance, no redo exists.
+- **Principal:** M
+- **Interest:** **low-med** — planner-facing edge cases; worst is moving a locked event via undo.
+- **Compounding:** yes — EPIC C's PlannerView decomposition (TD-3) touches this code.
+- **Servicing decision:** fix within **EPIC C TD-3 story** via the B-3-T3 extraction note (`usePlannerUndo` hook); the characterization suite is the safety net.
+- **Origin:** B-3-T3 findings 1-7 (+ finding 8: `PlannerView.dnd.test.tsx` replicates logic in-test and cannot catch src changes — retire it into the new suite during the same story).
+
 ---
 
 ## Verification notes (ASM-10 re-check, 2026-06-12)
