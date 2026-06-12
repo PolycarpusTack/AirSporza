@@ -44,6 +44,23 @@ export const eventsApi = {
     return api.get<Event[]>(`/events${query ? `?${query}` : ''}`)
   },
 
+  // Paginated variant (ADR-009 envelope); used by INCREMENTAL_LOADING (B-4-T3)
+  listPaged: (limit: number, offset: number, filters?: EventFilters) => {
+    const params = new URLSearchParams()
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          params.append(key, String(value))
+        }
+      })
+    }
+    params.append('limit', String(limit))
+    params.append('offset', String(offset))
+    return api.get<{ data: Event[]; pagination: { total: number; limit: number | null; offset: number } }>(
+      `/events?${params.toString()}`
+    )
+  },
+
   get: (id: number) => 
     api.get<Event>(`/events/${id}`),
 

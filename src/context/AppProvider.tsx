@@ -19,6 +19,7 @@ import {
   COMPETITIONS,
 } from '../data'
 import { eventsApi, settingsApi, techPlansApi, sportsApi, competitionsApi } from '../services'
+import { fetchAllPages, isIncrementalLoadingEnabled, mergeById } from '../utils/pagedFetch'
 import { useToast } from '../components/Toast'
 import { useAuth, useSocket } from '../hooks'
 import type { Event, TechPlan, FieldConfig, DashboardWidget, OrgConfig, Role, RoleConfig, Sport, Competition } from '../data/types'
@@ -103,15 +104,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const fetchData = async () => {
       try {
         setLoading(true)
+        const incremental = isIncrementalLoadingEnabled()
+
+        const eventsPromise = incremental
+          // INCREMENTAL_LOADING (B-4-T3): first page renders immediately,
+          // remaining pages stream in and merge without clobbering socket inserts
+          ? fetchAllPages<Event>(
+              (limit, offset) => eventsApi.listPaged(limit, offset),
+              {
+                pageSize: 200,
+                onPage: (items, { first }) => {
+                  if (first) {
+                    setEvents(items)
+                    setLoading(false)
+                  } else {
+                    setEvents(prev => mergeById(prev, items))
+                  }
+                },
+              }
+            ).then(() => [] as Event[]).catch(() => null)
+          : eventsApi.list().catch(() => null)
+
         const [eventsData, plansData, sportsData, competitionsData] = await Promise.all([
-          eventsApi.list().catch(() => null),
+          eventsPromise,
           techPlansApi.list().catch(() => null),
           sportsApi.list().catch(() => null),
           competitionsApi.list().catch(() => null),
         ])
 
-
-        setEvents(eventsData ? eventsData as Event[] : [])
+        if (!incremental) {
+          setEvents(eventsData ? eventsData as Event[] : [])
+        }
         setTechPlans(plansData ? plansData as TechPlan[] : [])
         if (sportsData) setSports(sportsData)
         if (competitionsData) setCompetitions(competitionsData)
