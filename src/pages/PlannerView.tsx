@@ -13,6 +13,7 @@ import { isEventLocked, isForwardTransition, lockReasonLabel } from '../utils/ev
 import { computeReadiness } from '../utils/eventReadiness'
 import { useApp } from '../context/AppProvider'
 import { useAuth } from '../hooks'
+import { usePlannerUndo } from '../hooks/usePlannerUndo'
 import { contractsApi } from '../services/contracts'
 import { eventsApi, type ConflictWarning } from '../services'
 import { useToast } from '../components/Toast'
@@ -54,13 +55,6 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
-  const lastDragRef = useRef<{
-    eventId: number
-    previousDate?: string        // for horizontal drag
-    previousTime?: string        // for vertical drag (time reschedule)
-    previousDuration?: string    // for resize
-  } | null>(null)
-  const [undoBar, setUndoBar] = useState<{ message: string } | null>(null)
 
   const [detailEvent, setDetailEvent] = useState<Event | null>(null)
   const [localSearch, setLocalSearch] = useState('')
@@ -105,6 +99,11 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   // ── Event actions hook ────────────────────────────────────────────────────
   const { handleCtxStatusChange, handleCtxDelete, handleCtxDuplicate, handleCtxPaste, clipboardRef } = useEventActions({
     setEvents, freezeHours, userRole: user?.role, confirm,
+  })
+
+  // ── Undo hook (extracted in C-3) ──────────────────────────────────────────
+  const { undoBar, armUndo, handleUndo: handleUndoDrag, dismiss: dismissUndoBar } = usePlannerUndo({
+    events: contextEvents, setEvents, applyOptimisticEvent, revertOptimisticEvent, toast,
   })
 
   const sensors = useSensors(
@@ -264,11 +263,10 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
       setEvents(prev => prev.map(e => e.id === eventId ? { ...e, startDateBE: newDate } : e))
       revertOptimisticEvent(eventId)
       // Store undo info and show undo bar
-      lastDragRef.current = { eventId, previousDate: currentDateStr }
       const label = new Date(newDate + 'T00:00:00').toLocaleDateString('en-GB', {
         weekday: 'short', day: 'numeric', month: 'short',
       })
-      setUndoBar({ message: `Moved to ${label}` })
+      armUndo({ eventId, previousDate: currentDateStr }, `Moved to ${label}`)
     } catch {
       // Revert optimistic patch
       revertOptimisticEvent(eventId)
@@ -316,58 +314,24 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
 
       // Store undo info
       if (timeChanged && !durationChanged) {
-        lastDragRef.current = { eventId: result.eventId, previousTime: oldTime }
-        setUndoBar({ message: `Rescheduled to ${newTime}` })
+        armUndo({ eventId: result.eventId, previousTime: oldTime }, `Rescheduled to ${newTime}`)
       } else if (durationChanged && !timeChanged) {
-        lastDragRef.current = { eventId: result.eventId, previousDuration: oldDuration }
         const h = Math.floor(result.newDurationMin / 60)
         const m = result.newDurationMin % 60
         const durLabel = h > 0 ? `${h}h ${m}m` : `${m}m`
-        setUndoBar({ message: `Duration changed to ${durLabel}` })
+        armUndo({ eventId: result.eventId, previousDuration: oldDuration }, `Duration changed to ${durLabel}`)
       } else {
         // Both changed (shouldn't normally happen but handle it)
-        lastDragRef.current = { eventId: result.eventId, previousTime: oldTime, previousDuration: oldDuration }
-        setUndoBar({ message: `Rescheduled to ${newTime}` })
+        armUndo(
+          { eventId: result.eventId, previousTime: oldTime, previousDuration: oldDuration },
+          `Rescheduled to ${newTime}`
+        )
       }
     } catch {
       revertOptimisticEvent(result.eventId)
       toast.error('Failed to update event')
     }
   }, [contextEvents, setEvents, toast, applyOptimisticEvent, revertOptimisticEvent])
-
-  // ── Undo drag ──────────────────────────────────────────────────────────────
-
-  const handleUndoDrag = useCallback(async () => {
-    if (!lastDragRef.current) return
-    const { eventId, previousDate, previousTime, previousDuration } = lastDragRef.current
-    lastDragRef.current = null
-    const ev = contextEvents.find(e => e.id === eventId)
-    if (!ev) return
-
-    // Build revert patch
-    const patch: Partial<Event> = {}
-    if (previousDate) patch.startDateBE = previousDate
-    if (previousTime) {
-      if (ev.linearStartTime) patch.linearStartTime = previousTime
-      else patch.startTimeBE = previousTime
-    }
-    if (previousDuration) patch.duration = previousDuration
-
-    applyOptimisticEvent({ id: eventId, ...patch })
-    try {
-      await eventsApi.update(eventId, { ...ev, ...patch })
-      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, ...patch } : e))
-      revertOptimisticEvent(eventId)
-    } catch {
-      revertOptimisticEvent(eventId)
-      toast.error('Undo failed')
-    }
-  }, [contextEvents, setEvents, toast, applyOptimisticEvent, revertOptimisticEvent])
-
-  const dismissUndoBar = useCallback(() => {
-    setUndoBar(null)
-    lastDragRef.current = null
-  }, [])
 
   // ── Selection mode ──────────────────────────────────────────────────────────
 
