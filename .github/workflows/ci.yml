@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # npm workspaces: root install covers frontend + backend
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Backend typecheck
+        working-directory: backend
+        run: npx tsc --noEmit
+
+      - name: Frontend typecheck
+        run: npx tsc -b --force
+
+      - name: Lint (whole repo)
+        run: npx eslint .
+
+      - name: Dependency-direction fitness function
+        run: node scripts/check-dependency-direction.mjs
+
+      - name: Backend tests
+        working-directory: backend
+        run: npx vitest run
+
+      - name: Frontend tests
+        run: npm run test
+
+  # Extension point (A-2-T4): "migrations" job with a postgres:16 service container
+  # running `prisma migrate deploy` + `prisma migrate status` + DB-backed smoke tests.
