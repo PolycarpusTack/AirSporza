@@ -21,3 +21,15 @@ check warnings.
 
 **Known limitation:** the admin UI has no editor for `visibleByRoles` yet (set via API);
 follow-up noted in B-1-T1 inventory.
+
+## Pagination (ADR-009)
+
+- **Opt-in:** list endpoints return legacy plain arrays until `limit`/`offset` is passed; then
+  `{ data, pagination: { total, limit, offset } }`. Max `limit` 200 (400 above).
+- **Exception:** import listings (`/api/import/records/unlinked|jobs|merge-candidates|dead-letters`)
+  envelope only on `offset` (their `limit` predates the envelope; legacy consumers unchanged).
+- Endpoints live: `/api/events` (order `startDateBE,startTimeBE,id`), `/api/teams` (`name,id`),
+  the four import listings (`createdAt desc,id`).
+- `INCREMENTAL_LOADING` (frontend flag, B-4-T3): first page eager, remainder background-merged;
+  off = full-list fetch as before. Future `API_DEFAULT_PAGE_LIMIT` flips server defaults — do not
+  enable before the frontend flag is on everywhere.
