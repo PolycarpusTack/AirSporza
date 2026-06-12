@@ -247,7 +247,11 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **TD-3 ◐ partial** — PlannerView shed the undo machinery (~60 ln) and gained a tested hook; file is still ~950 ln. Further decomposition stays open under TD-3 (interest now LOWER: undo, the riskiest logic, is extracted and tested).
 - **TD-9 pattern** reused by `PlayerTeam` NULL-season guard (EPIC G).
 
-## TD-22 — RLS coverage is partial: operational tables rely on app-level scoping only
+## TD-22 — RLS coverage ◐ NARROWED (coverage done 2026-06-12; enforcement story remains)
+
+> **Layer 1 DONE** (migration `add_tenant_rls_coverage`, ADR-011): 61 policies, 0 uncovered tenant tables, ratcheted by fitness assertion FF-2 in verify-migrations.sh. **Layer 2 discovery:** FORCE RLS = 0 and the app owns all tables, so policies have never bound app queries — enforcement requires the non-owner `planza_app` role story (EPIC D, prerequisites in ADR-011: login pre-context lookup, cross-tenant workers).
+
+### Original entry (for history): RLS coverage is partial
 
 - **Artifact:** live DB `pg_policies` — 48 policies, but `Team`, `Player`, `TeamCompetition`, `PlayerTeam` (and the 0_init precedent set) have **none**; verified 2026-06-12.
 - **Type:** architecture (security posture)
