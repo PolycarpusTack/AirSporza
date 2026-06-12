@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Search, Plus, X, ShieldCheck, Lock, RefreshCw, Users, ChevronDown, ChevronRight, Trophy,
 } from 'lucide-react'
-import type { Competition, Sport, Team } from '../data/types'
-import { teamsApi, type TeamCompetitionLink, type TeamInput } from '../services'
+import type { Competition, Player, Sport, Team } from '../data/types'
+import { playersApi, teamsApi, type TeamCompetitionLink, type TeamInput } from '../services'
 import { Badge, Button, EmptyState, Modal, Toggle } from '../components/ui'
 import { useToast } from '../components/Toast'
 
@@ -13,7 +13,7 @@ interface TeamsViewProps {
   canEdit: boolean
 }
 
-type DrawerTab = 'overview' | 'remarks' | 'sources'
+type DrawerTab = 'overview' | 'roster' | 'remarks' | 'sources'
 
 function initials(name: string): string {
   return name
@@ -425,7 +425,7 @@ function TeamDrawer({
 
         {/* Tabs */}
         <div className="flex gap-0.5 px-3 border-b border-border">
-          {(['overview', 'remarks', 'sources'] as DrawerTab[]).map((t) => (
+          {(['overview', 'roster', 'remarks', 'sources'] as DrawerTab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -464,6 +464,8 @@ function TeamDrawer({
               />
             </div>
           )}
+
+          {tab === 'roster' && <RosterTab team={team} />}
 
           {tab === 'remarks' && (
             <div>
@@ -518,6 +520,102 @@ function TeamDrawer({
         </div>
       </aside>
     </>
+  )
+}
+
+/* ---------------- Roster tab ---------------- */
+
+function PlayerAvatar({ player, size = 30 }: { player: Pick<Player, 'fullName' | 'photoUrl'>; size?: number }) {
+  const dim = { width: size, height: size, fontSize: size * 0.36 }
+  if (player.photoUrl) {
+    return (
+      <img
+        src={player.photoUrl}
+        alt=""
+        style={dim}
+        className="rounded-full object-cover border border-border-s bg-surface-2 flex-shrink-0"
+      />
+    )
+  }
+  return (
+    <div
+      style={dim}
+      className="rounded-full flex items-center justify-center font-head font-bold flex-shrink-0 border border-border-s bg-surface-3 text-text-2"
+    >
+      {initials(player.fullName)}
+    </div>
+  )
+}
+
+function RosterTab({ team }: { team: Team }) {
+  const [players, setPlayers] = useState<Player[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setPlayers(await playersApi.list({ teamId: team.id }))
+    } catch {
+      /* non-fatal — empty state below covers it */
+    } finally {
+      setLoading(false)
+    }
+  }, [team.id])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-10 bg-surface-2 rounded-md animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+
+  if (players.length === 0) {
+    return (
+      <EmptyState
+        icon="🧑‍🤝‍🧑"
+        title="No roster yet"
+        subtitle="Run a players import from the Import workspace, or add players via the API — squad members appear here automatically."
+      />
+    )
+  }
+
+  return (
+    <div>
+      <p className="text-[10.5px] font-semibold uppercase tracking-widest text-text-3 font-mono mb-2.5">
+        Roster · {players.length} player{players.length === 1 ? '' : 's'}
+      </p>
+      <div className="border border-border rounded-lg overflow-hidden">
+        {players.map((p) => (
+          <div
+            key={p.id}
+            className="flex items-center gap-3 px-3.5 py-2.5 border-b border-border/60 last:border-0"
+          >
+            <PlayerAvatar player={p} />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold flex items-center gap-1.5 truncate">
+                {p.fullName}
+                {p.notes ? <Lock className="w-3 h-3 text-warning flex-shrink-0" /> : null}
+              </div>
+              <div className="text-[11px] text-text-3">
+                {[p.position, p.countryCode].filter(Boolean).join(' · ') || '—'}
+              </div>
+            </div>
+            {p.canonicalPlayerId ? (
+              <Badge variant="success">synced</Badge>
+            ) : (
+              <Badge variant="draft">manual</Badge>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 

@@ -31,6 +31,7 @@ import crewTemplatesRoutes from './routes/crewTemplates.js'
 import usersRouter from './routes/users.js'
 import venueRoutes from './routes/venues.js'
 import teamRoutes from './routes/teams.js'
+import playerRoutes from './routes/players.js'
 import courtRoutes from './routes/courts.js'
 import seasonRoutes from './routes/seasons.js'
 import channelRoutes from './routes/channels.js'
@@ -113,6 +114,7 @@ export function buildApp() {
   app.use('/api/users', authenticate, setTenantContext, standardLimiter, usersRouter)
   app.use('/api/venues', authenticate, setTenantContext, standardLimiter, venueRoutes)
   app.use('/api/teams', authenticate, setTenantContext, standardLimiter, teamRoutes)
+  app.use('/api/players', authenticate, setTenantContext, standardLimiter, playerRoutes)
   app.use('/api/courts', authenticate, setTenantContext, standardLimiter, courtRoutes)
   app.use('/api/seasons', authenticate, setTenantContext, standardLimiter, seasonRoutes)
   app.use('/api/channels', authenticate, setTenantContext, standardLimiter, channelRoutes)

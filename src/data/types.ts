@@ -255,6 +255,25 @@ export interface Team {
   sport?: { id: number; name: string; icon: string } | null
 }
 
+export interface Player {
+  id: number
+  tenantId: string
+  sportId: number
+  canonicalPlayerId?: string | null
+  fullName: string
+  shortName?: string | null
+  countryCode?: string | null
+  position?: string | null
+  jerseyNumber?: number | null
+  birthDate?: string | null
+  photoUrl?: string | null
+  status?: string
+  notes?: string | null
+  isManaged?: boolean
+  externalRefs?: Record<string, unknown>
+  sport?: { id: number; name: string; icon: string } | null
+}
+
 export interface Court {
   id: number
   tenantId: string

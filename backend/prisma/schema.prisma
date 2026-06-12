@@ -100,14 +100,18 @@ model Tenant {
   canonicalTeams        CanonicalTeam[]
   canonicalCompetitions CanonicalCompetition[]
   canonicalVenues       CanonicalVenue[]
+  canonicalPlayers      CanonicalPlayer[]
   teamAliases           TeamAlias[]
   competitionAliases    CompetitionAlias[]
   venueAliases          VenueAlias[]
+  playerAliases         PlayerAlias[]
   syncHistories         SyncHistory[]
   importSchedules       ImportSchedule[]
   venues                Venue[]
   teams                 Team[]
   teamCompetitions      TeamCompetition[]
+  players               Player[]
+  playerTeams           PlayerTeam[]
   courts                Court[]
   seasons               Season[]
   stages                Stage[]
@@ -165,8 +169,10 @@ model Sport {
   competitions          Competition[]
   events                Event[]
   teams                 Team[]
+  players               Player[]
   canonicalTeams        CanonicalTeam[]
   canonicalCompetitions CanonicalCompetition[]
+  canonicalPlayers      CanonicalPlayer[]
   mandatoryFieldConfig  MandatoryFieldConfig?
 
   @@unique([tenantId, name])
@@ -190,6 +196,7 @@ model Competition {
   seasons        Season[]
   rightsPolicies RightsPolicy[]
   teamLinks      TeamCompetition[]
+  playerLinks    PlayerTeam[]
 
   @@unique([sportId, name, season])
   @@index([sportId])
@@ -607,9 +614,11 @@ model ImportSource {
   teamAliases           TeamAlias[]
   competitionAliases    CompetitionAlias[]
   venueAliases          VenueAlias[]
+  playerAliases         PlayerAlias[]
   canonicalTeams        CanonicalTeam[]        @relation("CanonicalTeamSource")
   canonicalCompetitions CanonicalCompetition[] @relation("CanonicalCompetitionSource")
   canonicalVenues       CanonicalVenue[]       @relation("CanonicalVenueSource")
+  canonicalPlayers      CanonicalPlayer[]      @relation("CanonicalPlayerSource")
   schedule              ImportSchedule?
 
   @@index([tenantId])
@@ -791,6 +800,31 @@ model CanonicalTeam {
   @@index([tenantId])
 }
 
+// Canonical athlete record on the import side (mirrors CanonicalTeam). The
+// operational, user-facing record is `Player`; `upsertPlayer` projects this
+// canonical record into it (same bridge pattern as CanonicalTeam -> Team).
+model CanonicalPlayer {
+  id              String    @id @default(uuid())
+  primaryName     String
+  countryCode     String?
+  sportId         Int
+  birthDate       DateTime? @db.Date
+  photoUrl        String?
+  primarySourceId String?
+  tenantId        String    @db.Uuid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  sport         Sport         @relation(fields: [sportId], references: [id])
+  primarySource ImportSource? @relation("CanonicalPlayerSource", fields: [primarySourceId], references: [id])
+  aliases       PlayerAlias[]
+  players       Player[]
+
+  @@unique([sportId, primaryName])
+  @@index([tenantId])
+}
+
 model CanonicalCompetition {
   id              String   @id @default(uuid())
   primaryName     String
@@ -841,6 +875,23 @@ model TeamAlias {
   tenant        Tenant        @relation(fields: [tenantId], references: [id])
   canonicalTeam CanonicalTeam @relation(fields: [canonicalTeamId], references: [id])
   source        ImportSource? @relation(fields: [sourceId], references: [id])
+
+  @@unique([tenantId, sourceId, normalizedAlias])
+  @@index([normalizedAlias])
+  @@index([tenantId])
+}
+
+model PlayerAlias {
+  id                String  @id @default(uuid())
+  canonicalPlayerId String
+  sourceId          String?
+  alias             String
+  normalizedAlias   String
+  tenantId          String  @db.Uuid
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  canonicalPlayer CanonicalPlayer @relation(fields: [canonicalPlayerId], references: [id])
+  source          ImportSource?   @relation(fields: [sourceId], references: [id])
 
   @@unique([tenantId, sourceId, normalizedAlias])
   @@index([normalizedAlias])
@@ -1147,6 +1198,7 @@ model Team {
   sport            Sport?            @relation(fields: [sportId], references: [id])
   canonicalTeam    CanonicalTeam?    @relation(fields: [canonicalTeamId], references: [id])
   competitionLinks TeamCompetition[]
+  playerLinks      PlayerTeam[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1175,6 +1227,78 @@ model TeamCompetition {
   @@unique([teamId, competitionId, seasonId])
   @@index([tenantId, competitionId])
   @@index([teamId])
+}
+
+// Operational athlete record (the user-facing repository row; plan doc §2).
+// Works for team sports (roster via PlayerTeam) and individual sports
+// (PlayerTeam rows with teamId null / competitionId for startlists).
+model Player {
+  id                Int       @id @default(autoincrement())
+  tenantId          String    @db.Uuid
+  sportId           Int
+  // Bridge to the import/dedup layer. Populated when an imported
+  // CanonicalPlayer is projected into this operational record; null for
+  // manually-created players. String (text), not @db.Uuid — must match
+  // CanonicalPlayer.id's column type (same convention as Team.canonicalTeamId).
+  canonicalPlayerId String?
+  fullName          String
+  shortName         String?
+  countryCode       String?
+  position          String? // null for tennis/cycling
+  jerseyNumber      Int?
+  birthDate         DateTime? @db.Date
+  photoUrl          String?
+  status            String    @default("active") // active|injured|loaned|retired
+  // Editorial remarks — manual-only, never written by an import sync.
+  notes             String?
+  // True once a human has curated this record. Imports still refresh it, but
+  // field-level provenance protects edited fields from overwrite.
+  isManaged         Boolean   @default(false)
+  externalRefs      Json      @default("{}")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  sport           Sport            @relation(fields: [sportId], references: [id])
+  canonicalPlayer CanonicalPlayer? @relation(fields: [canonicalPlayerId], references: [id])
+  teamLinks       PlayerTeam[]
+
+  // Postgres treats NULL birthDates as distinct here; the route and the import
+  // projection guard the null-birthDate duplicate case explicitly (cf. TD-9).
+  @@unique([tenantId, sportId, fullName, birthDate])
+  @@index([tenantId, sportId])
+  @@index([canonicalPlayerId])
+  @@index([tenantId])
+}
+
+// Player ↔ team membership over time (also covers cycling team rosters and
+// individual-sport startlists: teamId null = unattached athlete, optionally
+// scoped to a competition). seasonId null = "all seasons". As with
+// TeamCompetition, the DB-level @@unique can't dedupe NULL members; writers
+// guard with an explicit existence check.
+model PlayerTeam {
+  id            Int       @id @default(autoincrement())
+  tenantId      String    @db.Uuid
+  playerId      Int
+  teamId        Int?
+  competitionId Int?
+  seasonId      Int?
+  fromDate      DateTime? @db.Date
+  toDate        DateTime? @db.Date
+  isCurrent     Boolean   @default(true)
+  source        String    @default("manual") // manual | the_sports_db | ...
+  createdAt     DateTime  @default(now())
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  player      Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team        Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  competition Competition? @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  season      Season?      @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+
+  @@unique([playerId, teamId, seasonId])
+  @@index([tenantId, teamId])
+  @@index([tenantId, competitionId])
+  @@index([playerId])
 }
 
 model Court {
@@ -1218,6 +1342,7 @@ model Season {
   contracts      Contract[]
   rightsPolicies RightsPolicy[]
   teamLinks      TeamCompetition[]
+  playerLinks    PlayerTeam[]
 
   @@unique([tenantId, competitionId, name])
   @@index([tenantId])

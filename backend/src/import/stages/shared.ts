@@ -40,6 +40,8 @@ export function scopeToRecordType(entityScope: string): EntityType {
       return 'competition'
     case 'teams':
       return 'team'
+    case 'players':
+      return 'player'
     case 'events':
     case 'fixtures':
     case 'live':
@@ -54,6 +56,7 @@ export function normalizeRecordType(value: string | null | undefined, fallback: 
     case 'sport':
     case 'competition':
     case 'team':
+    case 'player':
     case 'venue':
     case 'event':
       return value

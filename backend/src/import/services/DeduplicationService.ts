@@ -25,6 +25,74 @@ export class DeduplicationService {
     return null
   }
   
+  /**
+   * Player canonical matching (EPIC G-4). Deliberately conservative, mirroring
+   * the team path: (1) exact source-link reuse, (2) normalized-name fingerprint
+   * against PlayerAlias (catches the same athlete arriving from another source
+   * under a known name variant). No fuzzy auto-merge — anything weaker than a
+   * name fingerprint creates a fresh canonical instead of guessing.
+   * Returned entityId is a CanonicalPlayer id.
+   *
+   * G review fix F1: a bare name fingerprint is no longer an auto-merge —
+   * distinct athletes can share a name. The alias's canonical must be in the
+   * same sport AND have a verifying birthDate match to auto-merge; anything
+   * weaker comes back matched:false with the canonical as a review suggestion
+   * (MergeCandidate path).
+   */
+  async findPlayerMatch(
+    sourceId: string,
+    sourceRecordId: string,
+    normalizedName: string,
+    tenantId: string,
+    sportId: number,
+    birthDate: Date | null
+  ): Promise<MatchResult | null> {
+    const exact = await this.findExactMatch(sourceId, sourceRecordId, 'player')
+    if (exact) return exact
+
+    const alias = await prisma.playerAlias.findFirst({
+      where: { tenantId, normalizedAlias: normalizedName },
+      include: { canonicalPlayer: true },
+    })
+
+    if (!alias) return null
+
+    const canonical = alias.canonicalPlayer
+    const sameSport = canonical.sportId === sportId
+    const birthDateVerified =
+      birthDate != null &&
+      canonical.birthDate != null &&
+      this.isSameUtcDate(birthDate, canonical.birthDate)
+
+    if (sameSport && birthDateVerified) {
+      return {
+        matched: true,
+        entityId: alias.canonicalPlayerId,
+        confidence: 95,
+        method: 'fingerprint',
+        reasonCodes: ['player_name_birthdate_fingerprint'],
+      }
+    }
+
+    // Name collides but the identity is unverified (different sport, or no
+    // birthDate corroboration) — suggest the canonical for human review.
+    return {
+      matched: false,
+      entityId: alias.canonicalPlayerId,
+      confidence: 60,
+      method: 'fingerprint',
+      reasonCodes: ['player_name_fingerprint_unverified'],
+    }
+  }
+
+  private isSameUtcDate(a: Date, b: Date): boolean {
+    return (
+      a.getUTCFullYear() === b.getUTCFullYear() &&
+      a.getUTCMonth() === b.getUTCMonth() &&
+      a.getUTCDate() === b.getUTCDate()
+    )
+  }
+
   async findFingerprintMatch(event: CanonicalImportEvent): Promise<MatchResult | null> {
     const sport = await prisma.sport.findFirst({
       where: { name: { equals: event.sportName, mode: 'insensitive' } },

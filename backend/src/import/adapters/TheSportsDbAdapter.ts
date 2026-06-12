@@ -1,5 +1,5 @@
 import { BaseAdapter } from './BaseAdapter.js'
-import type { FetchWindow, RawSourceRecord, NormalizedCompetition, NormalizedTeam, CanonicalImportEvent } from '../types.js'
+import type { FetchWindow, RawSourceRecord, NormalizedCompetition, NormalizedTeam, NormalizedPlayer, CanonicalImportEvent } from '../types.js'
 
 interface TheSportsDbConfig {
   apiKey: string
@@ -9,6 +9,7 @@ interface TheSportsDbConfig {
 type SportsDbEnvelope<T> = {
   leagues?: T[]
   teams?: T[]
+  player?: T[]
   events?: T[]
 }
 
@@ -73,6 +74,26 @@ export class TheSportsDbAdapter extends BaseAdapter {
     return records
   }
 
+  async fetchPlayers(input: FetchWindow): Promise<RawSourceRecord[]> {
+    const teamIds = input.teamIds || []
+    const records: RawSourceRecord[] = []
+
+    for (const teamId of teamIds) {
+      // TheSportsDB squad lookup; the envelope key is the singular `player`.
+      const data = await this.request<Record<string, unknown>>(`lookup_all_players.php?id=${teamId}`)
+      for (const player of data.player || []) {
+        records.push({
+          id: String(player.idPlayer),
+          type: 'player' as const,
+          raw: player,
+          fetchedAt: new Date(),
+        })
+      }
+    }
+
+    return records
+  }
+
   async fetchFixtures(input: FetchWindow): Promise<RawSourceRecord[]> {
     const dates = enumerateDates(input.dateFrom, input.dateTo)
     const records: RawSourceRecord[] = []
@@ -129,6 +150,26 @@ export class TheSportsDbAdapter extends BaseAdapter {
     }
   }
 
+  normalizePlayer(raw: RawSourceRecord): NormalizedPlayer | null {
+    const data = raw.raw as Record<string, unknown>
+    const sport = mapSportName(data.strSport)
+    if (!data.idPlayer || !data.strPlayer || !sport) {
+      return null
+    }
+
+    return {
+      sourceCode: 'the_sports_db',
+      sourceId: String(data.idPlayer),
+      name: String(data.strPlayer),
+      sport,
+      nationality: data.strNationality ? String(data.strNationality) : undefined,
+      position: data.strPosition ? String(data.strPosition) : undefined,
+      birthDate: toIsoDate(data.dateBorn),
+      photoUrl: data.strCutout ? String(data.strCutout) : (data.strThumb ? String(data.strThumb) : undefined),
+      teamSourceId: data.idTeam ? String(data.idTeam) : undefined,
+    }
+  }
+
   normalizeFixture(raw: RawSourceRecord): CanonicalImportEvent | null {
     const data = raw.raw as Record<string, unknown>
     const sport = mapSportName(data.strSport)
@@ -181,6 +222,12 @@ function mapEventStatus(value: unknown): CanonicalImportEvent['status'] {
   if (['PST', 'POST'].includes(status)) return 'postponed'
   if (status && !['NS'].includes(status)) return 'live'
   return 'scheduled'
+}
+
+function toIsoDate(value: unknown) {
+  if (!value) return undefined
+  const date = String(value).slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined
 }
 
 function toIsoDateTime(date: unknown, time: unknown) {

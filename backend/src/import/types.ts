@@ -1,6 +1,6 @@
 export type SourceCode = 'football_data' | 'the_sports_db' | 'api_football' | 'statsbomb_open'
 
-export type EntityType = 'sport' | 'competition' | 'team' | 'venue' | 'event'
+export type EntityType = 'sport' | 'competition' | 'team' | 'player' | 'venue' | 'event'
 
 export type ImportJobMode = 'full' | 'incremental' | 'backfill'
 
@@ -13,6 +13,8 @@ export interface FetchWindow {
   dateFrom?: string
   dateTo?: string
   competitionIds?: string[]
+  // Source record ids of teams to fetch players/squads for.
+  teamIds?: string[]
   limit?: number
 }
 
@@ -44,6 +46,21 @@ export interface NormalizedTeam {
   // Source record ids of the competitions/leagues this team belongs to, used to
   // auto-create TeamCompetition memberships during import.
   competitionSourceIds?: string[]
+}
+
+export interface NormalizedPlayer {
+  sourceCode: SourceCode
+  sourceId: string
+  name: string
+  sport: string
+  nationality?: string
+  position?: string
+  // ISO date (YYYY-MM-DD)
+  birthDate?: string
+  photoUrl?: string
+  // Source record id of the team this player was fetched under, used to
+  // derive PlayerTeam membership during import.
+  teamSourceId?: string
 }
 
 export interface CanonicalImportEvent {

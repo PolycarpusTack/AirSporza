@@ -17,9 +17,9 @@ import type { RawSourceRecord } from '../types.js'
 import { loadJob, normalizeRecordType, readCount, scopeToRecordType, type JobWithSource } from '../stages/shared.js'
 import { createProgressController } from '../stages/progress.js'
 import { handleJobFailure, writeSyncHistory } from '../stages/failure.js'
-import { getSourceCompetitionIds } from '../stages/records.js'
+import { getSourceCompetitionIds, getSourceTeamIds } from '../stages/records.js'
 import { formatDateOffset } from '../stages/provision.js'
-import { processCompetitionRecord, processEventRecord, processTeamRecord } from '../stages/process.js'
+import { processCompetitionRecord, processEventRecord, processPlayerRecord, processTeamRecord } from '../stages/process.js'
 
 // Route-facing exports kept stable for routes/import.ts (split lands in C-2)
 export { manualCreateNormalizedEvent, manualMergeNormalizedEvent } from '../stages/provision.js'
@@ -144,6 +144,8 @@ async function executeJob(
       return importCompetitions(job, adapter, progress)
     case 'teams':
       return importTeams(job, adapter, progress)
+    case 'players':
+      return importPlayers(job, adapter, progress)
     case 'events':
     case 'fixtures':
       return importEvents(job, adapter, progress)
@@ -206,6 +208,9 @@ async function replayDeadLetter(
         break
       case 'teams':
         status = await processTeamRecord(job, adapter, progress, rawRecord)
+        break
+      case 'players':
+        status = await processPlayerRecord(job, adapter, progress, rawRecord)
         break
       case 'events':
       case 'fixtures':
@@ -273,6 +278,55 @@ async function importTeams(
   return {
     status: sawSkip ? 'partial' as const : 'completed' as const,
     message: sawSkip ? 'Some team records could not be processed.' : null,
+  }
+}
+
+async function importPlayers(
+  job: NonNullable<JobWithSource>,
+  adapter: ImportAdapter,
+  progress: ReturnType<typeof createProgressController>
+) {
+  if (!adapter.fetchPlayers || !adapter.normalizePlayer) {
+    throw new Error(`Import scope '${job.entityScope}' is not implemented for source '${job.source.code}'.`)
+  }
+
+  // Mirrors importTeams: players are fetched per linked team. If no team
+  // source links exist yet, run a teams import first (which itself backfills
+  // competitions when needed).
+  let teamBackfill: { status: JobStatus; message: string | null } | null = null
+  let teamIds = await getSourceTeamIds(job.sourceId, job.tenantId)
+  if (teamIds.length === 0) {
+    // G review fix F5: keep the backfill's status — a partial teams import
+    // means dead-lettered teams whose squads were never fetched, so the
+    // players job must not report 'completed'.
+    teamBackfill = await importTeams(job, adapter, progress)
+    teamIds = await getSourceTeamIds(job.sourceId, job.tenantId)
+  }
+
+  if (teamIds.length === 0) {
+    throw new Error(`No team source links are available for '${job.source.code}' player imports.`)
+  }
+
+  const rawRecords = await adapter.fetchPlayers({ teamIds })
+  let sawSkip = false
+
+  for (const rawRecord of rawRecords) {
+    const status = await processPlayerRecord(job, adapter, progress, rawRecord)
+    sawSkip = sawSkip || status === 'partial'
+  }
+
+  const backfillPartial = teamBackfill?.status === 'partial'
+  const messages: string[] = []
+  if (backfillPartial) {
+    messages.push('Team backfill was partial — squads were not fetched for dead-lettered teams.')
+  }
+  if (sawSkip) {
+    messages.push('Some player records could not be processed.')
+  }
+
+  return {
+    status: backfillPartial || sawSkip ? 'partial' as const : 'completed' as const,
+    message: messages.length > 0 ? messages.join(' ') : null,
   }
 }
 

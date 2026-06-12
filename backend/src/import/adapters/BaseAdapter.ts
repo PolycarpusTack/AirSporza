@@ -1,4 +1,4 @@
-import type { SourceCode, FetchWindow, RawSourceRecord, NormalizedCompetition, NormalizedTeam, CanonicalImportEvent } from '../types.js'
+import type { SourceCode, FetchWindow, RawSourceRecord, NormalizedCompetition, NormalizedTeam, NormalizedPlayer, CanonicalImportEvent } from '../types.js'
 
 export interface ImportAdapter {
   sourceCode: SourceCode
@@ -13,11 +13,13 @@ export interface ImportAdapter {
   
   fetchCompetitions(input: FetchWindow): Promise<RawSourceRecord[]>
   fetchTeams?(input: FetchWindow): Promise<RawSourceRecord[]>
+  fetchPlayers?(input: FetchWindow): Promise<RawSourceRecord[]>
   fetchFixtures(input: FetchWindow): Promise<RawSourceRecord[]>
   fetchLiveUpdates?(input: FetchWindow): Promise<RawSourceRecord[]>
-  
+
   normalizeCompetition(raw: RawSourceRecord): NormalizedCompetition | null
   normalizeTeam?(raw: RawSourceRecord): NormalizedTeam | null
+  normalizePlayer?(raw: RawSourceRecord): NormalizedPlayer | null
   normalizeFixture(raw: RawSourceRecord): CanonicalImportEvent | null
   
   getCursor(nextFromResponse: unknown): string | null
@@ -38,8 +40,10 @@ export abstract class BaseAdapter implements ImportAdapter {
   abstract normalizeFixture(raw: RawSourceRecord): CanonicalImportEvent | null
   
   fetchTeams?(input: FetchWindow): Promise<RawSourceRecord[]>
+  fetchPlayers?(input: FetchWindow): Promise<RawSourceRecord[]>
   fetchLiveUpdates?(input: FetchWindow): Promise<RawSourceRecord[]>
   normalizeTeam?(raw: RawSourceRecord): NormalizedTeam | null
+  normalizePlayer?(raw: RawSourceRecord): NormalizedPlayer | null
   
   getCursor(_nextFromResponse: unknown): string | null {
     return null

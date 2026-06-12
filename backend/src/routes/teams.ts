@@ -86,6 +86,15 @@ router.post('/', authenticate, authorize('admin'), validate({ body: s.teamCreate
   try {
     const { name, shortName, country, logoUrl, sportId, notes, isManaged, externalRefs } = req.body
 
+    // G review fix F4: sportId must reference a sport belonging to this tenant
+    // (same pre-existing gap as the players routes).
+    if (sportId != null) {
+      const sport = await prisma.sport.findFirst({
+        where: { id: sportId, tenantId: req.tenantId }
+      })
+      if (!sport) return next(createError(400, 'Unknown sport'))
+    }
+
     const team = await prisma.team.create({
       data: {
         name,
@@ -115,6 +124,15 @@ router.put('/:id', authenticate, authorize('admin'), validate({ params: s.idPara
     if (!existing) return next(createError(404, 'Team not found'))
 
     const { name, shortName, country, logoUrl, sportId, notes, isManaged, externalRefs } = req.body
+
+    // G review fix F4: sportId must reference a sport belonging to this tenant.
+    if (sportId != null) {
+      const sport = await prisma.sport.findFirst({
+        where: { id: sportId, tenantId: req.tenantId }
+      })
+      if (!sport) return next(createError(400, 'Unknown sport'))
+    }
+
     const team = await prisma.team.update({
       where: { id: existing.id },
       data: { name, shortName, country, logoUrl, sportId, notes, isManaged, externalRefs }

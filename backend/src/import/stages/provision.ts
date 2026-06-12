@@ -16,11 +16,13 @@ import {
 import type {
   CanonicalImportEvent,
   NormalizedCompetition,
+  NormalizedPlayer,
   NormalizedTeam,
   RawSourceRecord,
   SourceCode,
 } from '../types.js'
 import { deduplicationService, normalizeName } from './shared.js'
+import type { ProvisionOutcome } from './process.js'
 
 export async function upsertCompetition(sourceId: string, tenantId: string, normalized: NormalizedCompetition) {
   const sport = await prisma.sport.findFirst({
@@ -390,6 +392,339 @@ async function linkImportedTeamCompetitions(params: {
       data: { tenantId, teamId, competitionId, seasonId: null, source: sourceCode },
     })
   }
+}
+
+export async function upsertPlayer(sourceId: string, tenantId: string, normalized: NormalizedPlayer): Promise<ProvisionOutcome> {
+  const sport = await prisma.sport.findFirst({
+    where: { tenantId, name: { equals: normalized.sport, mode: 'insensitive' } }
+  })
+
+  if (!sport) {
+    throw new Error(`Sport '${normalized.sport}' not found.`)
+  }
+
+  const birthDate = normalized.birthDate ? new Date(`${normalized.birthDate}T00:00:00.000Z`) : null
+
+  // Dedup (G-4): exact source-link first, then conservative normalized-name
+  // fingerprint via PlayerAlias. A matched canonical is reused/refreshed;
+  // otherwise the (sportId, primaryName) upsert covers the exact-name case.
+  const match = await deduplicationService.findPlayerMatch(
+    sourceId,
+    normalized.sourceId,
+    normalizeName(normalized.name),
+    tenantId,
+    sport.id,
+    birthDate
+  )
+
+  // G review fix F1: an unverified name collision is NOT auto-merged. Queue it
+  // for human review (MergeCandidate) before anything is written — no canonical
+  // update, no alias upsert, no source link, no operational projection.
+  if (match && !match.matched) {
+    return {
+      kind: 'review',
+      suggestedEntityId: match.entityId ?? null,
+      confidence: match.confidence,
+      reasonCodes: match.reasonCodes,
+    }
+  }
+
+  const matchedCanonical = match?.entityId
+    ? await prisma.canonicalPlayer.findUnique({ where: { id: match.entityId } })
+    : null
+
+  const canonicalPatch = {
+    countryCode: normalized.nationality || null,
+    birthDate,
+    photoUrl: normalized.photoUrl || null,
+    primarySourceId: sourceId,
+  }
+
+  let canonicalPlayer
+  let canonicalProvenanceFields: string[]
+
+  if (matchedCanonical) {
+    // G review fix F7: a sparse second source must not null out canonical data
+    // another source already provided — only apply incoming non-null values.
+    const updatePatch: Prisma.CanonicalPlayerUncheckedUpdateInput = { primarySourceId: sourceId }
+    const appliedFields: string[] = []
+    if (canonicalPatch.countryCode != null) {
+      updatePatch.countryCode = canonicalPatch.countryCode
+      appliedFields.push('countryCode')
+    }
+    if (canonicalPatch.birthDate != null) {
+      updatePatch.birthDate = canonicalPatch.birthDate
+      appliedFields.push('birthDate')
+    }
+    if (canonicalPatch.photoUrl != null) {
+      updatePatch.photoUrl = canonicalPatch.photoUrl
+      appliedFields.push('photoUrl')
+    }
+    canonicalPlayer = await prisma.canonicalPlayer.update({
+      where: { id: matchedCanonical.id },
+      data: updatePatch,
+    })
+    canonicalProvenanceFields = appliedFields
+  } else {
+    canonicalPlayer = await prisma.canonicalPlayer.upsert({
+      where: {
+        sportId_primaryName: {
+          sportId: sport.id,
+          primaryName: normalized.name,
+        }
+      },
+      create: {
+        tenantId,
+        sportId: sport.id,
+        primaryName: normalized.name,
+        ...canonicalPatch,
+      },
+      update: canonicalPatch,
+    })
+    canonicalProvenanceFields = ['primaryName', 'countryCode', 'birthDate', 'photoUrl']
+  }
+
+  await prisma.playerAlias.upsert({
+    where: {
+      tenantId_sourceId_normalizedAlias: {
+        tenantId,
+        sourceId,
+        normalizedAlias: normalizeName(normalized.name),
+      }
+    },
+    create: {
+      tenantId,
+      sourceId,
+      alias: normalized.name,
+      normalizedAlias: normalizeName(normalized.name),
+      canonicalPlayerId: canonicalPlayer.id,
+    },
+    update: {
+      alias: normalized.name,
+      canonicalPlayerId: canonicalPlayer.id,
+    }
+  })
+
+  const existingLink = await prisma.importSourceLink.findUnique({
+    where: {
+      sourceId_sourceRecordId_entityType: {
+        sourceId,
+        sourceRecordId: normalized.sourceId,
+        entityType: 'player',
+      }
+    }
+  })
+
+  await prisma.importSourceLink.upsert({
+    where: {
+      sourceId_sourceRecordId_entityType: {
+        sourceId,
+        sourceRecordId: normalized.sourceId,
+        entityType: 'player',
+      }
+    },
+    create: {
+      tenantId,
+      sourceId,
+      sourceRecordId: normalized.sourceId,
+      entityType: 'player',
+      entityId: canonicalPlayer.id,
+      confidence: 100,
+      matchMethod: 'exact',
+      isManual: false,
+    },
+    update: {
+      entityId: canonicalPlayer.id,
+      confidence: 100,
+      matchMethod: 'exact',
+    }
+  })
+
+  // G review fix F7: only stamp provenance on the fields actually written above.
+  if (canonicalProvenanceFields.length > 0) {
+    await recordFieldProvenance({
+      entityType: 'player',
+      entityId: canonicalPlayer.id,
+      fieldNames: canonicalProvenanceFields,
+      sourceId,
+      sourceRecordId: normalized.sourceId,
+      sourceUpdatedAt: null,
+    })
+  }
+
+  // Bridge: project the canonical record into the operational `Player` table
+  // (same pattern as CanonicalTeam -> Team). Manual edits are preserved.
+  await projectCanonicalPlayerToOperational({
+    tenantId,
+    sportId: sport.id,
+    canonicalPlayerId: canonicalPlayer.id,
+    normalized,
+    birthDate,
+    sourceId,
+  })
+
+  // A verified fingerprint merge into an existing canonical counts as an
+  // update even when this source links the record for the first time (F1).
+  return existingLink || matchedCanonical ? { kind: 'updated' } : { kind: 'created' }
+}
+
+/**
+ * Mirror an imported CanonicalPlayer into the operational `Player` table.
+ *
+ * Match order: existing bridge link (canonicalPlayerId) → unique
+ * (tenantId, sportId, fullName, birthDate).
+ * - New player: created from the imported fields.
+ * - Managed player (curated by a human): only the canonical link and a missing
+ *   photo are refreshed; identity fields (fullName/countryCode/position/
+ *   birthDate) and `notes` are left intact so manual edits survive re-sync.
+ * - Unmanaged player: imported fields are applied subject to cross-source
+ *   field priority via `shouldApplyImportedField`, with provenance recorded.
+ *   `notes` is manual-only and is never part of the imported field set.
+ */
+async function projectCanonicalPlayerToOperational(params: {
+  tenantId: string
+  sportId: number
+  canonicalPlayerId: string
+  normalized: NormalizedPlayer
+  birthDate: Date | null
+  sourceId: string
+}) {
+  const { tenantId, sportId, canonicalPlayerId, normalized, birthDate, sourceId } = params
+
+  const existing =
+    (await prisma.player.findFirst({ where: { tenantId, canonicalPlayerId } })) ??
+    (await prisma.player.findFirst({ where: { tenantId, sportId, fullName: normalized.name, birthDate } }))
+
+  let playerId: number
+
+  if (!existing) {
+    const created = await prisma.player.create({
+      data: {
+        tenantId,
+        sportId,
+        canonicalPlayerId,
+        fullName: normalized.name,
+        countryCode: normalized.nationality ?? null,
+        position: normalized.position ?? null,
+        birthDate,
+        photoUrl: normalized.photoUrl ?? null,
+        isManaged: false,
+        externalRefs: { [normalized.sourceCode]: normalized.sourceId },
+      },
+    })
+    playerId = created.id
+
+    await recordFieldProvenance({
+      entityType: 'player',
+      entityId: String(created.id),
+      fieldNames: ['fullName', 'countryCode', 'position', 'birthDate', 'photoUrl'],
+      sourceId,
+      sourceRecordId: normalized.sourceId,
+      sourceUpdatedAt: null,
+    })
+  } else if (existing.isManaged) {
+    await prisma.player.update({
+      where: { id: existing.id },
+      data: {
+        canonicalPlayerId,
+        photoUrl: existing.photoUrl ?? normalized.photoUrl ?? null,
+      },
+    })
+    playerId = existing.id
+  } else {
+    const currentSources = await getFieldSourceCodes('player', String(existing.id))
+    const data: Prisma.PlayerUpdateInput = { canonicalPlayer: { connect: { id: canonicalPlayerId } } }
+    const applied: string[] = []
+
+    if (shouldApplyImportedField('fullName', normalized.sourceCode, currentSources.fullName)) {
+      data.fullName = normalized.name
+      applied.push('fullName')
+    }
+    if (shouldApplyImportedField('countryCode', normalized.sourceCode, currentSources.countryCode)) {
+      data.countryCode = normalized.nationality ?? null
+      applied.push('countryCode')
+    }
+    if (shouldApplyImportedField('position', normalized.sourceCode, currentSources.position)) {
+      data.position = normalized.position ?? null
+      applied.push('position')
+    }
+    if (shouldApplyImportedField('birthDate', normalized.sourceCode, currentSources.birthDate)) {
+      data.birthDate = birthDate
+      applied.push('birthDate')
+    }
+    if (shouldApplyImportedField('photoUrl', normalized.sourceCode, currentSources.photoUrl)) {
+      data.photoUrl = normalized.photoUrl ?? null
+      applied.push('photoUrl')
+    }
+
+    await prisma.player.update({ where: { id: existing.id }, data })
+    playerId = existing.id
+
+    if (applied.length > 0) {
+      await recordFieldProvenance({
+        entityType: 'player',
+        entityId: String(existing.id),
+        fieldNames: applied,
+        sourceId,
+        sourceRecordId: normalized.sourceId,
+        sourceUpdatedAt: null,
+      })
+    }
+  }
+
+  // Derive roster membership from the team the player was fetched under.
+  if (normalized.teamSourceId) {
+    await linkImportedPlayerTeam({
+      tenantId,
+      playerId,
+      teamSourceId: normalized.teamSourceId,
+      sourceId,
+      sourceCode: normalized.sourceCode,
+    })
+  }
+}
+
+/**
+ * Create a PlayerTeam membership for an imported player, resolving the team
+ * source-record id via its ImportSourceLink (which stores the CanonicalTeam id)
+ * to the operational Team. Idempotent: skips memberships that already exist
+ * (incl. the null-season case the DB unique can't dedupe). Unknown teams are
+ * skipped silently — the membership appears on the next sync after the team
+ * itself has been imported.
+ */
+async function linkImportedPlayerTeam(params: {
+  tenantId: string
+  playerId: number
+  teamSourceId: string
+  sourceId: string
+  sourceCode: string
+}) {
+  const { tenantId, playerId, teamSourceId, sourceId, sourceCode } = params
+
+  const link = await prisma.importSourceLink.findUnique({
+    where: {
+      sourceId_sourceRecordId_entityType: {
+        sourceId,
+        sourceRecordId: teamSourceId,
+        entityType: 'team',
+      },
+    },
+  })
+  if (!link?.entityId) return
+
+  const team = await prisma.team.findFirst({
+    where: { tenantId, canonicalTeamId: link.entityId },
+  })
+  if (!team) return
+
+  const existingMembership = await prisma.playerTeam.findFirst({
+    where: { playerId, teamId: team.id, seasonId: null },
+  })
+  if (existingMembership) return
+
+  await prisma.playerTeam.create({
+    data: { tenantId, playerId, teamId: team.id, seasonId: null, isCurrent: true, source: sourceCode },
+  })
 }
 
 export async function upsertEvent(sourceId: string, tenantId: string, rawRecord: RawSourceRecord, normalized: CanonicalImportEvent) {

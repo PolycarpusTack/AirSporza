@@ -70,6 +70,24 @@ export async function writeDeadLetter(job: NonNullable<JobWithSource>, rawRecord
   })
 }
 
+// G review fix F3: no `take` cap — a cap silently truncated player imports to
+// the first 50 teams' squads. Fetch ALL team links for the source, tenant-scoped.
+export async function getSourceTeamIds(sourceId: string, tenantId: string) {
+  const links = await prisma.importSourceLink.findMany({
+    where: {
+      tenantId,
+      sourceId,
+      entityType: 'team',
+    },
+    select: {
+      sourceRecordId: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  return links.map(link => link.sourceRecordId)
+}
+
 export async function getSourceCompetitionIds(sourceId: string) {
   const links = await prisma.importSourceLink.findMany({
     where: {
