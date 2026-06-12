@@ -1,6 +1,7 @@
 /**
  * Smoke tests for computeReadiness — pure function, no mocks needed.
  * First test through the frontend Vitest harness (A-1-T2).
+ * Extended in B-3-T1 with characterization cases; pinned behaviors marked PINNED.
  */
 import { describe, it, expect } from 'vitest'
 import { computeReadiness } from './eventReadiness'
@@ -103,5 +104,70 @@ describe('computeReadiness', () => {
     expect(result.checks.find(c => c.key === 'channel')?.status).toBe('fail')
     expect(result.checks.find(c => c.key === 'duration')?.status).toBe('fail')
     expect(result.ready).toBe(false)
+  })
+
+  // ── B-3-T1 characterization cases ──────────────────────────────────────────
+
+  it('ignores plans that belong to other events', () => {
+    const result = computeReadiness(makeEvent({ id: 1 }), [makePlan({ eventId: 2 })], [makeContract()], [requiredCrewField])
+
+    expect(result.checks.find(c => c.key === 'techPlan')?.status).toBe('fail')
+    expect(result.checks.find(c => c.key === 'crew')?.status).toBe('na')
+  })
+
+  it('passes crew when the only required field is invisible (required && visible filter)', () => {
+    const hiddenRequired = { ...requiredCrewField, visible: false }
+    const result = computeReadiness(makeEvent(), [makePlan({ crew: {} })], [makeContract()], [hiddenRequired])
+
+    expect(result.checks.find(c => c.key === 'crew')?.status).toBe('pass')
+  })
+
+  it('treats a whitespace-only crew value as filled', () => {
+    // PINNED: only null/undefined/'' fail the check — '  ' passes
+    const result = computeReadiness(makeEvent(), [makePlan({ crew: { director: '  ' } })], [makeContract()], [requiredCrewField])
+
+    expect(result.checks.find(c => c.key === 'crew')?.status).toBe('pass')
+  })
+
+  it('treats non-string crew values (0, false) as filled', () => {
+    // PINNED: the check is `val != null && val !== ''`, so 0 and false count as assigned
+    const result = computeReadiness(
+      makeEvent(),
+      [makePlan({ crew: { director: 0, camera: false } })],
+      [makeContract()],
+      [requiredCrewField, { ...requiredCrewField, id: 'camera', label: 'Camera' }]
+    )
+
+    expect(result.checks.find(c => c.key === 'crew')?.status).toBe('pass')
+  })
+
+  it('fails contract when its status is "none" (unlike a missing contract, which is n/a)', () => {
+    const result = computeReadiness(makeEvent(), [makePlan()], [makeContract({ status: 'none' })], [])
+
+    expect(result.checks.find(c => c.key === 'contract')?.status).toBe('fail')
+    expect(result.ready).toBe(false)
+  })
+
+  it('only considers the FIRST contract found for the competition', () => {
+    // PINNED: a later valid contract for the same competition is ignored
+    const contracts = [makeContract({ status: 'none' }), makeContract({ id: 51, status: 'valid' })]
+    const result = computeReadiness(makeEvent(), [makePlan()], contracts, [])
+
+    expect(result.checks.find(c => c.key === 'contract')?.status).toBe('fail')
+  })
+
+  it('passes channel when only the radio channel is set', () => {
+    const event = makeEvent({ linearChannel: undefined, onDemandChannel: undefined, radioChannel: 'Radio 1' })
+    const result = computeReadiness(event, [makePlan()], [makeContract()], [])
+
+    expect(result.checks.find(c => c.key === 'channel')?.status).toBe('pass')
+  })
+
+  it('reads only the deprecated string channel fields, not channelId', () => {
+    // PINNED: an event migrated to channelId with no legacy strings fails the channel check
+    const event = makeEvent({ linearChannel: undefined, channelId: 5 })
+    const result = computeReadiness(event, [makePlan()], [makeContract()], [])
+
+    expect(result.checks.find(c => c.key === 'channel')?.status).toBe('fail')
   })
 })
