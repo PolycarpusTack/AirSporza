@@ -255,7 +255,7 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Principal:** M (write policies + FORCE RLS decision + regression-test against route behavior)
 - **Interest:** **low while every route filters by `req.tenantId`** (they do — reviewed), but each new query is one missed `where` away from cross-tenant exposure; defense-in-depth gap.
 - **Compounding:** yes — every new operational table inherits the precedent.
-- **Servicing decision:** dedicated security story in **EPIC D/hardening**: enumerate policy-less tenant tables, add `tenant_isolation` policies + decide owner-bypass posture; until then the ADR-002 claim ("RLS multi-tenancy") must be read as *partial*.
+- **Servicing decision:** dedicated security story in **EPIC D/hardening**: enumerate policy-less tenant tables, add `tenant_isolation` policies + decide owner-bypass posture; until then the ADR-002 claim ("RLS multi-tenancy") must be read as *partial*. **Priority RAISED by ADR-010** (multi-tenant product decision, 2026-06-12): tenant-isolation gaps are now Core Domain security defects.
 - **Origin:** EPIC G review pass (deviation #4 verification), 2026-06-12.
 
 ---

@@ -21,6 +21,7 @@ Key ADRs (current):
   ADR-004: raw-SQL manual migrations — superseded by ADR-007 (pending, A-2)
   ADR-005: JWT/Passport, 4 roles (planner/sports/contracts/admin), route-level authz
   ADR-006: CI = GitHub Actions; package manager = npm (pnpm field removed)
+  ADR-010: multi-tenant PRODUCT, VRT = first tenant — tenancy gaps are Core Domain defects
 
 Fitness Functions (CI-enforced):
   FF-1 dependency direction: services/import never import routes — scripts/check-dependency-direction.mjs
