@@ -23,18 +23,31 @@ The TD-22 investigation found the RLS situation worse than "13 tables lack polic
 byte-identical. A new fitness assertion (**FF-2**, in `verify-migrations.sh`, runs every CI
 migrations job) fails the build if any tenant-scoped table ever lacks a policy again.
 
-**Layer 2 — enforcement (dedicated follow-up story, scheduled in EPIC D):** make the policies
-actually bind by running the app as a **non-owner role** (`planza_app`) with table privileges but
-no ownership, instead of `FORCE` (forcing the owner would break paths that legitimately run
-without tenant context). Prerequisites that story must solve, discovered now:
-- **Login**: the `/auth` user lookup runs before any tenant context exists → the `User` policy
-  must allow lookup by the auth path (e.g. a `SECURITY DEFINER` function or a permissive
-  policy keyed on the auth flow).
-- **Cross-tenant workers**: outbox consumer, contract-expiry check, import/integration
-  schedulers iterate ALL tenants → they keep an elevated role or iterate per-tenant setting
-  context (per-event context already exists in the outbox consumer).
-- A regression pass asserting every route still returns data with context set, and returns
-  NOTHING without it (the actual point).
+**Layer 2 — enforcement scaffolding (BUILT 2026-06-12, activation = operator step):**
+the policies bind by running the API as the **non-owner role `planza_app`** (not `FORCE`, which
+would break paths legitimately running without tenant context). Shipped:
+- Migration `20260612180000_add_app_role_and_auth_policy`: `planza_app` (NOLOGIN until
+  activated), full table/sequence/function grants + default privileges, and the `auth_lookup`
+  SELECT policy on `User` (login identifies the user before tenant context can exist; writes
+  stay tenant-bound).
+- Migration `20260612190000_harden_tenant_policy_null_context`: all 61 policies re-stated with
+  `NULLIF(current_setting('app.tenant_id', true), '')::uuid` — an expired/unset context now
+  fails EMPTY instead of erroring 22P02 (empty string is what an expired transaction-local
+  setting returns).
+- `db/prisma.ts`: request-serving processes use `APP_DATABASE_URL` when set; the worker process
+  pins `PLANZA_DB_ROLE=owner` (first-import `workerEnv.ts`) — outbox consumer, schedulers and
+  contract expiry legitimately span tenants.
+- **Proof in CI**: `tests/rls-enforcement.test.ts` runs as `planza_app` in the migrations job —
+  tenant A context sees only A; no context sees nothing; cross-tenant INSERT rejected; auth
+  lookup works pre-context; owner bypass intact.
+
+**Critical discovery for activation:** `set_tenant_context` uses `set_config(.., true)` =
+**transaction-local**. Under the bound role, the app's current per-request `setTenantRLS()`
+call does NOT carry to subsequent pooled queries — the working pattern (proven in the test) is
+setting context **inside an interactive transaction** with the query. Activation therefore
+requires the per-request transaction wrapper (or a Prisma client extension injecting
+`set_config` per query batch) — **that route-layer change is the remaining activation story**;
+until it lands, `APP_DATABASE_URL` must stay unset in production (routes would fail-empty).
 
 ## Consequences
 

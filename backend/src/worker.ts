@@ -1,5 +1,6 @@
-import { config } from 'dotenv'
-config()
+// Must be first: marks this process as the owner-role, cross-tenant worker
+// (ADR-011) and loads .env before any module reads process.env.
+import './workerEnv.js'
 
 import { prisma } from './db/prisma.js'
 import { startImportWorker } from './import/services/ImportWorkerService.js'
