@@ -6,8 +6,15 @@ _Branch: `feat/teams-repository-phase0` · Plan: [`teams-players-repository-plan
 ## TL;DR
 Phases 0–2 of the Teams repository are **implemented, typechecked, and committed**. The client's
 core ask — a teams repository that self-updates from a free API, supports league assignment, and
-holds protected editorial remarks — is feature-complete. **Players (Phase 3) is the next big piece
-and has not been started.**
+holds protected editorial remarks — is feature-complete.
+
+> **2026-06-12 update (EPIC G): Phase 3 (Players) is BUILT.** `Player`/`CanonicalPlayer`/
+> `PlayerAlias`/`PlayerTeam` schema (migration `20260612160000_add_player_repository`, applied),
+> TheSportsDB `fetchPlayers`/`normalizePlayer`, players import path composing the shared stage
+> modules (generic `processRecord` — no cloned pipeline), dedup with review-queue for uncertain
+> matches, `/api/players` with ADR-009 pagination + protected `notes`, and a Roster tab in the
+> /teams drawer. Remaining from the plan: athlete grid for individual sports, player detail
+> drawer. See `docs/plans/2026-06-12-epic-g-phase-summary.md`.
 
 > **2026-06-12 update (A-2-T3): applied to the database ✅.** Migration
 > `20260612100000_add_team_repository` is deployed to the live DB via `prisma migrate` (see

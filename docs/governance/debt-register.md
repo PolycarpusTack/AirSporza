@@ -235,16 +235,28 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** fix when the import pipeline is next touched (EPIC G): merge direction should prefer in-memory counters for monotonic fields.
 - **Origin:** C-quality review pass (Angle A finding 5), 2026-06-12.
 
-## TD-21 — `process*Record` triplication in the process stage
+## TD-21 — `process*Record` triplication — ✅ SETTLED (EPIC G G-3a, 2026-06-12)
 
-- **Artifact:** `backend/src/import/stages/process.ts`
-- **Type:** code
-- **Cause:** C-1 moved the three near-identical processors verbatim (pure-move discipline — collapsing them would have been a behavior-risk in a refactor commit).
-- **Principal:** S
-- **Interest:** none until EPIC G, then **med** (a fourth copy for players would compound).
-- **Compounding:** yes (EPIC G).
-- **Servicing decision:** **collapse into generic `processRecord(normalizeFn, upsertFn, onReview?)` as the FIRST task of EPIC G story G-3** — the player path must not be a fourth copy.
-- **Origin:** C-quality review pass (cleanup angle), 2026-06-12.
+- **Resolution:** collapsed into generic `processRecord(job, progress, raw, {entityType, normalize, upsert})` with the merge-review branch as a built-in outcome; the four entity processors (incl. players) are thin bindings. Zero behavior change (suite green pre-player-code).
+- **Origin:** C-quality review pass, 2026-06-12.
+
+## Status updates (C-2 / C-3 / EPIC G, 2026-06-12)
+
+- **TD-2 ✅ settled** — `routes/import.ts` (1376 ln) split into `routes/import/` sub-routers (index + 8 modules), pure moves, zero test edits.
+- **TD-19 ✅ settled** — `usePlannerUndo` extracted (PREP), then: undo honors the lock/override-confirm flow, failed undo retryable (slot consumed on success only), UndoBar no longer force-dismisses. Remaining single-slot/no-redo/auto-dismiss design is **accepted** (pinned, documented in the hook header).
+- **TD-3 ◐ partial** — PlannerView shed the undo machinery (~60 ln) and gained a tested hook; file is still ~950 ln. Further decomposition stays open under TD-3 (interest now LOWER: undo, the riskiest logic, is extracted and tested).
+- **TD-9 pattern** reused by `PlayerTeam` NULL-season guard (EPIC G).
+
+## TD-22 — RLS coverage is partial: operational tables rely on app-level scoping only
+
+- **Artifact:** live DB `pg_policies` — 48 policies, but `Team`, `Player`, `TeamCompetition`, `PlayerTeam` (and the 0_init precedent set) have **none**; verified 2026-06-12.
+- **Type:** architecture (security posture)
+- **Cause:** RLS was added per-table in `add_tenant_id_and_rls.sql`; tables created later via `db push` (Team era) never got policies, and EPIC G followed that precedent for consistency.
+- **Principal:** M (write policies + FORCE RLS decision + regression-test against route behavior)
+- **Interest:** **low while every route filters by `req.tenantId`** (they do — reviewed), but each new query is one missed `where` away from cross-tenant exposure; defense-in-depth gap.
+- **Compounding:** yes — every new operational table inherits the precedent.
+- **Servicing decision:** dedicated security story in **EPIC D/hardening**: enumerate policy-less tenant tables, add `tenant_isolation` policies + decide owner-bypass posture; until then the ADR-002 claim ("RLS multi-tenancy") must be read as *partial*.
+- **Origin:** EPIC G review pass (deviation #4 verification), 2026-06-12.
 
 ---
 
