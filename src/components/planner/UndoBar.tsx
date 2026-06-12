@@ -15,13 +15,10 @@ export function UndoBar({ message, onUndo, onDismiss }: UndoBarProps) {
   return (
     <div className="fixed bottom-16 right-4 z-50 flex items-center gap-3 bg-surface border rounded-md shadow-md px-4 py-3">
       <span className="text-sm font-medium text-text-2">{message}</span>
-      <button
-        className="btn btn-g btn-sm"
-        onClick={() => {
-          onUndo()
-          onDismiss()
-        }}
-      >
+      {/* TD-19 fix: dismissal is owned by the undo hook — it closes the bar on
+          success and keeps it (retryable) on failure. The button must not
+          clear the pending undo before the async revert settles. */}
+      <button className="btn btn-g btn-sm" onClick={onUndo}>
         Undo
       </button>
     </div>

@@ -369,20 +369,24 @@ describe('PlannerView undo — horizontal drag (date move)', () => {
     expect(undoButton()).toBeNull() // bar dismissed regardless
   })
 
-  it('PINNED: failed undo shows "Undo failed" and the undo slot is consumed (no retry)', async () => {
+  // TD-19 fix (C-3): a failed undo now KEEPS the pending undo — the bar stays
+  // visible and a second click retries (was: slot consumed pre-API, no retry).
+  it('failed undo keeps the bar and retries on a second click', async () => {
     await renderPlanner([makeEvent()])
     await dragEventTo(1, '2027-07-02')
     update.mockRejectedValueOnce(new Error('Network error'))
 
     await clickUndo()
 
-    expect(H.toast.error).toHaveBeenCalledWith('Undo failed')
+    expect(H.toast.error).toHaveBeenCalledWith('Undo failed — try again or dismiss')
     expect(H.revertOptimistic).toHaveBeenLastCalledWith(1)
-    expect(eventById(1).startDateBE).toBe('2027-07-02') // change stands
-    // lastDragRef was cleared BEFORE the API call (PlannerView.tsx:343) and the
-    // bar is dismissed by UndoBar's click handler — undo cannot be retried.
-    expect(undoButton()).toBeNull()
-    expect(update).toHaveBeenCalledTimes(2)
+    expect(eventById(1).startDateBE).toBe('2027-07-02') // change stands for now
+    expect(undoButton()).not.toBeNull() // bar persists — retry available
+
+    await clickUndo() // retry succeeds (default mock resolves)
+    expect(update).toHaveBeenCalledTimes(3)
+    expect(eventById(1).startDateBE).toBe('2027-07-01')
+    expect(undoButton()).toBeNull() // consumed on success
   })
 })
 

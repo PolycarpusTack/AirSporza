@@ -102,8 +102,22 @@ export function PlannerView({ widgets, loading, onEventClick, scrollToDate, onDr
   })
 
   // ── Undo hook (extracted in C-3) ──────────────────────────────────────────
+  // TD-19 fix: undo runs the same lock/override-confirm flow as a forward drag.
+  const confirmUndoMutate = useCallback(async (ev: Event) => {
+    const lock = isEventLocked(ev, freezeHours, user?.role)
+    if (!lock.locked) return true
+    if (!lock.canOverride) return false
+    return confirm({
+      title: 'Override lock',
+      message: `This event is locked (${lockReasonLabel(lock)}). Changes may disrupt operations. Continue?`,
+      variant: 'warning',
+      confirmLabel: 'Continue',
+    })
+  }, [freezeHours, user?.role, confirm])
+
   const { undoBar, armUndo, handleUndo: handleUndoDrag, dismiss: dismissUndoBar } = usePlannerUndo({
     events: contextEvents, setEvents, applyOptimisticEvent, revertOptimisticEvent, toast,
+    confirmMutate: confirmUndoMutate,
   })
 
   const sensors = useSensors(
