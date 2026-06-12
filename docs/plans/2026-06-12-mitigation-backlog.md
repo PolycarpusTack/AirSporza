@@ -486,10 +486,30 @@ Enforced from this backlog onward (DELIVERY): one term per concept, one concept 
 
 ## Future EPICs (outline only — expand after EPIC A/B retrospective)
 
-### EPIC C — Decompose god files (PREP for all future feature velocity)
-- **Objective:** Split the four oversized modules along behavioral seams, characterization-first, so future features (incl. Players) compose stages instead of growing monoliths.
-- **Mode:** DELIVERY (REFACTORING/PREPARATORY hats only per task).
-- **Rough stories:** C-1 Characterize + split `backend/src/import/services/ImportJobRunner.ts` (1660 ln) into fetch/normalize/dedupe/merge/provision stage modules (PREP for EPIC G — Players must reuse these stages, not clone the team path). C-2 Split `backend/src/routes/import.ts` (1352 ln) into sub-routers. C-3 Extract PlannerView (1009 ln) state/undo-redo hook (consumes B-3-T3 net + findings). C-4 Split `AdminView.tsx` (793 ln) by admin domain. Services TD-1…TD-4.
+### EPIC C — Defect fixes + god-file decomposition (EXPANDED 2026-06-12 post-B retro)
+- **Objective:** First fix the four defect clusters the characterization passes discovered, then split the oversized modules along behavioral seams so future features (incl. Players) compose stages instead of growing monoliths.
+- **Mode:** DELIVERY. C-0 is FEATURE (behavior changes, desired-semantics tests first, pinned characterization expectations updated deliberately — each update justified). C-1…C-4 are REFACTORING/PREPARATORY only.
+- **DoD additions:** (1) every pinned-test change in C-0 cites its TD item; (2) C-1 ends with `ImportJobRunner.ts` < 400 lines and stage modules independently importable (EPIC G gate); (3) suites + CI green after every story.
+
+**STORY C-0 — Characterization-finding defect fixes (FEATURE · Size M · services TD-15/16/17/18)**
+- C-0-T1: `crewConflicts` duration unit fix — unify on `parseDurationMin` minutes semantics (TD-15); desired-semantics tests first; pinned hour-based expectations updated with TD citation.
+- C-0-T2: `dateTime.parseDurationMin` — parse plain `HH:MM:SS` and `45m`; `'0'` = 0 min (not fallback); `calendarLayout` honors `durationMin` (TD-16).
+- C-0-T3: `eventReadiness` channel check accepts `channelId` (TD-17).
+- C-0-T4: conflict preflight fails VISIBLE — on check failure, show warning and require explicit confirm instead of silent pass (TD-18).
+- Pull gate: B-3 suites green (they are the nets). Unblocks: C-3 (same files churn).
+
+**STORY C-1 — ImportJobRunner stage decomposition (PREP for EPIC G · Size L · services TD-1)**
+- C-1-T1: inventory exports/call-graph; carve seams: `stages/fetch.ts`, `stages/normalize.ts`, `stages/dedupe.ts`, `stages/provision.ts` (upsert* projections incl. `upsertTeam` bridge), orchestrator keeps run-loop + job state. Pure moves — zero logic edits; `tsc`, full suite, fitness function green per move.
+- C-1-T2: route-facing exports (`manualCreateNormalizedEvent`, `manualMergeNormalizedEvent`) re-exported from their stage homes; Contract Snapshot `ImportStages` for EPIC G.
+- Quality gates: behavior-identical (suite green, no test edits); ImportJobRunner.ts < 400 ln.
+
+**STORY C-2 — Split `routes/import.ts` into sub-routers (PREP · Size M · services TD-2)** — sources/jobs/records/merge/dead-letters/aliases sub-routers, same mount path, supertest suites unchanged.
+
+**STORY C-3 — PlannerView extraction (PREP+FEATURE · Size M · services TD-3, TD-19)** — extract `usePlannerUndo` per B-3-T3 note; FEATURE sub-task: undo honors lock check (TD-19); undoRedo suite is the net.
+
+**STORY C-4 — AdminView split by admin domain (PREP · Size S–M · services TD-4)** — tab panels to modules.
+
+Sequencing: C-0 → (C-1 ∥ C-3) → C-2 → C-4. EPIC G unblocks after C-1.
 
 ### EPIC D — Observability
 - **Objective:** Make the async chain debuggable: correlation IDs across request → outbox → worker → webhook; `/metrics` golden signals; minimal runbook per subsystem.
