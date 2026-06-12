@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import {
   positiveInt,
-  optionalPositiveInt,
   eventStatusEnum,
   timeString,
   isoDateString,

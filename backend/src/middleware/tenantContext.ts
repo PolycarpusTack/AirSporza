@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js'
 import { setTenantRLS } from '../utils/setTenantRLS.js'
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace -- required pattern for Express type augmentation
   namespace Express {
     interface Request {
       tenantId?: string

@@ -1,5 +1,3 @@
-import { logger } from '../../utils/logger.js'
-
 export interface Alert {
   code: string
   severity: 'INFO' | 'WARNING' | 'ACTION' | 'URGENT' | 'OPPORTUNITY'

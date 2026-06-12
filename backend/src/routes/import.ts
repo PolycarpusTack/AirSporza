@@ -644,7 +644,6 @@ router.post('/jobs', authenticate, authorize('planner', 'sports', 'admin'), vali
     }
 
     const user = req.user as { email?: string; id: string }
-    const now = new Date()
     const entityId = value.entityId == null ? null : String(value.entityId)
     const note = value.note?.trim()
 

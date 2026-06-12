@@ -1,8 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { encryptCredentials, decryptCredentials, maskCredentials } from '../src/services/credentialService'
 
-const TEST_KEY = 'a]'.repeat(32) // 64 hex chars = 32 bytes — but we need valid hex
-// Use: 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
 const TEST_KEY_HEX = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
 
 describe('CredentialService', () => {

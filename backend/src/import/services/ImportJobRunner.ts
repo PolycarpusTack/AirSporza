@@ -38,12 +38,6 @@ type RunImportJobOptions = {
   workerId?: string
 }
 
-type ProcessContext = {
-  job: NonNullable<JobWithSource>
-  adapter: ImportAdapter
-  progress: ReturnType<typeof createProgressController>
-}
-
 const deduplicationService = new DeduplicationService()
 
 class ImportJobCancelledError extends Error {
@@ -1121,7 +1115,7 @@ async function upsertEvent(sourceId: string, tenantId: string, rawRecord: RawSou
 
   const exactMatch = await deduplicationService.findExactMatch(sourceId, rawRecord.id, 'event')
   if (exactMatch?.entityId) {
-    const updated = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const ev = await updateImportedEvent(Number(exactMatch.entityId), normalized, sport.id, competition.id, sourceId, rawRecord.id, rawRecord.sourceUpdatedAt || null, tx)
       await writeOutboxEvent(tx, { tenantId: ev.tenantId, eventType: 'event.updated', aggregateType: 'Event', aggregateId: String(ev.id), payload: ev })
       return ev
