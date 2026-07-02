@@ -162,7 +162,7 @@ INVEST I✓ N✓ V✓ E✓ S✓ T✓
 **TD considerations:** none expected; any hard-coded hex → TD item.
 **Test data:** none. **Idempotency:** n/a (local write).
 
-- **A-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **A-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02**
   Goal: Extend `src/styles/tokens.css` with the Ops palette — dark values as new/updated vars, light values under `[data-theme="light"]`, plus fixed semantic sets (status/alert/channel/kind colors) as vars; document the design-token → CSS-var mapping table in `docs/ops-token-map.md`.
   TDD: (1) failing style-contract test (render probe asserting computed values for both themes) (2) implement (3) refactor.
   Deliverables: token test → `tokens.css` diff → `ops-token-map.md`.

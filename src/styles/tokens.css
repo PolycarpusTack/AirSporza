@@ -90,4 +90,70 @@
   --font-display: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono:    'IBM Plex Mono', ui-monospace, monospace;
   --font-head:    'Space Grotesk', system-ui, sans-serif;
+
+  /* ════════════════════════════════════════════════════════════════
+     Ops palette (A-1, ADR-013) — consumed by ops-shell surfaces only.
+     Dark values are the defaults; light values live in the
+     [data-theme="light"] block below, which overrides ONLY these
+     shell vars (never legacy vars above — story AC-4).
+     Mapping doc: docs/ops-token-map.md · Contract: ops-tokens v1
+     ════════════════════════════════════════════════════════════════ */
+
+  /* ── Shell theme (dark defaults) ── */
+  --bg-shell:          #090B0D;  /* app background            */
+  --surface-shell:     #0F1316;  /* panel / chrome / inspector */
+  --surface-shell-2:   #141A1E;  /* inset surfaces, hover rows, inputs */
+  --border-shell:      #212A31;  /* all ops borders / dividers */
+  --text-shell:        #D9E4EB;  /* primary text               */
+  --text-shell-2:      #7E8E9A;  /* secondary text             */
+  --text-shell-3:      #4E5B66;  /* tertiary text / column headers */
+  --accent-shell:      #2FD6C3;  /* active tab, primary button, matrix dot */
+  --accent-shell-fg:   #04241F;  /* text on accent             */
+
+  /* ── Editorial Status (theme-invariant) ── */
+  --status-draft:      #98A2B3;
+  --status-ready:      #4C8DF5;
+  --status-approved:   #2BB673;
+  --status-draft-bg:      #98A2B322;
+  --status-ready-bg:      #4C8DF522;
+  --status-approved-bg:   #2BB67322;
+
+  /* ── Alerts (theme-invariant; distinct from legacy --danger/--warning) ── */
+  --alert-danger:      #E5484D;  /* live / conflict / danger   */
+  --alert-warning:     #E5A13C;  /* warning / expiring         */
+  --alert-negotiation: #E07B39;
+
+  /* ── Channels (theme-invariant) ── */
+  --channel-een:       #E4572E;
+  --channel-canvas:    #4C8DF5;
+  --channel-vrtmax:    #2BB673;
+
+  /* ── Registry Kinds (theme-invariant; chip bg = color @ ~13% alpha) ── */
+  --kind-sport:        #4C8DF5;
+  --kind-competition:  #E5A13C;
+  --kind-team:         #2FD6C3;
+  --kind-player:       #2BB673;
+  --kind-performer:    #B48EF5;
+  --kind-staff:        #E4572E;
+  --kind-sport-bg:        #4C8DF522;
+  --kind-competition-bg:  #E5A13C22;
+  --kind-team-bg:         #2FD6C322;
+  --kind-player-bg:       #2BB67322;
+  --kind-performer-bg:    #B48EF522;
+  --kind-staff-bg:        #E4572E22;
+}
+
+/* Ops light theme (ADR-013): set by ThemeProvider (A-1-T2) on <html>.
+   Overrides ONLY the shell theme vars — legacy screens never consume
+   these, so toggling light inside /ops cannot restyle the legacy app. */
+[data-theme="light"] {
+  --bg-shell:          #EDF1F2;
+  --surface-shell:     #FFFFFF;
+  --surface-shell-2:   #F0F4F5;
+  --border-shell:      #D6DEE1;
+  --text-shell:        #111A1F;
+  --text-shell-2:      #54646D;
+  --text-shell-3:      #8697A0;
+  --accent-shell:      #0D9488;
+  --accent-shell-fg:   #FFFFFF;
 }
