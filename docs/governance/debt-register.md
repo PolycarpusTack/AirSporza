@@ -272,6 +272,50 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** dedicated security story in **EPIC D/hardening**: enumerate policy-less tenant tables, add `tenant_isolation` policies + decide owner-bypass posture; until then the ADR-002 claim ("RLS multi-tenancy") must be read as *partial*. **Priority RAISED by ADR-010** (multi-tenant product decision, 2026-06-12): tenant-isolation gaps are now Core Domain security defects.
 - **Origin:** EPIC G review pass (deviation #4 verification), 2026-06-12.
 
+## TD-23 — `ui/Btn.tsx` vs `ui/Button.tsx` duplication
+
+- **Artifact:** `src/components/ui/Btn.tsx` and `src/components/ui/Button.tsx` — two shared button components with overlapping variants.
+- **Type:** code
+- **Cause:** parallel evolution; never consolidated.
+- **Principal:** S
+- **Interest:** **low** — but rises the moment ops screens need buttons: importing either into `ops/` doubles the blast radius of the eventual consolidation. Note `variant="accent"` renders the legacy amber `--primary`, NOT the ops `--accent-shell` (see ops-tokens contract).
+- **Compounding:** yes if imported into new code.
+- **Servicing decision:** **do NOT import either into `src/components/ops/` until consolidated**; consolidation slot: EPIC E TD servicing (E-4).
+- **Origin:** ops-redesign backlog survey (§6 Architecture Memory), 2026-07-02; formally registered 2026-07-02 (was cited in the backlog as TD-23 but missing here).
+
+## TD-24 — `Event`/`Contract` `@deprecated` fields still present
+
+- **Artifact:** `src/data/types.ts` — `Event.channel`, `Event.duration`, boolean rights flags on `Contract` marked `@deprecated`; successors are `BroadcastSlot`/`Channel` and `Contract.platforms[]`.
+- **Type:** code (API surface)
+- **Cause:** migration to slot/platform model left legacy fields for old screens.
+- **Principal:** M (remove after old screens are cut over)
+- **Interest:** **med** — every new consumer must know which field is canonical; a wrong pick silently reads stale data.
+- **Compounding:** yes — until removal, each new feature re-decides.
+- **Servicing decision:** ops code MUST consume `platforms[]` and `BroadcastSlot`, never the deprecated fields (CLAUDE.md rule); removal decision at EPIC E cutover ADR (E-6).
+- **Origin:** ops-redesign backlog survey, 2026-07-02; formally registered 2026-07-02 (was cited as TD-24).
+
+## TD-25 — `Event.participants` is free text
+
+- **Artifact:** `src/data/types.ts` — `Event.participants: string`; the teams/players repository (merged) provides real relations.
+- **Type:** data model
+- **Cause:** participants predates the repository.
+- **Principal:** M (backfill/parse or dual-write)
+- **Interest:** **low-med** — Registry LINKED views must use repo relations; participants cannot be joined.
+- **Compounding:** yes — new events keep writing free text.
+- **Servicing decision:** Registry (EPIC C) uses repo relations only, never parses `participants`; migration decision deferred to EPIC C refinement.
+- **Origin:** ops-redesign backlog survey, 2026-07-02; formally registered 2026-07-02 (was cited as TD-25).
+
+## TD-26 — Ops light-theme AA-derived values pending designer sign-off
+
+- **Artifact:** `src/styles/tokens.css` `[data-theme="light"]` block + dark `--text-shell-3`/`--kind-staff` — 19 values derived programmatically (A-1-T4, architect-approved method), not designer-picked. Full old→new table: `docs/ops-token-map.md` §Derived values.
+- **Type:** design/process shortcut (shipped ahead of designer approval)
+- **Cause:** A-1-T3 audit found 39 AA failures; architect chose programmatic minimal-delta remediation (2026-07-02) to unblock the tracer bullet.
+- **Principal:** S (designer review; re-derivation is scripted and cheap)
+- **Interest:** **low** — values are AA-clean and hue-faithful; risk is design-intent drift only. Four flagged as materially more muted (light competition/team/warning/draft).
+- **Compounding:** mildly — ops screens A-2+ will render on these values; late rejection means visual churn, not rework (contract guarantee 5 forces re-audit + ops-tokens bump on change).
+- **Servicing decision:** designer sign-off before EPIC E light-theme QA (E-2); until then treat ⚠-marked values in `ops-token-map.md` as provisional.
+- **Origin:** A-1-T4, 2026-07-02.
+
 ---
 
 ## Verification notes (ASM-10 re-check, 2026-06-12)

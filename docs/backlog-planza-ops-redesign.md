@@ -93,7 +93,7 @@ Updated: 2026-07-02
 
 Components (new):
   OpsShell:            chrome + tabs + theme toggle + flag gate — planned
-  ThemeProvider:       data-theme switch + persistence — planned
+  OpsThemeProvider:    data-theme switch + persistence — planned
   ScheduleScreen:      facet rail + day-grouped event table — planned
   EventInspector:      shared inspector (Schedule + Rundown) — planned
   RundownScreen:       channel lanes + positioned blocks — planned
@@ -145,7 +145,7 @@ Model routing per Core §6 noted per task (`Opus` = judgment, `Sonnet` = generat
 
 ---
 
-### Story A-1 — Ops theme tokens + ThemeProvider
+### Story A-1 — Ops theme tokens + OpsThemeProvider
 **As a** production planner **I want** the Ops palette in dark and light with a persistent toggle **so that** I can work in the control room (dark) and in daylight offices (light) without re-configuring.
 
 Business Value 3 · Priority 5 · Size **M** · DoR: **READY** (ADR-013 accepted)
@@ -158,26 +158,30 @@ INVEST I✓ N✓ V✓ E✓ S✓ T✓
 - Given the existing (non-ops) app with flag OFF, When tokens ship, Then no existing screen changes appearance (regression: existing token values untouched; ops adds new vars + a scoped light override block).
 - Error flow: Given localStorage is unavailable, Then toggle still works for the session and no error surfaces.
 
-**Interfaces:** `ThemeProvider` → `useOpsTheme(): { theme: 'dark'|'light', toggle(): void }`. Token contract = README §Design Tokens table mapped onto `tokens.css` var names (mapping doc is a deliverable).
+**Interfaces:** `OpsThemeProvider` → `useOpsTheme(): { theme: 'dark'|'light', toggle(): void }`. Token contract = README §Design Tokens table mapped onto `tokens.css` var names (mapping doc is a deliverable).
 **TD considerations:** none expected; any hard-coded hex → TD item.
 **Test data:** none. **Idempotency:** n/a (local write).
 
-- **A-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **A-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02**
   Goal: Extend `src/styles/tokens.css` with the Ops palette — dark values as new/updated vars, light values under `[data-theme="light"]`, plus fixed semantic sets (status/alert/channel/kind colors) as vars; document the design-token → CSS-var mapping table in `docs/ops-token-map.md`.
   TDD: (1) failing style-contract test (render probe asserting computed values for both themes) (2) implement (3) refactor.
   Deliverables: token test → `tokens.css` diff → `ops-token-map.md`.
   Pull Gate: confirm ADR-013 approved; confirm no existing component reads a var being repurposed (grep).
   Hand-off: **Contract Snapshot `ops-tokens v1`** (var names + both values).
   Unblocks: A-1-T2, A-2-T1.
-- **A-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: `ThemeProvider` + `useOpsTheme` + toggle persistence + FOUC guard (inline head script or pre-hydration attribute set).
+- **A-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02**
+  Goal: `OpsThemeProvider` + `useOpsTheme` + toggle persistence + FOUC guard (inline head script or pre-hydration attribute set).
   TDD: hook unit tests (default, toggle, persistence, storage-unavailable) first.
   Feature Flag: rendered only inside ops shell (flag-gated by A-2).
   Pull Gate: `ops-tokens v1` snapshot matches.
   Hand-off: Contract Snapshot `useOpsTheme v1`. Unblocks: A-2-T1.
-- **A-1-T3** · Hat **FEATURE** · Model **Haiku** · Confidence High
+- **A-1-T3** · Hat **FEATURE** · Model **Haiku** · Confidence High · ✅ **DONE 2026-07-02** (39 AA failures flagged → architect items F-1..F-5 in `docs/ops-contrast-audit.md`; **F-1..F-5 resolved by A-1-T4**)
   Goal: Contrast audit — verify all README token pairs (text-on-surface, chip 13%-alpha combos, status words on `--pn`) meet WCAG AA in both themes; output pass/fail table; failures become follow-up items for the Architect (do not silently adjust final-intent colors — flag them).
   Deliverables: `docs/ops-contrast-audit.md`. Unblocks: END OF STORY SEQUENCE.
+- **A-1-T4** · Hat **FEATURE** · Model **Sonnet** · Amendment (architect decisions 2026-07-02 on F-1..F-5) · ✅ **DONE 2026-07-02**
+  Goal: Contrast remediation — semantic sets become theme-aware (light overrides in the `[data-theme="light"]` block; "identical in both themes" rule dropped by architect decision); `--text-shell-3` AA-adjusted both themes; light `--accent-shell-fg` → dark text; dark `--kind-staff` (+ tint) minimally shifted. Values derived programmatically (HSL lightness search, hue/sat locked, ≥4.6 text / ≥3.1 non-text) — all derived values pending designer sign-off (`docs/ops-token-map.md`).
+  TDD: contract-test expectations updated first (red) → `tokens.css` (green) → audit re-run.
+  Deliverables: `tokens.css` diff → `tokens.opsTheme.test.ts` restructure → `docs/ops-contrast-audit.md` v2 (0 FAIL) → **ops-tokens v2** → ADR-013 Amendment. Legacy vars untouched (AC-4); no component changes.
 
 ---
 
