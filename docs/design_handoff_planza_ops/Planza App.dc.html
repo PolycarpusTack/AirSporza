@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+@keyframes lpulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</helmet>
+
+<div style="{{ vars }}">
+<div data-screen-label="Planza Ops app" style="height:100vh;display:flex;flex-direction:column;position:relative;background:var(--bg,#090B0D);color:var(--tx,#D9E4EB);font-family:'IBM Plex Sans',sans-serif;font-size:13px;overflow:hidden">
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--pn);border-bottom:1px solid var(--ln)">
+    <div style="font:700 13px 'IBM Plex Mono',monospace;letter-spacing:2px">PLANZA<span style="color:var(--ac)">/OPS</span></div>
+    <div style="display:flex;gap:4px">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+        <button onClick="{{ n.on }}" style="border:none;cursor:pointer;padding:6px 12px;border-radius:4px;background:{{ n.bg }};color:{{ n.fg }};font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">{{ n.l }}</button>
+      </sc-for>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:7px;font:500 10px 'IBM Plex Mono',monospace;color:var(--t2)"><span style="width:7px;height:7px;border-radius:50%;background:#E5484D;animation:lpulse 1.4s infinite"></span>2–8 MAR 2026 · W10</div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:.5px">{{ topline }}</div>
+    <button onClick="{{ themeBtn }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:4px 10px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">{{ themeL }}</button>
+  </div>
+
+  <!-- ══════ SCHEDULE ══════ -->
+  <sc-if value="{{ isSchedule }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="Schedule" style="flex:1;display:grid;grid-template-columns:190px 1fr 320px;min-height:0">
+    <div style="border-right:1px solid var(--ln);padding:12px 10px;display:flex;flex-direction:column;gap:3px;overflow:auto">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin:2px 4px 7px">FILTER</div>
+      <sc-for list="{{ facets }}" as="s" hint-placeholder-count="5">
+        <button onClick="{{ s.on }}" style="display:flex;align-items:center;gap:8px;border:1px solid {{ s.bd }};background:{{ s.bg }};color:{{ s.fg }};border-radius:4px;padding:6px 9px;cursor:pointer;font:500 11px 'IBM Plex Mono',monospace;text-align:left;width:100%">
+          <span style="width:16px;text-align:center">{{ s.ic }}</span><span style="flex:1">{{ s.n }}</span><span style="color:var(--t3)">{{ s.count }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="overflow:auto;min-width:0">
+      <div style="display:grid;grid-template-columns:64px 1fr 110px 96px 104px 76px;gap:10px;padding:10px 16px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln);position:sticky;top:0;background:var(--bg);z-index:2">
+        <span>TIME</span><span>EVENT</span><span>CHANNEL</span><span>STATUS</span><span>RIGHTS</span><span>CREW</span>
+      </div>
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+        <div>
+          <sc-if value="{{ r.hdr }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:6px 16px;background:var(--p2);font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:2px;border-bottom:1px solid var(--ln)">{{ r.l }}</div>
+          </sc-if>
+          <sc-if value="{{ r.ev }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ r.pick }}" style-hover="background:var(--p2)" style="display:grid;grid-template-columns:64px 1fr 110px 96px 104px 76px;gap:10px;align-items:center;padding:9px 16px;cursor:pointer;border-bottom:1px solid var(--ln);background:{{ r.rowBgC }};box-shadow:{{ r.rowIns }}">
+              <span style="font:600 11px 'IBM Plex Mono',monospace">{{ r.time }}</span>
+              <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                <span>{{ r.ic }}</span>
+                <div style="min-width:0">
+                  <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.t }}</div>
+                  <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.comp }}</div>
+                </div>
+              </div>
+              <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><span style="width:7px;height:7px;border-radius:2px;background:{{ r.chC }};flex:none"></span>{{ r.chN }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.stC }}">{{ r.stL }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.rightsC }}">{{ r.rightsL }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.crewC }}">{{ r.crewL }}</span>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <div style="border-left:1px solid var(--ln);background:var(--pn);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:13px">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">INSPECTOR</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <span style="font-size:16px">{{ sel.ic }}</span>
+          <span style="font:600 9px 'IBM Plex Mono',monospace;color:{{ sel.liveC }};border:1px solid {{ sel.liveC }};padding:2px 5px;border-radius:3px">{{ sel.liveL }}</span>
+          <span style="font:500 10px 'IBM Plex Mono',monospace;color:{{ sel.stC }}">{{ sel.stL }}</span>
+        </div>
+        <div style="font-size:15px;font-weight:600;line-height:1.3">{{ sel.t }}</div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);margin-top:5px">{{ sel.comp }}</div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);margin-top:2px">{{ sel.dayL }} MAR · {{ sel.time }} · {{ sel.durL }} · {{ sel.chN }}</div>
+      </div>
+      <sc-if value="{{ selHasConf }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid #E5484D;background:rgba(229,72,77,.1);border-radius:6px;padding:9px 11px;font:500 10.5px 'IBM Plex Mono',monospace;color:#E5484D;line-height:1.5">⚠ {{ confNote }}</div>
+      </sc-if>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">RIGHTS</div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="width:7px;height:7px;border-radius:50%;background:{{ selRights.stC }}"></span>
+          <span style="font:500 11px 'IBM Plex Mono',monospace;color:{{ selRights.stC }}">{{ selRights.stL }}</span>
+        </div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2)">{{ selRights.line }}</div>
+      </div>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:5px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:3px">CREW</div>
+        <sc-for list="{{ crew }}" as="m" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:6px;height:6px;border-radius:50%;background:{{ m.c }};flex:none"></span>
+            <span style="font-size:11.5px;font-weight:600;flex:none">{{ m.name }}</span>
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:var(--t3);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.role }}</span>
+            <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:{{ m.c }};flex:none">{{ m.sl }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:7px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">TECH PLANS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          <sc-for list="{{ plans }}" as="p" hint-placeholder-count="3">
+            <span style="font:500 10px 'IBM Plex Mono',monospace;border:1px solid var(--ln);background:var(--p2);border-radius:4px;padding:3px 7px">{{ p }}</span>
+          </sc-for>
+          <button style="border:1px dashed var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:3px 7px;cursor:pointer;font:500 10px 'IBM Plex Mono',monospace">+ PLAN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══════ PLANNER ══════ -->
+  <sc-if value="{{ isPlanner }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Day planner" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div style="display:flex;align-items:center;gap:6px;padding:14px 16px 10px;flex-wrap:wrap">
+      <sc-for list="{{ days }}" as="d" hint-placeholder-count="7">
+        <button onClick="{{ d.on }}" style="border:1px solid {{ d.bd }};background:{{ d.bg }};color:{{ d.fg }};border-radius:4px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:7px;font:500 11px 'IBM Plex Mono',monospace">
+          <span>{{ d.l }}</span><span style="opacity:.6">{{ d.count }}</span>
+        </button>
+      </sc-for>
+      <div style="flex:1"></div>
+      <div style="font:500 11px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:1px">{{ dayLabel }}</div>
+    </div>
+    <div style="flex:1;overflow:auto;padding:6px 16px 16px">
+      <div style="position:relative;height:22px;margin-left:112px">
+        <sc-for list="{{ ticks }}" as="tk" hint-placeholder-count="9">
+          <div style="position:absolute;top:4px;left:{{ tk.left }};font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3);transform:translateX(-50%)">{{ tk.l }}</div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ lanes }}" as="ln" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center">
+            <div style="width:112px;flex:none;display:flex;align-items:center;gap:7px;padding-right:10px">
+              <span style="width:8px;height:8px;border-radius:2px;background:{{ ln.c }};flex:none"></span>
+              <span style="font:600 11px 'IBM Plex Mono',monospace">{{ ln.n }}</span>
+            </div>
+            <div style="position:relative;flex:1;height:64px;background:var(--pn);border:1px solid var(--ln);border-radius:6px">
+              <sc-for list="{{ ln.blocks }}" as="e" hint-placeholder-count="1">
+                <div onClick="{{ e.pick }}" style="position:absolute;top:6px;bottom:6px;left:{{ e.left }};width:{{ e.width }};min-width:96px;background:{{ e.blockBg }};border-left:3px solid {{ e.chC }};border-radius:4px;padding:6px 10px;cursor:pointer;overflow:hidden;outline:{{ e.blockOl }}">
+                  <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t2)">{{ e.time }} · {{ e.durL }}</div>
+                  <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">{{ e.t }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;margin:16px 0 0 112px;font:400 10px 'IBM Plex Mono',monospace;color:var(--t3)">
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#98A2B3"></span>DRAFT</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#4C8DF5"></span>READY</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#2BB673"></span>APPROVED</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:1px solid #E5484D;border-radius:3px"></span>CREW CONFLICT</span>
+        <span style="margin-left:auto">CLICK A BLOCK TO SELECT · FULL DETAIL IN SCHEDULE</span>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══════ RIGHTS ══════ -->
+  <sc-if value="{{ isRights }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Rights" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <sc-for list="{{ cStats }}" as="st" hint-placeholder-count="4">
+        <div style="background:var(--pn);border:1px solid var(--ln);border-radius:6px;padding:12px 14px">
+          <div style="font:700 24px 'IBM Plex Mono',monospace;color:{{ st.c }}">{{ st.n }}</div>
+          <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t2);margin-top:3px;letter-spacing:1.5px">{{ st.l }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div>
+      <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:var(--t2);margin-bottom:14px">RIGHTS MATRIX · SEASON 2025/26</div>
+      <div style="display:grid;grid-template-columns:260px repeat(4,90px) 130px 1fr;gap:10px;padding:0 12px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln)">
+        <span>COMPETITION</span><span style="text-align:center">LINEAR</span><span style="text-align:center">MAX</span><span style="text-align:center">RADIO</span><span style="text-align:center">ON-DEM</span><span>STATUS</span><span>VALIDITY</span>
+      </div>
+      <sc-for list="{{ matrix }}" as="c" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:260px repeat(4,90px) 130px 1fr;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--ln)">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span>{{ c.ic }}</span>
+            <div style="min-width:0">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.comp }}</div>
+              <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.note }}</div>
+            </div>
+          </div>
+          <sc-for list="{{ c.cells }}" as="cell" hint-placeholder-count="4">
+            <span style="text-align:center;font:600 13px 'IBM Plex Mono',monospace;color:{{ cell.c }}">{{ cell.l }}</span>
+          </sc-for>
+          <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ c.stC }}">{{ c.stL }}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:var(--t2);flex:none">{{ c.untilL }}</span>
+            <sc-if value="{{ c.showBar }}" hint-placeholder-val="{{ true }}">
+              <div style="height:3px;background:var(--p2);border-radius:99px;overflow:hidden;flex:1;max-width:160px"><div style="height:100%;width:{{ c.barW }};background:{{ c.barC }};border-radius:99px"></div></div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══════ REGISTRY ══════ -->
+  <sc-if value="{{ isRegistry }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Registry" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div style="flex:none;display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--ln)">
+      <input value="{{ regQ }}" onChange="{{ setRegQ }}" placeholder="Search sports, teams, people…" style="width:280px;background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:6px 10px;color:var(--tx);font:500 11px 'IBM Plex Mono',monospace;outline:none">
+      <div style="flex:1"></div>
+      <div style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:.5px">{{ regCounters }}</div>
+      <button onClick="{{ openModal }}" style="border:none;background:var(--ac);color:var(--af);border-radius:4px;padding:6px 12px;cursor:pointer;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">+ NEW</button>
+    </div>
+    <div style="flex:1;display:grid;grid-template-columns:190px 1fr 320px;min-height:0">
+      <div style="border-right:1px solid var(--ln);padding:12px 10px;display:flex;flex-direction:column;gap:3px;overflow:auto">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin:2px 4px 7px">BROWSE</div>
+        <sc-for list="{{ regFacets }}" as="f" hint-placeholder-count="7">
+          <button onClick="{{ f.on }}" style="display:flex;align-items:center;gap:8px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};border-radius:4px;padding:6px 9px;cursor:pointer;font:500 11px 'IBM Plex Mono',monospace;text-align:left;width:100%">
+            <span style="flex:1">{{ f.l }}</span><span style="color:var(--t3)">{{ f.n }}</span>
+          </button>
+        </sc-for>
+      </div>
+      <div style="overflow:auto;min-width:0">
+        <div style="display:grid;grid-template-columns:minmax(220px,1fr) 110px 110px 150px 84px 78px;gap:10px;padding:10px 16px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln);position:sticky;top:0;background:var(--bg);z-index:2">
+          <span>NAME</span><span>TYPE</span><span>SPORT</span><span>LINKED</span><span>SOURCE</span><span>STATUS</span>
+        </div>
+        <sc-for list="{{ regRows }}" as="it" hint-placeholder-count="12">
+          <div onClick="{{ it.pick }}" style-hover="background:var(--p2)" style="display:grid;grid-template-columns:minmax(220px,1fr) 110px 110px 150px 84px 78px;gap:10px;align-items:center;padding:8px 16px;cursor:pointer;border-bottom:1px solid var(--ln);background:{{ it.rowBgC }};box-shadow:{{ it.rowIns }}">
+            <div style="display:flex;align-items:center;gap:9px;min-width:0">
+              <span style="width:18px;text-align:center;flex:none">{{ it.ic2 }}</span>
+              <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</span>
+            </div>
+            <span><span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ it.kindC }};background:{{ it.kindBg }};padding:2px 6px;border-radius:3px">{{ it.kindL }}</span></span>
+            <span style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.sportL }}</span>
+            <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.linkedL }}</span>
+            <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3)">{{ it.srcS }}</span>
+            <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:{{ it.stC2 }}">{{ it.stL2 }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-left:1px solid var(--ln);background:var(--pn);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:13px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">RECORD</div>
+        <div style="display:flex;align-items:center;gap:11px">
+          <div style="width:44px;height:44px;border:1px solid var(--ln);background:var(--p2);border-radius:6px;display:grid;place-items:center;font-size:20px;flex:none">{{ regSel.ic2 }}</div>
+          <div style="min-width:0">
+            <div style="font-size:15px;font-weight:600;line-height:1.25">{{ regSel.name }}</div>
+            <div style="margin-top:4px"><span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ regSel.kindC }};background:{{ regSel.kindBg }};padding:2px 6px;border-radius:3px">{{ regSel.kindL }}</span></div>
+          </div>
+        </div>
+        <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:.5px;line-height:1.5">{{ regSrcLine }}</div>
+        <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:7px">
+          <sc-for list="{{ regAttrs }}" as="at" hint-placeholder-count="5">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <span style="width:76px;flex:none;font:600 8.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1px">{{ at.k }}</span>
+              <span style="font-size:11.5px;font-weight:500">{{ at.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ regHasLinks }}" hint-placeholder-val="{{ true }}">
+          <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:6px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:3px">LINKED</div>
+            <sc-for list="{{ regLinks }}" as="lk" hint-placeholder-count="3">
+              <div onClick="{{ lk.pick }}" style-hover="border-color:var(--ac)" style="cursor:pointer;display:flex;align-items:center;gap:8px;border:1px solid var(--ln);background:var(--bg);border-radius:6px;padding:7px 9px">
+                <span style="flex:none">{{ lk.ic2 }}</span>
+                <span style="font-size:11.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ lk.name }}</span>
+                <span style="font:600 8px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ lk.kindC }}">{{ lk.kindL }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ regHasNote }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top:1px solid var(--ln);padding-top:11px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:7px">REMARKS · MANUAL</div>
+            <div style="border:1px solid var(--ln);background:var(--bg);border-radius:6px;padding:9px 11px;font-size:11.5px;line-height:1.5;color:var(--t2)">{{ regNote }}</div>
+          </div>
+        </sc-if>
+        <button style="border:1px dashed var(--ln);background:transparent;color:var(--t2);border-radius:6px;padding:7px;cursor:pointer;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:1px">+ ADD REMARK</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══════ SYNC ══════ -->
+  <sc-if value="{{ isSync }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Sync review" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px">
+    <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:var(--t2)">NIGHTLY SYNC · 02:00 CET</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      <sc-for list="{{ jobs }}" as="j" hint-placeholder-count="3">
+        <div style="background:var(--pn);border:1px solid var(--ln);border-radius:6px;padding:11px 13px;display:flex;align-items:center;gap:10px">
+          <span style="width:8px;height:8px;border-radius:50%;background:{{ j.c }};flex:none"></span>
+          <div style="min-width:0;flex:1">
+            <div style="font:600 11px 'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ j.n }}</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace;color:var(--t3);margin-top:3px">{{ j.meta }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:var(--t2);margin-top:6px">MERGE REVIEW · DEDUPLICATION CANDIDATES</div>
+    <sc-for list="{{ merges }}" as="m" hint-placeholder-count="3">
+      <div style="background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:11px;max-width:960px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ m.kindC }};background:{{ m.kindBg }};padding:2px 6px;border-radius:3px">{{ m.kindL }}</span>
+          <span style="font-size:12.5px;font-weight:600">{{ m.b }}</span>
+          <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:var(--t3)">→ MATCHES →</span>
+          <span style="font-size:12.5px;font-weight:600">{{ m.a }}</span>
+          <span style="flex:1"></span>
+          <span style="font:600 10px 'IBM Plex Mono',monospace;color:{{ m.confC }}">{{ m.confL }}</span>
+          <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3)">VIA {{ m.src }}</span>
+        </div>
+        <div style="border:1px solid var(--ln);border-radius:6px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:110px 1fr 1fr;gap:10px;padding:7px 12px;background:var(--p2);font:600 8.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px">
+            <span>FIELD</span><span>INCOMING</span><span>CURRENT</span>
+          </div>
+          <sc-for list="{{ m.fieldsD }}" as="fd" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:110px 1fr 1fr;gap:10px;padding:7px 12px;border-top:1px solid var(--ln)">
+              <span style="font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1px">{{ fd.k }}</span>
+              <span style="font:500 11px 'IBM Plex Mono',monospace;color:{{ fd.bC }}">{{ fd.b }}</span>
+              <span style="font:500 11px 'IBM Plex Mono',monospace;color:var(--t2)">{{ fd.a }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ m.isPending }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button onClick="{{ m.keep }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:7px 14px;cursor:pointer;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:1px">KEEP SEPARATE</button>
+            <button onClick="{{ m.approve }}" style="border:none;background:var(--ac);color:var(--af);border-radius:4px;padding:7px 16px;cursor:pointer;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:1px">APPROVE MERGE</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ m.isDecided }}" hint-placeholder-val="{{ false }}">
+          <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ m.stateC }};text-align:right">{{ m.stateL }}</div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+  </sc-if>
+
+  <!-- ══════ NEW ENTITY MODAL ══════ -->
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="New entity modal" style="position:absolute;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:10">
+      <div style="width:430px;background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center">
+          <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px">NEW ENTITY</div>
+          <div style="flex:1"></div>
+          <button onClick="{{ closeModal }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:11px">✕</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ typeChips }}" as="tc" hint-placeholder-count="6">
+            <button onClick="{{ tc.on }}" style="border:1px solid {{ tc.bd }};background:{{ tc.bg }};color:{{ tc.fg }};border-radius:4px;padding:5px 11px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">{{ tc.l }}</button>
+          </sc-for>
+        </div>
+        <input value="{{ newName }}" onChange="{{ setNewName }}" placeholder="Name — e.g. KAA Gent, Lotte Kopecky, La Vuelta…" style="background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:9px 11px;color:var(--tx);font:500 12px 'IBM Plex Sans',sans-serif;outline:none">
+        <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:var(--t3);line-height:1.5">CREATED RECORDS ARE SOURCE: MANUAL · PROTECTED FROM SYNC OVERWRITE</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button onClick="{{ closeModal }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:7px 14px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">CANCEL</button>
+          <button onClick="{{ create }}" style="border:none;background:var(--ac);color:var(--af);border-radius:4px;padding:7px 16px;cursor:pointer;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">CREATE</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;showConflicts&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = {
+    theme: null, tab: 'schedule', sel: 3, sport: 'all', day: 2,
+    regSel: 't1', regFacet: 'all', regQ: '', modal: false, newType: 'team', newName: '', custom: [],
+    decided: {},
+  }
+
+  renderVals() {
+    const S = this.state, P = this.props
+    const showConf = P.showConflicts ?? true
+    const set = (p) => this.setState(p)
+
+    const DAYS = ['MON 2', 'TUE 3', 'WED 4', 'THU 5', 'FRI 6', 'SAT 7', 'SUN 8']
+    const CH = { een: { n: 'Eén', c: '#E4572E' }, canvas: { n: 'Canvas', c: '#4C8DF5' }, max: { n: 'VRT MAX', c: '#2BB673' } }
+    const ST = { draft: { l: 'DRAFT', c: '#98A2B3' }, ready: { l: 'READY', c: '#4C8DF5' }, approved: { l: 'APPROVED', c: '#2BB673' } }
+    const CST = { valid: { l: 'VALID', c: '#2BB673' }, expiring: { l: 'EXPIRING', c: '#E5A13C' }, draft: { l: 'NEGOTIATION', c: '#E07B39' }, none: { l: 'NO CONTRACT', c: '#E5484D' } }
+    const PLAT = { linear: 'Linear TV', max: 'VRT MAX', radio: 'Radio 1', ondemand: 'On-demand' }
+    const SPORTS = [
+      { id: 'football', n: 'Football', ic: '⚽' },
+      { id: 'cycling', n: 'Cycling', ic: '🚴' },
+      { id: 'athletics', n: 'Athletics', ic: '🏃' },
+      { id: 'f1', n: 'Formula 1', ic: '🏎️' },
+    ]
+    const EV = [
+      { id: 1, sp: 'football', ic: '⚽', comp: 'Jupiler Pro League', t: 'Club Brugge vs Anderlecht', day: 0, time: '14:30', min: 870, dur: 105, ch: 'een', live: true, st: 'approved' },
+      { id: 2, sp: 'football', ic: '⚽', comp: 'Jupiler Pro League', t: 'Genk vs Union SG', day: 1, time: '20:45', min: 1245, dur: 105, ch: 'max', live: true, st: 'ready' },
+      { id: 3, sp: 'football', ic: '⚽', comp: 'UEFA Champions League', t: 'Club Brugge vs Real Madrid', day: 2, time: '21:00', min: 1260, dur: 150, ch: 'canvas', live: true, st: 'ready', conflict: 'EVS operator double-booked with Genk vs Union SG' },
+      { id: 4, sp: 'athletics', ic: '🏃', comp: 'World Athletics Indoor', t: 'World Indoor Champs — Day 1', day: 4, time: '19:00', min: 1140, dur: 180, ch: 'canvas', live: true, st: 'draft' },
+      { id: 5, sp: 'cycling', ic: '🚴', comp: 'Flanders Classics', t: 'Strade Bianche', day: 5, time: '11:30', min: 690, dur: 240, ch: 'een', live: true, st: 'approved' },
+      { id: 6, sp: 'f1', ic: '🏎️', comp: 'Formula 1', t: 'GP Australia — Race', day: 6, time: '06:00', min: 360, dur: 120, ch: 'max', live: false, st: 'draft' },
+      { id: 7, sp: 'cycling', ic: '🚴', comp: 'UCI World Tour', t: 'Paris–Nice — Stage 1', day: 6, time: '14:00', min: 840, dur: 150, ch: 'een', live: true, st: 'ready' },
+    ]
+    const CON = [
+      { comp: 'UEFA Champions League', ic: '⚽', st: 'valid', until: '30 Jun 2027', pct: 72, plat: ['linear', 'max', 'radio'], note: 'All Belgian home fixtures' },
+      { comp: 'Jupiler Pro League', ic: '⚽', st: 'expiring', until: '30 Jun 2026', pct: 8, plat: ['linear', 'max', 'radio'], note: 'Renewal talks ongoing' },
+      { comp: 'Flanders Classics', ic: '🚴', st: 'valid', until: '31 Dec 2028', pct: 90, plat: ['linear', 'max'], note: 'Incl. women\u2019s races' },
+      { comp: 'UCI World Tour', ic: '🚴', st: 'valid', until: '31 Dec 2026', pct: 42, plat: ['linear', 'max'], note: 'Shared with EBU pool' },
+      { comp: 'World Athletics Indoor', ic: '🏃', st: 'draft', until: '—', pct: 0, plat: ['max'], note: 'Term sheet with EBU' },
+      { comp: 'Formula 1', ic: '🏎️', st: 'none', until: '—', pct: 0, plat: [], note: 'News-access highlights only' },
+    ]
+    const KINDS = {
+      sport: { l: 'Sport', c: '#4C8DF5', ic: '◎' },
+      competition: { l: 'Competition', c: '#E5A13C', ic: '🏆' },
+      team: { l: 'Team', c: '#2FD6C3', ic: '🛡️' },
+      player: { l: 'Player', c: '#2BB673', ic: '👤' },
+      performer: { l: 'Performer', c: '#B48EF5', ic: '⭐' },
+      staff: { l: 'Staff', c: '#E4572E', ic: '🧑‍💼' },
+    }
+    const PLURAL = { sport: 'Sports', competition: 'Competitions', team: 'Teams', player: 'Players', performer: 'Performers', staff: 'Staff' }
+    const ENT = [
+      { id: 's1', kind: 'sport', name: 'Football', ic: '⚽', meta: 'FIFA / RBFA', src: 'manual' },
+      { id: 's2', kind: 'sport', name: 'Cycling', ic: '🚴', meta: 'UCI', src: 'manual' },
+      { id: 's3', kind: 'sport', name: 'Athletics', ic: '🏃', meta: 'World Athletics', src: 'manual' },
+      { id: 's4', kind: 'sport', name: 'Formula 1', ic: '🏎️', meta: 'FIA', src: 'manual' },
+      { id: 's5', kind: 'sport', name: 'Tennis', ic: '🎾', meta: 'ATP / WTA / ITF', src: 'manual' },
+      { id: 's6', kind: 'sport', name: 'Basketball', ic: '🏀', meta: 'FIBA', src: 'manual' },
+      { id: 'c1', kind: 'competition', name: 'Jupiler Pro League', ic: '⚽', sport: 'Football', meta: 'Season 2025/26 · 16 teams', src: 'the_sports_db' },
+      { id: 'c2', kind: 'competition', name: 'UEFA Champions League', ic: '⚽', sport: 'Football', meta: 'Season 2025/26', src: 'football-data.org' },
+      { id: 'c3', kind: 'competition', name: 'Flanders Classics', ic: '🚴', sport: 'Cycling', meta: '8 races · spring 2026', src: 'manual' },
+      { id: 'c4', kind: 'competition', name: 'UCI World Tour', ic: '🚴', sport: 'Cycling', meta: 'Season 2026', src: 'the_sports_db' },
+      { id: 'c5', kind: 'competition', name: 'World Indoor Championships', ic: '🏃', sport: 'Athletics', meta: 'Toruń 2026', src: 'manual' },
+      { id: 'c6', kind: 'competition', name: 'F1 World Championship', ic: '🏎️', sport: 'Formula 1', meta: 'Season 2026 · 24 rounds', src: 'the_sports_db' },
+      { id: 't1', kind: 'team', name: 'Club Brugge', ic: '⚽', sport: 'Football', country: 'BEL', comps: ['c1', 'c2'], src: 'the_sports_db', note: 'Preferred camera positions confirmed for Jan Breydel Stadion.' },
+      { id: 't2', kind: 'team', name: 'RSC Anderlecht', ic: '⚽', sport: 'Football', country: 'BEL', comps: ['c1'], src: 'the_sports_db' },
+      { id: 't3', kind: 'team', name: 'KRC Genk', ic: '⚽', sport: 'Football', country: 'BEL', comps: ['c1'], src: 'the_sports_db' },
+      { id: 't4', kind: 'team', name: 'Union Saint-Gilloise', ic: '⚽', sport: 'Football', country: 'BEL', comps: ['c1'], src: 'api-football' },
+      { id: 't5', kind: 'team', name: 'Soudal Quick-Step', ic: '🚴', sport: 'Cycling', country: 'BEL', comps: ['c3', 'c4'], src: 'the_sports_db' },
+      { id: 't6', kind: 'team', name: 'Team Visma–Lease a Bike', ic: '🚴', sport: 'Cycling', country: 'NED', comps: ['c3', 'c4'], src: 'the_sports_db' },
+      { id: 'p1', kind: 'player', name: 'Hans Vanaken', ic: '⚽', sport: 'Football', country: 'BEL', team: 't1', meta: 'Midfield · #20', src: 'api-football' },
+      { id: 'p2', kind: 'player', name: 'Simon Mignolet', ic: '⚽', sport: 'Football', country: 'BEL', team: 't1', meta: 'Goalkeeper · #22', src: 'api-football' },
+      { id: 'p3', kind: 'player', name: 'Kasper Dolberg', ic: '⚽', sport: 'Football', country: 'DEN', team: 't2', meta: 'Striker · #12', status: 'injured', src: 'api-football' },
+      { id: 'p4', kind: 'player', name: 'Tolu Arokodare', ic: '⚽', sport: 'Football', country: 'NGA', team: 't3', meta: 'Striker · #9', src: 'api-football' },
+      { id: 'f1', kind: 'performer', name: 'Remco Evenepoel', ic: '🚴', sport: 'Cycling', country: 'BEL', team: 't5', meta: 'Road · GC specialist', src: 'the_sports_db', note: 'Interviews only via team press officer during grand tours.' },
+      { id: 'f2', kind: 'performer', name: 'Wout van Aert', ic: '🚴', sport: 'Cycling', country: 'BEL', team: 't6', meta: 'Road · classics', src: 'the_sports_db' },
+      { id: 'f3', kind: 'performer', name: 'Nafi Thiam', ic: '🏃', sport: 'Athletics', country: 'BEL', meta: 'Heptathlon', src: 'manual' },
+      { id: 'f4', kind: 'performer', name: 'Max Verstappen', ic: '🏎️', sport: 'Formula 1', country: 'NED', meta: 'Red Bull Racing', src: 'the_sports_db' },
+      { id: 'f5', kind: 'performer', name: 'Elise Mertens', ic: '🎾', sport: 'Tennis', country: 'BEL', meta: 'WTA · doubles', src: 'manual' },
+      { id: 'st1', kind: 'staff', name: 'Nicky Hayen', ic: '⚽', sport: 'Football', country: 'BEL', team: 't1', meta: 'Head coach', src: 'manual' },
+      { id: 'st2', kind: 'staff', name: 'Besnik Hasi', ic: '⚽', sport: 'Football', country: 'BEL', team: 't2', meta: 'Head coach', src: 'manual' },
+      { id: 'st3', kind: 'staff', name: 'Jurgen Foré', ic: '🚴', sport: 'Cycling', country: 'BEL', team: 't5', meta: 'CEO', src: 'manual' },
+    ]
+    const MERGES = [
+      { id: 'm1', kind: 'team', src: 'TSDB', a: 'Union Saint-Gilloise', b: 'Royale Union Saint-Gilloise', conf: 92, fields: [{ k: 'NAME', a: 'Union Saint-Gilloise', b: 'Royale Union Saint-Gilloise' }, { k: 'COUNTRY', a: 'BEL', b: 'BEL' }, { k: 'STADIUM', a: '—', b: 'Stade Joseph Marien' }] },
+      { id: 'm2', kind: 'player', src: 'API-FB', a: 'Kasper Dolberg', b: 'K. Dolberg Rasmussen', conf: 88, fields: [{ k: 'NAME', a: 'Kasper Dolberg', b: 'K. Dolberg Rasmussen' }, { k: 'BIRTHDATE', a: '6 Oct 1997', b: '6 Oct 1997' }, { k: 'POSITION', a: 'Striker', b: 'Centre-Forward' }] },
+      { id: 'm3', kind: 'competition', src: 'TSDB', a: 'Jupiler Pro League', b: 'Belgian Pro League', conf: 95, fields: [{ k: 'NAME', a: 'Jupiler Pro League', b: 'Belgian Pro League' }, { k: 'SEASON', a: '2025/26', b: '2025/26' }, { k: 'TEAMS', a: '16', b: '16' }] },
+    ]
+    const JOBS = [
+      { n: 'TheSportsDB · teams', meta: '02:00 · OK · 214 RECORDS', c: '#2BB673' },
+      { n: 'API-Football · squads', meta: '02:15 · OK · 1,482 RECORDS', c: '#2BB673' },
+      { n: 'football-data.org · fixtures', meta: '02:30 · 3 DEAD-LETTERS', c: '#E5484D' },
+    ]
+
+    // ── helpers ──
+    const rightsFor = (e) => {
+      const c = e ? CON.find(x => x.comp === e.comp) : null
+      if (!c || c.st === 'none') return { stL: 'NO CONTRACT', stC: '#E5484D', line: 'No broadcast rights — action required', bad: true }
+      return { stL: CST[c.st].l, stC: CST[c.st].c, line: c.until !== '—' ? 'until ' + c.until : 'terms in negotiation', bad: false }
+    }
+    const crewFor = (e) => [
+      { role: 'Director', name: 'An De Smet', st: 'ok' },
+      { role: 'Commentary', name: 'Filip Joos', st: 'ok' },
+      { role: 'Pitch reporter', name: 'Unassigned', st: 'open' },
+      { role: 'EVS operator', name: 'Jan Peeters', st: e && e.conflict && showConf ? 'conflict' : 'ok' },
+      { role: 'Encoder', name: 'ENC-04 · Reyers', st: 'ok' },
+    ].map(m => ({ ...m, c: m.st === 'ok' ? '#2BB673' : m.st === 'open' ? '#E5A13C' : '#E5484D', sl: m.st === 'ok' ? 'OK' : m.st === 'open' ? 'OPEN' : 'CONFLICT' }))
+    const deco = (e) => {
+      const r = rightsFor(e)
+      const isSel = S.sel === e.id
+      return {
+        ...e,
+        dayL: DAYS[e.day], chN: CH[e.ch].n, chC: CH[e.ch].c, durL: e.dur + ' min',
+        stL: ST[e.st].l, stC: ST[e.st].c,
+        liveL: e.live ? 'LIVE' : 'DELAYED', liveC: e.live ? '#E5484D' : '#E5A13C',
+        rightsL: r.bad ? 'MISSING' : r.stL, rightsC: r.stC,
+        crewL: showConf && e.conflict ? 'CONFLICT' : 'OK', crewC: showConf && e.conflict ? '#E5484D' : '#2BB673',
+        sel: isSel, pick: () => set({ sel: e.id }),
+        rowBgC: isSel ? 'var(--p2)' : 'transparent', rowIns: isSel ? 'inset 2px 0 0 var(--ac)' : 'none',
+        blockBg: CH[e.ch].c + '26',
+        blockOl: isSel ? '1px solid var(--ac)' : (showConf && e.conflict ? '1px solid #E5484D' : 'none'),
+      }
+    }
+    const plansOf = (e) => e && e.live ? ['Multi-cam live', 'Livestream encode', 'Radio commentary'] : ['Delayed edit', 'Livestream encode']
+
+    const allEnt = ENT.concat(S.custom)
+    const entById = (id) => allEnt.find(x => x.id === id)
+    const SRCL = { manual: 'MANUAL', the_sports_db: 'TSDB', 'api-football': 'API-FB', 'football-data.org': 'FB-DATA' }
+    const linksOf = (e) => {
+      if (!e) return []
+      if (e.kind === 'sport') return allEnt.filter(x => x.kind === 'competition' && x.sport === e.name)
+      if (e.kind === 'competition') return allEnt.filter(x => x.kind === 'team' && (x.comps || []).includes(e.id))
+      if (e.kind === 'team') return allEnt.filter(x => x.team === e.id).concat((e.comps || []).map(entById).filter(Boolean))
+      const t = e.team ? entById(e.team) : null
+      return t ? [t] : []
+    }
+    const linkedLabel = (e) => {
+      const n = linksOf(e).length
+      if (e.kind === 'sport') return n + ' competitions'
+      if (e.kind === 'competition') return n + ' teams'
+      if (e.kind === 'team') return n + ' linked records'
+      const t = e.team ? entById(e.team) : null
+      return t ? t.name : '—'
+    }
+    const attrsOf = (e) => {
+      if (!e) return []
+      const a = [{ k: 'TYPE', v: KINDS[e.kind].l }, { k: 'SPORT', v: e.sport || (e.kind === 'sport' ? e.name : '—') }]
+      if (e.country) a.push({ k: 'COUNTRY', v: e.country })
+      if (e.meta) a.push({ k: 'DETAIL', v: e.meta })
+      a.push({ k: 'STATUS', v: (e.status || 'active').toUpperCase() })
+      a.push({ k: 'SOURCE', v: SRCL[e.src || 'manual'] || (e.src || '').toUpperCase() })
+      return a
+    }
+    const srcLine = (e) => !e ? '' : (!e.src || e.src === 'manual') ? 'MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE' : 'SYNCED FROM ' + e.src.replace(/[._]/g, ' ').toUpperCase() + ' · LAST SYNC 2H AGO'
+    const decoEnt = (e) => {
+      const isSel = S.regSel === e.id
+      return {
+        ...e,
+        ic2: e.ic || KINDS[e.kind].ic,
+        kindL: KINDS[e.kind].l.toUpperCase(), kindC: KINDS[e.kind].c, kindBg: KINDS[e.kind].c + '22',
+        sportL: e.sport || (e.kind === 'sport' ? e.name : '—'),
+        linkedL: linkedLabel(e),
+        srcS: SRCL[e.src || 'manual'] || 'MANUAL',
+        stL2: (e.status || 'active').toUpperCase(),
+        stC2: (e.status || 'active') === 'active' ? '#2BB673' : e.status === 'injured' ? '#E5A13C' : '#98A2B3',
+        sel: isSel, pick: () => set({ regSel: e.id }),
+        rowBgC: isSel ? 'var(--p2)' : 'transparent', rowIns: isSel ? 'inset 2px 0 0 var(--ac)' : 'none',
+      }
+    }
+    const kindCount = (k) => allEnt.filter(e => e.kind === k).length
+
+    // ── theme ──
+    const THEMES = {
+      dark: { bg: '#090B0D', pn: '#0F1316', p2: '#141A1E', ln: '#212A31', tx: '#D9E4EB', t2: '#7E8E9A', t3: '#4E5B66', ac: '#2FD6C3', af: '#04241F' },
+      light: { bg: '#EDF1F2', pn: '#FFFFFF', p2: '#F0F4F5', ln: '#D6DEE1', tx: '#111A1F', t2: '#54646D', t3: '#8697A0', ac: '#0D9488', af: '#FFFFFF' },
+    }
+    const theme = S.theme || (P.defaultTheme ?? 'dark')
+    const T = THEMES[theme]
+    const vars = { '--bg': T.bg, '--pn': T.pn, '--p2': T.p2, '--ln': T.ln, '--tx': T.tx, '--t2': T.t2, '--t3': T.t3, '--ac': T.ac, '--af': T.af }
+
+    // ── schedule ──
+    const filtEv = EV.filter(e => S.sport === 'all' || e.sp === S.sport)
+    const rowsArr = []
+    DAYS.forEach((d, i) => {
+      const evs = filtEv.filter(e => e.day === i)
+      if (evs.length) {
+        rowsArr.push({ hdr: true, ev: false, l: d + ' MARCH' })
+        evs.forEach(e => rowsArr.push({ hdr: false, ev: true, ...deco(e) }))
+      }
+    })
+    const selE = EV.find(e => e.id === S.sel) || EV[0]
+    const facets = [{ id: 'all', n: 'All sports', ic: '◎', count: EV.length }].concat(SPORTS.map(s => ({ id: s.id, n: s.n, ic: s.ic, count: EV.filter(e => e.sp === s.id).length }))).map(sc => ({
+      ...sc, on: () => set({ sport: sc.id }),
+      bg: S.sport === sc.id ? 'var(--p2)' : 'transparent', bd: S.sport === sc.id ? 'var(--ac)' : 'var(--ln)', fg: S.sport === sc.id ? 'var(--tx)' : 'var(--t2)',
+    }))
+
+    // ── planner ──
+    const T0 = 300, T1 = 1440
+    const days = DAYS.map((d, i) => ({
+      l: d, count: EV.filter(e => e.day === i).length,
+      on: () => set({ day: i }),
+      bg: S.day === i ? 'var(--ac)' : 'var(--pn)', fg: S.day === i ? 'var(--af)' : 'var(--t2)', bd: S.day === i ? 'var(--ac)' : 'var(--ln)',
+    }))
+    const ticks = [6, 8, 10, 12, 14, 16, 18, 20, 22].map(h => ({ l: (h < 10 ? '0' : '') + h + ':00', left: ((h * 60 - T0) / (T1 - T0) * 100) + '%' }))
+    const lanes = ['een', 'canvas', 'max'].map(k => ({
+      n: CH[k].n.toUpperCase(), c: CH[k].c,
+      blocks: EV.filter(e => e.day === S.day && e.ch === k).map(e => ({ ...deco(e), left: ((e.min - T0) / (T1 - T0) * 100) + '%', width: (Math.max(e.dur, 80) / (T1 - T0) * 100) + '%' })),
+    }))
+
+    // ── rights ──
+    const decoCon = (c) => ({
+      ...c, stL: CST[c.st].l, stC: CST[c.st].c,
+      untilL: c.st === 'draft' ? 'In negotiation' : c.st === 'none' ? 'No agreement in place' : 'Until ' + c.until,
+      barW: c.pct + '%', barC: c.pct < 15 ? '#E5484D' : c.pct < 50 ? '#E5A13C' : '#2BB673', showBar: c.pct > 0,
+      cells: ['linear', 'max', 'radio', 'ondemand'].map(p => ({ l: c.plat.includes(p) ? '●' : '·', c: c.plat.includes(p) ? 'var(--ac)' : 'var(--t3)' })),
+    })
+    const cStats = [
+      { n: CON.filter(x => x.st === 'valid').length, l: 'VALID CONTRACTS', c: '#2BB673' },
+      { n: CON.filter(x => x.st === 'expiring').length, l: 'EXPIRING SOON', c: '#E5A13C' },
+      { n: CON.filter(x => x.st === 'draft').length, l: 'IN NEGOTIATION', c: '#E07B39' },
+      { n: CON.filter(x => x.st === 'none').length, l: 'MISSING RIGHTS', c: '#E5484D' },
+    ]
+
+    // ── registry ──
+    const q = (S.regQ || '').toLowerCase()
+    const regRows = allEnt.filter(e => (S.regFacet === 'all' || e.kind === S.regFacet) && (!q || e.name.toLowerCase().includes(q) || (e.sport || '').toLowerCase().includes(q) || (e.meta || '').toLowerCase().includes(q))).map(decoEnt)
+    const regSelE = entById(S.regSel) || allEnt[0]
+    const regLinks = linksOf(regSelE).map(decoEnt)
+    const regFacets = [{ id: 'all', l: 'All records', n: allEnt.length }].concat(Object.keys(KINDS).map(k => ({ id: k, l: PLURAL[k], n: kindCount(k) }))).map(f => ({
+      ...f, on: () => set({ regFacet: f.id }),
+      bg: S.regFacet === f.id ? 'var(--p2)' : 'transparent', bd: S.regFacet === f.id ? 'var(--ac)' : 'var(--ln)', fg: S.regFacet === f.id ? 'var(--tx)' : 'var(--t2)',
+    }))
+    const typeChips = Object.keys(KINDS).map(k => ({
+      l: KINDS[k].l, on: () => set({ newType: k }),
+      bg: S.newType === k ? 'var(--ac)' : 'transparent', fg: S.newType === k ? 'var(--af)' : 'var(--t2)', bd: S.newType === k ? 'var(--ac)' : 'var(--ln)',
+    }))
+    const create = () => {
+      const nm = (S.newName || '').trim()
+      if (!nm) return
+      const id = 'x' + Date.now()
+      this.setState(s => ({
+        custom: s.custom.concat([{ id, kind: s.newType, name: nm, meta: 'Created manually', src: 'manual' }]),
+        modal: false, newName: '', regFacet: 'all', regQ: '', regSel: id,
+      }))
+    }
+
+    // ── sync ──
+    const pending = MERGES.filter(m => !S.decided[m.id]).length
+    const merges = MERGES.map(m => {
+      const st = S.decided[m.id] || 'pending'
+      const decide = (v) => () => this.setState(s => ({ decided: { ...s.decided, [m.id]: v } }))
+      return {
+        ...m,
+        kindL: KINDS[m.kind].l.toUpperCase(), kindC: KINDS[m.kind].c, kindBg: KINDS[m.kind].c + '22',
+        confL: m.conf + '% MATCH', confC: m.conf >= 90 ? '#2BB673' : '#E5A13C',
+        fieldsD: m.fields.map(fd => ({ ...fd, bC: fd.a !== fd.b ? '#E5A13C' : 'var(--t2)' })),
+        isPending: st === 'pending', isDecided: st !== 'pending',
+        stateL: st === 'merged' ? '✓ MERGED INTO REGISTRY' : 'KEPT AS SEPARATE RECORDS',
+        stateC: st === 'merged' ? '#2BB673' : 'var(--t2)',
+        approve: decide('merged'), keep: decide('kept'),
+      }
+    })
+
+    const nConf = EV.filter(e => e.conflict).length
+    return {
+      vars,
+      themeBtn: () => set({ theme: theme === 'dark' ? 'light' : 'dark' }),
+      themeL: theme === 'dark' ? '☀ LIGHT' : '☾ DARK',
+      nav: [['schedule', 'SCHEDULE'], ['planner', 'PLANNER'], ['rights', 'RIGHTS'], ['registry', 'REGISTRY'], ['sync', pending ? 'SYNC [' + pending + ']' : 'SYNC']].map(tb => ({
+        l: tb[1], on: () => set({ tab: tb[0] }),
+        bg: S.tab === tb[0] ? 'var(--ac)' : 'transparent', fg: S.tab === tb[0] ? 'var(--af)' : 'var(--t2)',
+      })),
+      isSchedule: S.tab === 'schedule', isPlanner: S.tab === 'planner', isRights: S.tab === 'rights', isRegistry: S.tab === 'registry', isSync: S.tab === 'sync',
+      topline: EV.length + ' EVENTS · ' + nConf + ' CREW CONFLICT · ' + allEnt.length + ' RECORDS',
+      facets, rows: rowsArr,
+      sel: deco(selE), crew: crewFor(selE), selRights: rightsFor(selE), plans: plansOf(selE),
+      selHasConf: !!(showConf && selE.conflict), confNote: selE.conflict || '',
+      days, ticks, lanes, dayLabel: DAYS[S.day] + ' MARCH 2026',
+      cStats, matrix: CON.map(decoCon),
+      regFacets, regRows, regSel: decoEnt(regSelE), regLinks, regHasLinks: regLinks.length > 0,
+      regAttrs: attrsOf(regSelE), regSrcLine: srcLine(regSelE), regNote: regSelE.note || '', regHasNote: !!regSelE.note,
+      regQ: S.regQ, setRegQ: (e) => set({ regQ: e.target.value }),
+      regCounters: kindCount('sport') + ' SPORTS · ' + kindCount('competition') + ' COMPETITIONS · ' + kindCount('team') + ' TEAMS · ' + (kindCount('player') + kindCount('performer') + kindCount('staff')) + ' PEOPLE',
+      openModal: () => set({ modal: true }), closeModal: () => set({ modal: false }), modal: S.modal,
+      typeChips, newName: S.newName, setNewName: (e) => set({ newName: e.target.value }), create,
+      jobs: JOBS, merges,
+    }
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E9E7E2;font-family:system-ui,sans-serif}
+@keyframes lpulse{0%,100%{opacity:1}50%{opacity:.3}}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}
+.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}
+.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">The full Ops app — <a class="dv-oid" href="#1c">1c</a> shell + <a class="dv-oid" href="#2a">2a</a> registry + new sync review</span></div>
+<div style="max-width:880px;margin:0 0 20px;font:12.5px/1.6 system-ui,sans-serif;color:rgba(0,0,0,.6)">
+One app, four tabs: SCHEDULE and RIGHTS from <a class="dv-oid" href="#1c">1c</a>, the REGISTRY from <a class="dv-oid" href="#2a">2a</a> (create flow included — new records appear in both), and a new SYNC tab: nightly job health plus a merge-review queue for deduplication candidates from the import pipeline. Approve or keep-separate each candidate — the tab badge counts what's pending.
+</div>
+<div class="dv-opts">
+
+<!-- ══════════════════════ 3a OPS APP ══════════════════════ -->
+<div class="dv-opt" id="3a">
+<div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Ops app — SCHEDULE · RIGHTS · REGISTRY · SYNC in one shell</div>
+<div class="dv-card" style="width:1240px">
+<div style="{{ uVars }}">
+<div data-screen-label="3a Ops app" style="height:800px;display:flex;flex-direction:column;position:relative;background:var(--bg,#090B0D);color:var(--tx,#D9E4EB);font-family:'IBM Plex Sans',sans-serif;font-size:13px">
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:16px;padding:0 14px;background:var(--pn);border-bottom:1px solid var(--ln)">
+    <div style="font:700 13px 'IBM Plex Mono',monospace;letter-spacing:2px">PLANZA<span style="color:var(--ac)">/OPS</span></div>
+    <div style="display:flex;gap:4px">
+      <sc-for list="{{ uNav }}" as="n" hint-placeholder-count="4">
+        <button onClick="{{ n.on }}" style="border:none;cursor:pointer;padding:6px 12px;border-radius:4px;background:{{ n.bg }};color:{{ n.fg }};font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">{{ n.l }}</button>
+      </sc-for>
+    </div>
+    <div style="flex:1"></div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:.5px">{{ uTopline }}</div>
+    <button onClick="{{ uThemeBtn }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:4px 10px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">{{ uThemeL }}</button>
+  </div>
+
+  <sc-if value="{{ uIsSchedule }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="3a Schedule" style="flex:1;display:grid;grid-template-columns:170px 1fr 300px;min-height:0">
+    <div style="border-right:1px solid var(--ln);padding:12px 10px;display:flex;flex-direction:column;gap:3px;overflow:auto">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin:2px 4px 7px">FILTER</div>
+      <sc-for list="{{ uFacets }}" as="s" hint-placeholder-count="5">
+        <button onClick="{{ s.on }}" style="display:flex;align-items:center;gap:8px;border:1px solid {{ s.bd }};background:{{ s.bg }};color:{{ s.fg }};border-radius:4px;padding:6px 9px;cursor:pointer;font:500 11px 'IBM Plex Mono',monospace;text-align:left;width:100%">
+          <span style="width:16px;text-align:center">{{ s.ic }}</span><span style="flex:1">{{ s.n }}</span><span style="color:var(--t3)">{{ s.count }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="overflow:auto;min-width:0">
+      <div style="display:grid;grid-template-columns:58px 1fr 96px 88px 96px 66px;gap:10px;padding:10px 14px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln);position:sticky;top:0;background:var(--bg);z-index:2">
+        <span>TIME</span><span>EVENT</span><span>CHANNEL</span><span>STATUS</span><span>RIGHTS</span><span>CREW</span>
+      </div>
+      <sc-for list="{{ uRows }}" as="r" hint-placeholder-count="8">
+        <div>
+          <sc-if value="{{ r.hdr }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:6px 14px;background:var(--p2);font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:2px;border-bottom:1px solid var(--ln)">{{ r.l }}</div>
+          </sc-if>
+          <sc-if value="{{ r.ev }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ r.pick }}" style-hover="background:var(--p2)" style="display:grid;grid-template-columns:58px 1fr 96px 88px 96px 66px;gap:10px;align-items:center;padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--ln);background:{{ r.rowBgC }};box-shadow:{{ r.rowIns }}">
+              <span style="font:600 11px 'IBM Plex Mono',monospace">{{ r.time }}</span>
+              <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                <span>{{ r.ic }}</span>
+                <div style="min-width:0">
+                  <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.t }}</div>
+                  <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.comp }}</div>
+                </div>
+              </div>
+              <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><span style="width:7px;height:7px;border-radius:2px;background:{{ r.chC }};flex:none"></span>{{ r.chN }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.stC }}">{{ r.stL }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.rightsC }}">{{ r.rightsL }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.crewC }}">{{ r.crewL }}</span>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <div style="border-left:1px solid var(--ln);background:var(--pn);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:13px">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">INSPECTOR</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <span style="font-size:16px">{{ uSel.ic }}</span>
+          <span style="font:600 9px 'IBM Plex Mono',monospace;color:{{ uSel.liveC }};border:1px solid {{ uSel.liveC }};padding:2px 5px;border-radius:3px">{{ uSel.liveL }}</span>
+          <span style="font:500 10px 'IBM Plex Mono',monospace;color:{{ uSel.stC }}">{{ uSel.stL }}</span>
+        </div>
+        <div style="font-size:15px;font-weight:600;line-height:1.3">{{ uSel.t }}</div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);margin-top:5px">{{ uSel.comp }}</div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);margin-top:2px">{{ uSel.dayL }} MAR · {{ uSel.time }} · {{ uSel.durL }} · {{ uSel.chN }}</div>
+      </div>
+      <sc-if value="{{ uSelHasConf }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid #E5484D;background:rgba(229,72,77,.1);border-radius:6px;padding:9px 11px;font:500 10.5px 'IBM Plex Mono',monospace;color:#E5484D;line-height:1.5">⚠ {{ uConfNote }}</div>
+      </sc-if>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">RIGHTS</div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="width:7px;height:7px;border-radius:50%;background:{{ uSelRights.stC }}"></span>
+          <span style="font:500 11px 'IBM Plex Mono',monospace;color:{{ uSelRights.stC }}">{{ uSelRights.stL }}</span>
+        </div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2)">{{ uSelRights.line }}</div>
+      </div>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:5px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:3px">CREW</div>
+        <sc-for list="{{ uCrew }}" as="m" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:6px;height:6px;border-radius:50%;background:{{ m.c }};flex:none"></span>
+            <span style="font-size:11.5px;font-weight:600;flex:none">{{ m.name }}</span>
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:var(--t3);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.role }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:7px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">TECH PLANS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          <sc-for list="{{ uPlans }}" as="p" hint-placeholder-count="3">
+            <span style="font:500 10px 'IBM Plex Mono',monospace;border:1px solid var(--ln);background:var(--p2);border-radius:4px;padding:3px 7px">{{ p }}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ uIsRights }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="3a Rights matrix" style="flex:1;overflow:auto;padding:16px">
+    <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:var(--t2);margin-bottom:14px">RIGHTS MATRIX · SEASON 2025/26</div>
+    <div style="display:grid;grid-template-columns:240px repeat(4,84px) 120px 1fr;gap:10px;padding:0 12px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln)">
+      <span>COMPETITION</span><span style="text-align:center">LINEAR</span><span style="text-align:center">MAX</span><span style="text-align:center">RADIO</span><span style="text-align:center">ON-DEM</span><span>STATUS</span><span>VALIDITY</span>
+    </div>
+    <sc-for list="{{ cMatrix }}" as="c" hint-placeholder-count="6">
+      <div style="display:grid;grid-template-columns:240px repeat(4,84px) 120px 1fr;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--ln)">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0">
+          <span>{{ c.ic }}</span>
+          <span style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.comp }}</span>
+        </div>
+        <sc-for list="{{ c.cells }}" as="cell" hint-placeholder-count="4">
+          <span style="text-align:center;font:600 13px 'IBM Plex Mono',monospace;color:{{ cell.c }}">{{ cell.l }}</span>
+        </sc-for>
+        <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ c.stC }}">{{ c.stL }}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:var(--t2);flex:none">{{ c.untilL }}</span>
+          <sc-if value="{{ c.showBar }}" hint-placeholder-val="{{ true }}">
+            <div style="height:3px;background:var(--p2);border-radius:99px;overflow:hidden;flex:1;max-width:140px"><div style="height:100%;width:{{ c.barW }};background:{{ c.barC }};border-radius:99px"></div></div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ uIsRegistry }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="3a Registry" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div style="flex:none;display:flex;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid var(--ln)">
+      <input value="{{ uRegQ }}" onChange="{{ uSetRegQ }}" placeholder="Search sports, teams, people…" style="width:260px;background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:6px 10px;color:var(--tx);font:500 11px 'IBM Plex Mono',monospace;outline:none">
+      <div style="flex:1"></div>
+      <div style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:.5px">{{ rCounters }}</div>
+      <button onClick="{{ uOpenModal }}" style="border:none;background:var(--ac);color:var(--af);border-radius:4px;padding:6px 12px;cursor:pointer;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">+ NEW</button>
+    </div>
+    <div style="flex:1;display:grid;grid-template-columns:170px 1fr 310px;min-height:0">
+      <div style="border-right:1px solid var(--ln);padding:12px 10px;display:flex;flex-direction:column;gap:3px;overflow:auto">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin:2px 4px 7px">BROWSE</div>
+        <sc-for list="{{ uRegFacets }}" as="f" hint-placeholder-count="7">
+          <button onClick="{{ f.on }}" style="display:flex;align-items:center;gap:8px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};border-radius:4px;padding:6px 9px;cursor:pointer;font:500 11px 'IBM Plex Mono',monospace;text-align:left;width:100%">
+            <span style="flex:1">{{ f.l }}</span><span style="color:var(--t3)">{{ f.n }}</span>
+          </button>
+        </sc-for>
+      </div>
+      <div style="overflow:auto;min-width:0">
+        <div style="display:grid;grid-template-columns:1fr 104px 100px 132px 78px 72px;gap:10px;padding:10px 14px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln);position:sticky;top:0;background:var(--bg);z-index:2">
+          <span>NAME</span><span>TYPE</span><span>SPORT</span><span>LINKED</span><span>SOURCE</span><span>STATUS</span>
+        </div>
+        <sc-for list="{{ uRegRows }}" as="it" hint-placeholder-count="12">
+          <div onClick="{{ it.pick }}" style-hover="background:var(--p2)" style="display:grid;grid-template-columns:1fr 104px 100px 132px 78px 72px;gap:10px;align-items:center;padding:8px 14px;cursor:pointer;border-bottom:1px solid var(--ln);background:{{ it.rowBgC }};box-shadow:{{ it.rowIns }}">
+            <div style="display:flex;align-items:center;gap:9px;min-width:0">
+              <span style="width:18px;text-align:center;flex:none">{{ it.ic2 }}</span>
+              <span style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</span>
+            </div>
+            <span><span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ it.kindC }};background:{{ it.kindBg }};padding:2px 6px;border-radius:3px">{{ it.kindL }}</span></span>
+            <span style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.sportL }}</span>
+            <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.linkedL }}</span>
+            <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3)">{{ it.srcS }}</span>
+            <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:{{ it.stC2 }}">{{ it.stL2 }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-left:1px solid var(--ln);background:var(--pn);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:13px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">RECORD</div>
+        <div style="display:flex;align-items:center;gap:11px">
+          <div style="width:44px;height:44px;border:1px solid var(--ln);background:var(--p2);border-radius:6px;display:grid;place-items:center;font-size:20px;flex:none">{{ uRegSel.ic2 }}</div>
+          <div style="min-width:0">
+            <div style="font-size:15px;font-weight:600;line-height:1.25">{{ uRegSel.name }}</div>
+            <div style="margin-top:4px"><span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ uRegSel.kindC }};background:{{ uRegSel.kindBg }};padding:2px 6px;border-radius:3px">{{ uRegSel.kindL }}</span></div>
+          </div>
+        </div>
+        <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:.5px;line-height:1.5">{{ uRegSrcLine }}</div>
+        <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:7px">
+          <sc-for list="{{ uRegAttrs }}" as="at" hint-placeholder-count="5">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <span style="width:76px;flex:none;font:600 8.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1px">{{ at.k }}</span>
+              <span style="font-size:11.5px;font-weight:500">{{ at.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ uRegHasLinks }}" hint-placeholder-val="{{ true }}">
+          <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:6px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:3px">LINKED</div>
+            <sc-for list="{{ uRegLinks }}" as="lk" hint-placeholder-count="3">
+              <div onClick="{{ lk.pick }}" style-hover="border-color:var(--ac)" style="cursor:pointer;display:flex;align-items:center;gap:8px;border:1px solid var(--ln);background:var(--bg);border-radius:6px;padding:7px 9px">
+                <span style="flex:none">{{ lk.ic2 }}</span>
+                <span style="font-size:11.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ lk.name }}</span>
+                <span style="font:600 8px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ lk.kindC }}">{{ lk.kindL }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ uRegHasNote }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top:1px solid var(--ln);padding-top:11px">
+            <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:7px">REMARKS · MANUAL</div>
+            <div style="border:1px solid var(--ln);background:var(--bg);border-radius:6px;padding:9px 11px;font-size:11.5px;line-height:1.5;color:var(--t2)">{{ uRegNote }}</div>
+          </div>
+        </sc-if>
+        <button style="border:1px dashed var(--ln);background:transparent;color:var(--t2);border-radius:6px;padding:7px;cursor:pointer;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:1px">+ ADD REMARK</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ uIsSync }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="3a Sync review" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px">
+    <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:var(--t2)">NIGHTLY SYNC · 02:00 CET</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      <sc-for list="{{ uJobs }}" as="j" hint-placeholder-count="3">
+        <div style="background:var(--pn);border:1px solid var(--ln);border-radius:6px;padding:11px 13px;display:flex;align-items:center;gap:10px">
+          <span style="width:8px;height:8px;border-radius:50%;background:{{ j.c }};flex:none"></span>
+          <div style="min-width:0;flex:1">
+            <div style="font:600 11px 'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ j.n }}</div>
+            <div style="font:400 10px 'IBM Plex Mono',monospace;color:var(--t3);margin-top:3px">{{ j.meta }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:var(--t2);margin-top:6px">MERGE REVIEW · DEDUPLICATION CANDIDATES</div>
+    <sc-for list="{{ uMerges }}" as="m" hint-placeholder-count="3">
+      <div style="background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:11px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ m.kindC }};background:{{ m.kindBg }};padding:2px 6px;border-radius:3px">{{ m.kindL }}</span>
+          <span style="font-size:12.5px;font-weight:600">{{ m.b }}</span>
+          <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:var(--t3)">→ MATCHES →</span>
+          <span style="font-size:12.5px;font-weight:600">{{ m.a }}</span>
+          <span style="flex:1"></span>
+          <span style="font:600 10px 'IBM Plex Mono',monospace;color:{{ m.confC }}">{{ m.confL }}</span>
+          <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3)">VIA {{ m.src }}</span>
+        </div>
+        <div style="border:1px solid var(--ln);border-radius:6px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:110px 1fr 1fr;gap:10px;padding:7px 12px;background:var(--p2);font:600 8.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px">
+            <span>FIELD</span><span>INCOMING</span><span>CURRENT</span>
+          </div>
+          <sc-for list="{{ m.fieldsD }}" as="fd" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:110px 1fr 1fr;gap:10px;padding:7px 12px;border-top:1px solid var(--ln)">
+              <span style="font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1px">{{ fd.k }}</span>
+              <span style="font:500 11px 'IBM Plex Mono',monospace;color:{{ fd.bC }}">{{ fd.b }}</span>
+              <span style="font:500 11px 'IBM Plex Mono',monospace;color:var(--t2)">{{ fd.a }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ m.isPending }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button onClick="{{ m.keep }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:7px 14px;cursor:pointer;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:1px">KEEP SEPARATE</button>
+            <button onClick="{{ m.approve }}" style="border:none;background:var(--ac);color:var(--af);border-radius:4px;padding:7px 16px;cursor:pointer;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:1px">APPROVE MERGE</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ m.isDecided }}" hint-placeholder-val="{{ false }}">
+          <div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ m.stateC }};text-align:right">{{ m.stateL }}</div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ uModal }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="3a New entity modal" style="position:absolute;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:10">
+      <div style="width:430px;background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center">
+          <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px">NEW ENTITY</div>
+          <div style="flex:1"></div>
+          <button onClick="{{ uCloseModal }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:11px">✕</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ uTypeChips }}" as="tc" hint-placeholder-count="6">
+            <button onClick="{{ tc.on }}" style="border:1px solid {{ tc.bd }};background:{{ tc.bg }};color:{{ tc.fg }};border-radius:4px;padding:5px 11px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">{{ tc.l }}</button>
+          </sc-for>
+        </div>
+        <input value="{{ uNewName }}" onChange="{{ uSetNewName }}" placeholder="Name — e.g. KAA Gent, Lotte Kopecky, La Vuelta…" style="background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:9px 11px;color:var(--tx);font:500 12px 'IBM Plex Sans',sans-serif;outline:none">
+        <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:var(--t3);line-height:1.5">CREATED RECORDS ARE SOURCE: MANUAL · PROTECTED FROM SYNC OVERWRITE</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button onClick="{{ uCloseModal }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:7px 14px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">CANCEL</button>
+          <button onClick="{{ uCreate }}" style="border:none;background:var(--ac);color:var(--af);border-radius:4px;padding:7px 16px;cursor:pointer;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">CREATE</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "add the <a class="dv-oid" href="#1a">1a</a> day planner as a fifth tab" · "competition profile with startlist in the registry" · "make <a class="dv-oid" href="#3a">3a</a> a standalone full-screen prototype"</p>
+</section>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Sports CMS — registry of sports, competitions, teams &amp; people, in the <a class="dv-oid" href="#1c">1c</a> Ops language</span></div>
+<div style="max-width:880px;margin:0 0 20px;font:12.5px/1.6 system-ui,sans-serif;color:rgba(0,0,0,.6)">
+One shared entity model (sport → competition → team → player / performer / staff), drawn from the teams-players repository plan in the codebase — records carry a source (manual vs synced from TheSportsDB / API-Football) and manual remarks that survive re-sync. <a class="dv-oid" href="#2a">2a</a> is browse-first: a registry table with facets, inspector and a working "+ NEW" create flow. <a class="dv-oid" href="#2b">2b</a> is search-first: Football-Manager-style profile pages — click linked records to hop between entities.
+</div>
+<div class="dv-opts">
+
+<!-- ══════════════════════ 2a REGISTRY ══════════════════════ -->
+<div class="dv-opt" id="2a">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Registry — browse-first table · facets · inspector · create flow</div>
+<div class="dv-card" style="width:1240px">
+<div style="{{ rVars }}">
+<div data-screen-label="2a Registry" style="height:800px;display:flex;flex-direction:column;position:relative;background:var(--bg,#090B0D);color:var(--tx,#D9E4EB);font-family:'IBM Plex Sans',sans-serif;font-size:13px">
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--pn);border-bottom:1px solid var(--ln)">
+    <div style="font:700 13px 'IBM Plex Mono',monospace;letter-spacing:2px">PLANZA<span style="color:var(--ac)">/REGISTRY</span></div>
+    <input value="{{ rQ }}" onChange="{{ rSetQ }}" placeholder="Search sports, teams, people…" style="width:230px;background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:6px 10px;color:var(--tx);font:500 11px 'IBM Plex Mono',monospace;outline:none">
+    <div style="flex:1"></div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:.5px">{{ rCounters }}</div>
+    <button onClick="{{ rOpenModal }}" style="border:none;background:var(--ac);color:var(--af);border-radius:4px;padding:6px 12px;cursor:pointer;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">+ NEW</button>
+    <button onClick="{{ rThemeBtn }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:4px 10px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">{{ rThemeL }}</button>
+  </div>
+  <div style="flex:1;display:grid;grid-template-columns:170px 1fr 310px;min-height:0">
+    <div style="border-right:1px solid var(--ln);padding:12px 10px;display:flex;flex-direction:column;gap:3px;overflow:auto">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin:2px 4px 7px">BROWSE</div>
+      <sc-for list="{{ rFacets }}" as="f" hint-placeholder-count="7">
+        <button onClick="{{ f.on }}" style="display:flex;align-items:center;gap:8px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};border-radius:4px;padding:6px 9px;cursor:pointer;font:500 11px 'IBM Plex Mono',monospace;text-align:left;width:100%">
+          <span style="flex:1">{{ f.l }}</span><span style="color:var(--t3)">{{ f.n }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="overflow:auto;min-width:0">
+      <div style="display:grid;grid-template-columns:1fr 104px 100px 132px 78px 72px;gap:10px;padding:10px 14px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln);position:sticky;top:0;background:var(--bg);z-index:2">
+        <span>NAME</span><span>TYPE</span><span>SPORT</span><span>LINKED</span><span>SOURCE</span><span>STATUS</span>
+      </div>
+      <sc-for list="{{ rRows }}" as="it" hint-placeholder-count="12">
+        <div onClick="{{ it.pick }}" style-hover="background:var(--p2)" style="display:grid;grid-template-columns:1fr 104px 100px 132px 78px 72px;gap:10px;align-items:center;padding:8px 14px;cursor:pointer;border-bottom:1px solid var(--ln);background:{{ it.rowBgC }};box-shadow:{{ it.rowIns }}">
+          <div style="display:flex;align-items:center;gap:9px;min-width:0">
+            <span style="width:18px;text-align:center;flex:none">{{ it.ic2 }}</span>
+            <span style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</span>
+          </div>
+          <span><span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ it.kindC }};background:{{ it.kindBg }};padding:2px 6px;border-radius:3px">{{ it.kindL }}</span></span>
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.sportL }}</span>
+          <span style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.linkedL }}</span>
+          <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3)">{{ it.srcS }}</span>
+          <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:{{ it.stC2 }}">{{ it.stL2 }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="border-left:1px solid var(--ln);background:var(--pn);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:13px">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">RECORD</div>
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="width:44px;height:44px;border:1px solid var(--ln);background:var(--p2);border-radius:6px;display:grid;place-items:center;font-size:20px;flex:none">{{ rSel.ic2 }}</div>
+        <div style="min-width:0">
+          <div style="font-size:15px;font-weight:600;line-height:1.25">{{ rSel.name }}</div>
+          <div style="margin-top:4px"><span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ rSel.kindC }};background:{{ rSel.kindBg }};padding:2px 6px;border-radius:3px">{{ rSel.kindL }}</span></div>
+        </div>
+      </div>
+      <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:.5px;line-height:1.5">{{ rSrcLine }}</div>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:7px">
+        <sc-for list="{{ rAttrs }}" as="at" hint-placeholder-count="5">
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span style="width:76px;flex:none;font:600 8.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1px">{{ at.k }}</span>
+            <span style="font-size:11.5px;font-weight:500">{{ at.v }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ rHasLinks }}" hint-placeholder-val="{{ true }}">
+        <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:6px">
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:3px">LINKED</div>
+          <sc-for list="{{ rLinks }}" as="lk" hint-placeholder-count="3">
+            <div onClick="{{ lk.pick }}" style-hover="border-color:var(--ac)" style="cursor:pointer;display:flex;align-items:center;gap:8px;border:1px solid var(--ln);background:var(--bg);border-radius:6px;padding:7px 9px">
+              <span style="flex:none">{{ lk.ic2 }}</span>
+              <span style="font-size:11.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ lk.name }}</span>
+              <span style="font:600 8px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ lk.kindC }}">{{ lk.kindL }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ rHasNote }}" hint-placeholder-val="{{ false }}">
+        <div style="border-top:1px solid var(--ln);padding-top:11px">
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:7px">REMARKS · MANUAL</div>
+          <div style="border:1px solid var(--ln);background:var(--bg);border-radius:6px;padding:9px 11px;font-size:11.5px;line-height:1.5;color:var(--t2)">{{ rNote }}</div>
+        </div>
+      </sc-if>
+      <button style="border:1px dashed var(--ln);background:transparent;color:var(--t2);border-radius:6px;padding:7px;cursor:pointer;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:1px">+ ADD REMARK</button>
+    </div>
+  </div>
+  <sc-if value="{{ rModal }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="2a New entity modal" style="position:absolute;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:10">
+      <div style="width:430px;background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center">
+          <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px">NEW ENTITY</div>
+          <div style="flex:1"></div>
+          <button onClick="{{ rCloseModal }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:11px">✕</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ rTypeChips }}" as="tc" hint-placeholder-count="6">
+            <button onClick="{{ tc.on }}" style="border:1px solid {{ tc.bd }};background:{{ tc.bg }};color:{{ tc.fg }};border-radius:4px;padding:5px 11px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">{{ tc.l }}</button>
+          </sc-for>
+        </div>
+        <input value="{{ rNewName }}" onChange="{{ rSetNewName }}" placeholder="Name — e.g. KAA Gent, Lotte Kopecky, La Vuelta…" style="background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:9px 11px;color:var(--tx);font:500 12px 'IBM Plex Sans',sans-serif;outline:none">
+        <div style="font:400 9.5px 'IBM Plex Mono',monospace;color:var(--t3);line-height:1.5">CREATED RECORDS ARE SOURCE: MANUAL · PROTECTED FROM SYNC OVERWRITE</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button onClick="{{ rCloseModal }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:7px 14px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">CANCEL</button>
+          <button onClick="{{ rCreate }}" style="border:none;background:var(--ac);color:var(--af);border-radius:4px;padding:7px 16px;cursor:pointer;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">CREATE</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ══════════════════════ 2b PROFILES ══════════════════════ -->
+<div class="dv-opt" id="2b">
+<div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Profiles — search-first, FM-style profile pages · hop between linked records</div>
+<div class="dv-card" style="width:1240px">
+<div style="{{ pVars }}">
+<div data-screen-label="2b Profiles" style="height:800px;display:flex;flex-direction:column;background:var(--bg,#EDF1F2);color:var(--tx,#111A1F);font-family:'IBM Plex Sans',sans-serif;font-size:13px">
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--pn);border-bottom:1px solid var(--ln)">
+    <div style="font:700 13px 'IBM Plex Mono',monospace;letter-spacing:2px">PLANZA<span style="color:var(--ac)">/REGISTRY</span></div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px">PROFILE VIEW</div>
+    <div style="flex:1"></div>
+    <button onClick="{{ pThemeBtn }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:4px 10px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">{{ pThemeL }}</button>
+  </div>
+  <div style="flex:1;display:grid;grid-template-columns:320px 1fr;min-height:0">
+    <div style="border-right:1px solid var(--ln);display:flex;flex-direction:column;min-height:0;background:var(--pn)">
+      <div style="padding:12px 12px 8px">
+        <input value="{{ pQ }}" onChange="{{ pSetQ }}" placeholder="Search the registry…" style="width:100%;box-sizing:border-box;background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:9px 11px;color:var(--tx);font:500 12px 'IBM Plex Sans',sans-serif;outline:none">
+        <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3);margin-top:8px;letter-spacing:1px">{{ pRowCount }} RECORDS</div>
+      </div>
+      <div style="flex:1;overflow:auto">
+        <sc-for list="{{ pRows }}" as="it" hint-placeholder-count="12">
+          <div onClick="{{ it.pick }}" style-hover="background:var(--p2)" style="display:flex;align-items:center;gap:9px;padding:8px 14px;cursor:pointer;border-bottom:1px solid var(--p2);background:{{ it.rowBgC }};box-shadow:{{ it.rowIns }}">
+            <span style="width:18px;text-align:center;flex:none">{{ it.ic2 }}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</div>
+              <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.meta }}</div>
+            </div>
+            <span style="font:600 8px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ it.kindC }};flex:none">{{ it.kindL }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="overflow:auto;padding:26px 30px;display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:18px">
+        <div style="width:72px;height:72px;border:1px solid var(--ln);background:var(--pn);border-radius:8px;display:grid;place-items:center;font:600 24px 'IBM Plex Mono',monospace;color:var(--ac);flex:none">{{ pInitials }}</div>
+        <div style="min-width:0">
+          <div style="font-size:26px;font-weight:600;line-height:1.15">{{ pSel.name }}</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+            <span style="font:600 8.5px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ pSel.kindC }};background:{{ pSel.kindBg }};padding:3px 7px;border-radius:3px">{{ pSel.kindL }}</span>
+            <span style="font-size:12px;color:var(--t2)">{{ pSel.sportL }}</span>
+            <span style="font:500 9.5px 'IBM Plex Mono',monospace;color:{{ pSel.stC2 }}">{{ pSel.stL2 }}</span>
+          </div>
+        </div>
+      </div>
+      <div style="font:400 10px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:.5px">{{ pSrcLine }}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+        <sc-for list="{{ pAttrs }}" as="at" hint-placeholder-count="5">
+          <div style="background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:11px 13px">
+            <div style="font:600 8.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px">{{ at.k }}</div>
+            <div style="font-size:13px;font-weight:600;margin-top:5px">{{ at.v }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ pHasLinks }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">LINKED RECORDS</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:9px">
+            <sc-for list="{{ pLinks }}" as="lk" hint-placeholder-count="4">
+              <div onClick="{{ lk.pick }}" style-hover="border-color:var(--ac)" style="cursor:pointer;display:flex;align-items:center;gap:10px;background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:9px 12px">
+                <span style="flex:none">{{ lk.ic2 }}</span>
+                <span style="font-size:12.5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ lk.name }}</span>
+                <span style="font-size:11px;color:var(--t2);flex:none">{{ lk.meta }}</span>
+                <span style="font:600 8px 'IBM Plex Mono',monospace;letter-spacing:1px;color:{{ lk.kindC }};flex:none">{{ lk.kindL }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ pHasNote }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">REMARKS · MANUAL</div>
+          <div style="border:1px solid var(--ln);background:var(--pn);border-radius:8px;padding:11px 13px;font-size:12px;line-height:1.55;color:var(--t2);margin-top:9px">{{ pNote }}</div>
+        </div>
+      </sc-if>
+      <button style="border:1px dashed var(--ln);background:transparent;color:var(--t2);border-radius:6px;padding:8px;cursor:pointer;font:500 10px 'IBM Plex Mono',monospace;letter-spacing:1px;align-self:flex-start;padding-left:14px;padding-right:14px">+ ADD REMARK</button>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "wire <a class="dv-oid" href="#2a">2a</a> into the <a class="dv-oid" href="#1c">1c</a> app shell as a REGISTRY tab" · "add an import/sync review screen for merge candidates" · "give <a class="dv-oid" href="#2b">2b</a> competition profiles a startlist/standings block"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Three directions — Sports workspace · Planner · Contracts</span></div>
+<div style="max-width:880px;margin:0 0 20px;font:12.5px/1.6 system-ui,sans-serif;color:rgba(0,0,0,.6)">
+Grounded in the Planza codebase (events → tech plans → crew/resources → conflicts; contracts → rights per competition). Sample data: week 10, 2–8 March 2026. Every card is a working prototype — switch screens in the top nav, click any event, and flip dark/light with the theme button. <a class="dv-oid" href="#1a">1a</a> keeps a control-room feel but makes the day rundown per channel the core object. <a class="dv-oid" href="#1b">1b</a> reframes the sports workspace as an editorial production board. <a class="dv-oid" href="#1c">1c</a> is a dense operations grid where schedule, rights and crew health live in one table.
+</div>
+<div class="dv-opts">
+
+<!-- ══════════════════════ 1a RUNDOWN ══════════════════════ -->
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Rundown — control-room UI · channel-lane day planner · event-first sports desk</div>
+<div class="dv-card" style="width:1240px">
+<div style="{{ aVars }}">
+<div data-screen-label="1a Rundown" style="height:800px;display:flex;flex-direction:column;background:var(--bg,#0F1216);color:var(--tx,#EDF1F7);font-family:'IBM Plex Sans',sans-serif;font-size:13px">
+  <div style="height:52px;flex:none;display:flex;align-items:center;gap:16px;padding:0 14px;background:var(--pn);border-bottom:1px solid var(--ln)">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:24px;height:24px;border-radius:6px;background:var(--ac);color:var(--af);display:grid;place-items:center;font:700 13px 'Space Grotesk',sans-serif">P</div>
+      <div style="font:600 15px 'Space Grotesk',sans-serif">Planza</div>
+      <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3);border:1px solid var(--ln);border-radius:4px;padding:2px 6px;letter-spacing:1.5px">RUNDOWN</div>
+    </div>
+    <div style="display:flex;gap:3px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;padding:3px">
+      <sc-for list="{{ aNav }}" as="n" hint-placeholder-count="3">
+        <button onClick="{{ n.on }}" style="border:none;cursor:pointer;padding:5px 14px;border-radius:6px;background:{{ n.bg }};color:{{ n.fg }};font:500 12.5px 'IBM Plex Sans',sans-serif">{{ n.l }}</button>
+      </sc-for>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:7px;font:500 11px 'IBM Plex Mono',monospace;color:var(--t2)"><span style="width:7px;height:7px;border-radius:50%;background:#E5484D;animation:lpulse 1.4s infinite"></span>2–8 MAR 2026 · W10</div>
+    <button onClick="{{ aThemeBtn }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:6px;padding:4px 10px;cursor:pointer;font:500 11px 'IBM Plex Sans',sans-serif">{{ aThemeL }}</button>
+  </div>
+
+  <sc-if value="{{ aIsSports }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="1a Sports desk" style="flex:1;display:grid;grid-template-columns:186px 1fr 350px;min-height:0">
+    <div style="border-right:1px solid var(--ln);padding:12px 10px;display:flex;flex-direction:column;gap:4px;overflow:auto">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;margin:2px 4px 6px">SPORTS</div>
+      <sc-for list="{{ aSportChips }}" as="s" hint-placeholder-count="5">
+        <button onClick="{{ s.on }}" style="display:flex;align-items:center;gap:8px;border:1px solid {{ s.bd }};background:{{ s.bg }};color:{{ s.fg }};border-radius:8px;padding:7px 10px;cursor:pointer;font:500 12.5px 'IBM Plex Sans',sans-serif;text-align:left;width:100%">
+          <span style="width:18px;text-align:center">{{ s.ic }}</span><span style="flex:1">{{ s.n }}</span>
+          <span style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t3)">{{ s.count }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="overflow:auto;padding:14px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:baseline;gap:8px;margin:0 2px 4px">
+        <div style="font:600 15px 'Space Grotesk',sans-serif">This week</div>
+        <div style="font:500 11px 'IBM Plex Mono',monospace;color:var(--t3)">{{ aListCount }} events</div>
+      </div>
+      <sc-for list="{{ aList }}" as="e" hint-placeholder-count="5">
+        <div onClick="{{ e.pick }}" style-hover="border-color:var(--ac)" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid {{ e.rowBd }};border-radius:10px;background:{{ e.rowBg }}">
+          <div style="width:46px;text-align:center;flex:none">
+            <div style="font:600 13px 'IBM Plex Mono',monospace">{{ e.time }}</div>
+            <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3)">{{ e.dayL }}</div>
+          </div>
+          <div style="width:1px;height:28px;background:var(--ln);flex:none"></div>
+          <span style="font-size:16px;flex:none">{{ e.ic }}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.t }}</div>
+            <div style="font-size:11px;color:var(--t2)">{{ e.comp }}</div>
+          </div>
+          <div style="display:{{ e.confShow }};align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:#E5484D;flex:none"><span style="width:6px;height:6px;border-radius:50%;background:#E5484D"></span>Crew</div>
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;color:{{ e.liveC }};border:1px solid {{ e.liveC }};padding:2px 6px;border-radius:4px;flex:none">{{ e.liveL }}</span>
+          <span style="font-size:11px;font-weight:500;color:{{ e.stC }};background:{{ e.stBg }};padding:3px 8px;border-radius:99px;flex:none">{{ e.stL }}</span>
+          <span style="width:8px;height:8px;border-radius:2px;background:{{ e.chC }};flex:none"></span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="border-left:1px solid var(--ln);background:var(--pn);overflow:auto;padding:16px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:18px">{{ aSel.ic }}</span>
+          <span style="font:600 9.5px 'IBM Plex Mono',monospace;color:{{ aSel.liveC }};border:1px solid {{ aSel.liveC }};padding:2px 6px;border-radius:4px">{{ aSel.liveL }}</span>
+          <span style="font-size:11px;font-weight:500;color:{{ aSel.stC }};background:{{ aSel.stBg }};padding:3px 8px;border-radius:99px">{{ aSel.stL }}</span>
+        </div>
+        <div style="font:600 17px 'Space Grotesk',sans-serif;line-height:1.25">{{ aSel.t }}</div>
+        <div style="font-size:12px;color:var(--t2);margin-top:3px">{{ aSel.comp }} · {{ aSel.dayL }} March · {{ aSel.time }} · {{ aSel.durL }}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+          <span style="width:8px;height:8px;border-radius:2px;background:{{ aSel.chC }}"></span>
+          <span style="font-size:11.5px;color:var(--t2)">{{ aSel.chN }}</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px">RIGHTS</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:{{ aSelRights.stC }}"></span>
+          <span style="font-size:12.5px;font-weight:600;color:{{ aSelRights.stC }}">{{ aSelRights.stL }}</span>
+          <span style="font-size:11.5px;color:var(--t2)">{{ aSelRights.line }}</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ aSelRights.plats }}" as="p" hint-placeholder-count="3">
+            <span style="font-size:11px;border:1px solid var(--ln);background:var(--p2);border-radius:6px;padding:3px 8px">{{ p }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;margin-bottom:2px">CREW</div>
+        <sc-for list="{{ aCrew }}" as="m" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--ln);border-radius:8px;background:var(--bg)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12.5px;font-weight:600">{{ m.name }}</div>
+              <div style="font-size:10.5px;color:var(--t2)">{{ m.role }}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:{{ m.c }}"></span><span style="font-size:10.5px;font-weight:500;color:{{ m.c }}">{{ m.sl }}</span></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px">TECH PLANS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ aPlans }}" as="p" hint-placeholder-count="3">
+            <span style="font-size:11px;border:1px solid var(--ln);background:var(--p2);border-radius:6px;padding:3px 8px">{{ p }}</span>
+          </sc-for>
+          <button style="font-size:11px;border:1px dashed var(--ln);background:transparent;color:var(--t2);border-radius:6px;padding:3px 8px;cursor:pointer">+ Tech plan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ aIsPlanner }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="1a Day planner" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div style="display:flex;align-items:center;gap:6px;padding:14px 16px 10px;flex-wrap:wrap">
+      <sc-for list="{{ aDays }}" as="d" hint-placeholder-count="7">
+        <button onClick="{{ d.on }}" style="border:1px solid {{ d.bd }};background:{{ d.bg }};color:{{ d.fg }};border-radius:8px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:7px;font:500 12px 'IBM Plex Sans',sans-serif">
+          <span>{{ d.l }}</span><span style="font:500 10px 'IBM Plex Mono',monospace;opacity:.7">{{ d.count }}</span>
+        </button>
+      </sc-for>
+      <div style="flex:1"></div>
+      <div style="font:500 12px 'IBM Plex Mono',monospace;color:var(--t2)">{{ aDayLabel }}</div>
+    </div>
+    <div style="flex:1;overflow:auto;padding:6px 16px 16px">
+      <div style="position:relative;height:22px;margin-left:104px">
+        <sc-for list="{{ aTicks }}" as="tk" hint-placeholder-count="9">
+          <div style="position:absolute;top:4px;left:{{ tk.left }};font:500 9.5px 'IBM Plex Mono',monospace;color:var(--t3);transform:translateX(-50%)">{{ tk.l }}</div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ aLanes }}" as="ln" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center">
+            <div style="width:104px;flex:none;display:flex;align-items:center;gap:7px;padding-right:10px">
+              <span style="width:8px;height:8px;border-radius:2px;background:{{ ln.c }};flex:none"></span>
+              <span style="font-size:12px;font-weight:600">{{ ln.n }}</span>
+            </div>
+            <div style="position:relative;flex:1;height:58px;background:var(--pn);border:1px solid var(--ln);border-radius:8px">
+              <sc-for list="{{ ln.blocks }}" as="e" hint-placeholder-count="1">
+                <div onClick="{{ e.pick }}" style="position:absolute;top:6px;bottom:6px;left:{{ e.left }};width:{{ e.width }};min-width:86px;background:{{ e.blockBg }};border-left:3px solid {{ e.chC }};border-radius:6px;padding:5px 9px;cursor:pointer;overflow:hidden;outline:{{ e.blockOl }}">
+                  <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t2)">{{ e.time }} · {{ e.durL }}</div>
+                  <div style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">{{ e.t }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;margin:16px 0 0 104px;font-size:10.5px;color:var(--t3)">
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#98A2B3"></span>Draft</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#4C8DF5"></span>Ready</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#2BB673"></span>Approved</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:1px solid #E5484D;border-radius:3px"></span>Crew conflict</span>
+        <span style="margin-left:auto">Click a block to select it · switch to Sports desk for full detail</span>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ aIsContracts }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="1a Rights" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <sc-for list="{{ aCStats }}" as="st" hint-placeholder-count="4">
+        <div style="background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:12px 14px">
+          <div style="font:600 24px 'Space Grotesk',sans-serif;color:{{ st.c }}">{{ st.n }}</div>
+          <div style="font-size:11px;color:var(--t2);margin-top:2px">{{ st.l }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="font:600 15px 'Space Grotesk',sans-serif;margin-right:8px">Contracts</div>
+      <sc-for list="{{ aCChips }}" as="f" hint-placeholder-count="5">
+        <button onClick="{{ f.on }}" style="border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};border-radius:99px;padding:4px 12px;cursor:pointer;font:500 11.5px 'IBM Plex Sans',sans-serif">{{ f.l }}</button>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:grid;grid-template-columns:250px 110px 1fr 210px;gap:12px;padding:0 14px;font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px">
+        <span>COMPETITION</span><span>STATUS</span><span>PLATFORMS</span><span>VALIDITY</span>
+      </div>
+      <sc-for list="{{ aContracts }}" as="c" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:250px 110px 1fr 210px;gap:12px;align-items:center;padding:12px 14px;background:var(--pn);border:1px solid var(--ln);border-radius:10px">
+          <div style="display:flex;align-items:center;gap:9px;min-width:0">
+            <span style="font-size:15px">{{ c.ic }}</span>
+            <div style="min-width:0">
+              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.comp }}</div>
+              <div style="font-size:10.5px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.note }}</div>
+            </div>
+          </div>
+          <div><span style="font-size:11px;font-weight:500;color:{{ c.stC }};background:{{ c.stBg }};padding:3px 9px;border-radius:99px">{{ c.stL }}</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            <sc-for list="{{ c.platL }}" as="p" hint-placeholder-count="2">
+              <span style="font-size:10.5px;border:1px solid var(--ln);background:var(--p2);border-radius:5px;padding:2px 7px">{{ p }}</span>
+            </sc-for>
+          </div>
+          <div>
+            <div style="font:500 11px 'IBM Plex Mono',monospace;color:var(--t2)">{{ c.untilL }}</div>
+            <sc-if value="{{ c.showBar }}" hint-placeholder-val="{{ true }}">
+              <div style="height:4px;background:var(--p2);border-radius:99px;margin-top:6px;overflow:hidden"><div style="height:100%;width:{{ c.barW }};background:{{ c.barC }};border-radius:99px"></div></div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ══════════════════════ 1b DESK ══════════════════════ -->
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Desk — editorial light UI · production board by readiness · calm week grid</div>
+<div class="dv-card" style="width:1240px">
+<div style="{{ bVars }}">
+<div data-screen-label="1b Desk" style="height:800px;display:flex;flex-direction:column;position:relative;background:var(--bg,#F7F3EB);color:var(--tx,#26221A);font-family:'IBM Plex Sans',sans-serif;font-size:13px">
+  <div style="height:54px;flex:none;display:flex;align-items:center;gap:22px;padding:0 20px;background:var(--pn);border-bottom:1px solid var(--ln)">
+    <div style="display:flex;align-items:baseline;gap:9px">
+      <div style="font:500 19px 'Newsreader',serif">Planza</div>
+      <div style="font-size:10px;color:var(--t3);letter-spacing:2px;text-transform:uppercase">Sport desk</div>
+    </div>
+    <div style="display:flex;gap:18px;height:54px">
+      <sc-for list="{{ bNav }}" as="n" hint-placeholder-count="3">
+        <button onClick="{{ n.on }}" style="border:none;border-bottom:{{ n.bb }};background:transparent;color:{{ n.fgU }};cursor:pointer;padding:0 2px;font:500 13px 'IBM Plex Sans',sans-serif">{{ n.l }}</button>
+      </sc-for>
+    </div>
+    <div style="flex:1"></div>
+    <div style="font:500 11px 'IBM Plex Mono',monospace;color:var(--t2)">Week 10 · 2–8 Mar 2026</div>
+    <button onClick="{{ bThemeBtn }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:6px;padding:4px 10px;cursor:pointer;font:500 11px 'IBM Plex Sans',sans-serif">{{ bThemeL }}</button>
+  </div>
+
+  <sc-if value="{{ bIsBoard }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="1b Production board" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 4px;flex-wrap:wrap">
+      <div style="font:500 23px 'Newsreader',serif;margin-right:10px">Production board</div>
+      <sc-for list="{{ bChips }}" as="s" hint-placeholder-count="5">
+        <button onClick="{{ s.on }}" style="border:1px solid {{ s.bd }};background:{{ s.bg }};color:{{ s.fg }};border-radius:99px;padding:4px 11px;cursor:pointer;display:flex;align-items:center;gap:6px;font:500 11.5px 'IBM Plex Sans',sans-serif">
+          <span>{{ s.ic }}</span><span>{{ s.n }}</span><span style="font:500 9.5px 'IBM Plex Mono',monospace;opacity:.6">{{ s.count }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="flex:1;overflow:auto;padding:14px 20px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start">
+      <sc-for list="{{ bCols }}" as="col" hint-placeholder-count="3">
+        <div style="background:var(--p2);border:1px solid var(--ln);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:220px">
+          <div style="display:flex;align-items:center;gap:7px;padding:2px 4px">
+            <span style="width:8px;height:8px;border-radius:50%;background:{{ col.c }}"></span>
+            <span style="font-size:12px;font-weight:600;letter-spacing:.3px">{{ col.l }}</span>
+            <span style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t3)">{{ col.count }}</span>
+          </div>
+          <sc-for list="{{ col.cards }}" as="e" hint-placeholder-count="2">
+            <div onClick="{{ e.pick }}" style-hover="border-color:var(--ac)" style="cursor:pointer;background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 2px rgba(40,30,10,.05)">
+              <div style="display:flex;align-items:center;gap:7px"><span>{{ e.ic }}</span><span style="font-size:10.5px;color:var(--t2)">{{ e.comp }}</span></div>
+              <div style="font:500 16px 'Newsreader',serif;line-height:1.25">{{ e.t }}</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
+                <span style="font:500 10.5px 'IBM Plex Mono',monospace;background:var(--p2);border:1px solid var(--ln);border-radius:5px;padding:2px 6px">{{ e.dayL }} · {{ e.time }}</span>
+                <span style="display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--t2)"><span style="width:7px;height:7px;border-radius:2px;background:{{ e.chC }}"></span>{{ e.chN }}</span>
+                <span style="flex:1"></span>
+                <span style="display:{{ e.confShow }};align-items:center;gap:4px;color:#C24040;font-size:10.5px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#C24040"></span>crew</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ bIsPlanner }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="1b Week planner" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px;flex-wrap:wrap">
+      <div style="font:500 23px 'Newsreader',serif;margin-right:10px">Week planner</div>
+      <sc-for list="{{ bChips }}" as="s" hint-placeholder-count="5">
+        <button onClick="{{ s.on }}" style="border:1px solid {{ s.bd }};background:{{ s.bg }};color:{{ s.fg }};border-radius:99px;padding:4px 11px;cursor:pointer;display:flex;align-items:center;gap:6px;font:500 11.5px 'IBM Plex Sans',sans-serif">
+          <span>{{ s.ic }}</span><span>{{ s.n }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="flex:1;overflow:auto;padding:0 20px 20px">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:stretch;min-height:100%">
+        <sc-for list="{{ bWeek }}" as="d" hint-placeholder-count="7">
+          <div style="background:{{ d.bg }};border:1px solid var(--ln);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;min-height:520px">
+            <div style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t2);padding:2px 4px;text-transform:uppercase;letter-spacing:1.5px">{{ d.l }}</div>
+            <sc-for list="{{ d.cards }}" as="e" hint-placeholder-count="1">
+              <div onClick="{{ e.pick }}" style-hover="border-color:var(--ac)" style="cursor:pointer;background:var(--pn);border:1px solid var(--ln);border-left:3px solid {{ e.chC }};border-radius:8px;padding:8px 9px;display:flex;flex-direction:column;gap:4px">
+                <div style="font:600 10px 'IBM Plex Mono',monospace;color:var(--t2)">{{ e.time }}</div>
+                <div style="font-size:12px;font-weight:600;line-height:1.3">{{ e.t }}</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:1px">
+                  <span style="width:7px;height:7px;border-radius:50%;background:{{ e.stC }}"></span>
+                  <span style="font-size:10px;color:var(--t2)">{{ e.stL }}</span>
+                  <span style="display:{{ e.confShow }};color:#C24040;font-size:10px;font-weight:600">⚠</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ bIsContracts }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="1b Contracts" style="flex:1;overflow:auto;display:flex;flex-direction:column;min-height:0">
+    <div style="padding:18px 20px 4px;font:500 23px 'Newsreader',serif">Rights &amp; contracts</div>
+    <div style="padding:14px 20px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start">
+      <sc-for list="{{ bContracts }}" as="c" hint-placeholder-count="6">
+        <div style="background:var(--pn);border:1px solid var(--ln);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">{{ c.ic }}</span>
+            <span style="flex:1"></span>
+            <span style="font-size:11px;font-weight:500;color:{{ c.stC }};background:{{ c.stBg }};padding:3px 9px;border-radius:99px">{{ c.stL }}</span>
+          </div>
+          <div style="font:500 18px 'Newsreader',serif;line-height:1.2">{{ c.comp }}</div>
+          <div style="font-size:11.5px;color:var(--t2)">{{ c.note }}</div>
+          <div style="font:500 11px 'IBM Plex Mono',monospace;color:var(--t2)">{{ c.untilL }}</div>
+          <sc-if value="{{ c.showBar }}" hint-placeholder-val="{{ true }}">
+            <div style="height:4px;background:var(--p2);border-radius:99px;overflow:hidden"><div style="height:100%;width:{{ c.barW }};background:{{ c.barC }};border-radius:99px"></div></div>
+          </sc-if>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:2px">
+            <sc-for list="{{ c.platL }}" as="p" hint-placeholder-count="2">
+              <span style="font-size:10.5px;border:1px solid var(--ln);background:var(--p2);border-radius:5px;padding:2px 7px">{{ p }}</span>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ bHasSel }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="1b Event sheet" style="position:absolute;top:54px;right:0;bottom:0;width:340px;background:var(--pn);border-left:1px solid var(--ln);box-shadow:-14px 0 34px rgba(40,30,10,.1);padding:18px;display:flex;flex-direction:column;gap:15px;overflow:auto;z-index:5">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px">{{ bSel.ic }}</span>
+      <span style="font-size:11px;font-weight:500;color:{{ bSel.stC }};background:{{ bSel.stBg }};padding:3px 9px;border-radius:99px">{{ bSel.stL }}</span>
+      <span style="font:600 9.5px 'IBM Plex Mono',monospace;color:{{ bSel.liveC }};border:1px solid {{ bSel.liveC }};padding:2px 6px;border-radius:4px">{{ bSel.liveL }}</span>
+      <span style="flex:1"></span>
+      <button onClick="{{ bClose }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px">✕</button>
+    </div>
+    <div>
+      <div style="font:500 21px 'Newsreader',serif;line-height:1.2">{{ bSel.t }}</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:4px">{{ bSel.comp }} · {{ bSel.dayL }} March · {{ bSel.time }} · {{ bSel.durL }}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <span style="width:8px;height:8px;border-radius:2px;background:{{ bSel.chC }}"></span>
+        <span style="font-size:11.5px;color:var(--t2)">{{ bSel.chN }}</span>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--ln);padding-top:12px;display:flex;flex-direction:column;gap:7px">
+      <div style="font-size:10px;color:var(--t3);letter-spacing:2px;text-transform:uppercase">Rights</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="width:8px;height:8px;border-radius:50%;background:{{ bSelRights.stC }}"></span>
+        <span style="font-size:12px;font-weight:600;color:{{ bSelRights.stC }}">{{ bSelRights.stL }}</span>
+        <span style="font-size:11px;color:var(--t2)">{{ bSelRights.line }}</span>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--ln);padding-top:12px;display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:10px;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px">Crew</div>
+      <sc-for list="{{ bCrew }}" as="m" hint-placeholder-count="5">
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--p2)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600">{{ m.name }}</div>
+            <div style="font-size:10.5px;color:var(--t2)">{{ m.role }}</div>
+          </div>
+          <span style="font-size:10.5px;font-weight:500;color:{{ m.c }}">{{ m.sl }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ══════════════════════ 1c OPS GRID ══════════════════════ -->
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Ops Grid — mission-control density · schedule + rights + crew health in one table · rights matrix</div>
+<div class="dv-card" style="width:1240px">
+<div style="{{ cVars }}">
+<div data-screen-label="1c Ops Grid" style="height:800px;display:flex;flex-direction:column;background:var(--bg,#090B0D);color:var(--tx,#D9E4EB);font-family:'IBM Plex Sans',sans-serif;font-size:13px">
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:16px;padding:0 14px;background:var(--pn);border-bottom:1px solid var(--ln)">
+    <div style="font:700 13px 'IBM Plex Mono',monospace;letter-spacing:2px">PLANZA<span style="color:var(--ac)">/OPS</span></div>
+    <div style="display:flex;gap:4px">
+      <sc-for list="{{ cNav }}" as="n" hint-placeholder-count="2">
+        <button onClick="{{ n.on }}" style="border:none;cursor:pointer;padding:6px 12px;border-radius:4px;background:{{ n.bg }};color:{{ n.fg }};font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:1px">{{ n.l }}</button>
+      </sc-for>
+    </div>
+    <div style="flex:1"></div>
+    <div style="font:500 10px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:.5px">{{ cCounters }}</div>
+    <button onClick="{{ cThemeBtn }}" style="border:1px solid var(--ln);background:transparent;color:var(--t2);border-radius:4px;padding:4px 10px;cursor:pointer;font:500 10.5px 'IBM Plex Mono',monospace">{{ cThemeL }}</button>
+  </div>
+
+  <sc-if value="{{ cIsSchedule }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="1c Schedule" style="flex:1;display:grid;grid-template-columns:170px 1fr 300px;min-height:0">
+    <div style="border-right:1px solid var(--ln);padding:12px 10px;display:flex;flex-direction:column;gap:3px;overflow:auto">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin:2px 4px 7px">FILTER</div>
+      <sc-for list="{{ cFacets }}" as="s" hint-placeholder-count="5">
+        <button onClick="{{ s.on }}" style="display:flex;align-items:center;gap:8px;border:1px solid {{ s.bd }};background:{{ s.bg }};color:{{ s.fg }};border-radius:4px;padding:6px 9px;cursor:pointer;font:500 11px 'IBM Plex Mono',monospace;text-align:left;width:100%">
+          <span style="width:16px;text-align:center">{{ s.ic }}</span><span style="flex:1">{{ s.n }}</span><span style="color:var(--t3)">{{ s.count }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="overflow:auto;min-width:0">
+      <div style="display:grid;grid-template-columns:58px 1fr 96px 88px 96px 66px;gap:10px;padding:10px 14px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln);position:sticky;top:0;background:var(--bg)">
+        <span>TIME</span><span>EVENT</span><span>CHANNEL</span><span>STATUS</span><span>RIGHTS</span><span>CREW</span>
+      </div>
+      <sc-for list="{{ cRows }}" as="r" hint-placeholder-count="8">
+        <div>
+          <sc-if value="{{ r.hdr }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:6px 14px;background:var(--p2);font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t2);letter-spacing:2px;border-bottom:1px solid var(--ln)">{{ r.l }}</div>
+          </sc-if>
+          <sc-if value="{{ r.ev }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ r.pick }}" style-hover="background:var(--p2)" style="display:grid;grid-template-columns:58px 1fr 96px 88px 96px 66px;gap:10px;align-items:center;padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--ln);background:{{ r.rowBgC }};box-shadow:{{ r.rowIns }}">
+              <span style="font:600 11px 'IBM Plex Mono',monospace">{{ r.time }}</span>
+              <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                <span>{{ r.ic }}</span>
+                <div style="min-width:0">
+                  <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.t }}</div>
+                  <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.comp }}</div>
+                </div>
+              </div>
+              <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><span style="width:7px;height:7px;border-radius:2px;background:{{ r.chC }};flex:none"></span>{{ r.chN }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.stC }}">{{ r.stL }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.rightsC }}">{{ r.rightsL }}</span>
+              <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ r.crewC }}">{{ r.crewL }}</span>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <div style="border-left:1px solid var(--ln);background:var(--pn);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:13px">
+      <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">INSPECTOR</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <span style="font-size:16px">{{ cSel.ic }}</span>
+          <span style="font:600 9px 'IBM Plex Mono',monospace;color:{{ cSel.liveC }};border:1px solid {{ cSel.liveC }};padding:2px 5px;border-radius:3px">{{ cSel.liveL }}</span>
+          <span style="font:500 10px 'IBM Plex Mono',monospace;color:{{ cSel.stC }}">{{ cSel.stL }}</span>
+        </div>
+        <div style="font-size:15px;font-weight:600;line-height:1.3">{{ cSel.t }}</div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);margin-top:5px">{{ cSel.comp }}</div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2);margin-top:2px">{{ cSel.dayL }} MAR · {{ cSel.time }} · {{ cSel.durL }} · {{ cSel.chN }}</div>
+      </div>
+      <sc-if value="{{ cSelHasConf }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid #E5484D;background:rgba(229,72,77,.1);border-radius:6px;padding:9px 11px;font:500 10.5px 'IBM Plex Mono',monospace;color:#E5484D;line-height:1.5">⚠ {{ cConfNote }}</div>
+      </sc-if>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">RIGHTS</div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="width:7px;height:7px;border-radius:50%;background:{{ cSelRights.stC }}"></span>
+          <span style="font:500 11px 'IBM Plex Mono',monospace;color:{{ cSelRights.stC }}">{{ cSelRights.stL }}</span>
+        </div>
+        <div style="font:400 10.5px 'IBM Plex Mono',monospace;color:var(--t2)">{{ cSelRights.line }}</div>
+      </div>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:5px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px;margin-bottom:3px">CREW</div>
+        <sc-for list="{{ cCrew }}" as="m" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:6px;height:6px;border-radius:50%;background:{{ m.c }};flex:none"></span>
+            <span style="font-size:11.5px;font-weight:600;flex:none">{{ m.name }}</span>
+            <span style="font:400 10px 'IBM Plex Mono',monospace;color:var(--t3);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.role }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-top:1px solid var(--ln);padding-top:11px;display:flex;flex-direction:column;gap:7px">
+        <div style="font:600 9.5px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:2px">TECH PLANS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          <sc-for list="{{ cPlans }}" as="p" hint-placeholder-count="3">
+            <span style="font:500 10px 'IBM Plex Mono',monospace;border:1px solid var(--ln);background:var(--p2);border-radius:4px;padding:3px 7px">{{ p }}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ cIsMatrix }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="1c Rights matrix" style="flex:1;overflow:auto;padding:16px">
+    <div style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:var(--t2);margin-bottom:14px">RIGHTS MATRIX · SEASON 2025/26</div>
+    <div style="display:grid;grid-template-columns:240px repeat(4,84px) 120px 1fr;gap:10px;padding:0 12px 8px;font:600 9px 'IBM Plex Mono',monospace;color:var(--t3);letter-spacing:1.5px;border-bottom:1px solid var(--ln)">
+      <span>COMPETITION</span><span style="text-align:center">LINEAR</span><span style="text-align:center">MAX</span><span style="text-align:center">RADIO</span><span style="text-align:center">ON-DEM</span><span>STATUS</span><span>VALIDITY</span>
+    </div>
+    <sc-for list="{{ cMatrix }}" as="c" hint-placeholder-count="6">
+      <div style="display:grid;grid-template-columns:240px repeat(4,84px) 120px 1fr;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--ln)">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0">
+          <span>{{ c.ic }}</span>
+          <span style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.comp }}</span>
+        </div>
+        <sc-for list="{{ c.cells }}" as="cell" hint-placeholder-count="4">
+          <span style="text-align:center;font:600 13px 'IBM Plex Mono',monospace;color:{{ cell.c }}">{{ cell.l }}</span>
+        </sc-for>
+        <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:{{ c.stC }}">{{ c.stL }}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font:500 10.5px 'IBM Plex Mono',monospace;color:var(--t2);flex:none">{{ c.untilL }}</span>
+          <sc-if value="{{ c.showBar }}" hint-placeholder-val="{{ true }}">
+            <div style="height:3px;background:var(--p2);border-radius:99px;overflow:hidden;flex:1;max-width:140px"><div style="height:100%;width:{{ c.barW }};background:{{ c.barC }};border-radius:99px"></div></div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  </sc-if>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "combine <a class="dv-oid" href="#1a">1a</a>'s planner with <a class="dv-oid" href="#1b">1b</a>'s board" · "make <a class="dv-oid" href="#1c">1c</a> the full app with all five screens" · "new directions for the sports workspace only"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;per option&quot;,&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;per option&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Global&quot;},&quot;showConflicts&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Global&quot;}}">
+class Component extends DCLogic {
+  state = {
+    a: { theme: null, tab: 'sports', sel: 3, sport: 'all', day: 2, cf: 'all' },
+    b: { theme: null, tab: 'board', sel: null, sport: 'all' },
+    c: { theme: null, tab: 'schedule', sel: 3, sport: 'all' },
+    r: { theme: null, facet: 'all', q: '', sel: 't1', modal: false, newType: 'team', newName: '', custom: [] },
+    p: { theme: null, q: '', sel: 'f1' },
+    u: { theme: null, tab: 'schedule', sel: 3, sport: 'all', regSel: 't1', regFacet: 'all', regQ: '', modal: false, newType: 'team', newName: '', decided: {} },
+  }
+
+  renderVals() {
+    const S = this.state, P = this.props
+    const showConf = P.showConflicts ?? true
+    const set = (o, p) => this.setState(s => ({ [o]: { ...s[o], ...p } }))
+
+    const DAYS = ['Mon 2', 'Tue 3', 'Wed 4', 'Thu 5', 'Fri 6', 'Sat 7', 'Sun 8']
+    const CH = { een: { n: 'Eén', c: '#E4572E' }, canvas: { n: 'Canvas', c: '#4C8DF5' }, max: { n: 'VRT MAX', c: '#2BB673' } }
+    const ST = { draft: { l: 'Draft', c: '#98A2B3' }, ready: { l: 'Ready', c: '#4C8DF5' }, approved: { l: 'Approved', c: '#2BB673' } }
+    const CST = { valid: { l: 'Valid', c: '#2BB673' }, expiring: { l: 'Expiring', c: '#E5A13C' }, draft: { l: 'Negotiation', c: '#E07B39' }, none: { l: 'No contract', c: '#E5484D' } }
+    const PLAT = { linear: 'Linear TV', max: 'VRT MAX', radio: 'Radio 1', ondemand: 'On-demand' }
+    const SPORTS = [
+      { id: 'football', n: 'Football', ic: '⚽' },
+      { id: 'cycling', n: 'Cycling', ic: '🚴' },
+      { id: 'athletics', n: 'Athletics', ic: '🏃' },
+      { id: 'f1', n: 'Formula 1', ic: '🏎️' },
+    ]
+    const EV = [
+      { id: 1, sp: 'football', ic: '⚽', comp: 'Jupiler Pro League', t: 'Club Brugge vs Anderlecht', day: 0, time: '14:30', min: 870, dur: 105, ch: 'een', live: true, st: 'approved' },
+      { id: 2, sp: 'football', ic: '⚽', comp: 'Jupiler Pro League', t: 'Genk vs Union SG', day: 1, time: '20:45', min: 1245, dur: 105, ch: 'max', live: true, st: 'ready' },
+      { id: 3, sp: 'football', ic: '⚽', comp: 'UEFA Champions League', t: 'Club Brugge vs Real Madrid', day: 2, time: '21:00', min: 1260, dur: 150, ch: 'canvas', live: true, st: 'ready', conflict: 'EVS operator double-booked with Genk vs Union SG' },
+      { id: 4, sp: 'athletics', ic: '🏃', comp: 'World Athletics Indoor', t: 'World Indoor Champs — Day 1', day: 4, time: '19:00', min: 1140, dur: 180, ch: 'canvas', live: true, st: 'draft' },
+      { id: 5, sp: 'cycling', ic: '🚴', comp: 'Flanders Classics', t: 'Strade Bianche', day: 5, time: '11:30', min: 690, dur: 240, ch: 'een', live: true, st: 'approved' },
+      { id: 6, sp: 'f1', ic: '🏎️', comp: 'Formula 1', t: 'GP Australia — Race', day: 6, time: '06:00', min: 360, dur: 120, ch: 'max', live: false, st: 'draft' },
+      { id: 7, sp: 'cycling', ic: '🚴', comp: 'UCI World Tour', t: 'Paris–Nice — Stage 1', day: 6, time: '14:00', min: 840, dur: 150, ch: 'een', live: true, st: 'ready' },
+    ]
+    const CON = [
+      { comp: 'UEFA Champions League', ic: '⚽', st: 'valid', until: '30 Jun 2027', pct: 72, plat: ['linear', 'max', 'radio'], note: 'All Belgian home fixtures' },
+      { comp: 'Jupiler Pro League', ic: '⚽', st: 'expiring', until: '30 Jun 2026', pct: 8, plat: ['linear', 'max', 'radio'], note: 'Renewal talks ongoing' },
+      { comp: 'Flanders Classics', ic: '🚴', st: 'valid', until: '31 Dec 2028', pct: 90, plat: ['linear', 'max'], note: 'Incl. women\u2019s races' },
+      { comp: 'UCI World Tour', ic: '🚴', st: 'valid', until: '31 Dec 2026', pct: 42, plat: ['linear', 'max'], note: 'Shared with EBU pool' },
+      { comp: 'World Athletics Indoor', ic: '🏃', st: 'draft', until: '—', pct: 0, plat: ['max'], note: 'Term sheet with EBU' },
+      { comp: 'Formula 1', ic: '🏎️', st: 'none', until: '—', pct: 0, plat: [], note: 'News-access highlights only' },
+    ]
+
+    const rightsFor = (e) => {
+      const c = e ? CON.find(x => x.comp === e.comp) : null
+      if (!c || c.st === 'none') return { stL: 'No contract', stC: '#E5484D', until: '—', plats: [], line: 'No broadcast rights — action required', bad: true }
+      return { stL: CST[c.st].l, stC: CST[c.st].c, until: c.until, plats: c.plat.map(p => PLAT[p]), line: c.until !== '—' ? 'until ' + c.until : 'terms in negotiation', bad: false }
+    }
+    const crewFor = (e) => [
+      { role: 'Director', name: 'An De Smet', st: 'ok' },
+      { role: 'Commentary', name: 'Filip Joos', st: 'ok' },
+      { role: 'Pitch reporter', name: 'Unassigned', st: 'open' },
+      { role: 'EVS operator', name: 'Jan Peeters', st: e && e.conflict && showConf ? 'conflict' : 'ok' },
+      { role: 'Encoder', name: 'ENC-04 · Reyers', st: 'ok' },
+    ].map(m => ({ ...m, c: m.st === 'ok' ? '#2BB673' : m.st === 'open' ? '#E5A13C' : '#E5484D', sl: m.st === 'ok' ? 'Confirmed' : m.st === 'open' ? 'Open role' : 'Double-booked' }))
+
+    const deco = (e, o) => {
+      const r = rightsFor(e)
+      const sel = S[o].sel === e.id
+      return {
+        ...e,
+        dayL: DAYS[e.day], chN: CH[e.ch].n, chC: CH[e.ch].c, durL: e.dur + ' min',
+        stL: ST[e.st].l, stC: ST[e.st].c, stBg: ST[e.st].c + '26',
+        liveL: e.live ? 'LIVE' : 'DELAYED', liveC: e.live ? '#E5484D' : '#E5A13C',
+        confShow: showConf && e.conflict ? 'flex' : 'none',
+        rightsL: r.bad ? 'MISSING' : r.stL.toUpperCase(), rightsC: r.stC,
+        crewL: showConf && e.conflict ? 'CONFLICT' : 'OK', crewC: showConf && e.conflict ? '#E5484D' : '#2BB673',
+        sel, pick: () => set(o, { sel: e.id }),
+        rowBg: sel ? 'var(--p2)' : 'var(--pn)', rowBd: sel ? 'var(--ac)' : 'var(--ln)',
+        rowBgC: sel ? 'var(--p2)' : 'transparent', rowIns: sel ? 'inset 2px 0 0 var(--ac)' : 'none',
+        blockBg: CH[e.ch].c + '26',
+        blockOl: sel ? '1px solid var(--ac)' : (showConf && e.conflict ? '1px solid #E5484D' : 'none'),
+      }
+    }
+    const decoCon = (c) => ({
+      ...c, stL: CST[c.st].l, stC: CST[c.st].c, stBg: CST[c.st].c + '26',
+      platL: c.plat.map(p => PLAT[p]),
+      untilL: c.st === 'draft' ? 'In negotiation' : c.st === 'none' ? 'No agreement in place' : 'Until ' + c.until,
+      barW: c.pct + '%', barC: c.pct < 15 ? '#E5484D' : c.pct < 50 ? '#E5A13C' : '#2BB673', showBar: c.pct > 0,
+    })
+    const plansOf = (e) => e && e.live ? ['Multi-cam live', 'Livestream encode', 'Radio commentary'] : ['Delayed edit', 'Livestream encode']
+
+    const THEMES = {
+      a: {
+        dark: { bg: '#0F1216', pn: '#151A20', p2: '#1C232C', ln: '#28303B', tx: '#EDF1F7', t2: '#93A0B0', t3: '#5E6B7B', ac: '#F2A33C', af: '#231604' },
+        light: { bg: '#EEF0F3', pn: '#FFFFFF', p2: '#F1F3F6', ln: '#DCE1E8', tx: '#1A212B', t2: '#5B6775', t3: '#8B96A5', ac: '#C97F17', af: '#FFFFFF' },
+      },
+      b: {
+        light: { bg: '#F7F3EB', pn: '#FFFFFF', p2: '#F1EBDF', ln: '#E2DACA', tx: '#26221A', t2: '#6E6555', t3: '#9C927F', ac: '#3760C4', af: '#FFFFFF' },
+        dark: { bg: '#1C1914', pn: '#26221B', p2: '#2E2921', ln: '#3D362B', tx: '#F1ECE1', t2: '#A79D8A', t3: '#7A7160', ac: '#8FAFF5', af: '#101D3D' },
+      },
+      c: {
+        dark: { bg: '#090B0D', pn: '#0F1316', p2: '#141A1E', ln: '#212A31', tx: '#D9E4EB', t2: '#7E8E9A', t3: '#4E5B66', ac: '#2FD6C3', af: '#04241F' },
+        light: { bg: '#EDF1F2', pn: '#FFFFFF', p2: '#F0F4F5', ln: '#D6DEE1', tx: '#111A1F', t2: '#54646D', t3: '#8697A0', ac: '#0D9488', af: '#FFFFFF' },
+      },
+    }
+    const themeOf = (o, fb) => S[o].theme || ((P.defaultTheme && P.defaultTheme !== 'per option') ? P.defaultTheme : fb)
+    const varsOf = (o, fb) => { const t = THEMES[o][themeOf(o, fb)]; return { '--bg': t.bg, '--pn': t.pn, '--p2': t.p2, '--ln': t.ln, '--tx': t.tx, '--t2': t.t2, '--t3': t.t3, '--ac': t.ac, '--af': t.af } }
+    const tgl = (o, fb) => () => set(o, { theme: themeOf(o, fb) === 'dark' ? 'light' : 'dark' })
+    const tglL = (o, fb) => themeOf(o, fb) === 'dark' ? '☀ Light' : '☾ Dark'
+    const chipsFor = (o) => [{ id: 'all', n: 'All sports', ic: '◎', count: EV.length }].concat(SPORTS.map(s => ({ id: s.id, n: s.n, ic: s.ic, count: EV.filter(e => e.sp === s.id).length }))).map(sc => ({
+      ...sc, on: () => set(o, { sport: sc.id }),
+      bg: S[o].sport === sc.id ? 'var(--p2)' : 'transparent',
+      bd: S[o].sport === sc.id ? 'var(--ac)' : 'var(--ln)',
+      fg: S[o].sport === sc.id ? 'var(--tx)' : 'var(--t2)',
+    }))
+    const navFor = (o, tabs) => tabs.map(tb => ({
+      l: tb[1], on: () => set(o, { tab: tb[0] }),
+      bg: S[o].tab === tb[0] ? 'var(--ac)' : 'transparent',
+      fg: S[o].tab === tb[0] ? 'var(--af)' : 'var(--t2)',
+      bb: S[o].tab === tb[0] ? '2px solid var(--ac)' : '2px solid transparent',
+      fgU: S[o].tab === tb[0] ? 'var(--tx)' : 'var(--t2)',
+    }))
+
+    // ── Option A ──
+    const a = S.a
+    const aList = EV.filter(e => a.sport === 'all' || e.sp === a.sport).map(e => deco(e, 'a'))
+    const aSelE = EV.find(e => e.id === a.sel) || EV[0]
+    const T0 = 300, T1 = 1440
+    const aDays = DAYS.map((d, i) => ({
+      l: d, count: EV.filter(e => e.day === i).length,
+      on: () => set('a', { day: i }),
+      bg: a.day === i ? 'var(--ac)' : 'var(--pn)', fg: a.day === i ? 'var(--af)' : 'var(--t2)', bd: a.day === i ? 'var(--ac)' : 'var(--ln)',
+    }))
+    const aTicks = [6, 8, 10, 12, 14, 16, 18, 20, 22].map(h => ({ l: (h < 10 ? '0' : '') + h + ':00', left: ((h * 60 - T0) / (T1 - T0) * 100) + '%' }))
+    const aLanes = ['een', 'canvas', 'max'].map(k => ({
+      n: CH[k].n, c: CH[k].c,
+      blocks: EV.filter(e => e.day === a.day && e.ch === k).map(e => ({ ...deco(e, 'a'), left: ((e.min - T0) / (T1 - T0) * 100) + '%', width: (Math.max(e.dur, 80) / (T1 - T0) * 100) + '%' })),
+    }))
+    const aCChips = [['all', 'All'], ['valid', 'Valid'], ['expiring', 'Expiring'], ['draft', 'Negotiation'], ['none', 'Missing']].map(f => ({
+      l: f[1], on: () => set('a', { cf: f[0] }),
+      bg: a.cf === f[0] ? 'var(--ac)' : 'transparent', fg: a.cf === f[0] ? 'var(--af)' : 'var(--t2)', bd: a.cf === f[0] ? 'var(--ac)' : 'var(--ln)',
+    }))
+
+    // ── Option B ──
+    const b = S.b
+    const bFilt = EV.filter(e => b.sport === 'all' || e.sp === b.sport)
+    const bCols = [['draft', 'Draft'], ['ready', 'Ready'], ['approved', 'Approved']].map(cc => {
+      const cards = bFilt.filter(e => e.st === cc[0]).map(e => deco(e, 'b'))
+      return { l: cc[1], c: ST[cc[0]].c, count: cards.length, cards }
+    })
+    const bSelE = EV.find(e => e.id === b.sel) || null
+
+    // ── Option C ──
+    const c = S.c
+    const cFilt = EV.filter(e => c.sport === 'all' || e.sp === c.sport)
+    const cRows = []
+    DAYS.forEach((d, i) => {
+      const evs = cFilt.filter(e => e.day === i)
+      if (evs.length) {
+        cRows.push({ hdr: true, ev: false, l: (d + ' March').toUpperCase() })
+        evs.forEach(e => cRows.push({ hdr: false, ev: true, ...deco(e, 'c') }))
+      }
+    })
+    const cSelE = EV.find(e => e.id === c.sel) || EV[0]
+    const nConf = EV.filter(e => e.conflict).length
+    const nGap = CON.filter(x => x.st === 'none').length
+
+    // ── Turn 2: Sports CMS registry ──
+    THEMES.r = THEMES.c
+    THEMES.p = THEMES.c
+    const KINDS = {
+      sport: { l: 'Sport', c: '#4C8DF5', ic: '◎' },
+      competition: { l: 'Competition', c: '#E5A13C', ic: '🏆' },
+      team: { l: 'Team', c: '#2FD6C3', ic: '🛡️' },
+      player: { l: 'Player', c: '#2BB673', ic: '👤' },
+      performer: { l: 'Performer', c: '#B48EF5', ic: '⭐' },
+      staff: { l: 'Staff', c: '#E4572E', ic: '🧑‍💼' },
+    }
+    const PLURAL = { sport: 'Sports', competition: 'Competitions', team: 'Teams', player: 'Players', performer: 'Performers', staff: 'Staff' }
+    const ENT = [
+      { id: 's1', kind: 'sport', name: 'Football', ic: '⚽', meta: 'FIFA / RBFA', src: 'manual' },
+      { id: 's2', kind: 'sport', name: 'Cycling', ic: '🚴', meta: 'UCI', src: 'manual' },
+      { id: 's3', kind: 'sport', name: 'Athletics', ic: '🏃', meta: 'World Athletics', src: 'manual' },
+      { id: 's4', kind: 'sport', name: 'Formula 1', ic: '🏎️', meta: 'FIA', src: 'manual' },
+      { id: 's5', kind: 'sport', name: 'Tennis', ic: '🎾', meta: 'ATP / WTA / ITF', src: 'manual' },
+      { id: 's6', kind: 'sport', name: 'Basketball', ic: '🏀', meta: 'FIBA', src: 'manual' },
+      { id: 'c1', kind: 'competition', name: 'Jupiler Pro League', ic: '⚽', sport: 'Football', meta: 'Season 2025/26 · 16 teams', src: 'the_sports_db' },
+      { id: 'c2', kind: 'competition', name: 'UEFA Champions League', ic: '⚽', sport: 'Football', meta: 'Season 2025/26', src: 'football-data.org' },
+      { id: 'c3', kind: 'competition', name: 'Flanders Classics', ic: '🚴', sport: 'Cycling', meta: '8 races · spring 2026', src: 'manual' },
+      { id: 'c4', kind: 'competition', name: 'UCI World Tour', ic: '🚴', sport: 'Cycling', meta: 'Season 2026', src: 'the_sports_db' },
+      { id: 'c5', kind: 'competition', name: 'World Indoor Championships', ic: '🏃', sport: 'Athletics', meta: 'Toruń 2026', src: 'manual' },
+      { id: 'c6', kind: 'competition', name: 'F1 World Championship', ic: '🏎️', sport: 'Formula 1', meta: 'Season 2026 · 24 rounds', src: 'the_sports_db' },
+      { id: 't1', kind: 'team', name: 'Club Brugge', ic: '⚽', sport: 'Football', country: 'BEL', comps: ['c1', 'c2'], src: 'the_sports_db', note: 'Preferred camera positions confirmed for Jan Breydel Stadion.' },
+      { id: 't2', kind: 'team', name: 'RSC Anderlecht', ic: '⚽', sport: 'Football', country: 'BEL', comps: ['c1'], src: 'the_sports_db' },
+      { id: 't3', kind: 'team', name: 'KRC Genk', ic: '⚽', sport: 'Football', country: 'BEL', comps: ['c1'], src: 'the_sports_db' },
+      { id: 't4', kind: 'team', name: 'Union Saint-Gilloise', ic: '⚽', sport: 'Football', country: 'BEL', comps: ['c1'], src: 'api-football' },
+      { id: 't5', kind: 'team', name: 'Soudal Quick-Step', ic: '🚴', sport: 'Cycling', country: 'BEL', comps: ['c3', 'c4'], src: 'the_sports_db' },
+      { id: 't6', kind: 'team', name: 'Team Visma–Lease a Bike', ic: '🚴', sport: 'Cycling', country: 'NED', comps: ['c3', 'c4'], src: 'the_sports_db' },
+      { id: 'p1', kind: 'player', name: 'Hans Vanaken', ic: '⚽', sport: 'Football', country: 'BEL', team: 't1', meta: 'Midfield · #20', src: 'api-football' },
+      { id: 'p2', kind: 'player', name: 'Simon Mignolet', ic: '⚽', sport: 'Football', country: 'BEL', team: 't1', meta: 'Goalkeeper · #22', src: 'api-football' },
+      { id: 'p3', kind: 'player', name: 'Kasper Dolberg', ic: '⚽', sport: 'Football', country: 'DEN', team: 't2', meta: 'Striker · #12', status: 'injured', src: 'api-football' },
+      { id: 'p4', kind: 'player', name: 'Tolu Arokodare', ic: '⚽', sport: 'Football', country: 'NGA', team: 't3', meta: 'Striker · #9', src: 'api-football' },
+      { id: 'f1', kind: 'performer', name: 'Remco Evenepoel', ic: '🚴', sport: 'Cycling', country: 'BEL', team: 't5', meta: 'Road · GC specialist', src: 'the_sports_db', note: 'Interviews only via team press officer during grand tours.' },
+      { id: 'f2', kind: 'performer', name: 'Wout van Aert', ic: '🚴', sport: 'Cycling', country: 'BEL', team: 't6', meta: 'Road · classics', src: 'the_sports_db' },
+      { id: 'f3', kind: 'performer', name: 'Nafi Thiam', ic: '🏃', sport: 'Athletics', country: 'BEL', meta: 'Heptathlon', src: 'manual' },
+      { id: 'f4', kind: 'performer', name: 'Max Verstappen', ic: '🏎️', sport: 'Formula 1', country: 'NED', meta: 'Red Bull Racing', src: 'the_sports_db' },
+      { id: 'f5', kind: 'performer', name: 'Elise Mertens', ic: '🎾', sport: 'Tennis', country: 'BEL', meta: 'WTA · doubles', src: 'manual' },
+      { id: 'st1', kind: 'staff', name: 'Nicky Hayen', ic: '⚽', sport: 'Football', country: 'BEL', team: 't1', meta: 'Head coach', src: 'manual' },
+      { id: 'st2', kind: 'staff', name: 'Besnik Hasi', ic: '⚽', sport: 'Football', country: 'BEL', team: 't2', meta: 'Head coach', src: 'manual' },
+      { id: 'st3', kind: 'staff', name: 'Jurgen Foré', ic: '🚴', sport: 'Cycling', country: 'BEL', team: 't5', meta: 'CEO', src: 'manual' },
+    ]
+    const allEnt = ENT.concat(S.r.custom)
+    const entById = (id) => allEnt.find(x => x.id === id)
+    const SRCL = { manual: 'MANUAL', the_sports_db: 'TSDB', 'api-football': 'API-FB', 'football-data.org': 'FB-DATA' }
+    const linksOf = (e) => {
+      if (!e) return []
+      if (e.kind === 'sport') return allEnt.filter(x => x.kind === 'competition' && x.sport === e.name)
+      if (e.kind === 'competition') return allEnt.filter(x => x.kind === 'team' && (x.comps || []).includes(e.id))
+      if (e.kind === 'team') return allEnt.filter(x => x.team === e.id).concat((e.comps || []).map(entById).filter(Boolean))
+      const t = e.team ? entById(e.team) : null
+      return t ? [t] : []
+    }
+    const linkedLabel = (e) => {
+      const n = linksOf(e).length
+      if (e.kind === 'sport') return n + ' competitions'
+      if (e.kind === 'competition') return n + ' teams'
+      if (e.kind === 'team') return n + ' linked records'
+      const t = e.team ? entById(e.team) : null
+      return t ? t.name : '—'
+    }
+    const attrsOf = (e) => {
+      if (!e) return []
+      const a = [{ k: 'TYPE', v: KINDS[e.kind].l }, { k: 'SPORT', v: e.sport || (e.kind === 'sport' ? e.name : '—') }]
+      if (e.country) a.push({ k: 'COUNTRY', v: e.country })
+      if (e.meta) a.push({ k: 'DETAIL', v: e.meta })
+      a.push({ k: 'STATUS', v: (e.status || 'active').toUpperCase() })
+      a.push({ k: 'SOURCE', v: SRCL[e.src || 'manual'] || (e.src || '').toUpperCase() })
+      return a
+    }
+    const srcLine = (e) => !e ? '' : (!e.src || e.src === 'manual') ? 'MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE' : 'SYNCED FROM ' + e.src.replace(/[._]/g, ' ').toUpperCase() + ' · LAST SYNC 2H AGO'
+    const decoEnt = (e, o, fld) => {
+      const f = fld || 'sel'
+      const isSel = S[o][f] === e.id
+      return {
+        ...e,
+        ic2: e.ic || KINDS[e.kind].ic,
+        kindL: KINDS[e.kind].l.toUpperCase(), kindC: KINDS[e.kind].c, kindBg: KINDS[e.kind].c + '22',
+        sportL: e.sport || (e.kind === 'sport' ? e.name : '—'),
+        linkedL: linkedLabel(e),
+        srcS: SRCL[e.src || 'manual'] || 'MANUAL',
+        stL2: (e.status || 'active').toUpperCase(),
+        stC2: (e.status || 'active') === 'active' ? '#2BB673' : e.status === 'injured' ? '#E5A13C' : '#98A2B3',
+        sel: isSel, pick: () => set(o, { [f]: e.id }),
+        rowBgC: isSel ? 'var(--p2)' : 'transparent',
+        rowIns: isSel ? 'inset 2px 0 0 var(--ac)' : 'none',
+      }
+    }
+    const entFilter = (o) => {
+      const st = S[o]
+      const q = (st.q || '').toLowerCase()
+      return allEnt.filter(e => (!st.facet || st.facet === 'all' || e.kind === st.facet) && (!q || e.name.toLowerCase().includes(q) || (e.sport || '').toLowerCase().includes(q) || (e.meta || '').toLowerCase().includes(q)))
+    }
+    const kindCount = (k) => allEnt.filter(e => e.kind === k).length
+    const rr = S.r, pp = S.p
+    const rRows = entFilter('r').map(e => decoEnt(e, 'r'))
+    const rSelE = entById(rr.sel) || allEnt[0]
+    const rLinks = linksOf(rSelE).map(e => decoEnt(e, 'r'))
+    const rFacets = [{ id: 'all', l: 'All records', n: allEnt.length }].concat(Object.keys(KINDS).map(k => ({ id: k, l: PLURAL[k], n: kindCount(k) }))).map(f => ({
+      ...f, on: () => set('r', { facet: f.id }),
+      bg: rr.facet === f.id ? 'var(--p2)' : 'transparent', bd: rr.facet === f.id ? 'var(--ac)' : 'var(--ln)', fg: rr.facet === f.id ? 'var(--tx)' : 'var(--t2)',
+    }))
+    const rTypeChips = Object.keys(KINDS).map(k => ({
+      l: KINDS[k].l, on: () => set('r', { newType: k }),
+      bg: rr.newType === k ? 'var(--ac)' : 'transparent', fg: rr.newType === k ? 'var(--af)' : 'var(--t2)', bd: rr.newType === k ? 'var(--ac)' : 'var(--ln)',
+    }))
+    const rCreate = () => {
+      const nm = (rr.newName || '').trim()
+      if (!nm) return
+      const id = 'x' + Date.now()
+      this.setState(s => ({ r: { ...s.r, custom: s.r.custom.concat([{ id, kind: s.r.newType, name: nm, meta: 'Created manually', src: 'manual' }]), modal: false, newName: '', facet: 'all', q: '', sel: id } }))
+    }
+    const pRows = entFilter('p').map(e => decoEnt(e, 'p'))
+    const pSelE = entById(pp.sel) || allEnt[0]
+    const pLinks = linksOf(pSelE).map(e => decoEnt(e, 'p'))
+    const rCounters = kindCount('sport') + ' SPORTS · ' + kindCount('competition') + ' COMPETITIONS · ' + kindCount('team') + ' TEAMS · ' + (kindCount('player') + kindCount('performer') + kindCount('staff')) + ' PEOPLE'
+
+    // ── Turn 3: unified Ops app (3a) ──
+    THEMES.u = THEMES.c
+    const uu = S.u
+    const MERGES = [
+      { id: 'm1', kind: 'team', src: 'TSDB', a: 'Union Saint-Gilloise', b: 'Royale Union Saint-Gilloise', conf: 92, fields: [{ k: 'NAME', a: 'Union Saint-Gilloise', b: 'Royale Union Saint-Gilloise' }, { k: 'COUNTRY', a: 'BEL', b: 'BEL' }, { k: 'STADIUM', a: '—', b: 'Stade Joseph Marien' }] },
+      { id: 'm2', kind: 'player', src: 'API-FB', a: 'Kasper Dolberg', b: 'K. Dolberg Rasmussen', conf: 88, fields: [{ k: 'NAME', a: 'Kasper Dolberg', b: 'K. Dolberg Rasmussen' }, { k: 'BIRTHDATE', a: '6 Oct 1997', b: '6 Oct 1997' }, { k: 'POSITION', a: 'Striker', b: 'Centre-Forward' }] },
+      { id: 'm3', kind: 'competition', src: 'TSDB', a: 'Jupiler Pro League', b: 'Belgian Pro League', conf: 95, fields: [{ k: 'NAME', a: 'Jupiler Pro League', b: 'Belgian Pro League' }, { k: 'SEASON', a: '2025/26', b: '2025/26' }, { k: 'TEAMS', a: '16', b: '16' }] },
+    ]
+    const JOBS = [
+      { n: 'TheSportsDB · teams', meta: '02:00 · OK · 214 RECORDS', c: '#2BB673' },
+      { n: 'API-Football · squads', meta: '02:15 · OK · 1,482 RECORDS', c: '#2BB673' },
+      { n: 'football-data.org · fixtures', meta: '02:30 · 3 DEAD-LETTERS', c: '#E5484D' },
+    ]
+    const uPending = MERGES.filter(m => !uu.decided[m.id]).length
+    const uMerges = MERGES.map(m => {
+      const st = uu.decided[m.id] || 'pending'
+      const decide = (v) => () => this.setState(s => ({ u: { ...s.u, decided: { ...s.u.decided, [m.id]: v } } }))
+      return {
+        ...m,
+        kindL: KINDS[m.kind].l.toUpperCase(), kindC: KINDS[m.kind].c, kindBg: KINDS[m.kind].c + '22',
+        confL: m.conf + '% MATCH', confC: m.conf >= 90 ? '#2BB673' : '#E5A13C',
+        fieldsD: m.fields.map(fd => ({ ...fd, bC: fd.a !== fd.b ? '#E5A13C' : 'var(--t2)' })),
+        isPending: st === 'pending', isDecided: st !== 'pending',
+        stateL: st === 'merged' ? '✓ MERGED INTO REGISTRY' : 'KEPT AS SEPARATE RECORDS',
+        stateC: st === 'merged' ? '#2BB673' : 'var(--t2)',
+        approve: decide('merged'), keep: decide('kept'),
+      }
+    })
+    const uRowsArr = []
+    const uFiltEv = EV.filter(e => uu.sport === 'all' || e.sp === uu.sport)
+    DAYS.forEach((d, i) => {
+      const evs = uFiltEv.filter(e => e.day === i)
+      if (evs.length) {
+        uRowsArr.push({ hdr: true, ev: false, l: (d + ' March').toUpperCase() })
+        evs.forEach(e => uRowsArr.push({ hdr: false, ev: true, ...deco(e, 'u') }))
+      }
+    })
+    const uSelE = EV.find(e => e.id === uu.sel) || EV[0]
+    const uq = (uu.regQ || '').toLowerCase()
+    const uRegRows = allEnt.filter(e => (uu.regFacet === 'all' || e.kind === uu.regFacet) && (!uq || e.name.toLowerCase().includes(uq) || (e.sport || '').toLowerCase().includes(uq) || (e.meta || '').toLowerCase().includes(uq))).map(e => decoEnt(e, 'u', 'regSel'))
+    const uRegSelE = entById(uu.regSel) || allEnt[0]
+    const uRegLinks = linksOf(uRegSelE).map(e => decoEnt(e, 'u', 'regSel'))
+    const uRegFacets = [{ id: 'all', l: 'All records', n: allEnt.length }].concat(Object.keys(KINDS).map(k => ({ id: k, l: PLURAL[k], n: kindCount(k) }))).map(f => ({
+      ...f, on: () => set('u', { regFacet: f.id }),
+      bg: uu.regFacet === f.id ? 'var(--p2)' : 'transparent', bd: uu.regFacet === f.id ? 'var(--ac)' : 'var(--ln)', fg: uu.regFacet === f.id ? 'var(--tx)' : 'var(--t2)',
+    }))
+    const uTypeChips = Object.keys(KINDS).map(k => ({
+      l: KINDS[k].l, on: () => set('u', { newType: k }),
+      bg: uu.newType === k ? 'var(--ac)' : 'transparent', fg: uu.newType === k ? 'var(--af)' : 'var(--t2)', bd: uu.newType === k ? 'var(--ac)' : 'var(--ln)',
+    }))
+    const uCreate = () => {
+      const nm = (uu.newName || '').trim()
+      if (!nm) return
+      const id = 'x' + Date.now()
+      this.setState(s => ({
+        r: { ...s.r, custom: s.r.custom.concat([{ id, kind: s.u.newType, name: nm, meta: 'Created manually', src: 'manual' }]) },
+        u: { ...s.u, modal: false, newName: '', regFacet: 'all', regQ: '', regSel: id },
+      }))
+    }
+
+    return {
+      // A
+      aVars: varsOf('a', 'dark'), aThemeBtn: tgl('a', 'dark'), aThemeL: tglL('a', 'dark'),
+      aNav: navFor('a', [['sports', 'Sports desk'], ['planner', 'Day planner'], ['contracts', 'Rights']]),
+      aIsSports: a.tab === 'sports', aIsPlanner: a.tab === 'planner', aIsContracts: a.tab === 'contracts',
+      aSportChips: chipsFor('a'), aList, aListCount: aList.length,
+      aSel: deco(aSelE, 'a'), aCrew: crewFor(aSelE), aSelRights: rightsFor(aSelE), aPlans: plansOf(aSelE),
+      aDays, aTicks, aLanes, aDayLabel: DAYS[a.day] + ' March 2026',
+      aCChips, aContracts: CON.filter(x => a.cf === 'all' || x.st === a.cf).map(decoCon),
+      aCStats: [
+        { n: CON.filter(x => x.st === 'valid').length, l: 'Valid contracts', c: '#2BB673' },
+        { n: CON.filter(x => x.st === 'expiring').length, l: 'Expiring soon', c: '#E5A13C' },
+        { n: CON.filter(x => x.st === 'draft').length, l: 'In negotiation', c: '#E07B39' },
+        { n: nGap, l: 'Missing rights', c: '#E5484D' },
+      ],
+      // B
+      bVars: varsOf('b', 'light'), bThemeBtn: tgl('b', 'light'), bThemeL: tglL('b', 'light'),
+      bNav: navFor('b', [['board', 'Board'], ['planner', 'Week'], ['contracts', 'Contracts']]),
+      bIsBoard: b.tab === 'board', bIsPlanner: b.tab === 'planner', bIsContracts: b.tab === 'contracts',
+      bChips: chipsFor('b'), bCols,
+      bHasSel: !!bSelE, bSel: bSelE ? deco(bSelE, 'b') : null,
+      bCrew: crewFor(bSelE), bSelRights: rightsFor(bSelE),
+      bClose: () => set('b', { sel: null }),
+      bWeek: DAYS.map((d, i) => ({ l: d, bg: i >= 5 ? 'var(--p2)' : 'var(--pn)', cards: bFilt.filter(e => e.day === i).map(e => deco(e, 'b')) })),
+      bContracts: CON.map(decoCon),
+      // C
+      cVars: varsOf('c', 'dark'), cThemeBtn: tgl('c', 'dark'), cThemeL: tglL('c', 'dark'),
+      cNav: navFor('c', [['schedule', 'SCHEDULE'], ['matrix', 'RIGHTS MATRIX']]),
+      cIsSchedule: c.tab === 'schedule', cIsMatrix: c.tab === 'matrix',
+      cFacets: chipsFor('c'), cRows,
+      cSel: deco(cSelE, 'c'), cCrew: crewFor(cSelE), cSelRights: rightsFor(cSelE), cPlans: plansOf(cSelE),
+      cSelHasConf: !!(showConf && cSelE.conflict), cConfNote: cSelE.conflict || '',
+      cMatrix: CON.map(x => ({
+        ...decoCon(x),
+        cells: ['linear', 'max', 'radio', 'ondemand'].map(p => ({ l: x.plat.includes(p) ? '●' : '·', c: x.plat.includes(p) ? 'var(--ac)' : 'var(--t3)' })),
+      })),
+      cCounters: EV.length + ' EVENTS · ' + nConf + ' CREW CONFLICT · ' + nGap + ' RIGHTS GAP',
+      // Registry (2a)
+      rVars: varsOf('r', 'dark'), rThemeBtn: tgl('r', 'dark'), rThemeL: tglL('r', 'dark'),
+      rFacets, rRows, rSel: decoEnt(rSelE, 'r'), rLinks, rHasLinks: rLinks.length > 0,
+      rAttrs: attrsOf(rSelE), rSrcLine: srcLine(rSelE), rNote: rSelE.note || '', rHasNote: !!rSelE.note,
+      rQ: rr.q, rSetQ: (e) => set('r', { q: e.target.value }),
+      rCounters,
+      rOpenModal: () => set('r', { modal: true }), rCloseModal: () => set('r', { modal: false }), rModal: rr.modal,
+      rTypeChips, rNewName: rr.newName, rSetNewName: (e) => set('r', { newName: e.target.value }), rCreate,
+      // Profiles (2b)
+      pVars: varsOf('p', 'light'), pThemeBtn: tgl('p', 'light'), pThemeL: tglL('p', 'light'),
+      pQ: pp.q, pSetQ: (e) => set('p', { q: e.target.value }),
+      pRows, pRowCount: pRows.length, pSel: decoEnt(pSelE, 'p'), pLinks, pHasLinks: pLinks.length > 0,
+      pAttrs: attrsOf(pSelE), pSrcLine: srcLine(pSelE), pNote: pSelE.note || '', pHasNote: !!pSelE.note,
+      pInitials: pSelE.name.split(' ').map(w => w[0]).slice(0, 2).join(''),
+      // Unified Ops app (3a)
+      uVars: varsOf('u', 'dark'), uThemeBtn: tgl('u', 'dark'), uThemeL: tglL('u', 'dark'),
+      uNav: navFor('u', [['schedule', 'SCHEDULE'], ['rights', 'RIGHTS'], ['registry', 'REGISTRY'], ['sync', uPending ? 'SYNC [' + uPending + ']' : 'SYNC']]),
+      uIsSchedule: uu.tab === 'schedule', uIsRights: uu.tab === 'rights', uIsRegistry: uu.tab === 'registry', uIsSync: uu.tab === 'sync',
+      uTopline: EV.length + ' EVENTS · ' + allEnt.length + ' RECORDS · ' + uPending + ' PENDING MERGES',
+      uFacets: chipsFor('u'), uRows: uRowsArr,
+      uSel: deco(uSelE, 'u'), uCrew: crewFor(uSelE), uSelRights: rightsFor(uSelE), uPlans: plansOf(uSelE),
+      uSelHasConf: !!(showConf && uSelE.conflict), uConfNote: uSelE.conflict || '',
+      uRegFacets, uRegRows, uRegSel: decoEnt(uRegSelE, 'u', 'regSel'), uRegLinks, uRegHasLinks: uRegLinks.length > 0,
+      uRegAttrs: attrsOf(uRegSelE), uRegSrcLine: srcLine(uRegSelE), uRegNote: uRegSelE.note || '', uRegHasNote: !!uRegSelE.note,
+      uRegQ: uu.regQ, uSetRegQ: (e) => set('u', { regQ: e.target.value }),
+      uOpenModal: () => set('u', { modal: true }), uCloseModal: () => set('u', { modal: false }), uModal: uu.modal,
+      uTypeChips, uNewName: uu.newName, uSetNewName: (e) => set('u', { newName: e.target.value }), uCreate,
+      uJobs: JOBS, uMerges,
+    }
+  }
+}
+</script>
+</body>
+</html>
