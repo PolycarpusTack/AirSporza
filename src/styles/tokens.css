@@ -99,7 +99,7 @@
      Semantic sets are THEME-AWARE since A-1-T4 (architect decision
      2026-07-02 post contrast audit); light values are AA-derived —
      see docs/ops-contrast-audit.md. Chip -bg tints stay invariant.
-     Mapping doc: docs/ops-token-map.md · Contract: ops-tokens v2
+     Mapping doc: docs/ops-token-map.md · Contract: ops-tokens v3
      ════════════════════════════════════════════════════════════════ */
 
   /* ── Shell theme (dark defaults) ── */
@@ -144,6 +144,19 @@
   --kind-player-bg:       #2BB67322;
   --kind-performer-bg:    #B48EF522;
   --kind-staff-bg:        #E7684322;  /* follows the new dark base (tint = base @ 22) */
+
+  /* ── Rights Status & Crew Health word aliases (A-3-T2, architect-authorized) ──
+     Pure var() references — NO new hex. They follow their referents through the
+     [data-theme="light"] block automatically, so they are NOT (and must never be)
+     declared there. The --status-* family stays Editorial-Status-only (ops-tokens
+     guard); these aliases are the sanctioned way to color RIGHTS/CREW words. */
+  --rights-valid:       var(--status-approved);
+  --rights-expiring:    var(--alert-warning);
+  --rights-negotiation: var(--alert-negotiation);
+  --rights-missing:     var(--alert-danger);
+  --crew-ok:            var(--status-approved);
+  --crew-open:          var(--alert-warning);
+  --crew-conflict:      var(--alert-danger);
 }
 
 /* Ops light theme (ADR-013; amended A-1-T4): set by OpsThemeProvider (A-1-T2)

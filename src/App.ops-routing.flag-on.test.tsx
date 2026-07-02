@@ -65,11 +65,18 @@ vi.mock('./context/AppProvider', () => ({
     setCurrentWidgets: vi.fn(),
     roleConfig: { planner: { label: 'Planner' } },
     handleSaveEvent: vi.fn(),
+    events: [], // consumed by the real ScheduleScreen (A-3-T2)
     sports: [],
     competitions: [],
     setEvents: vi.fn(),
     orgConfig: {},
   }),
+}))
+
+// The real ScheduleScreen fetches contracts on mount — stub the services barrel.
+vi.mock('./services', () => ({
+  contractsApi: { list: vi.fn(async () => []) },
+  eventsApi: {}, // App.tsx imports it (used only inside closed modal callbacks)
 }))
 
 import { AppRoutes } from './App'

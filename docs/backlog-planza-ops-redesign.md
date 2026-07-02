@@ -235,7 +235,7 @@ Business Value 3 · Priority 5 · Size **L** · DoR: **READY** · INVEST all ✓
   TDD: full permutation table as failing tests first (this is the core-domain logic of the EPIC — max rigor, ≥80% branch coverage).
   Pull Gate: `Contract.platforms[]`/`validUntil` shapes vs `types.ts`; `detectCrewConflicts` signature vs `utils/crewConflicts.ts`.
   Hand-off: Contract Snapshot `ops-selectors v1`. Unblocks: A-3-T2, A-4-T1, B-3-T1.
-- **A-3-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **A-3-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02** (ops-tokens v3 rights/crew aliases; CHANNEL cell mostly `—` until B-1 slot resolution — known)
   Goal: Facet rail + table markup per README §1 (grids, type scale, hover/selected states) + wiring to selectors, selection, and facet filter.
   TDD: interaction tests first (filter, select, group headers, status words).
   Pull Gate: `OpsShell v1`, `ops-selection v1`, `ops-selectors v1` snapshots.
