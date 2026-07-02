@@ -24,7 +24,8 @@ async function loadRightsPolicies(tenantId: string, competitionIds: number[]): P
   return contracts.map(c => ({
     competitionId: c.competitionId,
     territory: c.territory.length > 0 ? c.territory[0] : undefined,
-    maxLiveRuns: c.maxLiveRuns ?? 0,
+    // RD-1F: preserve null ("no limit set") — `?? 0` falsely turned it into an explicit limit of 0
+    maxLiveRuns: c.maxLiveRuns,
     windowStart: c.windowStartUtc?.toISOString(),
     windowEnd: c.windowEndUtc?.toISOString(),
   }))
