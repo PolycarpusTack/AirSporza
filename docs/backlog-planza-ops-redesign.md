@@ -93,7 +93,7 @@ Updated: 2026-07-02
 
 Components (new):
   OpsShell:            chrome + tabs + theme toggle + flag gate — planned
-  ThemeProvider:       data-theme switch + persistence — planned
+  OpsThemeProvider:    data-theme switch + persistence — planned
   ScheduleScreen:      facet rail + day-grouped event table — planned
   EventInspector:      shared inspector (Schedule + Rundown) — planned
   RundownScreen:       channel lanes + positioned blocks — planned
@@ -145,7 +145,7 @@ Model routing per Core §6 noted per task (`Opus` = judgment, `Sonnet` = generat
 
 ---
 
-### Story A-1 — Ops theme tokens + ThemeProvider
+### Story A-1 — Ops theme tokens + OpsThemeProvider
 **As a** production planner **I want** the Ops palette in dark and light with a persistent toggle **so that** I can work in the control room (dark) and in daylight offices (light) without re-configuring.
 
 Business Value 3 · Priority 5 · Size **M** · DoR: **READY** (ADR-013 accepted)
@@ -158,7 +158,7 @@ INVEST I✓ N✓ V✓ E✓ S✓ T✓
 - Given the existing (non-ops) app with flag OFF, When tokens ship, Then no existing screen changes appearance (regression: existing token values untouched; ops adds new vars + a scoped light override block).
 - Error flow: Given localStorage is unavailable, Then toggle still works for the session and no error surfaces.
 
-**Interfaces:** `ThemeProvider` → `useOpsTheme(): { theme: 'dark'|'light', toggle(): void }`. Token contract = README §Design Tokens table mapped onto `tokens.css` var names (mapping doc is a deliverable).
+**Interfaces:** `OpsThemeProvider` → `useOpsTheme(): { theme: 'dark'|'light', toggle(): void }`. Token contract = README §Design Tokens table mapped onto `tokens.css` var names (mapping doc is a deliverable).
 **TD considerations:** none expected; any hard-coded hex → TD item.
 **Test data:** none. **Idempotency:** n/a (local write).
 
@@ -169,8 +169,8 @@ INVEST I✓ N✓ V✓ E✓ S✓ T✓
   Pull Gate: confirm ADR-013 approved; confirm no existing component reads a var being repurposed (grep).
   Hand-off: **Contract Snapshot `ops-tokens v1`** (var names + both values).
   Unblocks: A-1-T2, A-2-T1.
-- **A-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: `ThemeProvider` + `useOpsTheme` + toggle persistence + FOUC guard (inline head script or pre-hydration attribute set).
+- **A-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02**
+  Goal: `OpsThemeProvider` + `useOpsTheme` + toggle persistence + FOUC guard (inline head script or pre-hydration attribute set).
   TDD: hook unit tests (default, toggle, persistence, storage-unavailable) first.
   Feature Flag: rendered only inside ops shell (flag-gated by A-2).
   Pull Gate: `ops-tokens v1` snapshot matches.

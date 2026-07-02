@@ -22,7 +22,7 @@ than hard-coding hex in components. Alternatives considered:
   variable families; light values live under a `[data-theme="light"]` selector overriding the
   same variable names. Fixed semantic sets (status/alert/channel/registry-kind colors) become
   named variables too, identical in both themes.
-- `ThemeProvider` (`useOpsTheme`) sets/removes `data-theme="light"` on `<html>`; preference
+- `OpsThemeProvider` (`useOpsTheme`) sets/removes `data-theme="light"` on `<html>`; preference
   persists in `localStorage` key `planza.opsTheme`; a pre-hydration guard prevents FOUC.
   Absent/unreadable storage degrades to session-only toggling.
 - Components never hard-code hex. Any exception requires a debt-register entry.
