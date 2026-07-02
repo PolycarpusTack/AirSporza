@@ -1,7 +1,8 @@
 /**
  * RD-1F — HOTFIX: maxLiveRuns null semantics (defect (a), ADR-015 Acceptance record §2).
  *
- * Exercises the real loader chain of POST /api/schedule-drafts/:id/validate:
+ * Exercises the real loader chain of POST /api/schedule-drafts/:id/validate and
+ * POST /api/schedule-drafts/:id/publish:
  * loadRightsPolicies (routes/schedules.ts) → RightsPolicy DTO → policyToContractShape
  * (services/validation/rights.ts) → checkRights run-limit branch.
  *
@@ -16,17 +17,24 @@ import { buildApp } from '../src/index.js'
 const app = buildApp()
 import { prisma } from '../src/db/prisma.js'
 
-vi.mock('../src/db/prisma.js', () => ({
-  prisma: {
+vi.mock('../src/db/prisma.js', () => {
+  const prismaMock: Record<string, unknown> = {
     tenant: { findFirst: vi.fn().mockResolvedValue({ id: 'tenant-1', slug: 'default' }) },
-    scheduleDraft: { findFirst: vi.fn() },
-    broadcastSlot: { findMany: vi.fn() },
+    scheduleDraft: { findFirst: vi.fn(), update: vi.fn() },
+    broadcastSlot: { findMany: vi.fn(), updateMany: vi.fn() },
     contract: { findMany: vi.fn() },
+    scheduleVersion: { findFirst: vi.fn(), create: vi.fn() },
+    outboxEvent: { create: vi.fn() },
     $executeRaw: vi.fn().mockResolvedValue(undefined),
     $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+    // Publish wraps version creation in a transaction — run the callback against this same mock.
+    $transaction: vi.fn(async (arg: unknown) =>
+      typeof arg === 'function' ? (arg as (tx: unknown) => unknown)(prismaMock) : Promise.all(arg as Promise<unknown>[])
+    ),
     $disconnect: vi.fn(),
-  },
-}))
+  }
+  return { prisma: prismaMock }
+})
 
 vi.mock('../src/middleware/auth.js', () => ({
   authenticate: (req: { user?: unknown }, _: unknown, next: () => void) => {
@@ -37,9 +45,11 @@ vi.mock('../src/middleware/auth.js', () => ({
 }))
 
 const mp = prisma as unknown as {
-  scheduleDraft: { findFirst: ReturnType<typeof vi.fn> }
-  broadcastSlot: { findMany: ReturnType<typeof vi.fn> }
-  contract: { findFirst?: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> }
+  scheduleDraft: { findFirst: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> }
+  broadcastSlot: { findMany: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn> }
+  contract: { findMany: ReturnType<typeof vi.fn> }
+  scheduleVersion: { findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> }
+  outboxEvent: { create: ReturnType<typeof vi.fn> }
 }
 
 const draft = {
@@ -91,6 +101,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   mp.scheduleDraft.findFirst.mockResolvedValue(draft)
   mp.broadcastSlot.findMany.mockResolvedValue([fullSlot])
+  // Publish-path arrangements: first version, no pending operations, transaction writes succeed.
+  mp.scheduleVersion.findFirst.mockResolvedValue(null)
+  mp.scheduleVersion.create.mockResolvedValue({ id: 'version-1', versionNumber: 1 })
+  mp.broadcastSlot.updateMany.mockResolvedValue({ count: 1 })
+  mp.scheduleDraft.update.mockResolvedValue({ ...draft, status: 'PUBLISHED', version: 2 })
+  mp.outboxEvent.create.mockResolvedValue({ id: 'outbox-1' })
 })
 
 describe('RD-1F: run-limit null semantics in draft validation', () => {
@@ -101,8 +117,7 @@ describe('RD-1F: run-limit null semantics in draft validation', () => {
 
     // Defect (a): `maxLiveRuns ?? 0` in loadRightsPolicies turned "no limit set"
     // into an explicit limit of 0, yielding a false blocking MAX_RUNS_EXCEEDED.
-    expect(results.filter(r => r.code === 'MAX_RUNS_EXCEEDED')).toEqual([])
-    expect(results.filter(r => r.code === 'MAX_RUNS_NEAR')).toEqual([])
+    expect(results.filter(r => r.code?.startsWith('MAX_RUNS_'))).toEqual([])
   })
 
   it('maxLiveRuns: 0 is an explicit limit of zero — MAX_RUNS_EXCEEDED still fires (null vs 0 are distinct)', async () => {
@@ -131,5 +146,20 @@ describe('RD-1F: run-limit null semantics in draft validation', () => {
     const results = await validateDraft()
 
     expect(results.filter(r => r.code?.startsWith('MAX_RUNS_'))).toEqual([])
+  })
+})
+
+describe('RD-1F: publish is not 422-blocked by an unset run limit', () => {
+  it('maxLiveRuns: null — publish succeeds with no ERROR-severity MAX_RUNS_* result (the business pain of defect (a))', async () => {
+    mp.contract.findMany.mockResolvedValue([contractWithRunLimit(null)])
+
+    const res = await request(app)
+      .post('/api/schedule-drafts/draft-1/publish')
+      .send({ acknowledgeWarnings: true })
+
+    // Pre-fix, the false MAX_RUNS_EXCEEDED ERROR made this a 422 ("Validation failed").
+    expect(res.status).toBe(201)
+    const results = (res.body.validationResults ?? []) as Array<{ code: string; severity: string }>
+    expect(results.filter(r => r.code?.startsWith('MAX_RUNS_') && r.severity === 'ERROR')).toEqual([])
   })
 })
