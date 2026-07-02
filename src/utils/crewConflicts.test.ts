@@ -9,17 +9,15 @@
  * Finding 3 (events with unparseable date/time silently drop their crew
  * assignments) is deliberately NOT fixed here: reporting unverifiable
  * assignments needs a return-shape change, not a one-liner. Still pinned below.
+ *
+ * @vitest-environment node
  */
 import { describe, it, expect } from 'vitest'
 import { detectCrewConflicts, groupConflictsByPerson } from './crewConflicts'
 import type { Event, TechPlan } from '../data/types'
 
-let nextEventId = 1
-let nextPlanId = 100
-
-function makeEvent(overrides: Partial<Event> = {}): Event {
+function makeEvent(overrides: Partial<Event> & { id: number }): Event {
   return {
-    id: nextEventId++,
     sportId: 1,
     competitionId: 10,
     participants: 'Team A vs Team B',
@@ -32,9 +30,8 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
   } as Event
 }
 
-function makePlan(overrides: Partial<TechPlan> = {}): TechPlan {
+function makePlan(overrides: Partial<TechPlan> & { id: number }): TechPlan {
   return {
-    id: nextPlanId++,
     eventId: 1,
     planType: 'standard',
     crew: {},
@@ -330,5 +327,52 @@ describe('API-shaped startDateBE (A-3-T1 adversarial review BLOCKER 2 — upstre
     const conflicts = detectCrewConflicts(plans, [e1, e2])
 
     expect(conflicts.get('100:director')?.[0]?.severity).toBe('full')
+  })
+})
+
+describe('display strings for API-shaped startDateBE (A-4-T0 upstream bugfix)', () => {
+  // The A-3-T1 fix normalized parseEventWindow, but the DISPLAY strings
+  // (CrewConflict.startTime and groupConflictsByPerson time) still built from raw
+  // startDateBE: ISO-datetime events rendered "2026-06-12T00:00:00.000Z 20:00",
+  // and the Date-object branch used the banned toISOString UTC day-shift.
+  it('CrewConflict.startTime renders "YYYY-MM-DD HH:MM" for ISO-datetime events', () => {
+    const e1 = makeEvent({ id: 1, startDateBE: '2026-06-12T00:00:00.000Z', startTimeBE: '20:00' })
+    const e2 = makeEvent({ id: 2, startDateBE: '2026-06-12T00:00:00.000Z', startTimeBE: '20:00' })
+    const plans = [
+      makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
+      makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
+    ]
+    const conflicts = detectCrewConflicts(plans, [e1, e2])
+
+    expect(conflicts.get('100:director')?.[0]?.startTime).toBe('2026-06-12 20:00')
+    expect(conflicts.get('101:director')?.[0]?.startTime).toBe('2026-06-12 20:00')
+  })
+
+  it('groupConflictsByPerson time strings render "YYYY-MM-DD HH:MM" for ISO-datetime events', () => {
+    const e1 = makeEvent({ id: 1, startDateBE: '2026-06-12T00:00:00.000Z', startTimeBE: '20:00' })
+    const e2 = makeEvent({ id: 2, startDateBE: '2026-06-12T00:00:00.000Z', startTimeBE: '21:00', durationMin: 120 })
+    const plans = [
+      makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
+      makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
+    ]
+    const groups = groupConflictsByPerson(plans, [e1, e2])
+
+    expect(groups[0]?.conflicts[0]?.eventA.time).toBe('2026-06-12 20:00')
+    expect(groups[0]?.conflicts[0]?.eventB.time).toBe('2026-06-12 21:00')
+  })
+
+  it('local-midnight Date objects render their LOCAL day in startTime (no UTC shift)', () => {
+    // new Date(2026, 5, 12) = local midnight; toISOString would shift the day in
+    // any TZ ahead of UTC — getDateKey keys by local components, TZ-robust.
+    const e1 = makeEvent({ id: 1, startDateBE: new Date(2026, 5, 12), startTimeBE: '20:00' })
+    const e2 = makeEvent({ id: 2, startDateBE: '2026-06-12', startTimeBE: '20:00' })
+    const plans = [
+      makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
+      makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
+    ]
+    const conflicts = detectCrewConflicts(plans, [e1, e2])
+
+    // key 101 conflicts WITH plan 100's event (e1, the Date-object one)
+    expect(conflicts.get('101:director')?.[0]?.startTime).toBe('2026-06-12 20:00')
   })
 })
