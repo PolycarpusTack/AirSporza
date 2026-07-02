@@ -28,7 +28,7 @@ export function useOpsTheme(): { theme: OpsTheme; toggle(): void }
    works session-only (ADR-013 degradation).
 5. The swap is CSS-variable-only: one attribute flip on `<html>`; no per-component theme
    state, no re-render outside the provider's subtree. Palette <100ms by construction
-   (cascade recalculation of the nine `-shell` vars — see ops-tokens v1 guarantee 3 for why
+   (cascade recalculation of the ops vars — see ops-tokens v2 guarantee 3 for why
    legacy screens are inert).
 
 ## FOUC guard (design choice)
@@ -48,8 +48,8 @@ export function useOpsTheme(): { theme: OpsTheme; toggle(): void }
 
 ## Depends on
 
-- **ops-tokens v1** (`docs/governance/contracts/ops-tokens.md`): attribute name/value and the
-  nine `-shell` vars it flips.
+- **ops-tokens v2** (`docs/governance/contracts/ops-tokens.md`): attribute name/value and the
+  vars it flips (nine `-shell` + fifteen semantic base colors since v2/A-1-T4).
 - localStorage key `planza.opsTheme` (ADR-013). Server-side persistence explicitly deferred.
 
 ## Domain terms used

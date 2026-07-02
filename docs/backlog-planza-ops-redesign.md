@@ -175,9 +175,13 @@ INVEST I✓ N✓ V✓ E✓ S✓ T✓
   Feature Flag: rendered only inside ops shell (flag-gated by A-2).
   Pull Gate: `ops-tokens v1` snapshot matches.
   Hand-off: Contract Snapshot `useOpsTheme v1`. Unblocks: A-2-T1.
-- **A-1-T3** · Hat **FEATURE** · Model **Haiku** · Confidence High · ✅ **DONE 2026-07-02** (39 AA failures flagged → architect items F-1..F-5 in `docs/ops-contrast-audit.md`)
+- **A-1-T3** · Hat **FEATURE** · Model **Haiku** · Confidence High · ✅ **DONE 2026-07-02** (39 AA failures flagged → architect items F-1..F-5 in `docs/ops-contrast-audit.md`; **F-1..F-5 resolved by A-1-T4**)
   Goal: Contrast audit — verify all README token pairs (text-on-surface, chip 13%-alpha combos, status words on `--pn`) meet WCAG AA in both themes; output pass/fail table; failures become follow-up items for the Architect (do not silently adjust final-intent colors — flag them).
   Deliverables: `docs/ops-contrast-audit.md`. Unblocks: END OF STORY SEQUENCE.
+- **A-1-T4** · Hat **FEATURE** · Model **Sonnet** · Amendment (architect decisions 2026-07-02 on F-1..F-5) · ✅ **DONE 2026-07-02**
+  Goal: Contrast remediation — semantic sets become theme-aware (light overrides in the `[data-theme="light"]` block; "identical in both themes" rule dropped by architect decision); `--text-shell-3` AA-adjusted both themes; light `--accent-shell-fg` → dark text; dark `--kind-staff` (+ tint) minimally shifted. Values derived programmatically (HSL lightness search, hue/sat locked, ≥4.6 text / ≥3.1 non-text) — all derived values pending designer sign-off (`docs/ops-token-map.md`).
+  TDD: contract-test expectations updated first (red) → `tokens.css` (green) → audit re-run.
+  Deliverables: `tokens.css` diff → `tokens.opsTheme.test.ts` restructure → `docs/ops-contrast-audit.md` v2 (0 FAIL) → **ops-tokens v2** → ADR-013 Amendment. Legacy vars untouched (AC-4); no component changes.
 
 ---
 

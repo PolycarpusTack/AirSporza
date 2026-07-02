@@ -1,8 +1,9 @@
 /**
  * Ops theme switching (A-1-T2, ADR-013).
  * Contract: docs/governance/contracts/useOpsTheme.md (useOpsTheme v1).
- * Upstream: ops-tokens v1 — flipping `data-theme="light"` on <html> swaps the nine
- * `-shell` CSS vars; legacy screens do not consume them and are inert to the toggle.
+ * Upstream: ops-tokens v2 — flipping `data-theme="light"` on <html> swaps the nine
+ * `-shell` CSS vars + fifteen semantic base colors; legacy screens do not consume
+ * them and are inert to the toggle.
  *
  * Rendered only inside the ops shell (mounted by A-2's flag-gated <OpsShell>).
  * The theme swap is CSS-variable-only: one attribute flip, no per-component state.

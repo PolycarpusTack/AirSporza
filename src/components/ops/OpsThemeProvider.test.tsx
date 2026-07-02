@@ -1,8 +1,8 @@
 /**
  * Unit tests for OpsThemeProvider / useOpsTheme (A-1-T2, ADR-013).
- * Upstream contract: docs/governance/contracts/ops-tokens.md (ops-tokens v1) —
+ * Upstream contract: docs/governance/contracts/ops-tokens.md (ops-tokens v2) —
  * the attribute flipped here is `data-theme="light"` on <html>; the CSS side
- * (nine -shell vars swap, legacy vars inert) is covered by tokens.opsTheme.test.ts.
+ * (shell + semantic vars swap, legacy vars inert) is covered by tokens.opsTheme.test.ts.
  * This provider's contract: docs/governance/contracts/useOpsTheme.md (useOpsTheme v1).
  */
 import { act, renderHook } from '@testing-library/react'
