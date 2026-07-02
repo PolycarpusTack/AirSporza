@@ -12,7 +12,8 @@ export interface RightsPolicy {
   eventId?: number
   competitionId?: number
   territory?: string
-  maxLiveRuns: number
+  /** null = no limit set (run-limit check is skipped); 0 = explicit limit of zero (RD-1F / ADR-015) */
+  maxLiveRuns: number | null
   windowStart?: string  // ISO date
   windowEnd?: string    // ISO date
 }
