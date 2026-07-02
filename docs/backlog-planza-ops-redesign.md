@@ -175,7 +175,7 @@ INVEST I✓ N✓ V✓ E✓ S✓ T✓
   Feature Flag: rendered only inside ops shell (flag-gated by A-2).
   Pull Gate: `ops-tokens v1` snapshot matches.
   Hand-off: Contract Snapshot `useOpsTheme v1`. Unblocks: A-2-T1.
-- **A-1-T3** · Hat **FEATURE** · Model **Haiku** · Confidence High
+- **A-1-T3** · Hat **FEATURE** · Model **Haiku** · Confidence High · ✅ **DONE 2026-07-02** (39 AA failures flagged → architect items F-1..F-5 in `docs/ops-contrast-audit.md`)
   Goal: Contrast audit — verify all README token pairs (text-on-surface, chip 13%-alpha combos, status words on `--pn`) meet WCAG AA in both themes; output pass/fail table; failures become follow-up items for the Architect (do not silently adjust final-intent colors — flag them).
   Deliverables: `docs/ops-contrast-audit.md`. Unblocks: END OF STORY SEQUENCE.
 
