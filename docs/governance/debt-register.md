@@ -305,7 +305,14 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** Registry (EPIC C) uses repo relations only, never parses `participants`; migration decision deferred to EPIC C refinement.
 - **Origin:** ops-redesign backlog survey, 2026-07-02; formally registered 2026-07-02 (was cited as TD-25).
 
-## TD-26 — Ops light-theme AA-derived values pending designer sign-off
+## TD-26 — Ops light-theme AA-derived values — ✅ SETTLED (signed off 2026-07-02)
+
+> **Resolution:** architect/designer signed off on all 19 derived values as-is on 2026-07-02
+> ("colours are ok"). No value changes → no re-audit or contract bump needed (ops-tokens v2
+> guarantee 5 stands for any FUTURE change). The ⚠ flags in `docs/ops-token-map.md` are now
+> historical derivation provenance, not open items.
+
+### Original entry (for history)
 
 - **Artifact:** `src/styles/tokens.css` `[data-theme="light"]` block + dark `--text-shell-3`/`--kind-staff` — 19 values derived programmatically (A-1-T4, architect-approved method), not designer-picked. Full old→new table: `docs/ops-token-map.md` §Derived values.
 - **Type:** design/process shortcut (shipped ahead of designer approval)
@@ -315,6 +322,17 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Compounding:** mildly — ops screens A-2+ will render on these values; late rejection means visual churn, not rework (contract guarantee 5 forces re-audit + ops-tokens bump on change).
 - **Servicing decision:** designer sign-off before EPIC E light-theme QA (E-2); until then treat ⚠-marked values in `ops-token-map.md` as provisional.
 - **Origin:** A-1-T4, 2026-07-02.
+
+## TD-27 — `opsRedesign` flag is build-time only (no runtime override)
+
+- **Artifact:** `src/flags.ts` — `isOpsRedesignEnabled()` reads `import.meta.env.VITE_OPS_REDESIGN` (build-time Vite substitution).
+- **Type:** ops/process
+- **Cause:** A-2-T1 created the codebase's first feature-flag convention; no runtime flag service exists, and building one was out of scope for the tracer bullet.
+- **Principal:** M (runtime flag source: settings service, env-served config, or header override)
+- **Interest:** **low while flag is OFF in prod** — but "rollback = flag off" in the ops-shell runbook actually means "rollback = redeploy with the env changed", which weakens ADR-012's instant-rollback story.
+- **Compounding:** yes — every future flag copies this convention.
+- **Servicing decision:** decide at EPIC E (E-5 flag rollout plan) whether a runtime override is needed before turning the flag ON for real users; until then the runbook (A-5) must state rollback = redeploy honestly.
+- **Origin:** A-2-T1, 2026-07-02 (flagged in `src/flags.ts` and OpsShell v1 contract).
 
 ---
 

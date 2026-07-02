@@ -78,7 +78,7 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 | AS-1 ✅ resolved | Parallel flagged shell (ADR-012 accepted 2026-07-02); no old-screen removal in EPICs A–D | Whole plan shape | Done |
 | AS-2 | Existing `--surface/--text/--border` token families are extended with light-theme values; ops screens consume the same vars (README: "extend rather than hard-code hex") | A-1 design | ADR-013 |
 | AS-3 | Rundown lane channel comes from the event's `BroadcastSlot.channelId` (fallback: deprecated `Event.channel`); Eén/Canvas/VRT MAX exist in `channels` service | B-1 | Check slot coverage in seed/prod data during B-1 pull gate; SPIKE if <90% coverage |
-| AS-4 | Contract → Rights Status mapping: `EXPIRING` = `validUntil` within 90 days; `NEGOTIATION` = contract status field; `MISSING` = no contract for competition. Thresholds confirmed with stakeholder | A-3 | Stakeholder review of A-3 AC |
+| AS-4 ◐ provisional | Contract → Rights Status mapping: `EXPIRING` = `validUntil` within 90 days; `NEGOTIATION` = contract status field; `MISSING` = no contract for competition. **Stakeholder decision 2026-07-02: build A-3 with these standard formulas; contract start/end time/date formulas to be revisited in a dedicated session.** Mitigation: thresholds live in ONE place (`ops/selectors`, single source for the 90-day rule per B-3-T1 Abstraction Check) so the revisit is a cheap, test-pinned change | A-3 | Dedicated threshold-formula session (post-A-3) |
 | AS-5 | "Performer" and "Staff" Kinds map to existing person-entities where present; if absent, Registry v1 ships with sports/competitions/teams/players only and performers/staff are an EPIC C follow-up story | C scope | EPIC C refinement |
 | AS-6 | IBM Plex Sans/Mono already loaded (survey: configured in tailwind fonts) — no new font pipeline | A-1 | Trivial |
 | AS-7 | Merge decisions call existing endpoints (`approve-merge` / `ignore`); idempotency handled server-side per existing routes | D | EPIC D pull gate |
@@ -200,13 +200,13 @@ Business Value 3 · Priority 5 · Size **M** · DoR: **READY** (ADR-012 accepted
 **Interfaces:** `<OpsShell>` layout route; `useOpsSelection(): { eventId, setEventId }` (URL-backed); tab registry `OPS_TABS: {id, label, badge?}[]`.
 **Idempotency:** n/a.
 
-- **A-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **A-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02** (TD-27: build-time flag; RR7 splat-relative-nav rule in OpsShell v1)
   Goal: Shell component + `/ops/:tab` lazy routes in `App.tsx` + `opsRedesign` flag gate + chrome per README layout constants + placeholder screens.
   TDD: routing/flag tests first (flag off redirect; tab activation; lazy split).
   Pull Gate: ADR-012 approved; `useOpsTheme v1` snapshot.
   Hand-off: Contract Snapshot `OpsShell v1` (routes, tab registry, badge slot).
   Unblocks: A-2-T2, A-3-T2.
-- **A-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **A-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02** (replace-semantics judgment call recorded in ops-selection v1; UX re-check at EPIC E)
   Goal: `useOpsSelection` URL-backed selection + `useOpsDay` (selected day) via `useSearchParams`; unit tests for hydrate/update/back-button.
   Pull Gate: ADR-014 approved.
   Hand-off: Contract Snapshot `ops-selection v1`. Unblocks: A-3-T2, A-4-T1, END OF STORY SEQUENCE.

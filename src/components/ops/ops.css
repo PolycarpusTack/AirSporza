@@ -1,0 +1,17 @@
+/* Ops shell styles that cannot be inline (keyframes) — A-2-T1.
+   Colors via ops-tokens v2 vars only; never hex (ADR-013). */
+
+@keyframes ops-live-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.ops-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--alert-danger);
+  animation: ops-live-pulse 1.4s ease infinite;
+}
