@@ -230,7 +230,7 @@ Business Value 3 · Priority 5 · Size **L** · DoR: **READY** · INVEST all ✓
 **TD:** if contracts aren't already in AppProvider, fetch in-screen and record TD if duplicated later (Rule of Three).
 **Test data:** fixture week: 7 events across 5 sports covering every Rights/Crew status permutation (reuse for A-4, B-1, A-5).
 
-- **A-3-T1** · Hat **FEATURE** · Model **Sonnet** (spec) / review **Opus** (threshold logic) · Confidence High
+- **A-3-T1** · Hat **FEATURE** · Model **Sonnet** (spec) / review **Opus** (threshold logic) · Confidence High · ✅ **DONE 2026-07-02** (adversarial review caught 3 blockers incl. pre-existing crewConflicts prod bug — fixed upstream; covering-preference rule PROVISIONAL in ops-selectors v1)
   Goal: Pure derived-status selectors (`deriveRightsStatus`, `deriveCrewHealth`, `groupEventsByDay`) — no React.
   TDD: full permutation table as failing tests first (this is the core-domain logic of the EPIC — max rigor, ≥80% branch coverage).
   Pull Gate: `Contract.platforms[]`/`validUntil` shapes vs `types.ts`; `detectCrewConflicts` signature vs `utils/crewConflicts.ts`.
