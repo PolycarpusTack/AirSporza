@@ -1,6 +1,6 @@
 /**
  * Style contract test for the Ops palette (A-1-T1, ADR-013; amended by A-1-T4).
- * Contract: docs/governance/contracts/ops-tokens.md (ops-tokens v2)
+ * Contract: docs/governance/contracts/ops-tokens.md (ops-tokens v3)
  * Mapping rationale: docs/ops-token-map.md · Audit: docs/ops-contrast-audit.md
  *
  * A-1-T4 (architect decision 2026-07-02, post contrast audit): the semantic sets
@@ -74,6 +74,20 @@ const THEME_INVARIANT_VARS: Record<string, string> = {
   '--kind-staff-bg':       '#E7684322', // follows the A-1-T4 dark base shift
 }
 
+/**
+ * Rights/Crew word aliases (A-3-T2, ops-tokens v3) — pure var() references to
+ * semantic referents; never declared in the light block (they follow referents).
+ */
+const ALIAS_VARS: Record<string, string> = {
+  '--rights-valid':       '--status-approved',
+  '--rights-expiring':    '--alert-warning',
+  '--rights-negotiation': '--alert-negotiation',
+  '--rights-missing':     '--alert-danger',
+  '--crew-ok':            '--status-approved',
+  '--crew-open':          '--alert-warning',
+  '--crew-conflict':      '--alert-danger',
+}
+
 /** Legacy vars that must keep their pre-ops values in BOTH theme states (story AC-4). */
 const LEGACY_REGRESSION_VARS: Record<string, string> = {
   '--bg':      '#0B0F19',   // consumed by src/App.tsx and src/styles/index.css — not repurposed
@@ -143,6 +157,40 @@ describe('chip -bg tints — identical in both themes (dark-tuned base @ alpha 2
 
     document.documentElement.setAttribute('data-theme', 'light')
     expect(readVar(name)).toBe(value)
+  })
+})
+
+describe('rights/crew word aliases — pure var() references to their referents (ops-tokens v3)', () => {
+  // jsdom LIMITATION: getComputedStyle keeps custom-property values verbatim (no
+  // var() substitution inside custom properties), so we pin the raw reference in
+  // both theme states instead. Theme-awareness follows transitively: the referents'
+  // per-theme values are pinned by the SEMANTIC_THEME_VARS suites above, and the
+  // aliases are proven absent from the light block below.
+  it.each(Object.entries(ALIAS_VARS))('%s is declared as var(%s) in both theme states', (alias, referent) => {
+    expect(readVar(alias)).toBe(`var(${referent})`)
+
+    document.documentElement.setAttribute('data-theme', 'light')
+    expect(readVar(alias)).toBe(`var(${referent})`)
+  })
+
+  // Guards coordinated fixture+CSS drift: an alias pointing at a var that is not
+  // itself theme-aware would stay green in jsdom but break in a real browser.
+  it.each([...new Set(Object.values(ALIAS_VARS))])(
+    'referent %s is itself a pinned theme-aware semantic var',
+    (referent) => {
+      expect(Object.keys(SEMANTIC_THEME_VARS)).toContain(referent)
+    },
+  )
+
+  it('aliases are NEVER declared in the [data-theme="light"] block (they follow referents)', () => {
+    const lightRule = Array.from(styleEl.sheet!.cssRules).find(
+      (rule): rule is CSSStyleRule =>
+        rule instanceof CSSStyleRule && rule.selectorText.includes('data-theme="light"'),
+    )!
+    const declared = Array.from({ length: lightRule.style.length }, (_, i) => lightRule.style[i])
+    for (const alias of Object.keys(ALIAS_VARS)) {
+      expect(declared).not.toContain(alias)
+    }
   })
 })
 

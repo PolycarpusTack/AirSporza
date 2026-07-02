@@ -286,3 +286,49 @@ describe('groupConflictsByPerson', () => {
     expect(groupConflictsByPerson(plans, [e1, e2])).toEqual([])
   })
 })
+
+describe('API-shaped startDateBE (A-3-T1 adversarial review BLOCKER 2 — upstream bugfix)', () => {
+  // At runtime Prisma DateTime → res.json() delivers startDateBE as an ISO
+  // DATETIME string ("2026-06-12T00:00:00.000Z"). parseEventWindow used to build
+  // `new Date('2026-06-12T00:00:00.000ZT20:00:00')` → NaN → every plan skipped →
+  // conflict detection silently OFF in production. Pinned here; fixed via
+  // getDateKey normalization.
+  it('detects a conflict when startDateBE is an ISO datetime string', () => {
+    const e1 = makeEvent({ id: 1, startDateBE: '2026-06-12T00:00:00.000Z', startTimeBE: '20:00' })
+    const e2 = makeEvent({ id: 2, startDateBE: '2026-06-12T00:00:00.000Z', startTimeBE: '20:00' })
+    const plans = [
+      makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
+      makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
+    ]
+    const conflicts = detectCrewConflicts(plans, [e1, e2])
+
+    expect(conflicts.get('100:director')?.[0]?.severity).toBe('full')
+    expect(conflicts.get('101:director')?.[0]?.severity).toBe('full')
+  })
+
+  it('mixed shapes still conflict: ISO datetime string vs bare date string', () => {
+    const e1 = makeEvent({ id: 1, startDateBE: '2026-06-12T00:00:00.000Z', startTimeBE: '20:00' })
+    const e2 = makeEvent({ id: 2, startDateBE: '2026-06-12', startTimeBE: '21:00', durationMin: 120 })
+    const plans = [
+      makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
+      makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
+    ]
+    const conflicts = detectCrewConflicts(plans, [e1, e2])
+
+    expect(conflicts.get('100:director')?.[0]?.severity).toBe('partial')
+  })
+
+  it('local-midnight Date objects window on the LOCAL day (dateStr, not toISOString)', () => {
+    // new Date(2026, 5, 12) is local midnight — toISOString would shift it a day
+    // in any TZ ahead of UTC (the documented pitfall in dateTime.ts).
+    const e1 = makeEvent({ id: 1, startDateBE: new Date(2026, 5, 12), startTimeBE: '20:00' })
+    const e2 = makeEvent({ id: 2, startDateBE: '2026-06-12', startTimeBE: '20:00' })
+    const plans = [
+      makePlan({ id: 100, eventId: 1, crew: { director: 'Jane' } }),
+      makePlan({ id: 101, eventId: 2, crew: { director: 'Jane' } }),
+    ]
+    const conflicts = detectCrewConflicts(plans, [e1, e2])
+
+    expect(conflicts.get('100:director')?.[0]?.severity).toBe('full')
+  })
+})

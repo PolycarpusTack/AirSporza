@@ -8,7 +8,16 @@ import { resolve } from 'node:path'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// The real ScheduleScreen (A-3-T2) needs AppProvider data + a contracts fetch —
+// stubbed empty here (screen behavior is covered by ScheduleScreen.test.tsx;
+// this file tests the shell chrome/routing only).
+vi.mock('../../context/AppProvider', () => ({
+  useApp: () => ({ events: [], sports: [], competitions: [], techPlans: [], crewFields: [] }),
+}))
+vi.mock('../../services', () => ({ contractsApi: { list: vi.fn(async () => []) } }))
+
 import { OpsShell, OPS_TABS, type OpsTabId } from './OpsShell'
 
 function LocationProbe() {
@@ -63,7 +72,7 @@ describe('routing inside the shell', () => {
     expect(screen.getByTestId('ops-screen-planner')).toBeTruthy() // renders RundownScreen (glossary)
   })
 
-  it.each(OPS_TABS)('tab $id reaches its placeholder screen', async (tab) => {
+  it.each(OPS_TABS)('tab $id reaches its screen', async (tab) => {
     const user = userEvent.setup()
     renderShell('/ops')
 

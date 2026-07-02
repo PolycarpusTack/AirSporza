@@ -1,5 +1,5 @@
 import type { Event, TechPlan } from '../data/types'
-import { effectiveDurationMin } from './dateTime'
+import { effectiveDurationMin, getDateKey } from './dateTime'
 
 export interface CrewConflict {
   personName: string
@@ -16,9 +16,12 @@ export interface CrewConflict {
 export type ConflictMap = Map<string, CrewConflict[]>
 
 function parseEventWindow(event: Event): { start: number; end: number } | null {
-  const dateStr = typeof event.startDateBE === 'string'
-    ? event.startDateBE
-    : event.startDateBE?.toISOString?.().split('T')[0]
+  // A-3-T1 bugfix (adversarial review BLOCKER 2): API events carry ISO DATETIME
+  // strings ("…T00:00:00.000Z"); concatenating them verbatim produced NaN dates,
+  // silently disabling conflict detection for ALL API-loaded data. getDateKey
+  // normalizes both shapes (splits strings on 'T'; LOCAL components for Date
+  // objects — avoids the toISOString UTC day-shift).
+  const dateStr = event.startDateBE ? getDateKey(event.startDateBE) : null
   if (!dateStr || !event.startTimeBE) return null
 
   const start = new Date(`${dateStr}T${event.startTimeBE}:00`).getTime()

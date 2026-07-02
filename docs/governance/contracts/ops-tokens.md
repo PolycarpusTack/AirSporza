@@ -1,8 +1,17 @@
 # CONTRACT SNAPSHOT: ops-tokens
 
-Version: 2 · Date: 2026-07-02 · Task: A-1-T4 (input contract for A-2-T1, all ops screens)
+Version: 3 · Date: 2026-07-02 · Task: A-3-T2 (input contract for all ops screens)
 
 **Changelog**
+- **v3 (2026-07-02, A-3-T2):** ADDITIVE alias families for Rights Status & Crew Health
+  words (architect-authorized): `--rights-valid|expiring|negotiation|missing` and
+  `--crew-ok|open|conflict` — pure `var()` references (`--status-approved`,
+  `--alert-warning`, `--alert-negotiation`, `--alert-danger`), NO new hex, declared at
+  `:root` only and NEVER in the `[data-theme="light"]` block (they follow their referents'
+  AA-derived light values automatically). Guarantee 3 (exact light-block set) UNCHANGED.
+  This closes the v2 note "confirm the VALID var choice at A-3": `VALID` renders via
+  `--rights-valid` → `--status-approved` (green), keeping the `--status-*` family
+  Editorial-only per the guard below.
 - **v2 (2026-07-02, A-1-T4):** semantic sets (status/alert/channel/kind base colors) became
   THEME-AWARE — architect decision 2026-07-02 after the A-1-T3 contrast audit (39 AA failures,
   34 on light surfaces). Light values are AA-derived (pending designer sign-off — see
@@ -56,11 +65,18 @@ never hex.
 | `--kind-performer` | `#B48EF5` | `#7C3AEE` |
 | `--kind-staff` | `#E76843` | `#B43B17` |
 
-**Rights Status → var mapping** (glossary: Rights Status; consumed by A-3 selectors):
-`EXPIRING` → `--alert-warning` · `NEGOTIATION` → `--alert-negotiation` · `MISSING` → `--alert-danger`
-(`VALID` renders green per the design — same hue as `--status-approved`; confirm the var choice
-at A-3/B-3). Guard: Rights Status colors live in `--alert-*` — the `--status-*` family is
-**Editorial Status only** (draft/ready/approved); never add rights states to it.
+**Rights Status & Crew Health word aliases (v3 — the sanctioned consumption path):**
+
+| Alias | Reference | Alias | Reference |
+|---|---|---|---|
+| `--rights-valid` | `var(--status-approved)` | `--crew-ok` | `var(--status-approved)` |
+| `--rights-expiring` | `var(--alert-warning)` | `--crew-open` | `var(--alert-warning)` |
+| `--rights-negotiation` | `var(--alert-negotiation)` | `--crew-conflict` | `var(--alert-danger)` |
+| `--rights-missing` | `var(--alert-danger)` | | |
+
+Components color RIGHTS/CREW words with these aliases ONLY (ScheduleScreen does).
+Guard unchanged: the `--status-*` family is **Editorial Status only** (draft/ready/approved);
+never add rights/crew states to it — the aliases exist precisely so nobody has to.
 
 ### Theme-invariant vars (same value both themes)
 
