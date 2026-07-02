@@ -206,7 +206,7 @@ Business Value 3 · Priority 5 · Size **M** · DoR: **READY** (ADR-012 accepted
   Pull Gate: ADR-012 approved; `useOpsTheme v1` snapshot.
   Hand-off: Contract Snapshot `OpsShell v1` (routes, tab registry, badge slot).
   Unblocks: A-2-T2, A-3-T2.
-- **A-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **A-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02** (replace-semantics judgment call recorded in ops-selection v1; UX re-check at EPIC E)
   Goal: `useOpsSelection` URL-backed selection + `useOpsDay` (selected day) via `useSearchParams`; unit tests for hydrate/update/back-button.
   Pull Gate: ADR-014 approved.
   Hand-off: Contract Snapshot `ops-selection v1`. Unblocks: A-3-T2, A-4-T1, END OF STORY SEQUENCE.
