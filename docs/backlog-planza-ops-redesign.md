@@ -254,6 +254,7 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** · INVEST all ✓
 - Given no selection, Then the inspector shows a quiet empty state.
 - Given selection changes (row click or URL), Then the inspector updates without full-screen re-render.
 
+- **A-4-T0** *(added by DoR gate 2026-07-02: v1 selectors provably insufficient for RIGHTS "until date")* · Hat **FEATURE** · ✅ **DONE 2026-07-02** — `ops-selectors v2` (deriveRightsInfo, deriveCrewRoles, filterConflictsToEvent) + crewConflicts display-string fix. NOTE: B-3-T1's hand-off renumbers to ops-selectors **v3**.
 - **A-4-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
   Goal: `EventInspector` component per README §1 inspector spec, consuming `ops-selectors v1` + `ops-selection v1`; conflict callout wired to `groupConflictsByPerson`.
   TDD: render-state tests first (each section per fixture permutation).

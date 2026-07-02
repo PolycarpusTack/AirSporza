@@ -17,7 +17,7 @@
  * canonical getDateKey (utils/dateTime), never hand-rolled (anti-duplication).
  */
 import type { Contract, Event, FieldConfig, TechPlan } from '../../data/types'
-import type { ConflictMap } from '../../utils/crewConflicts'
+import type { ConflictMap, PersonConflictGroup } from '../../utils/crewConflicts'
 import { getDateKey, timeToMinutes } from '../../utils/dateTime'
 
 export type RightsStatus = 'VALID' | 'EXPIRING' | 'NEGOTIATION' | 'MISSING'
@@ -105,22 +105,51 @@ function pickGoverningContract(candidates: Contract[], nowMs: number): Contract 
  * carry non-derivable meaning.
  */
 export function deriveRightsStatus(event: Event, contracts: Contract[], now: Date): RightsStatus {
+  // Single-sourced through deriveRightsInfo (v2) — A-3's permutation rows keep
+  // pinning the status rules through this delegation.
+  return deriveRightsInfo(event, contracts, now).status
+}
+
+export interface RightsInfo {
+  status: RightsStatus
+  /**
+   * Governing contract's validUntil as 'YYYY-MM-DD' (via getDateKey — API
+   * ISO-datetime strings and Date objects normalize); null when there is no
+   * contract row, or validUntil is absent/''/unparseable. EXPOSED even for
+   * lapsed contracts (informative "until <past date>" in the inspector).
+   */
+  validUntil: string | null
+  /** pickGoverningContract result; null when no contract row for event.competitionId. */
+  contract: Contract | null
+}
+
+/** Rights Status + governing-contract details for the inspector (ops-selectors v2). */
+export function deriveRightsInfo(event: Event, contracts: Contract[], now: Date): RightsInfo {
   const candidates = contracts.filter((c) => c.competitionId === event.competitionId)
-  if (candidates.length === 0) return 'MISSING'
+  if (candidates.length === 0) return { status: 'MISSING', validUntil: null, contract: null }
 
   const nowMs = now.getTime()
   const contract = pickGoverningContract(candidates, nowMs)
 
-  if (contract.status === 'none') return 'MISSING'
-  if (contract.status === 'draft') return 'NEGOTIATION'
-
   const untilEndMs = validUntilEndOfDayMs(contract)
-  if (untilEndMs === null) return 'VALID'
-  if (untilEndMs < nowMs) return 'MISSING'
+  const validUntil = untilEndMs === null ? null : getDateKey(contract.validUntil!)
 
-  const untilRawMs = toEpochMs(contract.validUntil)! // non-null: untilEndMs derived from it
-  if (untilRawMs <= nowMs + EXPIRY_WINDOW_MS) return 'EXPIRING'
-  return 'VALID'
+  let status: RightsStatus
+  if (contract.status === 'none') {
+    status = 'MISSING'
+  } else if (contract.status === 'draft') {
+    status = 'NEGOTIATION'
+  } else if (untilEndMs === null) {
+    status = 'VALID'
+  } else if (untilEndMs < nowMs) {
+    status = 'MISSING'
+  } else if (toEpochMs(contract.validUntil)! <= nowMs + EXPIRY_WINDOW_MS) {
+    status = 'EXPIRING'
+  } else {
+    status = 'VALID'
+  }
+
+  return { status, validUntil, contract }
 }
 
 /** Required crew value = non-empty string (matches detectCrewConflicts semantics). */
@@ -166,6 +195,80 @@ export function deriveCrewHealth(
   }
 
   return 'OK'
+}
+
+export interface CrewRoleRow {
+  fieldId: string
+  label: string
+  /** first filled (trimmed) assignment across the event's plans; null when blank */
+  name: string | null
+  /** same scale as deriveCrewHealth — dot casing is the component's rendering concern */
+  state: CrewHealth
+}
+
+/**
+ * Per-role crew rows for the inspector CREW section (ops-selectors v2).
+ * Rows = crewFields where `visible && type !== 'checkbox'`, in FieldConfig.order.
+ * Per-field precedence mirrors deriveCrewHealth: CONFLICT > OPEN > OK, where
+ * - CONFLICT: `${plan.id}:${fieldId}` in ConflictMap for ANY of the event's plans
+ *   (both severities);
+ * - OPEN: field is required && blank in ANY plan, or the event has ZERO plans;
+ * - blank OPTIONAL role → OK with name null (pinned — deriveCrewHealth only
+ *   counts required blanks; the component renders these as —).
+ * Multi-plan: worst state wins; first filled name wins.
+ * CONSISTENCY INVARIANT (pinned): deriveCrewHealth equals the worst VISIBLE-row
+ * state — EXCEPT conflicts keyed on hidden/checkbox fields, which raise the
+ * event-level word above the rows (correct UX: the word is broader; pinned).
+ */
+export function deriveCrewRoles(
+  event: Event,
+  plans: TechPlan[],
+  conflicts: ConflictMap,
+  crewFields: FieldConfig[],
+): CrewRoleRow[] {
+  const eventPlans = plans.filter((p) => p.eventId === event.id)
+
+  return crewFields
+    .filter((field) => field.visible && field.type !== 'checkbox')
+    .sort((a, b) => a.order - b.order)
+    .map((field) => {
+      let hasConflict = false
+      let hasOpen = eventPlans.length === 0 && field.required
+      let name: string | null = null
+
+      for (const plan of eventPlans) {
+        const crew = (plan.crew ?? {}) as Record<string, unknown>
+        if (conflicts.has(`${plan.id}:${field.id}`)) hasConflict = true
+        const value = crew[field.id]
+        if (isFilled(value)) {
+          if (name === null) name = (value as string).trim()
+        } else if (field.required) {
+          hasOpen = true
+        }
+      }
+
+      const state: CrewHealth = hasConflict ? 'CONFLICT' : hasOpen ? 'OPEN' : 'OK'
+      return { fieldId: field.id, label: field.label, name, state }
+    })
+}
+
+/**
+ * Event-scoped view of groupConflictsByPerson output (ops-selectors v2): keeps
+ * groups whose conflicts touch the event, with the conflict arrays themselves
+ * filtered to those rows; groups emptied by the filter are dropped. (Named
+ * `filter…`, not `derive…` — it narrows existing data, it derives nothing.)
+ * NOTE: `role` fields are RAW crew fieldIds — mapping to labels is the
+ * component's job (via crewFields); this selector does not rename data.
+ */
+export function filterConflictsToEvent(event: Event, groups: PersonConflictGroup[]): PersonConflictGroup[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      conflicts: group.conflicts.filter(
+        (conflict) => conflict.eventA.id === event.id || conflict.eventB.id === event.id,
+      ),
+    }))
+    .filter((group) => group.conflicts.length > 0)
 }
 
 /**

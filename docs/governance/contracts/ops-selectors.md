@@ -1,6 +1,17 @@
 # CONTRACT SNAPSHOT: ops-selectors
 
-Version: 1 · Date: 2026-07-02 · Task: A-3-T1 (input contract for A-3-T2, A-4-T1, B-3-T1)
+Version: 2 · Date: 2026-07-02 · Task: A-4-T0 (input contract for A-4-T1, B-3-T1)
+
+**Changelog**
+- **v2 (2026-07-02, A-4-T0):** ADDITIVE inspector selectors — `deriveRightsInfo`
+  (status + governing-contract `validUntil` exposure; `deriveRightsStatus` now delegates
+  to it, single-sourced, A-3 permutation rows unchanged), `deriveCrewRoles` (per-role
+  inspector rows), `filterConflictsToEvent` (event-scoped PersonConflictGroup filter —
+  named `filter…` because it narrows data, it derives nothing; renamed from
+  `deriveEventConflicts` at the A-4-T0 review).
+  v1 signatures untouched. NOTE: the backlog's B-3-T1 hand-off labelled "ops-selectors v2"
+  renumbers to **v3**.
+- v1 (2026-07-02, A-3-T1): deriveRightsStatus / deriveCrewHealth / groupEventsByDay + fixture week.
 
 ## Public interface
 
@@ -18,6 +29,36 @@ export function deriveCrewHealth(
   crewFields: FieldConfig[], // AppProvider crewFields — required-role source
 ): CrewHealth
 export function groupEventsByDay(events: Event[], week: { start: string }): DayGroup[]
+
+// ── v2 additions (A-4-T0, inspector) ──
+export interface RightsInfo {
+  status: RightsStatus
+  validUntil: string | null   // 'YYYY-MM-DD' via getDateKey; null when no row or absent/''/unparseable;
+                              // EXPOSED for lapsed contracts too (informative "until <past date>")
+  contract: Contract | null   // pickGoverningContract result; null when no row
+}
+export function deriveRightsInfo(event: Event, contracts: Contract[], now: Date): RightsInfo
+// deriveRightsStatus(e, c, n) === deriveRightsInfo(e, c, n).status — single source (pinned)
+
+export interface CrewRoleRow {
+  fieldId: string; label: string
+  name: string | null          // first filled (trimmed) assignment across the event's plans
+  state: CrewHealth            // same scale as deriveCrewHealth; dot casing = component concern
+}
+export function deriveCrewRoles(event, plans, conflicts, crewFields): CrewRoleRow[]
+// Rows = crewFields where visible && type !== 'checkbox', in FieldConfig.order.
+// Per-field precedence mirrors deriveCrewHealth: CONFLICT > OPEN > OK.
+// PINNED: blank OPTIONAL role → OK with name null (component renders —);
+// zero plans → required rows OPEN, all names null; multi-plan → worst state,
+// first filled name. CONSISTENCY INVARIANT (pinned across the fixture week):
+// deriveCrewHealth === worst VISIBLE-row state — EXCEPT conflicts keyed on
+// hidden/checkbox fields, which may raise the event-level word ABOVE the rows
+// (decided at the A-4-T0 review: correct UX, the word is broader; pinned).
+
+export function filterConflictsToEvent(event: Event, groups: PersonConflictGroup[]): PersonConflictGroup[]
+// Keeps groups whose conflicts touch the event (eventA.id or eventB.id), with the
+// conflict arrays themselves filtered; emptied groups dropped. `role` fields stay
+// RAW crew fieldIds — label mapping is the COMPONENT's job via crewFields (pinned).
 ```
 
 **Backlog correction (DoR gate, binding):** `deriveCrewHealth` takes a 4th param
@@ -99,14 +140,21 @@ order · 5 days covered · Sat+Sun empty · e10 outside week. 5 sports, uneven c
 (3/2/2/1/1). Exports `FIXTURE_CONFLICTS` (precomputed via the REAL `detectCrewConflicts`),
 `makeEvent` and `makeContract` builders. **No `Date.now()` anywhere.**
 
-## Upstream bugfix shipped alongside (separate commit unit)
+## Upstream bugfixes shipped alongside (separate commit units)
 
-`src/utils/crewConflicts.ts` `parseEventWindow` concatenated ISO-datetime `startDateBE`
-verbatim (`'…T00:00:00.000ZT18:00:00'` → NaN) — **conflict detection was silently OFF for
-all API-loaded data**, ops AND legacy planner. Fixed via `getDateKey` normalization; three
-characterization tests pinned in `src/utils/crewConflicts.test.ts` (ISO-datetime, mixed
-shapes, local-midnight Date). The selectors' CONFLICT path is proven against API-shaped
-data through fixture event e3.
+**v1 (A-3-T1, historical):** `src/utils/crewConflicts.ts` `parseEventWindow` concatenated
+ISO-datetime `startDateBE` verbatim (`'…T00:00:00.000ZT18:00:00'` → NaN) — **conflict
+detection was silently OFF for all API-loaded data**, ops AND legacy planner. Fixed via
+`getDateKey` normalization; three characterization tests pinned in
+`src/utils/crewConflicts.test.ts` (ISO-datetime, mixed shapes, local-midnight Date). The
+selectors' CONFLICT path is proven against API-shaped data through fixture event e3.
+
+**v2 (A-4-T0):** the DISPLAY strings had the same defect — `CrewConflict.startTime` and
+`PersonConflictGroup` conflict `time` fields built from raw `startDateBE` (ISO datetimes
+rendered `"…T00:00:00.000Z 18:00"`, Date objects took the toISOString UTC day-shift).
+Normalized via `getDateKey` in both `detectCrewConflicts` and `groupConflictsByPerson`;
+pinned at `src/utils/crewConflicts.test.ts` §"A-4-T0 upstream bugfix" (three tests,
+"YYYY-MM-DD HH:MM" shape + local-day pin).
 
 ## Depends on
 
