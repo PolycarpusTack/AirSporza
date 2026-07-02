@@ -305,7 +305,14 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** Registry (EPIC C) uses repo relations only, never parses `participants`; migration decision deferred to EPIC C refinement.
 - **Origin:** ops-redesign backlog survey, 2026-07-02; formally registered 2026-07-02 (was cited as TD-25).
 
-## TD-26 — Ops light-theme AA-derived values pending designer sign-off
+## TD-26 — Ops light-theme AA-derived values — ✅ SETTLED (signed off 2026-07-02)
+
+> **Resolution:** architect/designer signed off on all 19 derived values as-is on 2026-07-02
+> ("colours are ok"). No value changes → no re-audit or contract bump needed (ops-tokens v2
+> guarantee 5 stands for any FUTURE change). The ⚠ flags in `docs/ops-token-map.md` are now
+> historical derivation provenance, not open items.
+
+### Original entry (for history)
 
 - **Artifact:** `src/styles/tokens.css` `[data-theme="light"]` block + dark `--text-shell-3`/`--kind-staff` — 19 values derived programmatically (A-1-T4, architect-approved method), not designer-picked. Full old→new table: `docs/ops-token-map.md` §Derived values.
 - **Type:** design/process shortcut (shipped ahead of designer approval)
