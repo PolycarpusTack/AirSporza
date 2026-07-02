@@ -10,6 +10,7 @@ import { AuthCallback } from './components/auth/AuthCallback'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AppProvider, useApp } from './context/AppProvider'
 import { useAuth } from './hooks'
+import { isOpsRedesignEnabled } from './flags'
 import type { Event } from './data/types'
 import { eventsApi } from './services'
 import { useToast } from './components/Toast'
@@ -40,6 +41,12 @@ const SettingsView = lazy(() =>
 )
 const ScheduleView = lazy(() =>
   import('./pages/ScheduleView').then((m) => ({ default: m.ScheduleView }))
+)
+// MUST stay lazy: the useOpsTheme v1 FOUC guard runs at ops-chunk evaluation time
+// (docs/governance/contracts/useOpsTheme.md), and ADR-012 requires the flag-off
+// bundle to be unchanged.
+const OpsShell = lazy(() =>
+  import('./components/ops/OpsShell').then((m) => ({ default: m.OpsShell }))
 )
 
 function PageSkeleton() {
@@ -349,7 +356,8 @@ function AppContent() {
   )
 }
 
-function AppRoutes() {
+// Exported for routing tests (App.ops-routing.flag-{off,on}.test.tsx); App remains the default export.
+export function AppRoutes() {
   const { user, loading } = useAuth()
   const location = useLocation()
 
@@ -376,6 +384,23 @@ function AppRoutes() {
           )
         }
       />
+      {/* ADR-012: parallel flagged Ops shell. Flag OFF → route not registered, so
+          /ops falls through to AppContent's catch-all (→ /dashboard). The shell has
+          its own 48px chrome — deliberately outside AppContent's Sidebar/Header. */}
+      {isOpsRedesignEnabled() && (
+        <Route
+          path="/ops/*"
+          element={
+            user ? (
+              <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--bg-shell)' }} />}>
+                <OpsShell />
+              </Suspense>
+            ) : (
+              <Navigate to="/login" state={{ from: location }} replace />
+            )
+          }
+        />
+      )}
       <Route
         path="/*"
         element={

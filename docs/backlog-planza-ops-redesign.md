@@ -200,7 +200,7 @@ Business Value 3 · Priority 5 · Size **M** · DoR: **READY** (ADR-012 accepted
 **Interfaces:** `<OpsShell>` layout route; `useOpsSelection(): { eventId, setEventId }` (URL-backed); tab registry `OPS_TABS: {id, label, badge?}[]`.
 **Idempotency:** n/a.
 
-- **A-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **A-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-02** (TD-27: build-time flag; RR7 splat-relative-nav rule in OpsShell v1)
   Goal: Shell component + `/ops/:tab` lazy routes in `App.tsx` + `opsRedesign` flag gate + chrome per README layout constants + placeholder screens.
   TDD: routing/flag tests first (flag off redirect; tab activation; lazy split).
   Pull Gate: ADR-012 approved; `useOpsTheme v1` snapshot.

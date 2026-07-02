@@ -316,6 +316,17 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** designer sign-off before EPIC E light-theme QA (E-2); until then treat ⚠-marked values in `ops-token-map.md` as provisional.
 - **Origin:** A-1-T4, 2026-07-02.
 
+## TD-27 — `opsRedesign` flag is build-time only (no runtime override)
+
+- **Artifact:** `src/flags.ts` — `isOpsRedesignEnabled()` reads `import.meta.env.VITE_OPS_REDESIGN` (build-time Vite substitution).
+- **Type:** ops/process
+- **Cause:** A-2-T1 created the codebase's first feature-flag convention; no runtime flag service exists, and building one was out of scope for the tracer bullet.
+- **Principal:** M (runtime flag source: settings service, env-served config, or header override)
+- **Interest:** **low while flag is OFF in prod** — but "rollback = flag off" in the ops-shell runbook actually means "rollback = redeploy with the env changed", which weakens ADR-012's instant-rollback story.
+- **Compounding:** yes — every future flag copies this convention.
+- **Servicing decision:** decide at EPIC E (E-5 flag rollout plan) whether a runtime override is needed before turning the flag ON for real users; until then the runbook (A-5) must state rollback = redeploy honestly.
+- **Origin:** A-2-T1, 2026-07-02 (flagged in `src/flags.ts` and OpsShell v1 contract).
+
 ---
 
 ## Verification notes (ASM-10 re-check, 2026-06-12)
