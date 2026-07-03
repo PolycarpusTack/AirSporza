@@ -26,6 +26,13 @@ lerna-debug.log*
 coverage/
 .nyc_output/
 
+# ── Playwright e2e artefacts (ops-e2e v1; .env.e2e-* profiles ARE tracked) ────
+dist-e2e/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # ── Vite / tooling cache ──────────────────────────────────────────────────────
 .vite/
 .cache/
