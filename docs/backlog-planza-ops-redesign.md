@@ -89,33 +89,52 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 
 ```
 ARCHITECTURE MEMORY: Planza Ops Redesign
-Updated: 2026-07-02
+Updated: 2026-07-03 (EPIC A retro)
 
 Components (new):
-  OpsShell:            chrome + tabs + theme toggle + flag gate — planned
-  OpsThemeProvider:    data-theme switch + persistence — planned
-  ScheduleScreen:      facet rail + day-grouped event table — planned
-  EventInspector:      shared inspector (Schedule + Rundown) — planned
-  RundownScreen:       channel lanes + positioned blocks — planned
-  RightsScreen:        stat tiles + rights matrix — planned
-  RegistryScreen:      search/facets/table/inspector/create modal — planned
-  SyncScreen:          job cards + merge review queue — planned
-  ops/selectors:       pure derived-status functions (rightsStatus, crewHealth,
-                       lanePosition, validityProgress, linkedRecords) — planned
+  OpsShell:            chrome + tabs + theme toggle + flag gate — BUILT (OpsShell v1; lazy
+                       /ops/:tab, flag isOpsRedesignEnabled(), absolute-path rule)
+  OpsThemeProvider:    data-theme switch + persistence — BUILT (useOpsTheme v1; FOUC guard
+                       runs at ops-chunk eval — lazy load is REQUIRED, not an optimisation)
+  ScheduleScreen:      facet rail + day-grouped event table — BUILT (A-3-T2; in-screen
+                       contracts fetch, ONE detectCrewConflicts + ONE groupConflictsByPerson
+                       memo per screen)
+  EventInspector:      shared inspector (Schedule + Rundown) — BUILT (EventInspector v1;
+                       props-driven, owns its 320px panel chrome, B-1 embeds it as-is)
+  ops/selectors:       pure derived-status functions — BUILT for Schedule/Inspector scope
+                       (ops-selectors v2: rightsStatus/rightsInfo, crewHealth/crewRoles,
+                       groupEventsByDay, filterConflictsToEvent); lanePosition,
+                       validityProgress, linkedRecords still planned (B-1/B-3/C scope;
+                       B-3-T1 hand-off renumbers to v3)
+  ops e2e harness:     Playwright, two flag-profile builds, full /api/* interception fed
+                       from opsFixtureWeek, pinned clock — BUILT (ops-e2e v1, A-5;
+                       NOT part of the original plan — added by DoR gate, the assumed
+                       "existing e2e stack" did not exist)
+  RundownScreen:       channel lanes + positioned blocks — planned (placeholder mounted)
+  RightsScreen:        stat tiles + rights matrix — planned (placeholder mounted)
+  RegistryScreen:      search/facets/table/inspector/create modal — planned (placeholder)
+  SyncScreen:          job cards + merge review queue — planned (placeholder)
 
 Components (existing, consumed — do not modify):
   AppProvider (events/sports/competitions + socket), services/* (27 APIs),
-  utils/crewConflicts.ts, backend/src/routes/import/*, teamsApi/playersApi
+  utils/crewConflicts.ts (FIXED twice by ops work: parseEventWindow ISO-datetime bug had
+  conflict detection silently OFF for API-loaded data, A-3-T1; display-string variant of
+  the same defect, A-4-T0), backend/src/routes/import/*, teamsApi/playersApi
 
 Key ADRs: ADR-012 shell strategy · ADR-013 theming · ADR-014 deep-linking (all Accepted 2026-07-02, docs/governance/adr/)
+
+Contract snapshots (docs/governance/contracts/): ops-tokens v3 · useOpsTheme v1 ·
+OpsShell v1 · ops-selection v1 · ops-selectors v2 · EventInspector v1 · ops-e2e v1
 
 Active TD (pre-existing, relevant):
   TD-23: ui/Btn.tsx vs ui/Button.tsx duplication — do NOT import either into ops/ until consolidated
   TD-24: Event/Contract @deprecated fields (channel, duration, boolean rights) — ops code must
          consume platforms[] and BroadcastSlot, never the deprecated fields
   TD-25: Event.participants is free text — Registry LINKED uses repo relations, not participants
+  TD-27: VITE_OPS_REDESIGN is build-time only — rollback = env change + REDEPLOY; e2e must
+         run a two-build matrix until/unless a runtime override lands
 
-Current Mode: DELIVERY
+Current Mode: DELIVERY (retained at EPIC A retro 2026-07-03 — see EPIC A §Retro)
 ```
 
 ---
@@ -289,6 +308,47 @@ Size **M** *(re-estimated S→M 2026-07-03: e2e framework introduction + two bui
   TDD: AC-ordered spec written first (red on the flag-on profile) → assertions green in both profiles → runbook verification checklist derived from the passing spec.
   Pull Gate: `ops-e2e v1` + `OpsShell v1`, `EventInspector v1`, `ops-selectors v2`, `useOpsTheme v1` snapshots; TD-27 wording constraint; fixture inventory vs `opsFixtureWeek.ts` (e3 / comp-102 / facet counts asserted literally).
   Unblocks: **EPIC A RETRO** (Phase Summary + Architecture Memory update + mode check per BB §10), END OF STORY SEQUENCE.
+
+---
+
+### EPIC A — Retro (2026-07-03, per §10.4 / BB §10)
+
+**Phase Summary.** Tracer bullet COMPLETE — all 5 stories done, all EPIC A DoD additions verified:
+(1) `/ops/schedule` renders real events with derived Rights/Crew words (unit-pinned in selectors +
+e2e AC-1); (2) theme toggle + persistence (e2e AC-4; <100ms/FOUC pinned at A-1); (3) flag OFF →
+zero change, bundle split verified at the network level (e2e AC-5 — ops chunk never requested).
+Shipped across 9 commits: A-1/A-2/A-3 merged to main (PRs #6, #9, #8); A-4/A-5 on
+`feature/A-4-event-inspector` (`55dc20f`, `fdc9c4a`, `124a202`, `0668638`, `5262cd7`, `e9cc8a9`).
+Test base: 445 unit/interaction tests (23 files) + 5 e2e ACs across two flag-profile builds;
+`tsc -b` clean. 7 contract snapshots published (see §6). SLOs not yet measured against targets —
+carry to EPIC B (rundown day-switch SLO makes a natural first measurement point).
+
+**Found-work highlights (value beyond plan).** Ops selector work surfaced and fixed TWO dormant
+production bugs in `utils/crewConflicts.ts` (conflict detection silently OFF for API-loaded data;
+same defect in display strings) — the tracer bullet paid for itself before shipping a screen.
+DoR gates added two unplanned-but-necessary T0 tasks: A-4-T0 (v1 selectors provably could not
+produce the RIGHTS until-date) and A-5-T0 (the "existing e2e stack" premise was FALSE — Playwright
+harness introduced by architect decision 2026-07-03).
+
+**Waste/cycle notes.** (1) The A-5 card shipped with an unverified premise ("existing e2e stack")
+and a stale READY mark — one full re-gate + user decision loop mid-story; lesson: DoR for smoke
+stories must verify tooling EXISTS, not assume it. (2) Review chains produced findings on every
+task (naming 1 MAJOR + test-quality 2 MAJOR at A-4-T1; 1 MAJOR each at A-5-T1) — all applied
+pre-commit, zero post-commit rework; the chain is earning its cost. (3) Fixture week + interception
+reuse meant A-5 wrote zero new test data.
+
+**Debt candidates raised during A-4/A-5 (register has uncommitted parallel-session edits — record
+these when it frees up):** double conflict scan in ScheduleScreen (unify when B-1 becomes the
+second consumer); second `contractsApi.list` consumer extraction moment arrives with B-1;
+e2e TS not typechecked by `tsc -b`; e2e profile builds serial/un-cached (~45s/run); theme-toggle
+e2e selector keys on the glyph label (testid candidate, one-line OpsShell change); live-backend
+smoke gap recorded in runbook §known limitations; full vitest suite occasionally flaky under
+process contention (pre-existing DynamicEventForm timing tests).
+
+**Mode check: DELIVERY retained.** The initiative remains user-facing, flagged, multi-session work
+on a production codebase; nothing observed in EPIC A argues for loosening governance. EPIC B starts
+at B-1-T1 with the AS-3 BroadcastSlot coverage pull gate (SPIKE if <90%); AS-4 threshold formulas
+remain PROVISIONAL pending the rights-windows track (ADR-015).
 
 ---
 
