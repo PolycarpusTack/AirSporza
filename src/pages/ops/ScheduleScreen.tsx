@@ -4,9 +4,9 @@
  * Contracts consumed: ops-selectors v1 (all derivation), ops-selection v1
  * (?event= shared with Rundown), ops-tokens v3 (rights/crew word aliases).
  *
- * Layout is a flex row (rail | table pane) so A-4's 320px inspector can slot in
- * as a third child without rework. Derived logic lives in selectors (anti-smart-ui);
- * this component only renders and wires.
+ * Layout is a flex row (rail | table pane | 320px EventInspector — mounted by
+ * A-4-T1). Derived logic lives in selectors (anti-smart-ui); this component
+ * only renders and wires.
  *
  * Contracts are NOT in AppProvider — fetched here once on mount. Loading/error
  * are deliberately QUIET per the ops design: rights render as MISSING until the
@@ -17,8 +17,9 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { Contract, Event } from '../../data/types'
 import { useApp } from '../../context/AppProvider'
 import { contractsApi } from '../../services'
-import { detectCrewConflicts } from '../../utils/crewConflicts'
+import { detectCrewConflicts, groupConflictsByPerson } from '../../utils/crewConflicts'
 import { dateStr, weekMonday } from '../../utils/dateTime'
+import { EventInspector } from '../../components/ops/EventInspector'
 import { useOpsDay, useOpsSelection } from '../../components/ops/opsUrlState'
 import {
   deriveCrewHealth,
@@ -111,6 +112,9 @@ export function ScheduleScreen({ now = new Date() }: ScheduleScreenProps) {
   // ONE conflict pass per render set (ops-selectors v1 contract).
   const conflicts = useMemo(() => detectCrewConflicts(techPlans, events), [techPlans, events])
 
+  // ONE person-grouping pass, screen-side (A-4-T1) — the inspector's callout input.
+  const conflictGroups = useMemo(() => groupConflictsByPerson(techPlans, events), [techPlans, events])
+
   const weekGroups = useMemo(() => groupEventsByDay(events, { start: weekStart }), [events, weekStart])
 
   // Facet counts ALWAYS reflect the unfiltered week (story AC).
@@ -135,6 +139,13 @@ export function ScheduleScreen({ now = new Date() }: ScheduleScreenProps) {
 
   const sportById = useMemo(() => new Map(sports.map((s) => [s.id, s])), [sports])
   const competitionById = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions])
+
+  // ?event= is an opaque id (ops-selection v1 rule 5) — resolving it, and silently
+  // rendering no selection for unknown ids, is THIS screen's job.
+  const selectedEvent = useMemo(
+    () => (eventId === null ? null : events.find((e) => String(e.id) === eventId) ?? null),
+    [events, eventId],
+  )
 
   return (
     <div data-testid="ops-screen-schedule" style={{ display: 'flex', alignItems: 'stretch', minHeight: 'calc(100vh - 48px)' }}>
@@ -176,7 +187,7 @@ export function ScheduleScreen({ now = new Date() }: ScheduleScreenProps) {
         })}
       </aside>
 
-      {/* ── Center table pane (fluid; A-4 appends the 320px inspector after this) ── */}
+      {/* ── Center table pane (fluid; the 320px inspector follows) ── */}
       <main style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
         {weekEvents.length === 0 ? (
           <div
@@ -253,6 +264,19 @@ export function ScheduleScreen({ now = new Date() }: ScheduleScreenProps) {
           </div>
         )}
       </main>
+
+      {/* ── Right inspector (320px, A-4-T1) — panel chrome lives in the component
+             so B-1 Rundown gets the identical pane ── */}
+      <EventInspector
+        event={selectedEvent}
+        contracts={contracts}
+        techPlans={techPlans}
+        conflicts={conflicts}
+        conflictGroups={conflictGroups}
+        crewFields={crewFields}
+        competitionName={selectedEvent ? competitionById.get(selectedEvent.competitionId)?.name : undefined}
+        now={now}
+      />
     </div>
   )
 }

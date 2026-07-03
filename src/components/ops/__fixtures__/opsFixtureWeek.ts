@@ -37,8 +37,10 @@ import { detectCrewConflicts, type ConflictMap } from '../../../utils/crewConfli
  * Deep-freeze (A-4-T0 review hardening): fixtures are SHARED pins — any test that
  * mutates one corrupts every other suite. Frozen recursively (incl. nested crew
  * objects and Date instances); mutation attempts throw under ES-module strict mode.
+ * EXPORTED (A-4-T1 review): test files freeze their own module-level shared
+ * objects with the same helper.
  */
-function deepFreeze<T>(value: T): T {
+export function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value)
     for (const key of Object.getOwnPropertyNames(value)) {
