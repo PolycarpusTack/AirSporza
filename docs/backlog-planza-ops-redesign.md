@@ -267,10 +267,27 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** · INVEST all ✓
 ### Story A-5 — EPIC A smoke test + runbook
 **As a** reviewer **I want** an E2E smoke test and a runbook **so that** the tracer bullet is verifiably deployable and rollbackable.
 
-Size **S** · DoR: **READY**
+Size **M** *(re-estimated S→M 2026-07-03: e2e framework introduction + two build profiles)* · DoR: **READY** (2026-07-03 — the v1 premise "existing e2e stack" was FALSE, repo has none; story was **NOT READY** until the framework decision was resolved: **Playwright** `@playwright/test`, architect/user decision 2026-07-03)
 
+**Data/clock strategy (decided 2026-07-03):** network interception — Playwright routes serve `opsFixtureWeek`-shaped API payloads; browser clock pinned via Playwright's clock API to `FIXTURE_NOW_DAYTIME` (2026-03-04T10:00Z); deep-link `?day=2026-03-02` selects the fixture week. **Trade-off recorded:** this does NOT exercise the real backend — recorded against EPIC A DoD "live data" in the runbook's known limitations.
+
+**AC (Gherkin, per DoR gate 2026-07-03):**
+- Given the flag-ON build and an authenticated session, When I visit `/ops`, Then I'm redirected to `/ops/schedule`; and with `?day=2026-03-02` the fixture week renders: day groups incl. rows for the 9 in-week events, with comp-102's row showing `EXPIRING`.
+- Given the fixture week, When I click a named sport facet (known fixture count), Then the filtered row count equals that facet's count.
+- Given the fixture week, When I click event e3's row, Then the URL gains `?event=3` and the inspector shows the event title + a red conflict callout containing the `YYYY-MM-DD HH:MM`-shaped detail (pins the A-4-T0 display fix).
+- Given clean localStorage, Then `<html>` has NO `data-theme`; When I toggle the theme and reload, Then `html[data-theme="light"]` persists (localStorage per `useOpsTheme v1`).
+- Given the flag-OFF build and an authenticated session, When I visit `/ops`, Then I land on `/dashboard` (NOT merely "redirects" — landing on `/login` would mask an auth regression) AND the ops lazy chunk is never requested (network-level assertion deferred to A-5 per OpsShell v1 §Resolved ambiguities #4; verifies EPIC A DoD "bundle-split verified").
+
+- **A-5-T0** *(added by DoR gate 2026-07-03: "existing e2e stack" premise false — Playwright chosen)* · Hat **PREPARATORY** · Model **Sonnet** · Confidence Med
+  Goal: Playwright infrastructure — install `@playwright/test`; `playwright.config.ts` with TWO projects/profiles (flag-on build `VITE_OPS_REDESIGN=true` and flag-off build — the flag is a build-time Vite env, no runtime toggle, TD-27); auth session setup (seeded test user login → storage state); route-interception fixtures serving `opsFixtureWeek`-shaped API payloads; clock pinned to `FIXTURE_NOW_DAYTIME` (2026-03-04T10:00Z).
+  TDD: prove the harness first — one trivial spec green in BOTH profiles (authenticated load + one intercepted fixture round-trip) before A-5-T1 starts.
+  Pull Gate: `OpsShell v1`, `EventInspector v1`, `ops-selectors v2`, `useOpsTheme v1` snapshots; TD-27 wording constraint (build-time flag → two builds, never a runtime toggle); fixture inventory (event/competition IDs, facet counts) vs `opsFixtureWeek.ts`.
+  Hand-off: Contract Snapshot **`ops-e2e v1`** (npm scripts, profiles, fixture strategy + the recorded live-data trade-off).
+  Unblocks: A-5-T1.
 - **A-5-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: E2E (existing e2e stack): flag ON → visit `/ops` → schedule renders fixture week → click facet → click row → inspector shows conflict callout → toggle theme → reload → light persists → flag OFF → `/ops` redirects. Write `docs/runbooks/ops-shell.md`.
+  Goal: Smoke spec implementing the ACs above (run under both A-5-T0 profiles) + `docs/runbooks/ops-shell.md` — the repo's FIRST runbook (structure sets precedent). Sections: purpose/scope · flag procedure (`VITE_OPS_REDESIGN`, build-time; **rollback = env change + REDEPLOY, stated honestly per TD-27**) · verification (smoke scenario as a manual checklist) · symptom table (blank `/ops` → flag/lazy chunk; wrong rights words → contracts fetch; theme stuck → clear localStorage key) · known limitations (RBAC parity deferred to E-3; theme localStorage-only; E2E intercepts network — real-backend gap vs EPIC A DoD "live data") · stub headings §rundown / §rights for EPIC B.
+  TDD: AC-ordered spec written first (red on the flag-on profile) → assertions green in both profiles → runbook verification checklist derived from the passing spec.
+  Pull Gate: `ops-e2e v1` + `OpsShell v1`, `EventInspector v1`, `ops-selectors v2`, `useOpsTheme v1` snapshots; TD-27 wording constraint; fixture inventory vs `opsFixtureWeek.ts` (e3 / comp-102 / facet counts asserted literally).
   Unblocks: **EPIC A RETRO** (Phase Summary + Architecture Memory update + mode check per BB §10), END OF STORY SEQUENCE.
 
 ---
