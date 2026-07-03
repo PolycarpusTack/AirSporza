@@ -2,6 +2,21 @@
 
 Version: 1 · Date: 2026-07-03 · Task: A-5-T0 (input contract for A-5-T1 smoke spec, B-4/EPIC-B smoke stories)
 
+**Changelog**
+- **v1 amendment (2026-07-03, A-5-T1):** the trivial harness specs were ABSORBED
+  into the real smoke specs `e2e/smoke.flag-on.spec.ts` (ACs 1–4) /
+  `e2e/smoke.flag-off.spec.ts` (AC-5); this snapshot's former "## Harness proof"
+  section was REWRITTEN as "## Specs" accordingly (declared here for honest
+  diff accounting). AC-5 adds the network-level ops-chunk assertion
+  (`OpsShell-<hash>.js` never requested flag-off; chunk-name rot guarded by the
+  flag-on POSITIVE assertion with the same regex). Runbook
+  `docs/runbooks/ops-shell.md` §verification mirrors the specs.
+- **v1 amendment (2026-07-03, A-5-T1 review):** ADDITIVE `planzaApi.ts` exports
+  `OPS_CHUNK` and `LEGACY_DASHBOARD_CHUNK` — the single source both specs must
+  import (the rot-guard pairing breaks if the regexes are edited apart);
+  `toApiDate` now THROWS on non-local-midnight Dates instead of silently
+  truncating (fixture footgun guard). npm scripts and projects unchanged.
+
 ## Public interface (npm scripts + layout)
 
 | Script | Does |
@@ -70,16 +85,19 @@ quietly (retries are console noise only).
   limitations. Backend correctness remains covered by backend's own vitest
   suite; the e2e layer proves the built bundle + routing + flag wiring.
 
-## Harness proof (A-5-T0 scope — trivial by design)
+## Specs (A-5-T1 — superseded the A-5-T0 harness proof)
 
-- `e2e/harness.flag-on.spec.ts`: authenticated `/ops/schedule?day=2026-03-02`
-  → intercepted `/api/events` round-trip observed + `ops-screen-schedule` and
-  fixture row `ops-schedule-row-1` visible.
-- `e2e/harness.flag-off.spec.ts`: authenticated `/ops` → lands on
-  `/dashboard` (NOT `/login` — auth regressions must not masquerade as flag
-  fallthrough).
-Full AC assertions (facet counts, `EXPIRING` word, conflict callout, theme
-persistence, ops-chunk network assertion) are **A-5-T1**, not here.
+- `e2e/smoke.flag-on.spec.ts` — ACs 1–4: `/ops` → `/ops/schedule` redirect +
+  POSITIVE ops-chunk request assertion; fixture week render (day groups, 9
+  rows, comp-102 `EXPIRING` with `exact: true` — e2's title also contains the
+  word); Football facet count 3 → 3 filtered rows; e3 selection → `?event=3` +
+  inspector title + conflict callout pinned to the `YYYY-MM-DD HH:MM` shape
+  (A-4-T0 display fix, `not.toContainText('T00:00:00')`); theme
+  dark-by-absence → `☀ LIGHT` toggle → reload persistence (`planza.opsTheme`).
+- `e2e/smoke.flag-off.spec.ts` — AC-5: authenticated `/ops` lands on
+  `/dashboard` (NOT `/login`), legacy `DashboardView-*.js` chunk requested,
+  `OpsShell-*.js` NEVER requested (closes OpsShell v1 §Resolved ambiguities #4
+  + EPIC A DoD "bundle-split verified").
 
 ## Isolation guarantees
 

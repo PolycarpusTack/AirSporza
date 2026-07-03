@@ -37,6 +37,15 @@ import {
 
 export { FIXTURE_NOW_DAYTIME }
 
+/**
+ * Vite-emitted lazy-chunk name patterns — SINGLE SOURCE for both smoke specs
+ * (A-5-T1 review): the flag-on POSITIVE ops-chunk assertion is what guards the
+ * flag-off NEGATIVE one against chunk-name rot, so the two must share one
+ * literal and can never be edited apart.
+ */
+export const OPS_CHUNK = /OpsShell-[^/]+\.js/
+export const LEGACY_DASHBOARD_CHUNK = /DashboardView-[^/]+\.js/
+
 export const E2E_USER = {
   id: 'e2e-user-1',
   email: 'e2e@planza.test',
@@ -75,6 +84,20 @@ export const E2E_COMPETITIONS = [
  */
 function toApiDate(value: Event['startDateBE']): string {
   if (value instanceof Date) {
+    // Footgun guard (A-5-T1 review): a NON-midnight Date would silently lose
+    // its time of day below — fail loudly so a future fixture addition can't
+    // corrupt e2e payloads unnoticed.
+    if (
+      value.getHours() !== 0 ||
+      value.getMinutes() !== 0 ||
+      value.getSeconds() !== 0 ||
+      value.getMilliseconds() !== 0
+    ) {
+      throw new Error(
+        `ops-e2e toApiDate: expected a LOCAL-midnight Date (got "${value.toString()}") — ` +
+          'serializing it would silently truncate the time of day',
+      )
+    }
     const y = value.getFullYear()
     const m = String(value.getMonth() + 1).padStart(2, '0')
     const d = String(value.getDate()).padStart(2, '0')
