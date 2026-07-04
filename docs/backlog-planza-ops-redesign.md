@@ -77,7 +77,7 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 |---|---|---|---|
 | AS-1 ✅ resolved | Parallel flagged shell (ADR-012 accepted 2026-07-02); no old-screen removal in EPICs A–D | Whole plan shape | Done |
 | AS-2 | Existing `--surface/--text/--border` token families are extended with light-theme values; ops screens consume the same vars (README: "extend rather than hard-code hex") | A-1 design | ADR-013 |
-| AS-3 | Rundown lane channel comes from the event's `BroadcastSlot.channelId` (fallback: deprecated `Event.channel`); Eén/Canvas/VRT MAX exist in `channels` service | B-1 | Check slot coverage in seed/prod data during B-1 pull gate; SPIKE if <90% coverage |
+| AS-3 ✅ resolved | Rundown lane channel comes from the event's `BroadcastSlot.channelId` (fallback: the `event.channel` RELATION — the TD-24 sanctioned path; the deprecated fields are the free-text name strings); Eén/Canvas/VRT MAX exist in `channels` service | B-1 | **Pull gate run 2026-07-04 → SPIKE run and CLOSED same day:** seed slot coverage 8/14 (57%, <90%) — but a seed artifact (`take: 8`), not a model gap: 14/14 events carry `channelId`, so slot-first + relation-fallback resolves 100%; unresolvable events go to the UNASSIGNED lane per the B-1 AC. Channels Eén/Canvas/Ketnet/VRT MAX/VRT MAX Sport/Radio 1 exist as Channel rows; `schedulesApi.listSlots({channelId?, date?})` already exposes day-filtered slots. Design as planned — no change. |
 | AS-4 ◐ provisional | Contract → Rights Status mapping: `EXPIRING` = `validUntil` within 90 days; `NEGOTIATION` = contract status field; `MISSING` = no contract for competition. **Stakeholder decision 2026-07-02: build A-3 with these standard formulas; contract start/end time/date formulas to be revisited in a dedicated session.** Mitigation: thresholds live in ONE place (`ops/selectors`, single source for the 90-day rule per B-3-T1 Abstraction Check) so the revisit is a cheap, test-pinned change | A-3 | Dedicated threshold-formula session (post-A-3) |
 | AS-5 | "Performer" and "Staff" Kinds map to existing person-entities where present; if absent, Registry v1 ships with sports/competitions/teams/players only and performers/staff are an EPIC C follow-up story | C scope | EPIC C refinement |
 | AS-6 | IBM Plex Sans/Mono already loaded (survey: configured in tailwind fonts) — no new font pipeline | A-1 | Trivial |
@@ -368,23 +368,34 @@ remain PROVISIONAL pending the rights-windows track (ADR-015).
 ### Story B-1 — Rundown lanes + positioned blocks
 **As a** channel manager **I want** one timeline lane per channel with positioned event blocks **so that** I see each channel's day rundown and collisions instantly.
 
-Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (pull gate AS-3) · INVEST all ✓
+Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (re-gated 2026-07-04: AS-3 pull gate CLOSED — see Assumptions Ledger; DoR check found 8 unpinned premises, all pinned below) · INVEST all ✓
 
 **AC:**
-- Given events on the selected day, Then each renders in its channel's lane at `left=(startMin−300)/1140`, `width=max(duration,80)/1140` (%), channel color at 15% alpha + 3px left border, two-line content per README §2.
-- Given an event before 05:00 or past 24:00, Then the block clamps to the axis and is flagged in a title tooltip (edge AC).
+- Given events on the selected day, Then each renders in its channel's lane at `left=(startMin−300)/1140`, `width=max(duration,80min)/1140` (%), channel color at 15% alpha + 3px left border, two-line content per README §2.
+- Given an event before 05:00 or past 24:00, Then the block clamps to the axis and is flagged in a title tooltip (edge AC; geometry pins below).
 - Given a block is clicked, Then `?event=` updates and the shared `EventInspector` opens (Rundown embeds the inspector, same as Schedule).
-- Given the selected event has a crew conflict, Then the block gets a 1px `#E5484D` outline; selected → accent outline.
+- Given the selected event has a crew conflict, Then the block gets a 1px `--alert-danger` outline; selected → accent outline.
+- Given a day with zero events, Then the axis renders with an empty-state panel (no lanes) — mirrors A-3's empty-week AC.
 - Alt: event with no resolvable channel → rendered in an `UNASSIGNED` overflow lane (visible, never dropped) — flagged as data quality signal.
 
-- **B-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence Med (AS-3)
-  Goal: Pure lane/position selectors: `resolveChannel(event, slots, channels)`, `layoutRundown(events, day): Lane[]` with clamping.
-  TDD first: minute-precision positioning table + property test (blocks never overflow axis).
-  Pull Gate: **AS-3 data check** — sample events' `BroadcastSlot` coverage; if <90%, stop and raise `SPIKE: channel derivation` (timebox S).
+**Pinned decisions (DoR re-gate 2026-07-04 — write tests to these):**
+1. *Geometry:* block = intersection of the event window with the axis `[300,1440]`, both edges (start-day owns the event per `getDateKey`; overnight events render clamped at 24:00, never on the next day). The 80-min width floor applies AFTER intersection, then the right edge re-clamps to 1440 (floor yields at the boundary). Fully-off-axis events render as a floored sliver pinned at the nearer axis edge, tooltip-flagged (never dropped — mirrors the UNASSIGNED rule). Property test: ∀ blocks, `0 ≤ left ∧ left+width ≤ 100%`.
+2. *Window source (TD-24):* `startMin`/duration derive slot-first from the resolved `BroadcastSlot` window; fallback = event window via the sanctioned accessors (`effectiveDurationMin`, never `Event.duration`/deprecated fields). Divergent slot-vs-event windows: slot wins (the broadcast reality the Rundown depicts) — one fixture case pins this.
+3. *Day default:* `?day` absent/invalid → Rundown defaults to today, resolved screen-side through the `now` prop seam (keeps fixture/e2e clock pinning working); `?day=<ISO>` overrides. B-1 is complete and demoable without B-2's pills.
+4. *Fetching (Rule of Three):* `schedulesApi.listSlots({date})` per selected day; contracts/techPlans in-screen duplicating the ScheduleScreen pattern (2nd occurrence — TD entry now; extraction triggers at the 3rd consumer, B-3, as a PREP task there). Conflict scans: ONE memoized `detectCrewConflicts` + ONE `groupConflictsByPerson` pass per screen feeding BOTH block outlines and the inspector (EventInspector v1 obligation).
+5. *Same-lane overlap:* NO sub-lane splitting in v1 (design shows 64px single-row tracks). Deterministic paint order — sort `startMin` asc, then id; later-starting block on top — and every block carries a title tooltip, so an occluded block stays discoverable. Sub-row stacking = UX follow-up candidate at the EPIC B retro.
+6. *Lane inventory:* lanes = channels with ≥1 event on the selected day, in channel service order; `UNASSIGNED` appended only when non-empty.
+7. *Unmapped channel colors:* README fixed colors cover Eén/Canvas/VRT MAX only; unmapped channels (Ketnet, VRT MAX Sport, Radio 1) and the UNASSIGNED lane use a neutral fallback (`--text-shell-3` at 15% alpha + border) — extending ops-tokens with real channel vars is an E-2/designer item, not B-1 scope. Channel color from the Channel record's `color` field stays DATA (A-3 precedent).
+8. *Test data:* `opsFixtureWeek` carries no BroadcastSlot/Channel payloads yet — B-1-T1 extends it ADDITIVELY with slot fixtures incl. one clamped, one same-lane overlap, one slot-vs-event divergence, and one unresolvable-channel case (A-5 e2e interception inherits them for B-4).
+
+- **B-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High (was Med — AS-3 resolved)
+  Goal: Pure lane/position selectors: `resolveChannel(event, slots, channels)`, `layoutRundown(events, slots, channels, day): Lane[]` implementing pins 1/2/5/6.
+  TDD first: minute-precision positioning table + property test (pin 1) + fixture extension (pin 8).
+  Pull Gate: ~~AS-3 data check~~ ✅ CLOSED 2026-07-04 (slot coverage 57% is a seed artifact; slot-first + `event.channel`-relation fallback = 100%, see Assumptions Ledger).
   Hand-off: Contract Snapshot `rundown-layout v1`. Unblocks: B-1-T2.
 - **B-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Rundown screen markup: axis ticks, lanes, blocks, legend row, `EventInspector v1` embed.
-  TDD: interaction tests (select, outline states, unassigned lane).
+  Goal: Rundown screen markup: axis ticks, lanes, blocks, legend row, `EventInspector v1` embed; fetching per pin 4, day default per pin 3, empty-day AC.
+  TDD: interaction tests (select, outline states, unassigned lane, empty day).
   Pull Gate: `rundown-layout v1`, `EventInspector v1`. Unblocks: B-2-T1, END OF STORY SEQUENCE.
 
 ### Story B-2 — Day pills + shared day state
