@@ -126,14 +126,18 @@ independent). TRUE UTC→broadcast-timezone conversion is deliberately NOT done
 id 3/sortOrder 2 with ZERO slots) + `FIXTURE_SLOTS` + builders `makeChannel`/
 `makeSlot`. Cases: s-e2 divergence (Mon/Canvas) · s-e1 clamped cross-24:00
 (Mon/Eén, floor-yields boundary) · s-e3+s-e4 same-lane overlap pair (Tue/Eén) ·
-s-e9 fully-off-axis (Fri 02:00–04:00) · e7 UNRESOLVABLE by omission (Thu — no
-slot, no relation → UNASSIGNED with e8). Slot datetimes are API-shaped UTC
-strings. Everything pre-existing is byte-stable (A-3/A-4/A-5 pins verified —
-suite 445 → 466 with zero modifications to old tests).
+s-e9 fully-off-axis (Fri 02:00–04:00) · s-e7-dangling (Thu — channelId 99 is
+NOT in the inventory → UNASSIGNED via the dangling-id rule; its 16:00–17:30
+window deliberately diverges from e7's 15:00 event window so screens can gate
+settled renders on `16:00 · 90 min`; ADDED at the B-1-T2 review) · e8
+UNRESOLVABLE by omission (Thu — no slot, no relation → UNASSIGNED). Slot
+datetimes are API-shaped UTC strings. Everything pre-existing is byte-stable
+(A-3/A-4/A-5 pins verified — zero modifications to old tests).
 
 ## Enforced by
 
-`src/components/ops/rundownLayout.test.ts` (24 tests — resolveChannel matrix,
+`src/components/ops/rundownLayout.test.ts` (25 tests — resolveChannel matrix
+incl. the dangling fixture slot,
 minute-precision positioning table incl. left-edge floor order and the
 negative-duration row, duration precedence incl. head-to-head, multi-slot
 window first-wins, lane inventory/service-order/paint-order pins,

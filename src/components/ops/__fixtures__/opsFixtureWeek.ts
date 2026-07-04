@@ -166,7 +166,11 @@ export const FIXTURE_CONFLICTS: ConflictMap = detectCrewConflicts(FIXTURE_PLANS,
  *   s-e3  Tue · Eén    · SAME-LANE OVERLAP pair with s-e4 (no sub-lanes — pin 5 paint order)
  *   s-e4  Tue · Eén    ·   ″
  *   s-e9  Fri · Eén    · FULLY OFF-AXIS (02:00–04:00, ends before 05:00 → floored sliver at the left edge, flagged)
- *   e7    Thu           · UNRESOLVABLE on purpose: NO slot and NO event.channel relation → UNASSIGNED lane
+ *   s-e7  Thu · id 99  · DANGLING channelId (99 is NOT in FIXTURE_CHANNELS) → UNASSIGNED (data-quality
+ *                        signal); slot window 16:00–17:30 deliberately DIVERGES from e7's 15:00 event
+ *                        window so a settled render is distinguishable from the pre-fetch fallback paint
+ *                        (B-1-T2 review — screens gate on '16:00 · 90 min')
+ *   e8    Thu           · UNRESOLVABLE by omission: NO slot and NO event.channel relation → UNASSIGNED lane
  * Channel ids are deliberately NOT aligned with service order (Eén id 2 /
  * sortOrder 0, Canvas id 1 / sortOrder 1) so lane ordering is pinned to
  * sortOrder, never id. VRT MAX (id 3) carries ZERO slots — a channel without
@@ -253,5 +257,14 @@ export const FIXTURE_SLOTS: BroadcastSlot[] = deepFreeze([
     plannedStartUtc: '2026-03-06T02:00:00.000Z',
     plannedEndUtc: '2026-03-06T04:00:00.000Z',
   }),
-  // e7 (Thu) deliberately has NO slot → UNASSIGNED (with e8, also slot-less).
+  // Thu — DANGLING channelId (99 not in FIXTURE_CHANNELS) → UNASSIGNED; window
+  // diverges from e7's 15:00 event window so settled renders are recognizable
+  // (ADDITIVE, B-1-T2 review). e8 (Thu) stays slot-less AND relation-less.
+  makeSlot({
+    id: 's-e7-dangling',
+    eventId: 7,
+    channelId: 99,
+    plannedStartUtc: '2026-03-05T16:00:00.000Z',
+    plannedEndUtc: '2026-03-05T17:30:00.000Z',
+  }),
 ])

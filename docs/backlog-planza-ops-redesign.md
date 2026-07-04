@@ -365,7 +365,7 @@ remain PROVISIONAL pending the rights-windows track (ADR-015).
 - **ADRs:** ADR-014 (shared selection).
 - **Smoke Test Story:** B-4. **Runbook:** extend `ops-shell.md` (§rundown, §rights).
 
-### Story B-1 — Rundown lanes + positioned blocks
+### Story B-1 — Rundown lanes + positioned blocks ✅ DONE 2026-07-04
 **As a** channel manager **I want** one timeline lane per channel with positioned event blocks **so that** I see each channel's day rundown and collisions instantly.
 
 Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (re-gated 2026-07-04: AS-3 pull gate CLOSED — see Assumptions Ledger; DoR check found 8 unpinned premises, all pinned below) · INVEST all ✓
@@ -393,7 +393,7 @@ Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (re-gated 2026-07
   TDD first: minute-precision positioning table + property test (pin 1) + fixture extension (pin 8).
   Pull Gate: ~~AS-3 data check~~ ✅ CLOSED 2026-07-04 (slot coverage 57% is a seed artifact; slot-first + `event.channel`-relation fallback = 100%, see Assumptions Ledger).
   Hand-off: Contract Snapshot `rundown-layout v1`. Unblocks: B-1-T2.
-- **B-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **B-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-04** — RundownScreen replaces the placeholder (root testid `ops-screen-planner` kept per OpsShell contract); pins 3/4/7 implemented (channels via `channelsApi.list()` — recorded; contracts in-screen = 2nd occurrence, B-3 extraction trigger marked in code); selected-wins outline precedence (from the design HTML); EventInspector v1 embedded; 21 interaction tests. **STORY B-1 COMPLETE.**
   Goal: Rundown screen markup: axis ticks, lanes, blocks, legend row, `EventInspector v1` embed; fetching per pin 4, day default per pin 3, empty-day AC.
   TDD: interaction tests (select, outline states, unassigned lane, empty day).
   Pull Gate: `rundown-layout v1`, `EventInspector v1`. Unblocks: B-2-T1, END OF STORY SEQUENCE.

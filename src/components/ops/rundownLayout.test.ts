@@ -59,7 +59,13 @@ describe('resolveChannel — slot-first, relation fallback, null → UNASSIGNED 
     expect(resolveChannel(event, FIXTURE_SLOTS, FIXTURE_CHANNELS)).toBeNull()
   })
 
-  it('no slot and no relation → null (e7, the designated unresolvable fixture case)', () => {
+  it('no slot and no relation → null (e8, unresolvable by omission)', () => {
+    expect(resolveChannel(getFixtureEvent(8), FIXTURE_SLOTS, FIXTURE_CHANNELS)).toBeNull()
+  })
+
+  it('DANGLING fixture slot channelId (e7 → id 99, not in the inventory) → null (data-quality signal)', () => {
+    // s-e7-dangling added at the B-1-T2 review: e7 HAS a slot, but its channel
+    // id resolves nowhere and e7 carries no relation → UNASSIGNED.
     expect(resolveChannel(getFixtureEvent(7), FIXTURE_SLOTS, FIXTURE_CHANNELS)).toBeNull()
   })
 
