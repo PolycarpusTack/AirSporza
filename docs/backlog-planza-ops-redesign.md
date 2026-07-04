@@ -90,7 +90,7 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 
 ```
 ARCHITECTURE MEMORY: Planza Ops Redesign
-Updated: 2026-07-03 (EPIC A retro)
+Updated: 2026-07-04 (EPIC B retro)
 
 Components (new):
   OpsShell:            chrome + tabs + theme toggle + flag gate — BUILT (OpsShell v1; lazy
@@ -102,17 +102,27 @@ Components (new):
                        memo per screen)
   EventInspector:      shared inspector (Schedule + Rundown) — BUILT (EventInspector v1;
                        props-driven, owns its 320px panel chrome, B-1 embeds it as-is)
-  ops/selectors:       pure derived-status functions — BUILT for Schedule/Inspector scope
-                       (ops-selectors v2: rightsStatus/rightsInfo, crewHealth/crewRoles,
-                       groupEventsByDay, filterConflictsToEvent); lanePosition,
-                       validityProgress, linkedRecords still planned (B-1/B-3/C scope;
-                       B-3-T1 hand-off renumbers to v3)
+  ops/selectors:       pure derived-status functions — BUILT (ops-selectors v3:
+                       rightsStatus/rightsInfo + competition-scoped core, crewHealth/
+                       crewRoles, groupEventsByDay, filterConflictsToEvent, rights
+                       matrix/tiles/validityProgress/Band); linkedRecords still planned
+                       (EPIC C scope)
+  rundownLayout:       pure lane/position selectors (resolveChannel slot-first +
+                       relation fallback, layoutRundown clamp→floor→re-clamp geometry)
+                       — BUILT (rundown-layout v1, B-1; sibling module, slot datetimes
+                       read as wall-clock text — TZ revisit at first real payload)
+  dayLabels:           shared formatOpsDayLabel (Rule-of-Three extraction, B-2 PREP) — BUILT
+  useContracts:        shared quiet contracts fetch { contracts, isSettled } (Rule-of-
+                       Three extraction at the 3rd consumer, B-3 PREP) — BUILT (v1)
   ops e2e harness:     Playwright, two flag-profile builds, full /api/* interception fed
-                       from opsFixtureWeek, pinned clock — BUILT (ops-e2e v1, A-5;
-                       NOT part of the original plan — added by DoR gate, the assumed
-                       "existing e2e stack" did not exist)
-  RundownScreen:       channel lanes + positioned blocks — planned (placeholder mounted)
-  RightsScreen:        stat tiles + rights matrix — planned (placeholder mounted)
+                       from opsFixtureWeek (incl. channels/slots with a HALF-OPEN day
+                       window — deliberate divergence from the backend's inclusive lte,
+                       suspected backend bug), fixed clock — BUILT (ops-e2e v1 + B-4
+                       amendments; NOT part of the original plan — added by DoR gate)
+  RundownScreen:       channel lanes + positioned blocks + day pills + inspector embed
+                       — BUILT (B-1/B-2; /ops/planner URL id per ADR-014)
+  RightsScreen:        stat tiles + rights matrix + validity bars — BUILT (B-3;
+                       isSettled loading state; ON-DEM column reserved per AS-8)
   RegistryScreen:      search/facets/table/inspector/create modal — planned (placeholder)
   SyncScreen:          job cards + merge review queue — planned (placeholder)
 
@@ -125,7 +135,12 @@ Components (existing, consumed — do not modify):
 Key ADRs: ADR-012 shell strategy · ADR-013 theming · ADR-014 deep-linking (all Accepted 2026-07-02, docs/governance/adr/)
 
 Contract snapshots (docs/governance/contracts/): ops-tokens v3 · useOpsTheme v1 ·
-OpsShell v1 · ops-selection v1 · ops-selectors v2 · EventInspector v1 · ops-e2e v1
+OpsShell v1 · ops-selection v1 · ops-selectors v3 · EventInspector v1 (amended) ·
+ops-e2e v1 (amended) · rundown-layout v1 · useContracts v1
+
+Open architect decisions parked at the EPIC B retro: ADR-014 amendment (carry ?day/?event
+across tab switches — currently deep-link only) · backend broadcastSlots.ts inclusive-lte
+day window (midnight slot returned for two days — suspected bug, e2e models half-open)
 
 Active TD (pre-existing, relevant):
   TD-23: ui/Btn.tsx vs ui/Button.tsx duplication — do NOT import either into ops/ until consolidated
@@ -135,7 +150,8 @@ Active TD (pre-existing, relevant):
   TD-27: VITE_OPS_REDESIGN is build-time only — rollback = env change + REDEPLOY; e2e must
          run a two-build matrix until/unless a runtime override lands
 
-Current Mode: DELIVERY (retained at EPIC A retro 2026-07-03 — see EPIC A §Retro)
+Current Mode: DELIVERY (retained at EPIC A retro 2026-07-03 and EPIC B retro 2026-07-04 —
+EPIC C brings the first new write paths, full governance stays)
 ```
 
 ---
@@ -445,6 +461,53 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (re-gated 2026-07
 - **B-4-T1** · Hat **FEATURE** · Model **Sonnet** · Size **S** · ✅ **DONE 2026-07-04** — `e2e/smoke-epic-b.flag-on.spec.ts` (full journey with literal geometry/tile/bar assertions; interception extended with `/api/channels` + date-window-honoring `/api/broadcast-slots`; E2E_COMPETITIONS → shared FIXTURE_COMPETITIONS); runbook §rundown/§rights filled; 6/6 e2e green. Retro note: tab NavLinks drop `?day`/`?event` (deep-link workaround in the spec).
   Goal: E2E: schedule → select event → switch to RUNDOWN → same event selected + outlined → switch day via pills → RIGHTS tab → tile counts match seeded contracts. Extend runbook.
   Unblocks: **EPIC B RETRO**, END OF STORY SEQUENCE.
+
+### EPIC B — Retro (2026-07-04, per §10.4 / BB §10)
+
+**Phase Summary.** EPIC B COMPLETE — all 4 stories done in one day on `feature/B-1-rundown-lanes`
+(11 commits, stacked on the EPIC A branch/PR #10): B-1 Rundown lanes (`00572ae` rundown-layout v1
++ `210141c` screen), B-2 day pills (`77d0222` PREP + `9c129ae`), B-3 rights (`3ba6f72` PREP +
+`584a324` ops-selectors v3 + `c8d28d6` useContracts PREP + `e942796` screen), B-4 smoke
+(`7c58c6a`), plus two DoR re-gate commits (`f462798`, `21f8428`). Test base 445 → **551** vitest
+(under the new repo-wide TZ pin) + e2e 5 → **6** (EPIC B cross-screen journey), `tsc -b` clean
+throughout. Contracts: rundown-layout v1 · useContracts v1 · ops-selectors v3 · ops-e2e amendments.
+
+**DoD additions check:** (1) minute-precise positions incl. clamping — unit property sweep +
+e2e clamp literals ✓. (3) rights numbers reconcile 1:1 — reconciliation-by-construction fold +
+∀-events property + e2e tile/bar literals ✓. (2) selection shared via URL — **mechanism ✓, UX
+partial**: OpsShell tab NavLinks drop `?day`/`?event`, so cross-screen selection works via deep
+links only. OPEN RETRO DECISION → ADR-014 amendment candidate: carry ops params across tab
+switches (small change, needs the architect).
+
+**Process notes.** (a) DoR re-gates before B-1 and B-3 pinned 8 + 9 premises and caught a
+reconciliation AC that would have contradicted the Schedule screen — zero mid-task stalls
+followed; the A-5 lesson (verify premises) is now the working method. (b) Mutation probes became
+a standard review-chain step and caught unenforced pins at B-1-T1 (3) and B-3-T1 (2) plus a
+100x fraction-vs-percent naming landmine before any consumer existed. (c) Two Hats produced 4
+clean REFACTORING commits (formatOpsDayLabel, deriveCompetitionRightsInfo, useContracts, plus
+hunk-split staging) — the Rule-of-Three triggers pre-recorded in EPIC A all fired as predicted.
+(d) The vitest TZ pin (`America/New_York`) retroactively made every date assertion able to fail
+on TZ bugs; zero fragile tests surfaced.
+
+**Found work / upstream questions (not fixed here):** backend `broadcastSlots.ts` day-window
+uses inclusive `lte` — a midnight-UTC slot returns for BOTH adjacent days (suspected bug; e2e
+interception deliberately models half-open and documents the divergence; needs a backend
+decision). Slot wall-clock TZ semantics (rundownLayout reads slot UTC strings textually —
+revisit at the first real slot payload, alongside `Channel.timezone`).
+
+**Debt candidates awaiting a free `debt-register.md`:** contracts-duplication loop opened
+B-1-T2 → closed B-3-T2 PREP (record the closed loop); e2e TS not typechecked by `tsc -b`; e2e
+profile builds serial/un-cached; `isNoAgreement` selector boolean (v3.1, replaces the
+validityLabel string discriminant); title-case contract-date formatter at occurrence two;
+theme-toggle e2e selector testid; sub-lane stacking UX (overlap pair renders occluded per pin 5);
+live-backend smoke gap; season label unwired (E-2/designer); rights matrix recompute per
+events-socket update (check at E-1 SLO run).
+
+**SLOs still unmeasured** (`day switch < 200ms p95`, `rights render < 1s p95 @ 100 contracts`)
+— E-1 remains the measurement point. **Mode check: DELIVERY retained** — unchanged rationale;
+EPIC C (Registry) introduces the first new WRITE paths (create/remarks), which if anything
+argues for keeping full governance. Next per §10.4: expand **EPIC C** with `backlog-builder`
+(AS-5 performer/staff verification is the first gate) — architect/user call.
 
 ---
 
