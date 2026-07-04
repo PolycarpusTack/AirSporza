@@ -3,6 +3,28 @@
 Version: 1 · Date: 2026-07-03 · Task: A-5-T0 (input contract for A-5-T1 smoke spec, B-4/EPIC-B smoke stories)
 
 **Changelog**
+- **v1 amendment (2026-07-04, B-4-T1):** interception surface EXTENDED —
+  `GET /api/channels` (FIXTURE_CHANNELS) and `GET /api/broadcast-slots*`
+  (FIXTURE_SLOTS + the e2e-local `MIDNIGHT_BOUNDARY_SLOT`, honoring the
+  service's `?dateStart/dateEnd` query as a HALF-OPEN day window
+  `[dateStart, dateEnd)` on the textual date of `plannedStartUtc`; start-less
+  slots EXCLUDED whenever a window param is present, mirroring Prisma's
+  gte/lte null exclusion; no query → all). **Recorded DIVERGENCE:** the real
+  backend uses an INCLUSIVE `lte` on dateEnd — a midnight-UTC slot returns for
+  BOTH adjacent days in prod, one day here; the interception deliberately
+  models what a day window MEANS, and the backend `lte` question is a
+  retro/debt item. The boundary slot is spec-pinned at the NETWORK level
+  (present in Tuesday's payload, absent from Monday's). Clock pin switched to
+  `clock.setFixedTime` (frozen Date — kills drift on time-derived literals;
+  nothing needs ticking timers). `E2E_COMPETITIONS` now aliases the shared
+  `FIXTURE_COMPETITIONS` (single source since B-3-T1; delta: comp 107
+  'Quiet G', matrix-excluded by the universe rule — no spec literals moved).
+  New spec `e2e/smoke-epic-b.flag-on.spec.ts` (EPIC B journey; SEPARATE file
+  so EPIC A pins stay byte-stable — zero build cost, the flag-on
+  project/webServer is shared). Clock note: tile counts are identical at
+  FIXTURE_NOW and FIXTURE_NOW_DAYTIME; the comp-101 validity-bar literal is
+  clock-sensitive (44.1629% at the e2e daytime clock vs the unit suite's
+  44.2009%). Runbook §rundown/§rights filled.
 - **v1 amendment (2026-07-03, A-5-T1):** the trivial harness specs were ABSORBED
   into the real smoke specs `e2e/smoke.flag-on.spec.ts` (ACs 1–4) /
   `e2e/smoke.flag-off.spec.ts` (AC-5); this snapshot's former "## Harness proof"

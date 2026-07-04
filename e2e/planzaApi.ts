@@ -29,11 +29,35 @@
 import type { Page } from '@playwright/test'
 import type { Event } from '../src/data/types'
 import {
+  FIXTURE_CHANNELS,
+  FIXTURE_COMPETITIONS,
   FIXTURE_CONTRACTS,
   FIXTURE_EVENTS,
   FIXTURE_NOW_DAYTIME,
   FIXTURE_PLANS,
+  FIXTURE_SLOTS,
+  makeSlot,
 } from '../src/components/ops/__fixtures__/opsFixtureWeek'
+
+/**
+ * Midnight-boundary pin (B-4-T1 review): a slot at EXACTLY Tuesday 00:00Z.
+ * Half-open window semantics → it belongs to Tuesday's payload
+ * (dateStart=2026-03-03) and is ABSENT from Monday's (dateEnd=2026-03-03);
+ * the backend's inclusive `lte` would return it for BOTH — the EPIC B spec
+ * pins our chosen side at the network level. E2E-LOCAL on purpose (eventId
+ * 9999 matches no fixture event, so it renders nowhere): keeping it out of
+ * the shared deep-frozen FIXTURE_SLOTS avoids any unit-suite ripple.
+ */
+export const MIDNIGHT_BOUNDARY_SLOT = makeSlot({
+  id: 's-midnight-boundary',
+  eventId: 9999,
+  channelId: 2,
+  plannedStartUtc: '2026-03-03T00:00:00.000Z',
+  plannedEndUtc: '2026-03-03T01:00:00.000Z',
+})
+
+/** What the slots endpoint serves: the shared fixture + the e2e-local boundary pin. */
+const E2E_SLOTS = [...FIXTURE_SLOTS, MIDNIGHT_BOUNDARY_SLOT]
 
 export { FIXTURE_NOW_DAYTIME }
 
@@ -62,18 +86,14 @@ export const E2E_SPORTS = [
   { id: 5, name: 'Athletics', icon: '🏃', federation: 'WA' },
 ]
 
-/** Mirrors ScheduleScreen.test.tsx's fixture competitions (ids match FIXTURE_EVENTS/CONTRACTS). */
-export const E2E_COMPETITIONS = [
-  { id: 101, sportId: 1, name: 'League A', matches: 10, season: '2026' },
-  { id: 102, sportId: 2, name: 'Open B', matches: 10, season: '2026' },
-  { id: 103, sportId: 1, name: 'Cup C', matches: 10, season: '2026' },
-  { id: 104, sportId: 3, name: 'Tour D', matches: 10, season: '2026' },
-  { id: 105, sportId: 4, name: 'GP E', matches: 10, season: '2026' },
-  { id: 106, sportId: 2, name: 'Masters F', matches: 10, season: '2026' },
-  { id: 108, sportId: 1, name: 'Series H', matches: 10, season: '2026' },
-  { id: 109, sportId: 3, name: 'Classic I', matches: 10, season: '2026' },
-  { id: 110, sportId: 5, name: 'Champs J', matches: 10, season: '2026' },
-]
+/**
+ * Competitions come from the SHARED fixture since B-4-T1 (FIXTURE_COMPETITIONS
+ * landed at B-3-T1 — one source of truth; the previous local mirror of
+ * ScheduleScreen.test.tsx's list is gone). Delta vs the old list: comp 107
+ * 'Quiet G' (referenced by nothing — excluded from the rights matrix by the
+ * universe rule, so no spec literals moved; declared at B-4-T1).
+ */
+export const E2E_COMPETITIONS = FIXTURE_COMPETITIONS
 
 /**
  * API-shaped date serialization. Fixture e9 carries a LOCAL-midnight Date on
@@ -134,9 +154,14 @@ export async function seedAuthToken(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('token', 'e2e-fixture-token'))
 }
 
-/** Pin the browser clock to the fixture week's daytime instant (2026-03-04T10:00Z). */
+/**
+ * Pin the browser clock to the fixture week's daytime instant (2026-03-04T10:00Z).
+ * setFixedTime (B-4-T1 review): Date is FROZEN — nothing in the ops screens
+ * needs ticking fake timers, and a frozen clock kills the ±seconds drift
+ * budget on time-derived literals (e.g. the validity-bar width).
+ */
 export async function pinFixtureClock(page: Page): Promise<void> {
-  await page.clock.install({ time: FIXTURE_NOW_DAYTIME })
+  await page.clock.setFixedTime(FIXTURE_NOW_DAYTIME)
 }
 
 /**
@@ -155,6 +180,34 @@ export async function interceptPlanzaApi(page: Page): Promise<void> {
   await page.route('**/api/competitions', (route) => route.fulfill({ json: E2E_COMPETITIONS }))
   await page.route('**/api/contracts', (route) => route.fulfill({ json: FIXTURE_CONTRACTS }))
   await page.route('**/api/settings/app*', (route) => route.fulfill({ json: EMPTY_APP_SETTINGS }))
+  // ── B-4-T1 additions (Rundown/Rights journey) ──
+  await page.route('**/api/channels', (route) => route.fulfill({ json: FIXTURE_CHANNELS }))
+  // schedulesApi.listSlots sends ?dateStart=YYYY-MM-DD&dateEnd=<next day>.
+  // The interception DELIBERATELY models a HALF-OPEN day window
+  // [dateStart, dateEnd) on the textual date part of plannedStartUtc — this
+  // DIVERGES from the real backend (broadcastSlots.ts uses an INCLUSIVE `lte`
+  // on dateEnd, so a midnight-UTC slot returns for BOTH adjacent days in
+  // prod, one day here). The half-open semantics are what a day window MEANS;
+  // the auditor suspects the backend's `lte` is itself the bug — recorded as
+  // a retro/debt item (B-4-T1 review), do not "fix" this to match until the
+  // backend question is settled. The MIDNIGHT_BOUNDARY_SLOT below pins the
+  // chosen semantics (spec asserts it in Tuesday's payload, absent from
+  // Monday's). Start-less slots are EXCLUDED whenever a window param is
+  // present (mirrors Prisma's gte/lte null exclusion); no query → all slots.
+  await page.route('**/api/broadcast-slots*', (route) => {
+    const url = new URL(route.request().url())
+    const dateStart = url.searchParams.get('dateStart')
+    const dateEnd = url.searchParams.get('dateEnd')
+    const hasWindow = Boolean(dateStart || dateEnd)
+    const slots = E2E_SLOTS.filter((slot) => {
+      if (!slot.plannedStartUtc) return !hasWindow
+      const day = slot.plannedStartUtc.split('T')[0]
+      if (dateStart && day < dateStart) return false
+      if (dateEnd && day >= dateEnd) return false
+      return true
+    })
+    return route.fulfill({ json: slots })
+  })
 }
 
 /** One-call setup: auth seed + pinned clock + full API interception. */

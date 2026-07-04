@@ -441,8 +441,8 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (re-gated 2026-07
   TDD: reconciliation test (tiles == matrix aggregation) + the pin-1 property test.
   Unblocks: B-4-T1, END OF STORY SEQUENCE.
 
-### Story B-4 — EPIC B smoke test
-- **B-4-T1** · Hat **FEATURE** · Model **Sonnet** · Size **S**
+### Story B-4 — EPIC B smoke test ✅ DONE 2026-07-04
+- **B-4-T1** · Hat **FEATURE** · Model **Sonnet** · Size **S** · ✅ **DONE 2026-07-04** — `e2e/smoke-epic-b.flag-on.spec.ts` (full journey with literal geometry/tile/bar assertions; interception extended with `/api/channels` + date-window-honoring `/api/broadcast-slots`; E2E_COMPETITIONS → shared FIXTURE_COMPETITIONS); runbook §rundown/§rights filled; 6/6 e2e green. Retro note: tab NavLinks drop `?day`/`?event` (deep-link workaround in the spec).
   Goal: E2E: schedule → select event → switch to RUNDOWN → same event selected + outlined → switch day via pills → RIGHTS tab → tile counts match seeded contracts. Extend runbook.
   Unblocks: **EPIC B RETRO**, END OF STORY SEQUENCE.
 
