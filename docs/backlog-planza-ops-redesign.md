@@ -82,6 +82,7 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 | AS-5 | "Performer" and "Staff" Kinds map to existing person-entities where present; if absent, Registry v1 ships with sports/competitions/teams/players only and performers/staff are an EPIC C follow-up story | C scope | EPIC C refinement |
 | AS-6 | IBM Plex Sans/Mono already loaded (survey: configured in tailwind fonts) — no new font pipeline | A-1 | Trivial |
 | AS-7 | Merge decisions call existing endpoints (`approve-merge` / `ignore`); idempotency handled server-side per existing routes | D | EPIC D pull gate |
+| AS-8 (added 2026-07-04, B-3 re-gate) | The rights matrix ON-DEM column is RESERVED: real `Contract.platforms[]` has no value distinct from `'on-demand'`→MAX (legacy `maxRights` lineage), and the design demo never lights ON-DEM. It lights only when the domain model distinguishes a non-MAX on-demand right (candidate source: RightsPolicy `Platform` SVOD/AVOD) | B-3 display honesty | AS-4 threshold/stakeholder session (same venue) |
 
 ---
 
@@ -411,22 +412,33 @@ Size **S** · Priority 3 · DoR: **READY**
 ### Story B-3 — Rights tiles + matrix
 **As a** rights manager **I want** contract-health tiles and a competitions × platforms matrix **so that** expiring/missing rights are visible before they bite.
 
-Business Value 3 · Priority 4 · Size **M** · DoR: **READY** · INVEST all ✓
+Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (re-gated 2026-07-04: reconciliation universe + 8 further premises pinned below; pull gate run — real `platforms[]` vocabulary is exactly `['linear','on-demand','radio']`) · INVEST all ✓
 
-**AC:**
-- Given all contracts, Then 4 tiles show counts (VALID / EXPIRING ≤90d / IN NEGOTIATION / MISSING = competitions with events but no contract) in semantic colors; counts reconcile with the matrix rows below.
-- Given a contract with `platforms[]`, Then LINEAR/MAX/RADIO/ON-DEM cells show accent `●` (has right) or `--t3` `·`.
-- Given `validUntil`, Then validity shows `Until <date>` + 3px progress bar: red <15% term remaining, amber <50%, green else; `NO CONTRACT` rows show the red status word and no bar.
+**AC (amended at the 2026-07-04 re-gate):**
+- Given all contracts + competitions + events, Then 4 tiles show counts (VALID / EXPIRING / IN NEGOTIATION / MISSING) as a FOLD over the matrix rows' DERIVED statuses — MISSING covers all three derivation causes (no contract row for an event-bearing competition, picked status `'none'`, lapsed `validUntil`), same derivation as Schedule/Inspector; reconciliation tiles == matrix aggregation is an identity by construction (T2 pins it plus a property test: ∀ events, `deriveRightsStatus(event, contracts, now)` === the event's competition-row status).
+- Given a contract with `platforms[]`, Then LINEAR/MAX/RADIO/ON-DEM cells show accent `●` (has right) or `--text-shell-3` `·`.
+- Given `validUntil`, Then validity shows `Until <date>` + 3px progress bar: red <15% term remaining, amber <50%, green else (unrounded comparisons); `NO CONTRACT` rows show the red status word and no bar.
 - Edge: contract without `validFrom` → bar suppressed, date shown.
 
+**Pinned decisions (DoR re-gate 2026-07-04 — write tests to these):**
+1. *Platform → column mapping:* `linear→LINEAR`, `on-demand→MAX` (backend derives `'on-demand'` from legacy `maxRights`; VRT MAX is the OTT service; the design demo never lights ON-DEM), `radio→RADIO`; **ON-DEM renders `·` for all rows** (reserved — see AS-8). Unknown platform values light NO column and are logged once (not dropped silently). Note: "MAX" as a column label is VRT/tenant vocabulary — E-2/designer note, not B-3 scope.
+2. *Row universe:* matrix rows = competitions with ≥1 contract row ∪ competitions with ≥1 event (ALL events, no date scoping — date-scoping deferred to the AS-4 threshold session). ONE row per competition = its GOVERNING contract (pickGoverningContract semantics — fixture comp 109 renders successor id 10). Dangling `competitionId` (no Competition record) → row with fallback label `COMPETITION #<id>`, never dropped.
+3. *Competition-scoped core:* extract `deriveCompetitionRightsInfo(competitionId, contracts, now)` inside `selectors.ts`; `deriveRightsInfo` delegates (event → `event.competitionId`) — A-3 permutation rows stay the pin for both. Status words on this screen are DERIVED only, never stored `contract.status` (seed contract 4 stores `'expiring'` but derives MISSING at a lapsed clock — correct).
+4. *Validity progress:* `pct = clamp((validUntilEndOfDayMs − now) / (validUntilEndOfDayMs − toEpochMs(validFrom)), 0, 1)`, returned UNROUNDED (null = no bar); thresholds compare unrounded; pct 0 ⇔ lapsed (bar disappears exactly when the word flips). Null for absent/garbage `validFrom` OR `validUntil`, degenerate `validFrom ≥ validUntil`; future `validFrom` clamps to 1. Text variants (design HTML): NEGOTIATION → `In negotiation`; no-agreement MISSING → `No agreement in place`; open-ended VALID → `Until —`.
+5. *Row note:* governing contract's `notes` (10px line), omitted when empty/no contract. *Row order:* severity-first (MISSING, EXPIRING, NEGOTIATION, VALID), then competition name asc.
+6. *`now` seam:* `RightsScreen({ now = new Date() })` — the only impure edge, same as siblings; no `Date.now()` in selectors.
+7. *Loading:* empty-state/skeleton until the first `contractsApi.list()` resolution (contracts are this screen's PRIMARY data — the everything-MISSING pre-fetch flash is not acceptable here); the `loaded` flag lands in the FEATURE unit, keeping the PREP behavior-preserving.
+8. *Fixtures:* additive `FIXTURE_COMPETITIONS` + `makeCompetition` (fixture contracts reference comp ids 101–110 that exist nowhere yet); existing exports byte-stable.
+9. *Root testid:* keep `ops-screen-rights` (OpsShell contract, B-1 precedent).
+
 - **B-3-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Pure selectors `deriveRightsTiles(contracts, competitions, events)`, `deriveValidityProgress(contract, now)`; extends `ops-selectors v1` (Abstraction Check: reuse `deriveRightsStatus` thresholds — single source for 90-day rule).
-  TDD first (threshold boundary table).
-  Pull Gate: `platforms[]` values enumerated from real data (map to 4 columns; unknown platforms → logged, not dropped).
-  Hand-off: `ops-selectors v2` snapshot. Unblocks: B-3-T2.
+  Goal: Pure selectors `deriveRightsTiles(contracts, competitions, events, now)`, `deriveValidityProgress(contract, now)`, `deriveRightsMatrix(...)` (or equivalent row derivation) + the pin-3 `deriveCompetitionRightsInfo` extraction; reuse `deriveRightsStatus` thresholds — single source for the 90-day rule (AS-4).
+  TDD first (threshold boundary table + pin-4 edge table).
+  Pull Gate: ✅ RUN 2026-07-04 — `platforms[]` = `['linear','on-demand','radio']`; mapping pinned (pin 1).
+  Hand-off: **`ops-selectors v3`** snapshot (the v2 changelog pre-records this renumber). Unblocks: B-3-T2.
 - **B-3-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Rights screen markup (tiles grid + matrix grid per README §3).
-  TDD: reconciliation test (tiles == matrix aggregation).
+  Goal: PRE-COMMIT PREP unit (B-2-T1 precedent, separate REFACTORING commit): extract `useContracts()` to `src/components/ops/useContracts.ts` — behavior-preserving quiet fetch (Schedule + Rundown refactored under green tests; 3rd consumer = the trigger B-1 pin 4 pre-authorized). Then FEATURE: Rights screen markup (tiles grid + matrix grid per README §3), hook extended to `{ contracts, loaded }` for pin 7.
+  TDD: reconciliation test (tiles == matrix aggregation) + the pin-1 property test.
   Unblocks: B-4-T1, END OF STORY SEQUENCE.
 
 ### Story B-4 — EPIC B smoke test
