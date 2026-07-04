@@ -20,6 +20,7 @@ import { contractsApi } from '../../services'
 import { detectCrewConflicts, groupConflictsByPerson } from '../../utils/crewConflicts'
 import { dateStr, weekMonday } from '../../utils/dateTime'
 import { EventInspector } from '../../components/ops/EventInspector'
+import { formatOpsDayLabel } from '../../components/ops/dayLabels'
 import { useOpsDay, useOpsSelection } from '../../components/ops/opsUrlState'
 import {
   deriveCrewHealth,
@@ -59,15 +60,8 @@ const EDITORIAL_COLOR: Record<string, string> = {
   approved: 'var(--status-approved)',
 }
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-const MONTHS = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER']
-
-/** "2026-03-02" → "MON 2 MARCH" (local components — no TZ drift). */
-function dayHeaderLabel(dateKey: string): string {
-  const [year, month, day] = dateKey.split('-').map(Number)
-  const date = new Date(year, month - 1, day)
-  return `${WEEKDAYS[date.getDay()]} ${day} ${MONTHS[month - 1]}`
-}
+/** "2026-03-02" → "MON 2 MARCH" — shared formatter since B-2-T1 (Rule of Three). */
+const dayHeaderLabel = (dateKey: string) => formatOpsDayLabel(dateKey, { month: 'full' })
 
 const wordStyle = (color: string): CSSProperties => ({
   ...monoStyle,

@@ -2,6 +2,15 @@
 
 Version: 1 · Date: 2026-07-03 · Task: A-4-T1 (input contract for B-1-T2 Rundown, A-5-T1 E2E)
 
+**Changelog**
+- **v1 amendment (2026-07-04, B-2-T1 PREP):** the meta-line date FORMATTING now
+  delegates to the shared `formatOpsDayLabel` (`src/components/ops/dayLabels.ts`)
+  — the pinned "component-local, do NOT extract (occurrence two)" decision
+  reached its own Rule-of-Three trigger when the Rundown day pills became the
+  family's THIRD consumer. Rendered output (`WED 4 MAR`, `—` fallback) is
+  UNCHANGED and still pinned by this component's tests; props and all other
+  pins untouched. The body's meta-line pin below is marked superseded.
+
 ## Public interface
 
 ```ts
@@ -46,10 +55,11 @@ Root testid: `ops-inspector`; empty state: `ops-inspector-empty`.
 - **Editorial word:** only draft/ready/approved render, colored via the
   `--status-*` family (Editorial-only, ops-tokens guard); any other or absent
   status renders `—` (ScheduleScreen precedent).
-- **Meta line format:** `WED 4 MAR · 21:00 · 150 min · <channel>` — date via a
-  component-LOCAL formatter over `getDateKey` (handles API ISO-datetime strings
-  and local-midnight Date objects; deliberately NOT extracted/shared with
-  ScheduleScreen's `dayHeaderLabel` — Rule of Three, this is occurrence two);
+- **Meta line format:** `WED 4 MAR · 21:00 · 150 min · <channel>` — date
+  normalization via `getDateKey` (API ISO-datetime strings and local-midnight
+  Date objects), formatting via the shared `formatOpsDayLabel` *(the original
+  "component-local, deliberately NOT extracted — occurrence two" wording of
+  this pin is SUPERSEDED by the B-2-T1 PREP amendment in the changelog above)*;
   duration via `effectiveDurationMin` (TD-24 sanctioned accessor); channel from
   the `event.channel` relation, `—` when null.
 - **Conflict callout:** rendered when `filterConflictsToEvent(event,
