@@ -30,7 +30,7 @@
  *             · e10 lies outside the week (must be excluded)
  *   Sports: 5 sports, uneven counts (sport 1×3, 2×2, 3×2, 4×1, 5×1).
  */
-import type { Contract, Event, TechPlan } from '../../../data/types'
+import type { BroadcastSlot, Channel, Contract, Event, TechPlan } from '../../../data/types'
 import { detectCrewConflicts, type ConflictMap } from '../../../utils/crewConflicts'
 
 /**
@@ -154,3 +154,104 @@ export const FIXTURE_PLANS: TechPlan[] = deepFreeze([
 
 /** Precomputed once, exactly as screens will do it (one detect pass per screen). */
 export const FIXTURE_CONFLICTS: ConflictMap = detectCrewConflicts(FIXTURE_PLANS, FIXTURE_EVENTS)
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * B-1-T1 ADDITIVE extension (Story B-1 pin 8): Rundown channels + broadcast
+ * slots. All pre-existing EXPORTS are byte-stable — A-3/A-4/A-5 pins depend
+ * on them (the type-import line at the top gained two names, nothing else).
+ *
+ * Slot inventory (see rundown-layout v1 contract):
+ *   s-e2  Mon · Canvas · SLOT-VS-EVENT DIVERGENCE (event 14:00, slot 15:00 — slot wins)
+ *   s-e1  Mon · Eén    · CLAMPED cross-24:00 ([1380,1530] → [1380,1440]; 80-min floor YIELDS at the boundary, width 60)
+ *   s-e3  Tue · Eén    · SAME-LANE OVERLAP pair with s-e4 (no sub-lanes — pin 5 paint order)
+ *   s-e4  Tue · Eén    ·   ″
+ *   s-e9  Fri · Eén    · FULLY OFF-AXIS (02:00–04:00, ends before 05:00 → floored sliver at the left edge, flagged)
+ *   e7    Thu           · UNRESOLVABLE on purpose: NO slot and NO event.channel relation → UNASSIGNED lane
+ * Channel ids are deliberately NOT aligned with service order (Eén id 2 /
+ * sortOrder 0, Canvas id 1 / sortOrder 1) so lane ordering is pinned to
+ * sortOrder, never id. VRT MAX (id 3) carries ZERO slots — a channel without
+ * events on a day must never produce a lane (pin 6).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Minimal valid Channel with overridable fields (mirrors makeEvent/makeContract). */
+export function makeChannel(overrides: Partial<Channel> & { id: number }): Channel {
+  return {
+    tenantId: 'fixture-tenant',
+    parentId: null,
+    name: `Channel ${overrides.id}`,
+    types: ['linear'],
+    timezone: 'Europe/Brussels',
+    broadcastDayStartLocal: '06:00',
+    platformConfig: {},
+    epgConfig: {},
+    color: '#888888', // data value (Channel.color is DATA — A-3 precedent), not a component literal
+    sortOrder: overrides.id,
+    ...overrides,
+  }
+}
+
+/** Minimal valid BroadcastSlot with overridable fields. UTC datetimes are API-shaped strings. */
+export function makeSlot(overrides: Partial<BroadcastSlot> & { id: string; channelId: number }): BroadcastSlot {
+  return {
+    tenantId: 'fixture-tenant',
+    schedulingMode: 'FIXED',
+    bufferBeforeMin: 0,
+    bufferAfterMin: 0,
+    overrunStrategy: 'EXTEND',
+    anchorType: 'FIXED_TIME',
+    coveragePriority: 0,
+    status: 'PLANNED',
+    contentSegment: 'FULL',
+    sportMetadata: {},
+    ...overrides,
+  }
+}
+
+export const FIXTURE_CHANNELS: Channel[] = deepFreeze([
+  makeChannel({ id: 2, name: 'Eén', color: '#E4572E', sortOrder: 0 }),
+  makeChannel({ id: 1, name: 'Canvas', color: '#4C8DF5', sortOrder: 1 }),
+  makeChannel({ id: 3, name: 'VRT MAX', color: '#2BB673', sortOrder: 2 }), // zero slots on purpose
+])
+
+export const FIXTURE_SLOTS: BroadcastSlot[] = deepFreeze([
+  // Mon — DIVERGENCE: slot window wins over the event window (pin 2).
+  makeSlot({
+    id: 's-e2-canvas',
+    eventId: 2,
+    channelId: 1,
+    plannedStartUtc: '2026-03-02T15:00:00.000Z',
+    plannedEndUtc: '2026-03-02T17:00:00.000Z',
+  }),
+  // Mon — CLAMPED: crosses 24:00; floor yields at the boundary (pin 1).
+  makeSlot({
+    id: 's-e1-een',
+    eventId: 1,
+    channelId: 2,
+    plannedStartUtc: '2026-03-02T23:00:00.000Z',
+    plannedEndUtc: '2026-03-03T01:30:00.000Z',
+  }),
+  // Tue — SAME-LANE OVERLAP pair on Eén (pin 5).
+  makeSlot({
+    id: 's-e3-een',
+    eventId: 3,
+    channelId: 2,
+    plannedStartUtc: '2026-03-03T18:00:00.000Z',
+    plannedEndUtc: '2026-03-03T20:00:00.000Z',
+  }),
+  makeSlot({
+    id: 's-e4-een',
+    eventId: 4,
+    channelId: 2,
+    plannedStartUtc: '2026-03-03T18:30:00.000Z',
+    plannedEndUtc: '2026-03-03T20:00:00.000Z',
+  }),
+  // Fri — FULLY OFF-AXIS (pin 1 sliver rule).
+  makeSlot({
+    id: 's-e9-een',
+    eventId: 9,
+    channelId: 2,
+    plannedStartUtc: '2026-03-06T02:00:00.000Z',
+    plannedEndUtc: '2026-03-06T04:00:00.000Z',
+  }),
+  // e7 (Thu) deliberately has NO slot → UNASSIGNED (with e8, also slot-less).
+])

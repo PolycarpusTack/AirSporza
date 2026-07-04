@@ -388,7 +388,7 @@ Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (re-gated 2026-07
 7. *Unmapped channel colors:* README fixed colors cover Eén/Canvas/VRT MAX only; unmapped channels (Ketnet, VRT MAX Sport, Radio 1) and the UNASSIGNED lane use a neutral fallback (`--text-shell-3` at 15% alpha + border) — extending ops-tokens with real channel vars is an E-2/designer item, not B-1 scope. Channel color from the Channel record's `color` field stays DATA (A-3 precedent).
 8. *Test data:* `opsFixtureWeek` carries no BroadcastSlot/Channel payloads yet — B-1-T1 extends it ADDITIVELY with slot fixtures incl. one clamped, one same-lane overlap, one slot-vs-event divergence, and one unresolvable-channel case (A-5 e2e interception inherits them for B-4).
 
-- **B-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High (was Med — AS-3 resolved)
+- **B-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High (was Med — AS-3 resolved) · ✅ **DONE 2026-07-04** — `src/components/ops/rundownLayout.ts` (sibling module; ops-selectors v2 byte-stable) + 21 tests incl. seeded property sweep; fixture ADDITIVE extension (FIXTURE_CHANNELS/FIXTURE_SLOTS + makeChannel/makeSlot); Contract Snapshot `docs/governance/contracts/rundown-layout.md`.
   Goal: Pure lane/position selectors: `resolveChannel(event, slots, channels)`, `layoutRundown(events, slots, channels, day): Lane[]` implementing pins 1/2/5/6.
   TDD first: minute-precision positioning table + property test (pin 1) + fixture extension (pin 8).
   Pull Gate: ~~AS-3 data check~~ ✅ CLOSED 2026-07-04 (slot coverage 57% is a seed artifact; slot-first + `event.channel`-relation fallback = 100%, see Assumptions Ledger).
