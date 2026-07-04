@@ -409,7 +409,7 @@ Size **S** · Priority 3 · DoR: **READY**
   TDD: count + navigation tests. Pull Gate: `ops-selection v1`.
   Unblocks: B-4-T1, END OF STORY SEQUENCE.
 
-### Story B-3 — Rights tiles + matrix
+### Story B-3 — Rights tiles + matrix ✅ DONE 2026-07-04
 **As a** rights manager **I want** contract-health tiles and a competitions × platforms matrix **so that** expiring/missing rights are visible before they bite.
 
 Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (re-gated 2026-07-04: reconciliation universe + 8 further premises pinned below; pull gate run — real `platforms[]` vocabulary is exactly `['linear','on-demand','radio']`) · INVEST all ✓
@@ -436,7 +436,7 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (re-gated 2026-07
   TDD first (threshold boundary table + pin-4 edge table).
   Pull Gate: ✅ RUN 2026-07-04 — `platforms[]` = `['linear','on-demand','radio']`; mapping pinned (pin 1).
   Hand-off: **`ops-selectors v3`** snapshot (the v2 changelog pre-records this renumber). Unblocks: B-3-T2.
-- **B-3-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **B-3-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-04** — PREP unit: `useContracts(): { contracts }` strictly behavior-preserving (Schedule/Rundown refactored, their suites byte-unchanged; snapshot `docs/governance/contracts/useContracts.md` v1). FEATURE unit: additive `isSettled` hook extension (review-renamed from `loaded` — promise-spec term, flips on success OR failure) + RightsScreen (tiles + matrix per README §3; pin-7 skeleton incl. failure path; NO CONTRACT variant; bar rule `progress > 0` from the design HTML); 16 interaction tests. **STORY B-3 COMPLETE.**
   Goal: PRE-COMMIT PREP unit (B-2-T1 precedent, separate REFACTORING commit): extract `useContracts()` to `src/components/ops/useContracts.ts` — behavior-preserving quiet fetch (Schedule + Rundown refactored under green tests; 3rd consumer = the trigger B-1 pin 4 pre-authorized). Then FEATURE: Rights screen markup (tiles grid + matrix grid per README §3), hook extended to `{ contracts, loaded }` for pin 7.
   TDD: reconciliation test (tiles == matrix aggregation) + the pin-1 property test.
   Unblocks: B-4-T1, END OF STORY SEQUENCE.

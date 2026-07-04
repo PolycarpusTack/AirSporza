@@ -8,6 +8,12 @@
  * blocks exactly: ONE fetch on mount, QUIET failure (rights derive MISSING
  * until data arrives — pinned ops design), isActive cleanup against
  * post-unmount writes.
+ *
+ * `isSettled` (B-3-T2 FEATURE-unit extension) flips on the FIRST resolution —
+ * success OR failure (a failed fetch must not leave pin-7 skeletons hanging
+ * forever; promise-spec "settled", matching the test folder's settle-gate
+ * vocabulary). Schedule/Rundown ignore it (their quiet pre-fetch fallback is
+ * pinned behavior); RightsScreen consumes it (B-3 pin 7).
  */
 import { useEffect, useState } from 'react'
 import type { Contract } from '../../data/types'
@@ -16,10 +22,13 @@ import { contractsApi } from '../../services'
 export interface UseContractsReturn {
   /** [] until the first resolution; then the API list */
   contracts: Contract[]
+  /** true after the FIRST contractsApi.list() resolution — success OR failure (B-3 pin 7) */
+  isSettled: boolean
 }
 
 export function useContracts(): UseContractsReturn {
   const [contracts, setContracts] = useState<Contract[]>([])
+  const [isSettled, setIsSettled] = useState(false)
 
   useEffect(() => {
     let isActive = true
@@ -31,6 +40,9 @@ export function useContracts(): UseContractsReturn {
       .catch(() => {
         /* quiet per ops design — consumers derive MISSING/empty until data arrives */
       })
+      .finally(() => {
+        if (isActive) setIsSettled(true)
+      })
     return () => {
       isActive = false
     }
@@ -38,5 +50,6 @@ export function useContracts(): UseContractsReturn {
 
   return {
     contracts,
+    isSettled,
   }
 }

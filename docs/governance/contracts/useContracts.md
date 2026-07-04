@@ -2,6 +2,14 @@
 
 Version: 1 · Date: 2026-07-04 · Task: B-3-T2 PREP (consumers: ScheduleScreen, RundownScreen, RightsScreen)
 
+**Changelog**
+- **v1 amendment (2026-07-04, B-3-T2 FEATURE unit):** ADDITIVE `isSettled`
+  field (promise-spec term — true after the FIRST resolution, success OR
+  failure; a failed fetch must not leave the pin-7 skeleton hanging). The PREP
+  unit shipped `{ contracts }` only — strictly behavior-preserving, mirroring
+  the original screen blocks exactly; this extension lands with its consumer
+  (RightsScreen) and the tests that exercise both settle paths.
+
 ## Public interface
 
 ```ts
@@ -9,6 +17,7 @@ Version: 1 · Date: 2026-07-04 · Task: B-3-T2 PREP (consumers: ScheduleScreen, 
 // Extracted at the THIRD consumer (B-1 pin 4 pre-authorized the trigger).
 export interface UseContractsReturn {
   contracts: Contract[]   // [] until the first resolution; then the API list
+  isSettled: boolean      // FEATURE-unit extension — see changelog
 }
 export function useContracts(): UseContractsReturn
 ```
@@ -20,6 +29,11 @@ export function useContracts(): UseContractsReturn
 2. QUIET failure: `.catch` swallows — consumers derive MISSING/empty until data
    arrives (pinned ops design). No toast, no error state.
 3. `isActive` cleanup: post-unmount resolutions never write state.
+4. `isSettled` flips on the FIRST resolution, success OR failure. On failure:
+   `{ contracts: [], isSettled: true }` — the Rights screen then shows its data
+   states honestly (everything derives MISSING). Schedule/Rundown deliberately
+   IGNORE it (their quiet pre-fetch fallback render is pinned behavior); only
+   RightsScreen consumes it (B-3 pin 7).
 
 ## Test seam
 
