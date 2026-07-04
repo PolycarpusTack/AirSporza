@@ -342,6 +342,106 @@ describe('axis + empty day (AC: axis renders with an empty-state panel, no lanes
   })
 })
 
+describe('day pills (B-2-T1 — README §2 pill row bound to useOpsDay)', () => {
+  const getPill = (dateKey: string) => screen.getByTestId(`ops-rundown-pill-${dateKey}`)
+
+  it('renders 7 pills MON 2 … SUN 8 with UNFILTERED fixture-week counts', async () => {
+    renderScreen('/ops/planner?day=2026-03-02')
+
+    await waitForLane(EEN_CHANNEL_ID)
+    const expected: [string, string, number][] = [
+      ['2026-03-02', 'MON 2', 2],
+      ['2026-03-03', 'TUE 3', 2],
+      ['2026-03-04', 'WED 4', 2],
+      ['2026-03-05', 'THU 5', 2],
+      ['2026-03-06', 'FRI 6', 1],
+      ['2026-03-07', 'SAT 7', 0],
+      ['2026-03-08', 'SUN 8', 0],
+    ]
+    for (const [dateKey, label, count] of expected) {
+      const pill = getPill(dateKey)
+      expect(within(pill).getByText(label)).toBeTruthy()
+      expect(within(pill).getByTestId('ops-rundown-pill-count').textContent).toBe(String(count))
+    }
+    // cardinality: EXACTLY the 7 week days — an 8-pill row must fail
+    expect(screen.getAllByTestId(/^ops-rundown-pill-\d/)).toHaveLength(7)
+  })
+
+  it('active pill follows ?day: accent bg/fg + aria-pressed; inactive pills use surface/text-2', async () => {
+    renderScreen('/ops/planner?day=2026-03-02')
+
+    await waitForLane(EEN_CHANNEL_ID)
+    const active = getPill('2026-03-02')
+    expect(active.getAttribute('aria-pressed')).toBe('true')
+    expect(active.style.background).toBe('var(--accent-shell)')
+    expect(active.style.color).toBe('var(--accent-shell-fg)')
+
+    const inactive = getPill('2026-03-05')
+    expect(inactive.getAttribute('aria-pressed')).toBe('false')
+    expect(inactive.style.background).toBe('var(--surface-shell)')
+    expect(inactive.style.color).toBe('var(--text-shell-2)')
+  })
+
+  it('count span renders at 60% opacity, pill is mono 11px (design pins)', async () => {
+    renderScreen('/ops/planner?day=2026-03-02')
+
+    await waitForLane(EEN_CHANNEL_ID)
+    const pill = getPill('2026-03-02')
+    expect(within(pill).getByTestId('ops-rundown-pill-count').style.opacity).toBe('0.6')
+    expect(pill.style.fontSize).toBe('11px')
+    expect(pill.style.fontFamily).toBe('var(--font-mono)')
+  })
+
+  it('pill click sets ?day= (useOpsDay) and the lanes re-derive for the new day', async () => {
+    const user = userEvent.setup()
+    renderScreen('/ops/planner?day=2026-03-02')
+
+    await waitForLane(EEN_CHANNEL_ID)
+    await user.click(getPill('2026-03-05'))
+
+    expect(screen.getByTestId('location').textContent).toBe('/ops/planner?day=2026-03-05')
+    await waitForThursdaySettle()
+    expect(getLaneLabels()).toEqual(['UNASSIGNED'])
+    expect(getPill('2026-03-05').getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('pill click preserves the ?event= selection (ops-selection setters never touch unrelated params)', async () => {
+    const user = userEvent.setup()
+    renderScreen('/ops/planner?day=2026-03-02&event=1')
+
+    await waitForLane(EEN_CHANNEL_ID)
+    await user.click(getPill('2026-03-05'))
+
+    expect(screen.getByTestId('location').textContent).toBe('/ops/planner?day=2026-03-05&event=1')
+    // the inspector keeps showing the selected (now other-day) event
+    expect(screen.getByTestId('ops-inspector-title').textContent).toContain('Mon late')
+  })
+
+  it('right-aligned date label shows the resolved day as WED 4 MARCH 2026 style', async () => {
+    renderScreen('/ops/planner?day=2026-03-02')
+
+    await waitForLane(EEN_CHANNEL_ID)
+    expect(screen.getByTestId('ops-rundown-day-label').textContent).toBe('MON 2 MARCH 2026')
+  })
+
+  it('without ?day, pills show the week of TODAY (now seam) with the today pill active', async () => {
+    renderScreen('/ops/planner', new Date(2026, 2, 4, 12, 0, 0)) // local-noon Wed
+
+    await act(async () => {})
+    expect(getPill('2026-03-02')).toBeTruthy() // week still MON 2 … SUN 8
+    expect(getPill('2026-03-04').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('ops-rundown-day-label').textContent).toBe('WED 4 MARCH 2026')
+  })
+
+  it('pills render on a zero-event day too (Sat — the row lives above the axis)', async () => {
+    renderScreen('/ops/planner?day=2026-03-07')
+
+    await screen.findByTestId('ops-rundown-empty')
+    expect(getPill('2026-03-07').getAttribute('aria-pressed')).toBe('true')
+    expect(within(getPill('2026-03-07')).getByTestId('ops-rundown-pill-count').textContent).toBe('0')
+  })
+})
+
 describe('day state (pins 3 + 4 — default + per-day slot refetch)', () => {
   it('without ?day, the screen lays out TODAY (local components of now) and fetches slots for it', async () => {
     // local-noon Date → dateStr() is TZ-robust in any test environment

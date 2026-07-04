@@ -398,12 +398,12 @@ Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (re-gated 2026-07
   TDD: interaction tests (select, outline states, unassigned lane, empty day).
   Pull Gate: `rundown-layout v1`, `EventInspector v1`. Unblocks: B-2-T1, END OF STORY SEQUENCE.
 
-### Story B-2 — Day pills + shared day state
+### Story B-2 — Day pills + shared day state ✅ DONE 2026-07-04
 **As a** channel manager **I want** MON–SUN day pills with event counts **so that** I move through the week without leaving the rundown.
 
 Size **S** · Priority 3 · DoR: **READY**
 
-- **B-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **B-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-04** — pill row on RundownScreen (component-local — Rule of Two; counts via reused `groupEventsByDay`, active accent per design HTML, right label `WED 4 MARCH 2026`); PRE-COMMIT PREP unit (Rule of Three TRIGGERED): shared `src/components/ops/dayLabels.ts` `formatOpsDay` extracted from ScheduleScreen/EventInspector under green tests. 8 pill tests + 6 formatter pins. **STORY B-2 COMPLETE.**
   Goal: Day pill row (counts, active accent state, right-aligned date label) bound to `useOpsDay` (URL-backed, shared with Schedule's week context).
   TDD: count + navigation tests. Pull Gate: `ops-selection v1`.
   Unblocks: B-4-T1, END OF STORY SEQUENCE.

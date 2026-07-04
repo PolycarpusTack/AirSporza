@@ -27,10 +27,11 @@ import type { BroadcastSlot, Channel, Contract } from '../../data/types'
 import { useApp } from '../../context/AppProvider'
 import { channelsApi, contractsApi, schedulesApi } from '../../services'
 import { detectCrewConflicts, groupConflictsByPerson } from '../../utils/crewConflicts'
-import { dateStr } from '../../utils/dateTime'
+import { dateStr, weekMonday } from '../../utils/dateTime'
 import { EventInspector } from '../../components/ops/EventInspector'
+import { formatOpsDayLabel } from '../../components/ops/dayLabels'
 import { useOpsDay, useOpsSelection } from '../../components/ops/opsUrlState'
-import { deriveCrewHealth } from '../../components/ops/selectors'
+import { deriveCrewHealth, groupEventsByDay } from '../../components/ops/selectors'
 import {
   AXIS_SPAN_MIN,
   AXIS_START_MIN,
@@ -69,10 +70,18 @@ export interface RundownScreenProps {
 export function RundownScreen({ now = new Date() }: RundownScreenProps) {
   const { events, competitions, techPlans, crewFields } = useApp()
   const { eventId, setEventId } = useOpsSelection()
-  const { day: dayParam } = useOpsDay()
+  const { day: dayParam, setDay } = useOpsDay()
 
   // Pin 3: ?day wins; absent/invalid (hook yields null) → today, LOCAL components.
   const day = dayParam ?? dateStr(now)
+
+  // Day pills (B-2-T1): the week containing the resolved day — same weekMonday
+  // derivation the Schedule uses (?day is SHARED week context, ADR-014).
+  // groupEventsByDay is reused for the per-pill counts: it already returns all
+  // 7 days incl. empty ones, keyed via the canonical getDateKey
+  // (anti-duplication — no new date logic here).
+  const weekStart = dateStr(weekMonday(new Date(`${day}T00:00:00`)))
+  const weekGroups = useMemo(() => groupEventsByDay(events, { start: weekStart }), [events, weekStart])
 
   // Contracts live outside AppProvider — quiet in-screen fetch. SECOND
   // occurrence of this pattern (first: ScheduleScreen, A-3-T2) — the Rule of
@@ -152,6 +161,51 @@ export function RundownScreen({ now = new Date() }: RundownScreenProps) {
     <div data-testid="ops-screen-planner" style={{ display: 'flex', alignItems: 'stretch', minHeight: 'calc(100vh - 48px)' }}>
       {/* ── Timeline pane (fluid; the 320px inspector follows) ── */}
       <main style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '6px 16px 16px' }}>
+        {/* ── Day pill row (B-2-T1, README §2): MON–SUN + right-aligned date label ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 0 10px', flexWrap: 'wrap' }}>
+          {weekGroups.map((group) => {
+            const isActiveDay = group.date === day // (isActive is this file's effect-mount flag)
+            return (
+              <button
+                key={group.date}
+                type="button"
+                data-testid={`ops-rundown-pill-${group.date}`}
+                aria-pressed={isActiveDay}
+                onClick={() => setDay(group.date)}
+                style={{
+                  ...monoStyle,
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  borderWidth: '1px',
+                  borderStyle: 'solid',
+                  borderColor: isActiveDay ? 'var(--accent-shell)' : 'var(--border-shell)',
+                  background: isActiveDay ? 'var(--accent-shell)' : 'var(--surface-shell)',
+                  color: isActiveDay ? 'var(--accent-shell-fg)' : 'var(--text-shell-2)',
+                }}
+              >
+                <span>{formatOpsDayLabel(group.date)}</span>
+                {/* count = UNFILTERED events that day (design: 60% opacity) */}
+                <span data-testid="ops-rundown-pill-count" style={{ opacity: 0.6 }}>
+                  {group.events.length}
+                </span>
+              </button>
+            )
+          })}
+          <div style={{ flex: 1 }} />
+          <div
+            data-testid="ops-rundown-day-label"
+            style={{ ...monoStyle, fontSize: '11px', fontWeight: 500, color: 'var(--text-shell-2)', letterSpacing: '1px' }}
+          >
+            {formatOpsDayLabel(day, { month: 'full', withYear: true })}
+          </div>
+        </div>
+
         {/* axis tick row — offset by the 112px lane-label column */}
         <div style={{ position: 'relative', height: '22px', marginLeft: '112px' }}>
           {TICK_HOURS.map((hour) => (
