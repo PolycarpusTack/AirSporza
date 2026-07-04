@@ -23,13 +23,14 @@
  * component only renders and wires.
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import type { BroadcastSlot, Channel, Contract } from '../../data/types'
+import type { BroadcastSlot, Channel } from '../../data/types'
 import { useApp } from '../../context/AppProvider'
-import { channelsApi, contractsApi, schedulesApi } from '../../services'
+import { channelsApi, schedulesApi } from '../../services'
 import { detectCrewConflicts, groupConflictsByPerson } from '../../utils/crewConflicts'
 import { dateStr, weekMonday } from '../../utils/dateTime'
 import { EventInspector } from '../../components/ops/EventInspector'
 import { formatOpsDayLabel } from '../../components/ops/dayLabels'
+import { useContracts } from '../../components/ops/useContracts'
 import { useOpsDay, useOpsSelection } from '../../components/ops/opsUrlState'
 import { deriveCrewHealth, groupEventsByDay } from '../../components/ops/selectors'
 import {
@@ -83,24 +84,10 @@ export function RundownScreen({ now = new Date() }: RundownScreenProps) {
   const weekStart = dateStr(weekMonday(new Date(`${day}T00:00:00`)))
   const weekGroups = useMemo(() => groupEventsByDay(events, { start: weekStart }), [events, weekStart])
 
-  // Contracts live outside AppProvider — quiet in-screen fetch. SECOND
-  // occurrence of this pattern (first: ScheduleScreen, A-3-T2) — the Rule of
-  // Three extraction triggers at the THIRD consumer (B-3, as a PREP task there).
-  const [contracts, setContracts] = useState<Contract[]>([])
-  useEffect(() => {
-    let isActive = true
-    contractsApi
-      .list()
-      .then((list: Contract[]) => {
-        if (isActive) setContracts(list)
-      })
-      .catch(() => {
-        /* quiet per ops design — rights stay MISSING in the inspector */
-      })
-    return () => {
-      isActive = false
-    }
-  }, [])
+  // Contracts live outside AppProvider — shared quiet fetch (useContracts,
+  // extracted at the 3rd consumer per B-1 pin 4). `loaded` deliberately
+  // unused: the quiet pre-fetch inspector fallback is this screen's pinned design.
+  const { contracts } = useContracts()
 
   // Channel inventory — NOT in AppProvider (orgConfig.channels is deprecated);
   // channelsApi is the sanctioned source (ChannelSelect precedent). Quiet:
