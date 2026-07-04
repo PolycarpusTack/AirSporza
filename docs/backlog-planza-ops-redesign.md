@@ -431,7 +431,7 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (re-gated 2026-07
 8. *Fixtures:* additive `FIXTURE_COMPETITIONS` + `makeCompetition` (fixture contracts reference comp ids 101–110 that exist nowhere yet); existing exports byte-stable.
 9. *Root testid:* keep `ops-screen-rights` (OpsShell contract, B-1 precedent).
 
-- **B-3-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **B-3-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-04** — ops-selectors v3 (deriveCompetitionRightsInfo extraction with A-3/A-4 suites byte-unchanged as the behavior pin; deriveRightsMatrix/Tiles; deriveValidityProgress + deriveValidityBand threshold single source); additive FIXTURE_COMPETITIONS incl. 107 'Quiet G' exclusion pin; 23 tests.
   Goal: Pure selectors `deriveRightsTiles(contracts, competitions, events, now)`, `deriveValidityProgress(contract, now)`, `deriveRightsMatrix(...)` (or equivalent row derivation) + the pin-3 `deriveCompetitionRightsInfo` extraction; reuse `deriveRightsStatus` thresholds — single source for the 90-day rule (AS-4).
   TDD first (threshold boundary table + pin-4 edge table).
   Pull Gate: ✅ RUN 2026-07-04 — `platforms[]` = `['linear','on-demand','radio']`; mapping pinned (pin 1).

@@ -30,7 +30,7 @@
  *             · e10 lies outside the week (must be excluded)
  *   Sports: 5 sports, uneven counts (sport 1×3, 2×2, 3×2, 4×1, 5×1).
  */
-import type { BroadcastSlot, Channel, Contract, Event, TechPlan } from '../../../data/types'
+import type { BroadcastSlot, Channel, Competition, Contract, Event, TechPlan } from '../../../data/types'
 import { detectCrewConflicts, type ConflictMap } from '../../../utils/crewConflicts'
 
 /**
@@ -50,7 +50,14 @@ export function deepFreeze<T>(value: T): T {
   return value
 }
 
-/** Wednesday 2026-03-04, midnight UTC — chosen so day-precision boundaries are exact. */
+/**
+ * Wednesday 2026-03-04, midnight UTC — chosen so day-precision boundaries are exact.
+ * WARNING (B-2 review, TZ pin): under the repo-wide vitest TZ pin
+ * (America/New_York) this INSTANT reads as Tue Mar 3 in LOCAL components —
+ * never derive a local day from it (e.g. dateStr(FIXTURE_NOW)); selectors take
+ * `now` directly and compare epoch ms, which is safe. Local-day test seams use
+ * a local-noon `new Date(y, m, d, 12)` instead.
+ */
 export const FIXTURE_NOW = new Date('2026-03-04T00:00:00Z')
 
 /** Same Wednesday at 10:00Z — pins end-of-day validUntil semantics (real clocks have a time of day). */
@@ -267,4 +274,37 @@ export const FIXTURE_SLOTS: BroadcastSlot[] = deepFreeze([
     plannedStartUtc: '2026-03-05T16:00:00.000Z',
     plannedEndUtc: '2026-03-05T17:30:00.000Z',
   }),
+])
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * B-3-T1 ADDITIVE extension (Story B-3 pin 8): Competition records — the
+ * fixture contracts/events reference comp ids 101–110 that existed nowhere as
+ * records until now. Names mirror ScheduleScreen.test.tsx's local list for
+ * coherence. Id 107 'Quiet G' is deliberately referenced by NO contract and NO
+ * event — it pins the rights-matrix universe EXCLUSION rule (B-3 pin 2).
+ * All pre-existing exports stay byte-stable.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Minimal valid Competition with overridable fields (mirrors the other builders). */
+export function makeCompetition(overrides: Partial<Competition> & { id: number }): Competition {
+  return {
+    sportId: 1,
+    name: `Competition ${overrides.id}`,
+    matches: 10,
+    season: '2026',
+    ...overrides,
+  }
+}
+
+export const FIXTURE_COMPETITIONS: Competition[] = deepFreeze([
+  makeCompetition({ id: 101, sportId: 1, name: 'League A' }),
+  makeCompetition({ id: 102, sportId: 2, name: 'Open B' }),
+  makeCompetition({ id: 103, sportId: 1, name: 'Cup C' }),
+  makeCompetition({ id: 104, sportId: 3, name: 'Tour D' }),
+  makeCompetition({ id: 105, sportId: 4, name: 'GP E' }),
+  makeCompetition({ id: 106, sportId: 2, name: 'Masters F' }),
+  makeCompetition({ id: 107, sportId: 5, name: 'Quiet G' }), // no contract, no event — universe exclusion pin
+  makeCompetition({ id: 108, sportId: 1, name: 'Series H' }),
+  makeCompetition({ id: 109, sportId: 3, name: 'Classic I' }),
+  makeCompetition({ id: 110, sportId: 5, name: 'Champs J' }),
 ])

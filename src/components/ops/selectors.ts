@@ -1,6 +1,8 @@
 /**
  * Ops derived-status selectors (A-3-T1, remediated per adversarial threshold
- * review) — PURE functions, no React, no fetching, no Date.now().
+ * review) — PURE functions, no React, no fetching, no Date.now()
+ * (ONE declared exception: the v3 unknown-platform warn-once guard —
+ * observability only, never behavior; see the v3 section below).
  * Contract: docs/governance/contracts/ops-selectors.md (ops-selectors v1).
  * Consumed by ScheduleScreen (A-3), EventInspector (A-4), Rundown legend (B-2/B-3).
  *
@@ -16,7 +18,7 @@
  * code may hold local-midnight Date objects — all day-keying goes through the
  * canonical getDateKey (utils/dateTime), never hand-rolled (anti-duplication).
  */
-import type { Contract, Event, FieldConfig, TechPlan } from '../../data/types'
+import type { Competition, Contract, Event, FieldConfig, TechPlan } from '../../data/types'
 import type { ConflictMap, PersonConflictGroup } from '../../utils/crewConflicts'
 import { getDateKey, timeToMinutes } from '../../utils/dateTime'
 
@@ -321,4 +323,188 @@ export function groupEventsByDay(events: Event[], week: { start: string }): DayG
   }
 
   return groups
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * ops-selectors v3 (B-3-T1): Rights tiles + matrix derivations.
+ * Status words on the Rights screen are DERIVED only (pin 3) — everything
+ * routes through deriveCompetitionRightsInfo; the AS-4 precedence rules above
+ * are REUSED, never re-derived.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Matrix column ids (design README §3). ONDEM is RESERVED — see AS-8. */
+export type RightsPlatformColumn = 'LINEAR' | 'MAX' | 'RADIO' | 'ONDEM'
+
+/**
+ * Contract.platforms[] → column (pin 1; pull-gated vocabulary
+ * ['linear','on-demand','radio']). 'on-demand' maps to MAX (legacy maxRights
+ * lineage — VRT MAX is the OTT service); the ON-DEM column lights for NOTHING
+ * today (AS-8: reserved until the domain distinguishes a non-MAX on-demand right).
+ */
+const PLATFORM_COLUMN: Record<string, Exclude<RightsPlatformColumn, 'ONDEM'>> = {
+  linear: 'LINEAR',
+  'on-demand': 'MAX',
+  radio: 'RADIO',
+}
+
+/**
+ * Unknown platform values light NO column but must not vanish silently
+ * (pin 1): warned ONCE per distinct value per process. Deliberate purity
+ * exception — observability only, never behavior.
+ */
+const warnedUnknownPlatforms = new Set<string>()
+
+export interface RightsMatrixRow {
+  competitionId: number
+  /** Competition.name, or 'COMPETITION #<id>' when the record is missing (pin 2 — never dropped) */
+  competitionName: string
+  /** null when the competitionId dangles (data-quality signal) */
+  competition: Competition | null
+  /** DERIVED status (deriveCompetitionRightsInfo) — never the stored contract.status */
+  status: RightsStatus
+  /** governing contract (pickGoverningContract); null when no contract row */
+  contract: Contract | null
+  /** governing contract's validUntil key ('YYYY-MM-DD'), as in RightsInfo */
+  validUntil: string | null
+  /** column booleans per pin 1; ONDEM always false today (AS-8). Named
+   *  platformColumns — NOT `platforms` — to avoid shape-colliding with the
+   *  raw Contract.platforms string array on the same row object. */
+  platformColumns: Record<RightsPlatformColumn, boolean>
+  /** deriveValidityProgress of the governing contract — an UNROUNDED 0..1
+   *  FRACTION (glossary: validity progress; never a 0..100 percentage); null = no bar */
+  validityProgress: number | null
+  /** design text variants (pin 4): 'Until 30 Jun 2027' · 'In negotiation' · 'No agreement in place' · 'Until —' */
+  validityLabel: string
+  /** governing contract's notes; null when absent/whitespace or no contract (pin 5) */
+  note: string | null
+}
+
+/** Tile counts per Rights Status — a FOLD over the matrix rows (identity by construction). */
+export type RightsTiles = Record<RightsStatus, number>
+
+const MONTHS_ABBR_TITLE = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/**
+ * 'YYYY-MM-DD' (deriveRightsInfo.validUntil) → '30 Jun 2027' (design casing).
+ * DELIBERATELY byte-identical to EventInspector's untilDateLabel — occurrence
+ * TWO of the title-case contract-date family; Rule of Three not met, and the
+ * literal duplicate keeps the extraction trigger grep-detectable.
+ */
+function untilDateLabel(validUntil: string): string {
+  const [year, month, day] = validUntil.split('-').map(Number)
+  return `${day} ${MONTHS_ABBR_TITLE[month - 1]} ${year}`
+}
+
+/**
+ * Validity text variant (pin 4, design HTML ~line 575). Precedence:
+ * NEGOTIATION word wins over any date; no-agreement MISSING ('none' or no row)
+ * → 'No agreement in place'; a LAPSED date still shows ('Until <past date>' —
+ * consistent with the inspector's informative-lapse pin); date-less otherwise
+ * → 'Until —'.
+ */
+function validityLabelFor(status: RightsStatus, contract: Contract | null, validUntil: string | null): string {
+  if (status === 'NEGOTIATION') return 'In negotiation'
+  if (contract === null || contract.status === 'none') return 'No agreement in place'
+  return validUntil ? `Until ${untilDateLabel(validUntil)}` : 'Until —'
+}
+
+/**
+ * Validity progress — the UNROUNDED 0..1 FRACTION of the term remaining
+ * (glossary term; B-3 pin 4, whose 'pct' shorthand this name supersedes):
+ *   progress = clamp((validUntilEndOfDayMs − now) / (validUntilEndOfDayMs − validFrom), 0, 1)
+ * null = no bar: absent/''/garbage validFrom OR validUntil, degenerate
+ * validFrom ≥ END-OF-DAY validUntil (a same-day term is NOT degenerate — the
+ * end-of-day widening keeps it a real 1-day window, pinned). Lapsed ⇒ 0 (the
+ * bar disappears exactly when the word flips); future validFrom clamps to 1
+ * (term not started).
+ */
+export function deriveValidityProgress(contract: Contract, now: Date): number | null {
+  const untilEndMs = validUntilEndOfDayMs(contract)
+  const fromMs = toEpochMs(contract.validFrom)
+  if (untilEndMs === null || fromMs === null || fromMs >= untilEndMs) return null
+  const progress = (untilEndMs - now.getTime()) / (untilEndMs - fromMs)
+  return Math.min(1, Math.max(0, progress))
+}
+
+/**
+ * Threshold band for the 3px bar — SINGLE SOURCE for the AC's
+ * "red <15%, amber <50%, green else" so T2 cannot re-derive the boundaries.
+ * Pinned sides: exactly 0.15 → amber, exactly 0.50 → green (strict `<`).
+ */
+export function deriveValidityBand(progress: number): 'red' | 'amber' | 'green' {
+  if (progress < 0.15) return 'red'
+  if (progress < 0.5) return 'amber'
+  return 'green'
+}
+
+const STATUS_SEVERITY_ORDER: Record<RightsStatus, number> = { MISSING: 0, EXPIRING: 1, NEGOTIATION: 2, VALID: 3 }
+
+/**
+ * Rights matrix rows (B-3 pins 1/2/4/5).
+ * Universe: competitions with ≥1 contract row ∪ competitions with ≥1 event —
+ * ALL events, no date scoping (deferred to the AS-4 threshold session).
+ * One row per competition = its GOVERNING contract. Order: severity-first
+ * (MISSING, EXPIRING, NEGOTIATION, VALID), then competition name asc.
+ */
+export function deriveRightsMatrix(
+  contracts: Contract[],
+  competitions: Competition[],
+  events: Event[],
+  now: Date,
+): RightsMatrixRow[] {
+  const universe = new Set<number>()
+  for (const contract of contracts) universe.add(contract.competitionId)
+  for (const event of events) universe.add(event.competitionId)
+
+  const competitionById = new Map(competitions.map((c) => [c.id, c]))
+
+  const rows: RightsMatrixRow[] = []
+  for (const competitionId of universe) {
+    const info = deriveCompetitionRightsInfo(competitionId, contracts, now)
+    const competition = competitionById.get(competitionId) ?? null
+
+    const platformColumns: Record<RightsPlatformColumn, boolean> = { LINEAR: false, MAX: false, RADIO: false, ONDEM: false }
+    for (const value of info.contract?.platforms ?? []) {
+      const column = PLATFORM_COLUMN[value]
+      if (column) {
+        platformColumns[column] = true
+      } else if (!warnedUnknownPlatforms.has(value)) {
+        warnedUnknownPlatforms.add(value)
+        console.warn(`ops-selectors: unknown Contract.platforms value "${value}" — lights no rights-matrix column (pin 1)`)
+      }
+    }
+
+    const note = typeof info.contract?.notes === 'string' && info.contract.notes.trim() ? info.contract.notes : null
+
+    rows.push({
+      competitionId,
+      competitionName: competition?.name ?? `COMPETITION #${competitionId}`,
+      competition,
+      status: info.status,
+      contract: info.contract,
+      validUntil: info.validUntil,
+      platformColumns,
+      validityProgress: info.contract ? deriveValidityProgress(info.contract, now) : null,
+      validityLabel: validityLabelFor(info.status, info.contract, info.validUntil),
+      note,
+    })
+  }
+
+  return rows.sort(
+    (a, b) =>
+      STATUS_SEVERITY_ORDER[a.status] - STATUS_SEVERITY_ORDER[b.status] ||
+      (a.competitionName < b.competitionName ? -1 : a.competitionName > b.competitionName ? 1 : 0),
+  )
+}
+
+/** Tile counts — a fold over deriveRightsMatrix (reconciliation identity by construction). */
+export function deriveRightsTiles(
+  contracts: Contract[],
+  competitions: Competition[],
+  events: Event[],
+  now: Date,
+): RightsTiles {
+  const tiles: RightsTiles = { VALID: 0, EXPIRING: 0, NEGOTIATION: 0, MISSING: 0 }
+  for (const row of deriveRightsMatrix(contracts, competitions, events, now)) tiles[row.status]++
+  return tiles
 }
