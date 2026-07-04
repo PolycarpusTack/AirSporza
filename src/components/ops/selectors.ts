@@ -123,9 +123,14 @@ export interface RightsInfo {
   contract: Contract | null
 }
 
-/** Rights Status + governing-contract details for the inspector (ops-selectors v2). */
-export function deriveRightsInfo(event: Event, contracts: Contract[], now: Date): RightsInfo {
-  const candidates = contracts.filter((c) => c.competitionId === event.competitionId)
+/**
+ * COMPETITION-scoped rights core (ops-selectors v3, B-3 pin 3): the Rights
+ * matrix keys on competitions, not events, so the v2 event-scoped body moved
+ * here VERBATIM. deriveRightsInfo delegates — A-3/A-4's permutation suites
+ * remain the byte-unchanged behavior pin for BOTH entry points.
+ */
+export function deriveCompetitionRightsInfo(competitionId: number, contracts: Contract[], now: Date): RightsInfo {
+  const candidates = contracts.filter((c) => c.competitionId === competitionId)
   if (candidates.length === 0) return { status: 'MISSING', validUntil: null, contract: null }
 
   const nowMs = now.getTime()
@@ -150,6 +155,11 @@ export function deriveRightsInfo(event: Event, contracts: Contract[], now: Date)
   }
 
   return { status, validUntil, contract }
+}
+
+/** Rights Status + governing-contract details for the inspector (ops-selectors v2; delegates since v3). */
+export function deriveRightsInfo(event: Event, contracts: Contract[], now: Date): RightsInfo {
+  return deriveCompetitionRightsInfo(event.competitionId, contracts, now)
 }
 
 /** Required crew value = non-empty string (matches detectCrewConflicts semantics). */
