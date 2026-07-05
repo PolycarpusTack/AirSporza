@@ -5,7 +5,7 @@
 > `backlog-builder-agent-v2.md` (workflow) · `gpm-v2.1.md` (ZAP/CIP/PREP execution)
 > **Solution design:** `docs/design_handoff_planza_ops/README.md` + `Planza App.dc.html` + screenshots
 > **Current-state baseline:** codebase survey 2026-07-02 (see §6 Architecture Memory delta)
-> **Status:** v1 — EPICs A & B detailed; EPICs C–E outlined, expand after EPIC A retro (BB v5.1 §10)
+> **Status:** v1 — EPICs A, B & C detailed (EPIC C expanded 2026-07-05 after the EPIC B retro); EPICs D–E outlined, expand after the EPIC C retro (BB v5.1 §10)
 
 ---
 
@@ -79,7 +79,7 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 | AS-2 | Existing `--surface/--text/--border` token families are extended with light-theme values; ops screens consume the same vars (README: "extend rather than hard-code hex") | A-1 design | ADR-013 |
 | AS-3 ✅ resolved | Rundown lane channel comes from the event's `BroadcastSlot.channelId` (fallback: the `event.channel` RELATION — the TD-24 sanctioned path; the deprecated fields are the free-text name strings); Eén/Canvas/VRT MAX exist in `channels` service | B-1 | **Pull gate run 2026-07-04 → SPIKE run and CLOSED same day:** seed slot coverage 8/14 (57%, <90%) — but a seed artifact (`take: 8`), not a model gap: 14/14 events carry `channelId`, so slot-first + relation-fallback resolves 100%; unresolvable events go to the UNASSIGNED lane per the B-1 AC. Channels Eén/Canvas/Ketnet/VRT MAX/VRT MAX Sport/Radio 1 exist as Channel rows; `schedulesApi.listSlots({channelId?, date?})` already exposes day-filtered slots. Design as planned — no change. |
 | AS-4 ◐ provisional | Contract → Rights Status mapping: `EXPIRING` = `validUntil` within 90 days; `NEGOTIATION` = contract status field; `MISSING` = no contract for competition. **Stakeholder decision 2026-07-02: build A-3 with these standard formulas; contract start/end time/date formulas to be revisited in a dedicated session.** Mitigation: thresholds live in ONE place (`ops/selectors`, single source for the 90-day rule per B-3-T1 Abstraction Check) so the revisit is a cheap, test-pinned change | A-3 | Dedicated threshold-formula session (post-A-3) |
-| AS-5 | "Performer" and "Staff" Kinds map to existing person-entities where present; if absent, Registry v1 ships with sports/competitions/teams/players only and performers/staff are an EPIC C follow-up story | C scope | EPIC C refinement |
+| AS-5 ✅ resolved | "Performer" and "Staff" Kinds map to existing person-entities where present; if absent, Registry v1 ships with sports/competitions/teams/players only and performers/staff are an EPIC C follow-up story | C scope | **Verified 2026-07-05 (EPIC C expansion gate):** schema has full `Player`/`PlayerTeam` (+ canonical bridge) and `Team`; NO Performer/Staff/Person model exists anywhere (crew names in TechPlans are free text, not entities). Fallback applies: **Registry v1 = sports/competitions/teams/players**; performer/staff Kinds = follow-up story gated on a product/schema decision (out of this UI initiative's scope). |
 | AS-6 | IBM Plex Sans/Mono already loaded (survey: configured in tailwind fonts) — no new font pipeline | A-1 | Trivial |
 | AS-7 | Merge decisions call existing endpoints (`approve-merge` / `ignore`); idempotency handled server-side per existing routes | D | EPIC D pull gate |
 | AS-8 (added 2026-07-04, B-3 re-gate) | The rights matrix ON-DEM column is RESERVED: real `Contract.platforms[]` has no value distinct from `'on-demand'`→MAX (legacy `maxRights` lineage), and the design demo never lights ON-DEM. It lights only when the domain model distinguishes a non-MAX on-demand right (candidate source: RightsPolicy `Platform` SVOD/AVOD) | B-3 display honesty | AS-4 threshold/stakeholder session (same venue) |
@@ -511,12 +511,201 @@ argues for keeping full governance. Next per §10.4: expand **EPIC C** with `bac
 
 ---
 
+## EPIC C — REGISTRY (sports CMS surface)
+
+- **Objective:** The browsable/searchable sports repository over the merged teams-players backend: one table across sports/competitions/teams/players with kind facets and live search, a Record Inspector with provenance and linked-record hopping (deep-linkable via `?record`), plus the initiative's FIRST write paths — manual create (SOURCE: MANUAL) and protected remarks.
+- **Tracer Bullet?:** NO
+- **Mode:** DELIVERY (retained at the EPIC B retro — new write paths argue for keeping full governance)
+- **Scope (AS-5, verified 2026-07-05):** Registry v1 = **sports / competitions / teams / players ONLY**. No Performer/Staff/Person entity exists (TechPlan crew names are free text, not entities); performer/staff Kinds are a deferred stub (C-6) gated on a product/schema decision. Facets, counters, create-modal chips and the linked graph all omit performer/staff.
+- **DoD additions:** (1) No write fires twice on double-click / Enter+click / retry — a single-flight guard is unit-tested per write path; (2) creates send the MANUAL-record shape and the created record renders `MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE` — the sync-overwrite protection itself is existing SERVER behavior (`ImportGovernanceService`, covered by backend tests): the UI-level DoD is honestly scoped to "right shape sent, right provenance rendered", NOT a UI re-proof of server semantics; (3) ALL person fixtures (unit + e2e) use ANONYMISED invented names — no real athletes (PII); (4) `?record` deep links round-trip: direct load hydrates the inspector, hops update the URL (ops-selection v2).
+- **Business Value:** Editors browse and correct the whole sports repository from one surface instead of TeamsView plus per-entity navigation. Success metric: an editor finds any record and its related records in ≤ 2 clicks from `/ops/registry`, and creates a sync-protected manual record without leaving the screen.
+- **Risk:** Med — linked-graph/search derivation cost at volume (squad sync jobs import 1,000+ players) → mitigation: index-once selectors (C-1 pin 7) + a C-1 perf probe; honest SLO measurement stays at E-1. Med — duplicate creates hit server unique constraints (e.g. `Player @@unique([tenantId, sportId, fullName, birthDate])`) → UI behavior pinned (C-4 AC: modal stays open, inline error, no phantom row). Med — design gaps (remark editor UX; `12 PEOPLE` counter assumed person Kinds) → display-honesty pins + designer notes for E-2. Low — 4-collection fetch fan-out → `useRegistryData` quiet-fetch pin (useContracts idiom).
+- **SLOs:** `Ops Registry – initial render < 1.5s p95 @ 2,000 records` · `Registry search – keystroke → filtered table < 50ms p95 @ 2,000 records (client-side filter)` · `Registry inspector hop – linked-record click → inspector update < 100ms p95`.
+- **Glossary:** Kind (v1 subset per AS-5), Record, Provenance; display terms: LINKED summary, `REMARKS · MANUAL`. §4 unchanged — its Kind row already carries the AS-5 synonym flag.
+- **ADRs:** ADR-014 — `?record` was RESERVED in ops-selection v1; this EPIC delivers it as the additive **ops-selection v2** bump (same module `opsUrlState.ts`, per the contract's reserved-param row). No new ADRs required; AS-5 resolution lives in the Assumptions Ledger.
+- **Smoke Test Story:** C-7. **Runbook:** extend `docs/runbooks/ops-shell.md` (add §registry).
+- **Working method (proven in A/B, binding here):** DoR gate re-verifies each story's premises before start (backlog-health-advisor); pins below are written to be testable; derived logic in pure selectors under `src/components/ops/` (anti-smart-ui) — screens only render + wire; additive deep-frozen fixture extensions; Rule-of-Three extractions as separate REFACTORING/PREP commits; mutation probes in the review chain; `now`/data seams; ops-selectors v3 stays byte-stable (sibling-module rule, B-1 precedent).
+
+### Story C-1 — Registry selectors + data hook (record projection, linked graph, search/facet)
+**As a** sports editor **I want** one derived record universe over sports/competitions/teams/players with linked-record summaries **so that** the table, facets, counters and inspector all read from a single, tested projection.
+
+Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (expansion gate 2026-07-05: AS-5 resolved; the API-shape pull gate remains BLOCKING at T1 start) · INVEST all ✓
+
+**AC:**
+- Given the four collections, When projected, Then every entity becomes a `RegistryRecord`: kind-scoped id (`<kind>:<dbId>` — numeric ids collide across tables), kind, display name, sport label, LINKED summary, SOURCE code, STATUS word.
+- Given a sport, Then its linked records are its competitions; a competition → its teams; a team → roster + its competitions; a player → current team or none (AS-5 graph — no staff arm).
+- Given LINKED summaries, Then: sport → `N competitions`, competition → `N teams`, team → `N linked records` (roster + competitions), player → team name or `—` (unattached athlete, `teamId` null in `PlayerTeam`).
+- Given a query and an active facet, Then filtering composes AND — case-insensitive substring over name / sport label / detail; facet counts ALWAYS reflect the unfiltered universe (A-3 precedent).
+- Given provenance fields, Then SOURCE is `MANUAL` for manual records, else the mapped code (`the_sports_db→TSDB`, `api-football→API-FB`, `football-data.org→FB-DATA`; unknown code → uppercased raw, never dropped silently).
+- Given player status, Then STATUS is `ACTIVE` green / `INJURED` amber / `LOANED`·`RETIRED` neutral grey (design `decoEnt` fallback color); non-player kinds → `ACTIVE`.
+
+**Pinned decisions (expansion gate 2026-07-05 — write tests to these):**
+1. *Record ids:* `<kind>:<dbId>` composite — doubles as the `?record` value (ops-selection rule 5: opaque at hook level; unknown/malformed resolves to quiet no-selection screen-side).
+2. *Linked graph source (TD-25):* repo relations ONLY — `TeamCompetition` for competition↔team, `PlayerTeam` for team↔player; NEVER `Event.participants` (free text).
+3. *SOURCE at record level:* `MANUAL` when the record has no import lineage (per `ImportGovernanceService` semantics — manual origin / not `isManaged`), else the primary external source code. T1's pull gate verifies which fields the list APIs actually expose (`isManaged`, `externalRefs[].source`, field-level provenance) and pins the exact predicate — do NOT guess shapes.
+4. *Search fields:* name + sport label + detail line (the design's name/sport/meta trio; `detail` = position/jersey for players, note/meta where present — whatever the projection exposes).
+5. *Counters line:* real counts; the people segment reads `N PLAYERS` — the design's `12 PEOPLE` assumed person Kinds and would be dishonest under AS-5 (designer note for E-2).
+6. *Canonical duplicates:* rows with a `canonicalPlayerId`/`canonicalTeamId` pointing elsewhere list AS-IS in v1 (dedup review is EPIC D's surface); LINKED derivation follows the row's own links only.
+7. *Index once:* selectors take a prebuilt `RegistryIndex` (by-id, by-kind, link adjacency maps) built in ONE memoized pass per data change; search/facet/hop stay O(rows) over the index. A micro perf probe (2,000 synthetic records, generous wall-clock bound) pins linearity; the honest SLO measurement stays at E-1.
+8. *Fixtures:* additive `FIXTURE_TEAMS` + `FIXTURE_PLAYERS` (+ `makeTeam`/`makePlayer`) in the shared fixture module, reusing FIXTURE_COMPETITIONS/sports; existing exports byte-stable; player names ANONYMISED (EPIC DoD 3). Coverage: unattached athlete, one MANUAL + each source code, injured/loaned status, a team in 2 competitions, a competition with 0 teams, a team with a `notes` remark (feeds C-3/C-5).
+
+**Interfaces:** `src/components/ops/registrySelectors.ts` (sibling module — ops-selectors v3 byte-stable): `buildRegistryIndex(sports, competitions, teams, players): RegistryIndex` · `projectRegistryRows(index, { query, facet }): RegistryRow[]` · `linkedRecordsOf(index, recordId): RegistryRecord[]` · `registryFacetCounts(index)` · `registryCounters(index)`. Plus `src/components/ops/useRegistryData.ts`: quiet parallel fetch `{ sports, competitions, teams, players, isSettled, refresh() }` (useContracts v1 idiom; `refresh` pre-planned for C-4's post-create refetch).
+
+- **C-1-T1** · Hat **FEATURE** · Model **Sonnet** (spec) / review **Opus** (graph derivation) · Confidence High
+  Goal: Pure selectors implementing pins 1–7 — no React (this is the core-domain derivation of the EPIC — max rigor, ≥80% branch coverage).
+  TDD: projection + linked-graph permutation tables as failing tests first; pin-7 probe; fixture extension (pin 8).
+  Pull Gate: `sportsApi`/`competitionsApi`/`teamsApi`/`playersApi` list-response shapes vs `types.ts`, incl. provenance fields (pin 3) and whether `TeamCompetition`/`PlayerTeam` links ride the list payloads (if links need extra calls, pin the fetch plan here); TD-25 check.
+  Hand-off: Contract Snapshot **`registry-selectors v1`**. Unblocks: C-1-T2, C-2-T2, C-3-T1.
+- **C-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: `useRegistryData` quiet-fetch hook (interface above; `isSettled` flips on success OR failure — useContracts precedent; `refresh()` refetches all four).
+  TDD: hook unit tests (parallel fetch, settle-on-failure, refresh) first.
+  Pull Gate: `useContracts v1` (naming/shape idiom consistency).
+  Hand-off: Contract Snapshot **`useRegistryData v1`**. Unblocks: C-2-T2, END OF STORY SEQUENCE.
+
+### Story C-2 — Registry toolbar + facet rail + table (+ `?record` selection)
+**As a** sports editor **I want** the registry as a searchable, facet-filtered table with kind chips and provenance columns **so that** I find any record and see its origin and health at a glance.
+
+Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (consumes C-1 contracts; re-gate at start per working method) · INVEST all ✓
+
+**AC:**
+- Given records, When REGISTRY renders, Then the toolbar shows the 280px mono search input, live counters (`N SPORTS · N COMPETITIONS · N TEAMS · N PLAYERS` — C-1 pin 5) and the accent `+ NEW` button; the left rail shows BROWSE facets All records / Sports / Competitions / Teams / Players with counts (no performer/staff — AS-5).
+- Given the table, Then columns are `NAME | TYPE | SPORT | LINKED | SOURCE | STATUS` on grid `minmax(220px,1fr) 110px 110px 150px 84px 78px` with a sticky header (design HTML — the README's `1fr` shorthand loses the min); TYPE = kind chip (mono 600 8.5px uppercase, `--kind-*` color on its 13%-alpha `-bg` tint — ops-tokens v3); SOURCE mono `--t3`; STATUS colored mono word.
+- Given a typed query, Then rows filter as-you-type and compose AND with the active facet; facet counts stay unfiltered; active facet gets `--p2` bg + accent border (A-3 idiom).
+- Given I click a row, Then it selects (`--p2` bg + `inset 2px 0 0 var(--ac)`) and `?record=<kind>:<id>` updates (ops-selection v2).
+- Given data still loading, Then a quiet skeleton/empty-state renders until `isSettled` (registry data is this screen's PRIMARY data — B-3 pin-7 precedent, incl. the failure path).
+- Alt: zero matches → empty-state row; search + facet kept (never auto-cleared).
+
+**Pinned decisions:**
+1. *Selection hook placement:* `useOpsRecord` lands HERE (T1) as the additive **ops-selection v2** bump — selection is the table's concern; C-3 consumes it for deep-link hydration and hopping. (Deliberate delta vs the old §8 outline, which parked the bump under C-3 — avoids C-2 shipping throwaway local selection state.)
+2. *`+ NEW` is INERT in this story* — rendered per design but disabled with a title tooltip; C-4 wires it. Acceptable intra-EPIC state (flag OFF in prod).
+3. *Root testid `ops-screen-registry`* kept — replace the OpsShell v1 placeholder in place (B-1 precedent).
+4. *Search/facet state is component-local* (design parity); only `record` is URL-backed — adding `q`/`facet` params would be an ADR-014 amendment, parked with the tab-params retro item.
+
+- **C-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: Additive `useOpsRecord(): { recordId: string | null, setRecordId(id: string | null): void }` for `?record` in `opsUrlState.ts` — inherits ALL v1 semantics (absent/empty → null; opaque ids; setters preserve unrelated params; REPLACE, never push).
+  TDD: hook tests mirroring the v1 suite rows for the new param first.
+  Pull Gate: `ops-selection v1` (the reserved-param row is the authorization; no rename, no semantics drift).
+  Hand-off: Contract Snapshot **`ops-selection v2`** (additive bump). Unblocks: C-2-T2, C-3-T1.
+- **C-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: RegistryScreen toolbar + facet rail + table markup per the design HTML, wired to `registry-selectors v1` + `useRegistryData v1` + `useOpsRecord`; pins 2–4.
+  TDD: interaction tests first (search+facet compose, unfiltered counts, select → URL, skeleton/settle, empty state, SOURCE/STATUS cell words, inert `+ NEW`).
+  Pull Gate: `registry-selectors v1`, `useRegistryData v1`, `ops-selection v2`, `OpsShell v1` (placeholder replacement), ops-tokens v3 `--kind-*` (+ `-bg` tints) present.
+  Unblocks: C-3-T1, END OF STORY SEQUENCE.
+
+### Story C-3 — Record Inspector: provenance, linked-record hopping, deep link
+**As a** sports editor **I want** a record inspector showing provenance and clickable related records **so that** I can audit a record's origin and walk the graph (sport → competitions → teams → roster) without losing context.
+
+Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (re-gate at start) · INVEST all ✓
+
+**AC:**
+- Given a selected record, Then the 320px inspector shows: RECORD label, 44px icon tile (1px border, `--p2`), name (15px/600) + kind chip, provenance line (mono 9.5px `--t3`), attribute rows (76px mono key: TYPE / SPORT / COUNTRY (when present) / DETAIL (when present) / STATUS / SOURCE), a LINKED section of clickable related-record rows (icon, name, kind label — hover accent border), and the dashed `+ ADD REMARK` ghost.
+- Given a MANUAL record, Then the provenance line reads `MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE`; given a synced record, `SYNCED FROM <SOURCE>` — appending `· LAST SYNC <relative>` ONLY if the API exposes a sync timestamp (pin 2 — no fabricated freshness).
+- Given I click a LINKED row, Then the inspector navigates to that record and `?record` updates (REPLACE — hops leave no history entries, ops-selection v1 rule 7).
+- Given `/ops/registry?record=team:12` loaded directly, Then the row selects and the inspector shows the team; unknown/malformed id → quiet empty state, no crash (opaque-id rule).
+- Given a record with a manual remark (`notes` non-empty), Then a `REMARKS · MANUAL` bordered note box renders above the ghost; else no box.
+- Given no selection, Then a quiet empty state (EventInspector precedent).
+
+**Pinned decisions:**
+1. *NOT EventInspector:* EventInspector v1 is EVENT-scoped — Registry gets its own `RecordInspector`. This is the SECOND 320px-inspector-chrome occurrence → Rule of Two: do NOT extract shared panel chrome yet; record the watch item (trigger = a third inspector).
+2. *Provenance display honesty:* the last-sync suffix renders only from a real field — T1's gate verifies what the APIs expose (AS-8 precedent: never light UI from data that doesn't exist).
+3. *No derivation in the component* (anti-smart-ui): attribute/provenance/linked values come from the C-1 projection + `linkedRecordsOf`; conditional rows (COUNTRY/DETAIL) render only when the projection provides them (design `attrsOf`).
+4. *`+ ADD REMARK` ghost is INERT here* — always rendered (design), wired by C-5.
+
+- **C-3-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: `RecordInspector` (props-driven, owns its 320px panel chrome — EventInspector idiom) + RegistryScreen embed + deep-link hydration + hop wiring (pins 1–4).
+  TDD: render-state tests first — one per kind fixture, provenance variants (MANUAL / synced / synced-with-timestamp-if-exposed), remark box present/absent, hop (incl. URL REPLACE assertion), direct deep link, unknown id, empty state.
+  Pull Gate: `registry-selectors v1` (`linkedRecordsOf`), `ops-selection v2`; provenance/sync-timestamp field verification (pin 2).
+  Hand-off: Contract Snapshot **`RecordInspector v1`** (props). Unblocks: C-4-T1, C-5-T1, END OF STORY SEQUENCE.
+
+### Story C-4 — Create modal (first write path: NEW ENTITY, MANUAL provenance, idempotent)
+**As a** sports editor **I want** to create a manual record (kind + name) from the registry **so that** entities missing from the sync sources exist immediately and are protected from overwrite.
+
+Business Value 3 · Priority 3 · Size **M** · DoR: **READY (conditional)** — T1's endpoint-inventory pull gate is BLOCKING; kind chips scope to verified create endpoints · INVEST all ✓
+
+**AC:**
+- Given I click `+ NEW`, Then the centered 430px modal renders over the `rgba(0,0,0,.55)` backdrop: `NEW ENTITY` label + ✕, kind chips with radio behavior (ONLY kinds with a verified create endpoint), name input, the note `CREATED RECORDS ARE SOURCE: MANUAL · PROTECTED FROM SYNC OVERWRITE`, CANCEL + accent CREATE.
+- Given an empty/whitespace name, When I click CREATE, Then nothing happens (no request; modal stays — design no-op).
+- Given a valid name, When I click CREATE, Then exactly ONE request fires (double-click / Enter+click pinned by a single-flight test) and on success: modal closes, name clears, search + facet reset, data refreshes, and the created record is selected in the inspector showing the MANUAL provenance line (design: create appends + clears filters + selects).
+- Given the server rejects a duplicate (unique constraint — e.g. `Player @@unique([tenantId, sportId, fullName, birthDate])`), Then the modal STAYS OPEN with the name kept, an inline mono error in `--alert-danger` says the record already exists, no row is appended and the selection does not change.
+- Given any other failure, Then an inline generic error renders and CREATE re-enables (retry is user-initiated, still single-flight).
+
+**Pinned decisions:**
+1. *Endpoint inventory IS the gate:* enumerate per kind which of `sportsApi`/`competitionsApi`/`teamsApi`/`playersApi` expose create; chips scope to those that do — a kind without a create endpoint gets NO chip (never a dead button) and a recorded TD/product item.
+2. *Idempotency, honestly:* a client request key is generated per modal-open and sent IF the backend accepts an idempotency header/field (gate verifies); regardless, the UI-testable guarantee is the single-flight guard (ONE request per user intent) with server unique constraints as the duplicate backstop. Pin the ACTUAL duplicate status/error shape from the gate before writing the rejection test — do not guess 409.
+3. *MANUAL provenance shape:* creates send the minimal manual-record payload; whether `source`/`isManaged` is explicit or server-implied for non-import writes is a gate output — pinned in the snapshot (EPIC DoD 2 honesty).
+4. *Post-create:* `useRegistryData.refresh()` then `setRecordId('<kind>:<newId>')` — optimistic append REJECTED (provenance + LINKED derivation must come from the server row).
+5. *Required fields beyond name:* player create likely requires `sportId` (it is in the unique key) — if the gate confirms, the modal gains a minimal sport select for the player kind ONLY (designer note for E-2; modal stays at design fidelity otherwise).
+
+- **C-4-T1** · Hat **FEATURE** · Model **Sonnet** (spec) / review **Opus** (write-path + error contract) · Confidence **Med** (first write path; endpoint surface unverified until the gate)
+  Goal: Create modal + write wiring implementing pins 1–5.
+  TDD: interaction tests first — kind-chip radio, empty-name no-op, single-flight double-click, success flow (close/clear/refresh/select + provenance line), duplicate-rejection flow (status per gate), generic-failure re-enable.
+  Pull Gate (BLOCKING): create-endpoint inventory per kind + duplicate-error status/shape + payload requirements (pins 1–3, 5) vs `src/services/*` and backend routes; `RecordInspector v1`, `useRegistryData v1`.
+  Hand-off: Contract Snapshot **`registry-create v1`** (per-kind payload shapes + error contract + the idempotency mechanism actually available). Unblocks: C-7-T1, END OF STORY SEQUENCE.
+
+### Story C-5 — Remarks: `+ ADD REMARK` → protected `notes`
+**As a** sports editor **I want** to attach a manual remark to a record **so that** editorial knowledge lives on the record and survives nightly syncs (protected field).
+
+Business Value 2 · Priority 2 · Size **S** · DoR: **READY (conditional)** — notes-endpoint gate at T1 · INVEST all ✓
+
+**AC:**
+- Given a record whose kind supports `notes` (gate: `Team.notes` and `Player.notes` exist, manual-only; sports/competitions per gate), When I click the ghost, Then it swaps for a bordered textarea + mono SAVE/CANCEL in the inspector idiom.
+- Given text and SAVE, Then exactly ONE update fires (single-flight), the `REMARKS · MANUAL` box renders the saved text, and the ghost thereafter reads `EDIT REMARK`.
+- Given CANCEL, Then the editor closes with no request.
+- Given a kind without a notes path, Then NO ghost renders (never a dead affordance — C-4 pin-1 rule).
+- Given the update fails, Then the editor stays open with an inline error.
+
+**Pinned decisions:**
+1. *Editor UX is a design gap* (design shows only the box + ghost): minimal inline textarea per the AC — designer review note for E-2.
+2. *Ghost label:* `+ ADD REMARK` when no remark exists, `EDIT REMARK` when one does (v1 judgment call, designer note).
+3. *Write semantics:* full-text last-write-wins update of `notes` via the kind's update endpoint — naturally idempotent; `notes` is the MANUAL-protected field (`ImportGovernanceService`), so this UI write IS the sanctioned manual path; server-side protection not re-proved at UI level (EPIC DoD 2).
+4. *Concurrent edits:* out of scope v1 (no registry socket refresh; single-editor assumption) — recorded.
+
+- **C-5-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence Med (endpoint semantics gated)
+  Goal: Remark editor in `RecordInspector` + update wiring + refresh (pins 1–4).
+  TDD: interaction tests first — ghost→editor, save→box + label flip, cancel no-request, single-flight, failure-stays-open, no-notes-kind renders no ghost.
+  Pull Gate: notes-update route inventory per kind (which update endpoints accept `notes`; any governance guard flags) vs services/backend; `RecordInspector v1`.
+  Hand-off: **`RecordInspector v1.1`** amendment (remark editor props/behavior). Unblocks: C-7-T1, END OF STORY SEQUENCE.
+
+### Story C-6 — Performer/Staff Kinds — DEFERRED STUB (do not detail)
+**As a** planner **I want** performers and staff as registry records **so that** non-team people (presenters, coaches, solo athletes) are browsable and linkable like everything else.
+
+DoR: **NOT READY** — blocked on a PRODUCT/SCHEMA decision. AS-5 (verified 2026-07-05): no Performer/Staff/Person model exists anywhere; TechPlan crew names are free text. Introducing these Kinds means new Prisma models + import mapping + provenance rules — outside this UI initiative's scope. Prerequisites before detailing: (1) product decision that performers/staff become entities; (2) schema + import design (candidate venue: post-EPIC-E product session, alongside the cutover ADR); (3) §4 glossary Kind row update. Until then the UI deliberately omits the facets/chips/graph arms (C-1/C-2 pins). No tasks.
+
+### Story C-7 — EPIC C smoke test + runbook §registry
+**As a** reviewer **I want** an E2E journey over the registry including the create write path **so that** the initiative's first write surface is verifiably deployable and rollbackable.
+
+Business Value 2 · Priority 3 · Size **M** (interception must gain stateful create/update emulation) · DoR: **READY** (gate MUST re-verify harness premises — the A-5 lesson)
+
+**AC (flag-on profile; flag-off coverage carried by A-5):**
+- Given `/ops/registry`, Then counters + facet counts match the registry fixture inventory (literal assertions); clicking the Teams facet filters to the fixture team count; typing an anonymised fixture player's name composes search + facet.
+- Given a row click, Then `?record=<kind>:<id>` appears and the inspector renders the record; clicking a LINKED row hops the inspector and updates the URL; a direct load of that deep link restores the same state.
+- Given `+ NEW`, Then creating a record (interception emulates the create per `registry-create v1` and appends to its in-memory store) closes the modal, clears filters, and the inspector shows the new record with the MANUAL provenance line; a scripted duplicate create renders the inline duplicate error with the modal open (emulated error shape per the same contract).
+- Given the remark ghost on a fixture team, Then saving a remark renders the `REMARKS · MANUAL` box (emulated update).
+
+**Pinned decisions:**
+1. *Stateful interception:* the ops-e2e route layer gains an in-memory registry store (reset per test) so create/update round-trips are observable — recorded as an ops-e2e amendment; the real-backend gap (A-5 trade-off) now covers WRITES too — state it explicitly in the runbook's known limitations.
+2. *PII:* e2e registry fixtures reuse the anonymised unit fixture families (EPIC DoD 3); a review-chain checklist step (Haiku) verifies no real athlete names anywhere in fixtures/specs.
+
+- **C-7-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: `e2e/smoke-epic-c.flag-on.spec.ts` implementing the ACs + the interception store (pin 1) + runbook `ops-shell.md` §registry — symptoms: empty registry → four fetches / `isSettled`; create fails → endpoint + duplicate shape per `registry-create v1`; remark not saving → protected-field guard/route; wrong SOURCE words → provenance predicate (C-1 pin 3); rollback = flag OFF + REDEPLOY (TD-27).
+  TDD: AC-ordered spec red → green; runbook verification checklist derived from the passing spec (A-5 idiom).
+  Pull Gate: `ops-e2e v1` (amended) + all EPIC C snapshots (`registry-selectors v1`, `useRegistryData v1`, `ops-selection v2`, `RecordInspector v1.1`, `registry-create v1`); fixture inventory vs the registry fixture families (counts asserted literally); PII check (pin 2, Haiku).
+  Unblocks: **EPIC C RETRO** (Phase Summary + Architecture Memory update + flow data + mode check per BB §10 — then expand EPIC D), END OF STORY SEQUENCE.
+
+### EPIC C — Expansion validator note (BB v5.1 §9, DELIVERY level, run 2026-07-05)
+
+- **Structure/DAG:** C-1-T1 → {C-1-T2, C-2-T2, C-3-T1}; C-2-T1 (needs only ops-selection v1) → {C-2-T2, C-3-T1}; C-3-T1 → {C-4-T1, C-5-T1} → C-7-T1. No cycles; C-6 stub sits outside the DAG. Every detailed task has Hat, Model, TDD order, Pull Gate, Unblocks. ✓
+- **Glossary:** Kind/Record/Provenance used as §4 defines them; the performer/staff deferral is consistent with the AS-5 flags already in §4/§5. ✓
+- **Anti-bureaucracy (Core §5.3):** every task spec is shorter than its expected implementation (largest: C-2-T2 screen; smallest: C-2-T1 hook — still above overhead). C-1 selectors and C-2 screen kept separate because the projection has TWO consumers (table + inspector) — not an always-change-together pair; C-2-T1 kept inside C-2 rather than a micro-story. ✓
+- **Writes:** both write paths carry single-flight tests + gate-pinned error contracts; PII fixture rule is an EPIC DoD addition; no schema changes/migrations in EPIC C. ✓
+- **Honest deferrals:** performer/staff (C-6 stub, product-gated); remark-editor UX, `N PLAYERS` counter label and any extra create field → designer notes at E-2; server-side sync-overwrite protection explicitly NOT re-proved at UI level. ✓
+
+---
+
 ## 8. Roadmap EPICs (outline only — expand after EPIC A/B retros, per BB §1 depth rule)
 
 ### EPIC C — REGISTRY (sports CMS surface)
-The UI side of `docs/teams-players-repository-plan.md` (backend + `teamsApi`/`playersApi` already on main).
-Stories (draft): C-1 registry selectors (`linkedRecords` graph: sport→competitions→teams→roster/staff, counts, search/facet compose) · C-2 toolbar + facet rail + table (kind chips, SOURCE/provenance column, STATUS) · C-3 Record Inspector with linked-record hopping + provenance line (`ImportGovernanceService` semantics) · C-4 create modal → `teamsApi`/`playersApi`/`sportsApi` (SOURCE: MANUAL, protected) — **idempotency:** client request key + server unique constraints · C-5 REMARKS (manual note on protected `notes` field) · C-6 performer/staff Kinds (pending AS-5 verification — may become SPIKE) · C-7 smoke test.
-Key risk: AS-5 (performer/staff entities may not exist) — resolve in refinement before committing scope.
+Expanded 2026-07-05 — see §EPIC C above (detailed section after the EPIC B retro).
 
 ### EPIC D — SYNC (import health + merge review)
 Pure UI over existing `backend/src/routes/import/*`.
