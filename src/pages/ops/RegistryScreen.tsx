@@ -26,6 +26,8 @@
  */
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useRegistryData } from '../../components/ops/useRegistryData'
+import { useLinkedRecords } from '../../components/ops/useLinkedRecords'
+import { RecordInspector } from '../../components/ops/RecordInspector'
 import { useOpsRecord } from '../../components/ops/opsUrlState'
 import {
   buildRegistryIndex,
@@ -102,6 +104,11 @@ export function RegistryScreen() {
   const facetCounts = useMemo(() => registryFacetCounts(index), [index]) // ALWAYS unfiltered
   const counters = useMemo(() => registryToolbarCounts(index), [index])
 
+  // Deep-link hydration is automatic: recordId (URL) → index.byId → record;
+  // unknown/malformed id → null → inspector empty state (no crash). Hops REPLACE.
+  const selectedRecord = recordId ? index.byId.get(recordId) ?? null : null
+  const { sections } = useLinkedRecords(selectedRecord, index)
+
   return (
     <div
       data-testid="ops-screen-registry"
@@ -161,7 +168,7 @@ export function RegistryScreen() {
           LOADING REGISTRY
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '16px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr 320px', gap: '16px', alignItems: 'start' }}>
           {/* ── Left facet rail ── */}
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ ...monoStyle, fontSize: '9px', fontWeight: 600, letterSpacing: '1.5px', color: 'var(--text-shell-3)', padding: '0 10px 6px' }}>
@@ -236,6 +243,9 @@ export function RegistryScreen() {
               ))
             )}
           </div>
+
+          {/* ── Right inspector (C-3-T1) — onHop REPLACEs ?record (ops-selection rule 7) ── */}
+          <RecordInspector record={selectedRecord} linkedSections={sections} onHop={setRecordId} />
         </div>
       )}
     </div>

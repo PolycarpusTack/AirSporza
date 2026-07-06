@@ -19,6 +19,7 @@ import {
   FIXTURE_SPORTS,
   FIXTURE_TEAMS,
 } from '../../components/ops/__fixtures__/opsFixtureWeek'
+import type { LinkedRecordSection } from '../../components/ops/registrySelectors'
 
 const hookState = vi.hoisted(() => ({
   sports: [] as unknown[],
@@ -37,6 +38,13 @@ vi.mock('../../components/ops/useRegistryData', () => ({
     isSettled: hookState.isSettled,
     refresh: vi.fn(async () => {}),
   }),
+}))
+
+// The lazy linked-record fetch is unit-tested in useLinkedRecords.test.ts — here
+// it is mocked so the screen tests stay focused on hydration + hop wiring.
+const linkedState = vi.hoisted(() => ({ sections: [] as LinkedRecordSection[] }))
+vi.mock('../../components/ops/useLinkedRecords', () => ({
+  useLinkedRecords: () => ({ sections: linkedState.sections }),
 }))
 
 import { RegistryScreen } from './RegistryScreen'
@@ -76,6 +84,7 @@ beforeEach(() => {
   hookState.teams = [...FIXTURE_TEAMS]
   hookState.players = [...FIXTURE_PLAYERS]
   hookState.isSettled = true
+  linkedState.sections = []
 })
 
 afterEach(() => {
@@ -258,5 +267,36 @@ describe('cells (SOURCE / STATUS / TYPE chip)', () => {
     expect(within(row('team:1')).getByText('5 linked records')).toBeTruthy()
     expect(within(row('sport:1')).getByText('3 competitions')).toBeTruthy()
     expect(within(row('player:4')).getByText('—')).toBeTruthy() // unattached
+  })
+})
+
+describe('RecordInspector embed (C-3-T1 — hydration + hops)', () => {
+  it('no selection → inspector renders its empty state', () => {
+    renderScreen()
+    expect(screen.getByTestId('ops-record-inspector-empty')).toBeTruthy()
+  })
+
+  it('direct load ?record=team:1 → inspector hydrates the team', () => {
+    renderScreen('/ops/registry?record=team:1')
+    const inspector = screen.getByTestId('ops-record-inspector')
+    expect(within(inspector).getByTestId('ops-record-name').textContent).toBe('Riverside United')
+    expect(screen.queryByTestId('ops-record-inspector-empty')).toBeNull()
+  })
+
+  it('unknown ?record=team:999 → inspector empty state, no crash', () => {
+    renderScreen('/ops/registry?record=team:999')
+    expect(screen.getByTestId('ops-record-inspector-empty')).toBeTruthy()
+    // the table still rendered (no crash)
+    expect(rowIds().length).toBeGreaterThan(0)
+  })
+
+  it('clicking a LINKED hop row updates ?record (REPLACE — ops-selection rule 7)', () => {
+    linkedState.sections = [
+      { relation: 'competitions', records: [{ recordId: 'competition:103', name: 'Cup C', kind: 'competition' }] },
+    ]
+    renderScreen('/ops/registry?record=team:1')
+
+    fireEvent.click(screen.getByTestId('ops-record-linked-competition:103'))
+    expect(recordParam()).toBe('competition:103')
   })
 })
