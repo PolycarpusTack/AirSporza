@@ -20,6 +20,12 @@ vi.mock('../../services', () => ({
   contractsApi: { list: vi.fn(async () => []) },
   channelsApi: { list: vi.fn(async () => []) },
   schedulesApi: { listSlots: vi.fn(async () => []) },
+  // C-2-T2: the registry tab now renders the real RegistryScreen → useRegistryData
+  // fetches these four (quiet — stubbed empty; RegistryScreen behavior has its own suite).
+  sportsApi: { list: vi.fn(async () => []) },
+  competitionsApi: { list: vi.fn(async () => []) },
+  teamsApi: { list: vi.fn(async () => []) },
+  playersApi: { list: vi.fn(async () => []) },
 }))
 
 import { OpsShell, OPS_TABS, type OpsTabId } from './OpsShell'
