@@ -5,7 +5,7 @@
 > `backlog-builder-agent-v2.md` (workflow) · `gpm-v2.1.md` (ZAP/CIP/PREP execution)
 > **Solution design:** `docs/design_handoff_planza_ops/README.md` + `Planza App.dc.html` + screenshots
 > **Current-state baseline:** codebase survey 2026-07-02 (see §6 Architecture Memory delta)
-> **Status:** v1 — EPICs A, B & C detailed (EPIC C expanded 2026-07-05 after the EPIC B retro); EPICs D–E outlined, expand after the EPIC C retro (BB v5.1 §10)
+> **Status:** v1 — EPICs A, B & C COMPLETE incl. retros (C done 2026-07-06); EPICs D–E outlined, expand EPIC D next (BB v5.1 §10)
 
 ---
 
@@ -90,7 +90,7 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 
 ```
 ARCHITECTURE MEMORY: Planza Ops Redesign
-Updated: 2026-07-04 (EPIC B retro)
+Updated: 2026-07-06 (EPIC C retro)
 
 Components (new):
   OpsShell:            chrome + tabs + theme toggle + flag gate — BUILT (OpsShell v1; lazy
@@ -105,8 +105,7 @@ Components (new):
   ops/selectors:       pure derived-status functions — BUILT (ops-selectors v3:
                        rightsStatus/rightsInfo + competition-scoped core, crewHealth/
                        crewRoles, groupEventsByDay, filterConflictsToEvent, rights
-                       matrix/tiles/validityProgress/Band); linkedRecords still planned
-                       (EPIC C scope)
+                       matrix/tiles/validityProgress/Band)
   rundownLayout:       pure lane/position selectors (resolveChannel slot-first +
                        relation fallback, layoutRundown clamp→floor→re-clamp geometry)
                        — BUILT (rundown-layout v1, B-1; sibling module, slot datetimes
@@ -123,8 +122,29 @@ Components (new):
                        — BUILT (B-1/B-2; /ops/planner URL id per ADR-014)
   RightsScreen:        stat tiles + rights matrix + validity bars — BUILT (B-3;
                        isSettled loading state; ON-DEM column reserved per AS-8)
-  RegistryScreen:      search/facets/table/inspector/create modal — planned (placeholder)
-  SyncScreen:          job cards + merge review queue — planned (placeholder)
+  registrySelectors:   pure registry projection — BUILT (registry-selectors v1.1; sibling to
+                       selectors.ts, TD-25; buildRegistryIndex/projectRegistryRows/
+                       linkedSummaryOf/registryFacetCounts/registryToolbarCounts +
+                       linkedRecordsOf hop resolver + linkedRecordListPlan; SOURCE from
+                       externalRefs first-key, STATUS token, index-once)
+  useRegistryData:     quiet 4-way parallel fetch { sports,competitions,teams,players,
+                       isSettled, refresh } — BUILT (v1; useContracts idiom, isSettled on
+                       all-four-settled, refresh for C-4 post-create)
+  useLinkedRecords:    lazy per-selection linked-record fetch — BUILT (C-3; per-kind endpoints,
+                       quiet-fail, two-part stale guard: per-run active + selection-keyed
+                       payload anti-flash)
+  RecordInspector:     registry's OWN 320px inspector (NOT EventInspector — Rule-of-Two watch)
+                       — BUILT (RecordInspector v1.1; provenance/attrs/LINKED hops/REMARKS +
+                       kind-gated remark editor via onSaveRemark→saveNotes; key=record.id)
+  RegistryCreateModal: create modal, 4 kinds per-kind fields — BUILT (registry-create v1;
+                       synchronous single-flight latch, 409 dup vs generic, no optimistic
+                       append, server-implied MANUAL provenance)
+  RegistryScreen:      toolbar/facets/table + ?record selection + inspector embed + create
+                       modal — BUILT (C-2..C-5; zero derivation, all from registrySelectors;
+                       STATUS token→var map is occurrence-two of the RecordInspector copy)
+  opsUrlState:         + useOpsRecord (?record) — BUILT (ops-selection v2; 3rd useOpsSearchParam
+                       caller, opaque ids, inherits all v1 semantics)
+  SyncScreen:          job cards + merge review queue — planned (placeholder; EPIC D)
 
 Components (existing, consumed — do not modify):
   AppProvider (events/sports/competitions + socket), services/* (27 APIs),
@@ -135,8 +155,14 @@ Components (existing, consumed — do not modify):
 Key ADRs: ADR-012 shell strategy · ADR-013 theming · ADR-014 deep-linking (all Accepted 2026-07-02, docs/governance/adr/)
 
 Contract snapshots (docs/governance/contracts/): ops-tokens v3 · useOpsTheme v1 ·
-OpsShell v1 · ops-selection v1 · ops-selectors v3 · EventInspector v1 (amended) ·
-ops-e2e v1 (amended) · rundown-layout v1 · useContracts v1
+OpsShell v1 · ops-selection v2 · ops-selectors v3 · EventInspector v1 (amended) ·
+ops-e2e v1.1 (stateful registry store) · rundown-layout v1 · useContracts v1 ·
+registry-selectors v1.1 · useRegistryData v1 · RecordInspector v1.1 · registry-create v1
+
+Backend (ONLY change in the whole initiative — additive): registry create routes
+(sports/competitions/teams/players POST) map Prisma P2002 → 409 'already exists'
+(C-4-T0, mirrors crewMembers/savedViews; the list routes gained additive _count/
+teamLinks embeds at C-1-T0). No schema/migration changes.
 
 Open architect decisions parked at the EPIC B retro: ADR-014 amendment (carry ?day/?event
 across tab switches — currently deep-link only) · backend broadcastSlots.ts inclusive-lte
@@ -150,8 +176,14 @@ Active TD (pre-existing, relevant):
   TD-27: VITE_OPS_REDESIGN is build-time only — rollback = env change + REDEPLOY; e2e must
          run a two-build matrix until/unless a runtime override lands
 
-Current Mode: DELIVERY (retained at EPIC A retro 2026-07-03 and EPIC B retro 2026-07-04 —
-EPIC C brings the first new write paths, full governance stays)
+Current Mode: DELIVERY (retained at EPIC A/B/C retros — EPIC C shipped the first write paths
+under full governance and the DoR gates paid off 3×; EPIC D's irreversible merge decisions
+argue even harder to keep it)
+
+Open E-2 designer notes (EPIC C): --registry-* STATUS token family (currently reuses
+--status-approved/--alert-warning/--text-shell-3) · sport-icon + per-kind create fields
+beyond the design's name-only modal · provenance shows the SOURCE CODE not the full name
+(no name map) · registry row-click keyboard a11y (clickable div)
 ```
 
 ---
@@ -705,12 +737,73 @@ Business Value 2 · Priority 3 · Size **M** (interception must gain stateful cr
 - **Writes:** both write paths carry single-flight tests + gate-pinned error contracts; PII fixture rule is an EPIC DoD addition; no schema changes/migrations in EPIC C. ✓
 - **Honest deferrals:** performer/staff (C-6 stub, product-gated); remark-editor UX, `N PLAYERS` counter label and any extra create field → designer notes at E-2; server-side sync-overwrite protection explicitly NOT re-proved at UI level. ✓
 
+### EPIC C — Retro (2026-07-06, per §10.4 / BB §10)
+
+**Phase Summary.** EPIC C (Registry) COMPLETE — all 7 story units done in one day on
+`feature/C-1-registry-selectors` (12 commits, stacked on the EPIC B branch/PR #11):
+C-1-T0 backend embeds (`4b47ecc`), C-1-T1 registry-selectors v1 (`ee2648f`), C-1-T2
+useRegistryData v1 (`b179682`), C-2-T1 ops-selection v2 (`7f8289d`), C-2-T2 RegistryScreen
+(`c2f53ba`), C-3-T0 registry-selectors v1.1 (`43e56c8`), C-3-T1 RecordInspector v1
+(`5c9d055`), C-4-T0 backend dup-409 (`06ada66`), C-4-T1 create modal registry-create v1
+(`5eef8d8`), C-5-T1 remarks RecordInspector v1.1 (`d73f9f2`), C-7 smoke (`e182e9a`). Test
+base 551 → **714** vitest + backend 341 → **349** + e2e 6 → **10** (EPIC C flag-on journey),
+`tsc -b` clean throughout. Contracts: registry-selectors v1→v1.1 · useRegistryData v1 ·
+ops-selection v1→v2 · RecordInspector v1→v1.1 · registry-create v1 · ops-e2e v1→v1.1.
+
+**DoD additions check:** (1) no write fires twice — single-flight unit-pinned on BOTH paths
+(create `isSubmittingRef`, remark `isSavingRef`; the create ref isolated via `fireEvent.submit`
+bypassing the disabled button) ✓. (2) MANUAL provenance — create sends no `externalRefs` →
+server-implied MANUAL → inspector renders `MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE`,
+asserted unit end-to-end (real RecordInspector) AND in the e2e create flow ✓; server
+sync-protection NOT re-proved at UI level (honest scope) ✓. (3) all person fixtures anonymised
+— Haiku PII check clean across unit + e2e ✓. (4) `?record` deep-link round-trips — unit
+(hydrate/hop/unknown-id) + e2e (deep-link restore) ✓.
+
+**Process notes.** (a) DoR re-gates earned their keep THREE times: C-1's linked-graph pull gate
+FAILED (links don't ride bulk lists → N+1) → the **HYBRID** decision (additive `_count`/embed
+via C-1-T0 + lazy per-selection lists); C-3 came back **NOT READY** (the frozen contract lacked
+`linkedRecordsOf` + `notes`/`country`) → a C-3-T0 v1.1 prep task (A-4-T0/C-1-T0 precedent); C-4's
+blocking endpoint gate found duplicate creates returned a generic 500 (P2002 unmapped) AND a
+name-only modal only works for teams → architect chose backend-fix + all-4-kinds. Zero mid-task
+stalls after each gate. (b) Mutation probes caught real unenforced pins every feature task —
+C-1-T1 unknown-source fallback, C-3-T1's id-key anti-flash gate (documented but untested; the
+`active`-guard test alone passed), C-4-T1's single-flight (ref redundant with the disabled button
+under `fireEvent` — isolated via form-submit), C-5-T1's missing `key={record.id}` (cross-record
+draft corruption). (c) **Review-tooling hazard discovered + fixed:** the mutation-probe auditor
+reverted probes with `git checkout`, which DISCARDS uncommitted task work — hit twice (C-2-T1,
+C-2-T2, both self-reconstructed + orchestrator-verified); from C-3 on, the auditor was told to
+back up to scratchpad and never `git checkout` — no recurrence. (d) Naming reviews standardised
+the ops boolean `is`-convention (`isActive`/`isSubmitting`/`isSavingRef`) and fixed public-API
+names BEFORE contracts froze (registry-selectors renames, `LinkedRecordPayloads`, `remarkText`).
+
+**Found work / upstream (not a defect of this epic):** backend registry create routes never
+mapped Prisma P2002 → duplicate creates were 500s (fixed at C-4-T0, mirrors crewMembers/savedViews;
+also fixes the legacy TeamsView create path). No sync-timestamp field exists on any list/record
+payload → the design's `· LAST SYNC` provenance suffix is NOT renderable (dropped, pin 2 honesty).
+
+**Debt candidates awaiting a free `debt-register.md`:** registry table rows + row-click are a
+clickable `<div>` without keyboard a11y (role/tabIndex/onKeyDown) — a holistic ops-a11y pass
+(Schedule/Rundown blocks likely share it); `STATUS_COLOR` token→var map duplicated RegistryScreen
++ RecordInspector (Rule-of-Two watch, extract at a third); 320px inspector chrome now TWICE
+(EventInspector + RecordInspector) — Rule-of-Two watch, do NOT extract yet; C-1-T0 registry list
+embed tests cover only the bare-array `findMany` branch (registry uses it; paginated branch
+untested); create-modal cancel-during-submit still fires `onCreated` (the POST already succeeded —
+defensible, E-2 note); `--registry-*` STATUS token family, sport-icon/federation + per-kind create
+fields, and provenance SOURCE-code-vs-full-name → E-2 designer notes.
+
+**SLOs still unmeasured** (`registry initial render < 1.5s p95 @ 2,000 records`, `search keystroke
+< 50ms`, `inspector hop < 100ms`) — the C-1 perf probe pins linearity only; E-1 remains the honest
+measurement point. **Mode check: DELIVERY retained** — EPIC C shipped the first write paths under
+full governance and the gates paid off; EPIC D (Sync/dedup-merge — irreversible merge decisions on
+canonical records) argues even harder for keeping it. Next per §10.4: expand **EPIC D** with
+`backlog-builder`.
+
 ---
 
 ## 8. Roadmap EPICs (outline only — expand after EPIC A/B retros, per BB §1 depth rule)
 
 ### EPIC C — REGISTRY (sports CMS surface)
-Expanded 2026-07-05 — see §EPIC C above (detailed section after the EPIC B retro).
+Expanded 2026-07-05, **COMPLETE 2026-07-06 (retro above)** — see §EPIC C detailed section.
 
 ### EPIC D — SYNC (import health + merge review)
 Pure UI over existing `backend/src/routes/import/*`.
