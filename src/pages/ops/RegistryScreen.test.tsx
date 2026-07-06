@@ -9,7 +9,7 @@
  * useRegistryData is mocked (vi.hoisted state); render is wrapped in MemoryRouter
  * so useOpsRecord reads/writes ?record (opsUrlState/RightsScreen test precedent).
  */
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,6 +18,7 @@ import {
   FIXTURE_PLAYERS,
   FIXTURE_SPORTS,
   FIXTURE_TEAMS,
+  makeTeam,
 } from '../../components/ops/__fixtures__/opsFixtureWeek'
 import type { LinkedRecordSection } from '../../components/ops/registrySelectors'
 
@@ -27,6 +28,8 @@ const hookState = vi.hoisted(() => ({
   teams: [] as unknown[],
   players: [] as unknown[],
   isSettled: true,
+  // refresh() mutates the collections to what the server would return next (C-4).
+  onRefresh: null as null | (() => void),
 }))
 
 vi.mock('../../components/ops/useRegistryData', () => ({
@@ -36,7 +39,9 @@ vi.mock('../../components/ops/useRegistryData', () => ({
     teams: hookState.teams,
     players: hookState.players,
     isSettled: hookState.isSettled,
-    refresh: vi.fn(async () => {}),
+    refresh: async () => {
+      hookState.onRefresh?.()
+    },
   }),
 }))
 
@@ -45,6 +50,17 @@ vi.mock('../../components/ops/useRegistryData', () => ({
 const linkedState = vi.hoisted(() => ({ sections: [] as LinkedRecordSection[] }))
 vi.mock('../../components/ops/useLinkedRecords', () => ({
   useLinkedRecords: () => ({ sections: linkedState.sections }),
+}))
+
+// The create modal's write path is unit-tested in RegistryCreateModal.test.tsx —
+// here the services are mocked so the screen test exercises the create → refresh →
+// select → close wiring end-to-end.
+const teamsCreate = vi.fn()
+vi.mock('../../services', () => ({
+  sportsApi: { create: vi.fn() },
+  competitionsApi: { create: vi.fn() },
+  teamsApi: { create: (...a: unknown[]) => teamsCreate(...a) },
+  playersApi: { create: vi.fn() },
 }))
 
 import { RegistryScreen } from './RegistryScreen'
@@ -84,7 +100,9 @@ beforeEach(() => {
   hookState.teams = [...FIXTURE_TEAMS]
   hookState.players = [...FIXTURE_PLAYERS]
   hookState.isSettled = true
+  hookState.onRefresh = null
   linkedState.sections = []
+  teamsCreate.mockReset()
 })
 
 afterEach(() => {
@@ -124,11 +142,14 @@ describe('toolbar', () => {
     )
   })
 
-  it('+ NEW is rendered but INERT/disabled (pin 2)', () => {
+  it('+ NEW opens the create modal (C-4-T1 — supersedes the C-2 pin-2 inert state)', () => {
     renderScreen()
     const newButton = screen.getByTestId('ops-registry-new') as HTMLButtonElement
-    expect(newButton.disabled).toBe(true)
-    expect(newButton.title.length).toBeGreaterThan(0)
+    expect(newButton.disabled).toBe(false)
+    expect(screen.queryByTestId('ops-create-modal')).toBeNull()
+
+    fireEvent.click(newButton)
+    expect(screen.getByTestId('ops-create-modal')).toBeTruthy()
   })
 })
 
@@ -298,5 +319,37 @@ describe('RecordInspector embed (C-3-T1 — hydration + hops)', () => {
 
     fireEvent.click(screen.getByTestId('ops-record-linked-competition:103'))
     expect(recordParam()).toBe('competition:103')
+  })
+})
+
+describe('create flow (C-4-T1 — refresh → clear filters → select → close)', () => {
+  it('a successful team create refreshes, resets filters, selects ?record, closes, and shows MANUAL provenance', async () => {
+    // the server row the refresh returns — externalRefs {} → SOURCE MANUAL
+    const createdTeam = makeTeam({ id: 42, name: 'Newport County', externalRefs: {} })
+    teamsCreate.mockResolvedValue({ id: 42 })
+    hookState.onRefresh = () => {
+      hookState.teams = [...FIXTURE_TEAMS, createdTeam]
+    }
+
+    renderScreen()
+    // narrow the view first, so we can prove filters are cleared post-create
+    fireEvent.change(search(), { target: { value: 'zzz-no-match' } })
+    fireEvent.click(screen.getByTestId('ops-registry-new'))
+
+    fireEvent.change(screen.getByTestId('ops-create-name'), { target: { value: 'Newport County' } })
+    fireEvent.click(screen.getByTestId('ops-create-submit'))
+
+    // ?record points at the new team (the router navigation lands after refresh)
+    await waitFor(() => expect(recordParam()).toBe('team:42'))
+    expect(teamsCreate).toHaveBeenCalledWith({ name: 'Newport County' })
+    expect(screen.queryByTestId('ops-create-modal')).toBeNull() // modal closed
+    expect(search().value).toBe('') // filters cleared
+
+    // the inspector shows the fresh server row with MANUAL provenance (no optimistic append)
+    const inspector = screen.getByTestId('ops-record-inspector')
+    expect(within(inspector).getByTestId('ops-record-name').textContent).toBe('Newport County')
+    expect(within(inspector).getByTestId('ops-record-provenance').textContent).toBe(
+      'MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE',
+    )
   })
 })

@@ -9,7 +9,7 @@
  * (useOpsRecord → ?record), ops-tokens v3 (--kind-* chip aliases).
  *
  * Pins owned here (Story C-2):
- *   pin 2 — `+ NEW` is INERT (disabled + tooltip); C-4 wires it.
+ *   pin 2 — `+ NEW` opens the create modal (C-4-T1 wired it; the C-2 inert state is superseded).
  *   pin 3 — root testid ops-screen-registry (replaces the OpsShell placeholder).
  *   pin 4 — search/facet state is COMPONENT-LOCAL; only ?record is URL-backed.
  *   pin 5 — counters read `N PLAYERS` (the design's `12 PEOPLE` assumed person
@@ -28,14 +28,17 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { useRegistryData } from '../../components/ops/useRegistryData'
 import { useLinkedRecords } from '../../components/ops/useLinkedRecords'
 import { RecordInspector } from '../../components/ops/RecordInspector'
+import { RegistryCreateModal } from '../../components/ops/RegistryCreateModal'
 import { useOpsRecord } from '../../components/ops/opsUrlState'
 import {
   buildRegistryIndex,
+  makeRecordId,
   projectRegistryRows,
   registryFacetCounts,
   registryToolbarCounts,
   type RegistryFacet,
   type RegistryFacetCounts,
+  type RegistryKind,
   type RegistryRow,
   type RegistryStatusColor,
   type RegistryToolbarCounts,
@@ -89,12 +92,13 @@ const quietPanelStyle: CSSProperties = {
 }
 
 export function RegistryScreen() {
-  const { sports, competitions, teams, players, isSettled } = useRegistryData()
+  const { sports, competitions, teams, players, isSettled, refresh } = useRegistryData()
   const { recordId, setRecordId } = useOpsRecord()
 
   // component-local search/facet (pin 4) — only ?record is URL-backed.
   const [query, setQuery] = useState('')
   const [facet, setFacet] = useState<RegistryFacet>('all')
+  const [createOpen, setCreateOpen] = useState(false)
 
   const index = useMemo(
     () => buildRegistryIndex(sports, competitions, teams, players),
@@ -108,6 +112,16 @@ export function RegistryScreen() {
   // unknown/malformed id → null → inspector empty state (no crash). Hops REPLACE.
   const selectedRecord = recordId ? index.byId.get(recordId) ?? null : null
   const { sections } = useLinkedRecords(selectedRecord, index)
+
+  // Post-create (pin 4): refresh from the server (provenance/LINKED come from the
+  // fresh row — NO optimistic append), clear filters, select the new record, close.
+  const handleCreated = async (kind: RegistryKind, id: number) => {
+    await refresh()
+    setQuery('')
+    setFacet('all')
+    setRecordId(makeRecordId(kind, id))
+    setCreateOpen(false)
+  }
 
   return (
     <div
@@ -141,8 +155,7 @@ export function RegistryScreen() {
         <button
           type="button"
           data-testid="ops-registry-new"
-          disabled // pin 2 — inert until C-4 wires create
-          title="Create — coming soon"
+          onClick={() => setCreateOpen(true)} // C-4-T1 — opens the create modal
           style={{
             ...monoStyle,
             marginLeft: 'auto',
@@ -154,8 +167,7 @@ export function RegistryScreen() {
             border: 'none',
             background: 'var(--accent-shell)',
             color: 'var(--accent-shell-fg)',
-            cursor: 'not-allowed',
-            opacity: 0.6,
+            cursor: 'pointer',
           }}
         >
           + NEW
@@ -247,6 +259,11 @@ export function RegistryScreen() {
           {/* ── Right inspector (C-3-T1) — onHop REPLACEs ?record (ops-selection rule 7) ── */}
           <RecordInspector record={selectedRecord} linkedSections={sections} onHop={setRecordId} />
         </div>
+      )}
+
+      {/* ── Create modal (C-4-T1, first write path) ── */}
+      {createOpen && (
+        <RegistryCreateModal sports={sports} onCancel={() => setCreateOpen(false)} onCreated={handleCreated} />
       )}
     </div>
   )
