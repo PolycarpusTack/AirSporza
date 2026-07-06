@@ -18,7 +18,9 @@ router.get('/', async (req, res, next) => {
       where,
       include: {
         sport: true,
-        _count: { select: { events: true } }
+        // C-1-T0: teamLinks count feeds the registry LINKED-summary column
+        // (competition → `N teams`) without a per-row fan-out.
+        _count: { select: { events: true, teamLinks: true } }
       },
       orderBy: [
         { sportId: 'asc' },

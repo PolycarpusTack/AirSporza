@@ -31,7 +31,19 @@ router.get('/', validate({ query: s.teamsListQuery }), async (req, res, next) =>
     const pagination = getPagination({ limit, offset })
     const teams = await prisma.team.findMany({
       where,
-      include: { sport: { select: { id: true, name: true, icon: true } } },
+      include: {
+        sport: { select: { id: true, name: true, icon: true } },
+        // C-1-T0: registry LINKED-summary embeds (team → `N linked records`).
+        // playerLinks is filtered to CURRENT memberships only — ended stints
+        // (isCurrent: false) are not today's squad (mirrors the ?teamId roster
+        // rule, F6). Filtered relation counts are GA in Prisma 5.
+        _count: {
+          select: {
+            competitionLinks: true,
+            playerLinks: { where: { isCurrent: true } },
+          },
+        },
+      },
       orderBy: pagination ? [{ name: 'asc' }, { id: 'asc' }] : { name: 'asc' },
       ...(pagination ? { take: pagination.limit, skip: pagination.offset } : {}),
     })

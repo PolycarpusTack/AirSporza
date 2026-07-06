@@ -29,6 +29,8 @@ export interface Competition {
   season: string
   createdAt?: Date
   updatedAt?: Date
+  // C-1-T0: registry list-payload embed (competition → `N teams`).
+  _count?: { events: number; teamLinks: number }
 }
 
 export type BadgeVariant = 'default' | 'live' | 'delayed' | 'valid' | 'expiring' | 'none' | 'draft' | 'success' | 'danger' | 'warning'
@@ -253,6 +255,9 @@ export interface Team {
   isManaged?: boolean
   externalRefs?: Record<string, unknown>
   sport?: { id: number; name: string; icon: string } | null
+  // C-1-T0: registry list-payload embed (team → `N linked records`).
+  // playerLinks counts CURRENT memberships only (isCurrent: true).
+  _count?: { competitionLinks: number; playerLinks: number }
 }
 
 export interface Player {
@@ -272,6 +277,9 @@ export interface Player {
   isManaged?: boolean
   externalRefs?: Record<string, unknown>
   sport?: { id: number; name: string; icon: string } | null
+  // C-1-T0: registry current-team embed (current isCurrent membership only;
+  // `team` is null for an unattached athlete / competition startlist row).
+  teamLinks?: { team: { id: number; name: string } | null }[]
 }
 
 export interface Court {

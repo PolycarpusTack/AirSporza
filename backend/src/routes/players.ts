@@ -37,7 +37,16 @@ router.get('/', validate({ query: s.playersListQuery }), async (req, res, next) 
     const pagination = getPagination({ limit, offset })
     const players = await prisma.player.findMany({
       where,
-      include: { sport: { select: { id: true, name: true, icon: true } } },
+      include: {
+        sport: { select: { id: true, name: true, icon: true } },
+        // C-1-T0: current-team embed feeds the registry LINKED-summary column
+        // (player → current-team name, or `—` when unattached: no isCurrent
+        // link, or a link whose team is null / a competition startlist).
+        teamLinks: {
+          where: { isCurrent: true },
+          select: { team: { select: { id: true, name: true } } },
+        },
+      },
       orderBy: pagination ? [{ fullName: 'asc' }, { id: 'asc' }] : { fullName: 'asc' },
       ...(pagination ? { take: pagination.limit, skip: pagination.offset } : {}),
     })
