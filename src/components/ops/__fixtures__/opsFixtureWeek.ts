@@ -30,7 +30,7 @@
  *             · e10 lies outside the week (must be excluded)
  *   Sports: 5 sports, uneven counts (sport 1×3, 2×2, 3×2, 4×1, 5×1).
  */
-import type { BroadcastSlot, Channel, Competition, Contract, Event, TechPlan } from '../../../data/types'
+import type { BroadcastSlot, Channel, Competition, Contract, Event, Player, Sport, Team, TechPlan } from '../../../data/types'
 import { detectCrewConflicts, type ConflictMap } from '../../../utils/crewConflicts'
 
 /**
@@ -307,4 +307,164 @@ export const FIXTURE_COMPETITIONS: Competition[] = deepFreeze([
   makeCompetition({ id: 108, sportId: 1, name: 'Series H' }),
   makeCompetition({ id: 109, sportId: 3, name: 'Classic I' }),
   makeCompetition({ id: 110, sportId: 5, name: 'Champs J' }),
+])
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * C-1-T1 ADDITIVE extension (Story C-1 pin 8): the Registry record universe —
+ * sports/teams/players to pair with the existing FIXTURE_COMPETITIONS. All
+ * pre-existing exports stay byte-stable (the top type-import line gained
+ * Player/Sport/Team — types erase, no runtime delta).
+ *
+ * PII (EPIC C DoD 3): every player name here is an INVENTED anonymised name —
+ * no real athletes (same bar as the invented crew names above).
+ *
+ * Registry coverage (pin 8), keyed to the T0 embeds that stand in for the list
+ * API payloads (Competition._count, Team._count, Player.teamLinks):
+ *   SPORTS 1–5 mirror the seed federations (sport ids match the competition sportIds).
+ *   TEAMS:
+ *     t1 Riverside United — in 2 competitions (_count.competitionLinks 2) + a `notes`
+ *        remark (feeds C-3/C-5); MANUAL (externalRefs {}); NO sport embed → sportLabel
+ *        resolves via the FIXTURE_SPORTS lookup arm. LINKED = '5 linked records'.
+ *     t2 Coastal Rovers   — the_sports_db → TSDB; LINKED = '1 linked records'.
+ *     t3 Mountain Athletic— api_football → API-FB; 0 competition links; LINKED = '2 linked records'.
+ *   PLAYERS (one per SOURCE code + each status branch + both unattached variants):
+ *     p1 Jonas Vale    — MANUAL ({}), active, attached (Riverside); NO sport embed (lookup arm);
+ *                        position+jersey detail.
+ *     p2 Milo Ferran   — the_sports_db → TSDB, INJURED (amber), attached.
+ *     p3 Aria Kessler  — api_football → API-FB, LOANED (neutral), attached (Coastal).
+ *     p4 Tomas Rigg    — football_data → FB-DATA, active, UNATTACHED (isCurrent link, team NULL).
+ *     p5 Neels Braam   — unknown key 'opta' → uppercase-raw OPTA, active, UNATTACHED (no link);
+ *                        no jersey → detail = position only.
+ *     p6 Ivo Marchand  — the_sports_db → TSDB, RETIRED (neutral, uppercase word), attached.
+ * A competition WITH 0 teams is the reused FIXTURE_COMPETITIONS default (no _count →
+ * '0 teams'); the nonzero N-teams path is pinned inline in the C-1-T1 permutation table.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+export const FIXTURE_SPORTS: Sport[] = deepFreeze([
+  { id: 1, name: 'Football', icon: '⚽', federation: 'FIFA' },
+  { id: 2, name: 'Tennis', icon: '🎾', federation: 'ITF' },
+  { id: 3, name: 'Cycling', icon: '🚴', federation: 'UCI' },
+  { id: 4, name: 'Formula 1', icon: '🏎️', federation: 'FIA' },
+  { id: 5, name: 'Athletics', icon: '🏃', federation: 'World Athletics' },
+])
+
+/** Minimal valid Team with overridable fields (mirrors makeCompetition). */
+export function makeTeam(overrides: Partial<Team> & { id: number }): Team {
+  return {
+    tenantId: 'fixture-tenant',
+    name: `Team ${overrides.id}`,
+    sportId: 1,
+    externalRefs: {},
+    ...overrides,
+  }
+}
+
+/** Minimal valid Player with overridable fields — INVENTED names only (PII). */
+export function makePlayer(overrides: Partial<Player> & { id: number }): Player {
+  return {
+    tenantId: 'fixture-tenant',
+    sportId: 1,
+    fullName: `Player ${overrides.id}`,
+    status: 'active',
+    externalRefs: {},
+    ...overrides,
+  }
+}
+
+export const FIXTURE_TEAMS: Team[] = deepFreeze([
+  makeTeam({
+    id: 1,
+    name: 'Riverside United',
+    sportId: 1,
+    country: 'Belgium',
+    notes: 'Promoted from the second division',
+    isManaged: false,
+    externalRefs: {},
+    _count: { competitionLinks: 2, playerLinks: 3 },
+  }),
+  makeTeam({
+    id: 2,
+    name: 'Coastal Rovers',
+    sportId: 1,
+    country: 'Netherlands',
+    sport: { id: 1, name: 'Football', icon: '⚽' },
+    externalRefs: { the_sports_db: 'tsdb-team-2' },
+    _count: { competitionLinks: 1, playerLinks: 0 },
+  }),
+  makeTeam({
+    id: 3,
+    name: 'Mountain Athletic',
+    sportId: 3,
+    country: 'France',
+    sport: { id: 3, name: 'Cycling', icon: '🚴' },
+    externalRefs: { api_football: 'apifb-team-3' },
+    _count: { competitionLinks: 0, playerLinks: 2 },
+  }),
+])
+
+export const FIXTURE_PLAYERS: Player[] = deepFreeze([
+  makePlayer({
+    id: 1,
+    fullName: 'Jonas Vale',
+    sportId: 1,
+    status: 'active',
+    position: 'Goalkeeper',
+    jerseyNumber: 1,
+    externalRefs: {},
+    teamLinks: [{ team: { id: 1, name: 'Riverside United' } }],
+  }),
+  makePlayer({
+    id: 2,
+    fullName: 'Milo Ferran',
+    sportId: 1,
+    status: 'injured',
+    position: 'Defender',
+    jerseyNumber: 4,
+    sport: { id: 1, name: 'Football', icon: '⚽' },
+    externalRefs: { the_sports_db: 'tsdb-p-2' },
+    teamLinks: [{ team: { id: 1, name: 'Riverside United' } }],
+  }),
+  makePlayer({
+    id: 3,
+    fullName: 'Aria Kessler',
+    sportId: 1,
+    status: 'loaned',
+    position: 'Midfielder',
+    jerseyNumber: 8,
+    sport: { id: 1, name: 'Football', icon: '⚽' },
+    externalRefs: { api_football: 'apifb-p-3' },
+    teamLinks: [{ team: { id: 2, name: 'Coastal Rovers' } }],
+  }),
+  makePlayer({
+    id: 4,
+    fullName: 'Tomas Rigg',
+    sportId: 1,
+    status: 'active',
+    position: 'Forward',
+    jerseyNumber: 9,
+    sport: { id: 1, name: 'Football', icon: '⚽' },
+    externalRefs: { football_data: 'fbd-p-4' },
+    teamLinks: [{ team: null }],
+  }),
+  makePlayer({
+    id: 5,
+    fullName: 'Neels Braam',
+    sportId: 3,
+    status: 'active',
+    position: 'Sprinter',
+    sport: { id: 3, name: 'Cycling', icon: '🚴' },
+    externalRefs: { opta: 'opta-p-5' },
+    teamLinks: [],
+  }),
+  makePlayer({
+    id: 6,
+    fullName: 'Ivo Marchand',
+    sportId: 3,
+    status: 'retired',
+    position: 'Climber',
+    jerseyNumber: 21,
+    sport: { id: 3, name: 'Cycling', icon: '🚴' },
+    externalRefs: { the_sports_db: 'tsdb-p-6' },
+    teamLinks: [{ team: { id: 3, name: 'Mountain Athletic' } }],
+  }),
 ])
