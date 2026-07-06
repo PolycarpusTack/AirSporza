@@ -2,9 +2,11 @@
  * URL-backed ops navigation state (A-2-T2, ADR-014).
  * Contract: docs/governance/contracts/ops-selection.md (ops-selection v1).
  *
- * `?event=` and `?day=` on /ops/:tab are a PUBLIC URL contract (ADR-014): names
- * don't change without a migration shim. Components never touch search params
- * directly — they use these hooks, which validate values and fall back silently.
+ * `?event=`, `?day=` and `?record=` on /ops/:tab are a PUBLIC URL contract
+ * (ADR-014): names don't change without a migration shim. Components never touch
+ * search params directly — they use these hooks, which validate values and fall
+ * back silently. (`?record` arrived with the Registry story as the ADDITIVE
+ * ops-selection v2 bump — reserved in v1, same module, same plumbing.)
  *
  * OpsShell v1 normative rule acknowledged: navigation inside /ops/* must use
  * absolute OPS_BASE paths. These hooks never navigate — setters only rewrite the
@@ -22,6 +24,7 @@ import { useSearchParams } from 'react-router-dom'
 
 const EVENT_PARAM = 'event'
 const DAY_PARAM = 'day'
+const RECORD_PARAM = 'record'
 
 /** Format (shape) only — accepts impossible dates like 2026-02-31; `isIsoDate` is the real check. */
 const ISO_DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/
@@ -101,4 +104,22 @@ export function useOpsDay(): {
 } {
   const [day, setDay] = useOpsSearchParam(DAY_PARAM, isIsoDate)
   return { day, setDay }
+}
+
+/**
+ * Registry record selection (`?record=<kind>:<dbId>`) — the ADDITIVE
+ * ops-selection v2 bump (reserved in v1, delivered by the Registry story C).
+ * The id is an OPAQUE string here (NO validate fn, exactly like `?event`):
+ * resolving `<kind>:<dbId>` against the loaded record universe — and showing
+ * quiet no-selection for unknown/malformed ids — is the RegistryScreen's job
+ * (registry-selectors v1). This hook only normalizes absent/empty to null and
+ * inherits every v1 semantic: unrelated params preserved, replace-not-push,
+ * path untouched.
+ */
+export function useOpsRecord(): {
+  recordId: string | null
+  setRecordId: (id: string | null) => void
+} {
+  const [recordId, setRecordId] = useOpsSearchParam(RECORD_PARAM)
+  return { recordId, setRecordId }
 }

@@ -1,6 +1,14 @@
 # CONTRACT SNAPSHOT: ops-selection
 
-Version: 1 · Date: 2026-07-02 · Task: A-2-T2 (input contract for A-3-T2, A-4-T1, B-2-T1)
+Version: 2 · Date: 2026-07-06 · Task: C-2-T1 (v1: A-2-T2 — input for A-3-T2, A-4-T1, B-2-T1)
+
+**Changelog**
+- **v2 (2026-07-06, C-2-T1):** ADDITIVE `useOpsRecord()` for the `?record=<kind>:<dbId>`
+  registry selection param — RESERVED in v1's URL-param table, delivered here in the SAME
+  module via the SAME `useOpsSearchParam` plumbing. NO validate fn (ids are opaque, exactly
+  like `?event`), so it inherits every v1 semantic below unchanged. `useOpsSelection`/
+  `useOpsDay` are byte-stable. Consumed by RegistryScreen (C-2-T2) + RecordInspector (C-3).
+- v1 (2026-07-02, A-2-T2): initial — `useOpsSelection` (`?event`) + `useOpsDay` (`?day`).
 
 ## Public interface
 
@@ -17,6 +25,12 @@ export function useOpsDay(): {
   day: string | null                     // 'YYYY-MM-DD' or null (absent/invalid)
   setDay(day: string | null): void       // null clears the param
 }
+
+/** Registry record selection — URL param `?record=<kind>:<dbId>` (ADR-014; v2). */
+export function useOpsRecord(): {
+  recordId: string | null                // null when absent/empty; OPAQUE otherwise (no validation)
+  setRecordId(id: string | null): void   // null clears the param
+}
 ```
 
 Requires a react-router context (any Router; used on /ops/:tab routes). Placement:
@@ -29,7 +43,7 @@ imported by legacy code and would pull ops modules toward the main (flag-off) bu
 |---|---|---|---|
 | `event` | opaque non-empty string | `useOpsSelection` | Schedule + Rundown inspector selection |
 | `day` | `YYYY-MM-DD`, calendar-valid | `useOpsDay` | Rundown day pills + Schedule week context |
-| `record` | (registry inspector) | **NOT implemented yet** — arrives with the Registry story (C), same module | Registry |
+| `record` | opaque non-empty string (`<kind>:<dbId>`) | `useOpsRecord` (v2) | Registry table selection + inspector deep-link/hops |
 
 ## Semantics (normative, enforced by `src/components/ops/opsUrlState.test.tsx`)
 
