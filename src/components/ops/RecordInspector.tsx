@@ -18,8 +18,16 @@
  * (RegistryScreen has the first) — Rule of Three says duplicate locally; extract
  * at the third consumer. Kept literal so the grep trigger stays detectable
  * (EventInspector EDITORIAL_COLOR precedent).
+ *
+ * v1.1 (C-5-T1): the REMARKS ghost is now KIND-GATED (team/player only — the only
+ * kinds with a `notes` column + saveNotes route) and ACTIVE, opening an inline
+ * editor (LOCAL interaction state — editing/draft/isSaving/error — NOT derivation,
+ * anti-smart-ui intact; the inspector still does NO fetch). Save+refresh happen in
+ * the screen via the `onSaveRemark` prop. Ghost VISIBILITY keys on KIND (never on
+ * `notes`, which is null both for unsupported kinds AND for a team/player with no
+ * remark yet); the ghost LABEL keys on the notes value.
  */
-import type { CSSProperties, ReactNode } from 'react'
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { LinkedRecord, LinkedRecordSection, RegistryKind, RegistryRecord, RegistryStatusColor } from './registrySelectors'
 
 const monoStyle: CSSProperties = { fontFamily: 'var(--font-mono)' }
@@ -53,6 +61,10 @@ const RELATION_LABEL: Record<LinkedRecordSection['relation'], string> = {
   players: 'PLAYERS',
 }
 
+/** Kinds that carry a `notes` column + saveNotes route (v1.1). Ghost visibility
+ *  keys on THIS, never on the notes value (kind→remarks scoping, mirrors C-4). */
+const REMARK_KINDS: RegistryKind[] = ['team', 'player']
+
 export interface RecordInspectorProps {
   /** null → quiet empty state */
   record: RegistryRecord | null
@@ -60,9 +72,12 @@ export interface RecordInspectorProps {
   linkedSections: LinkedRecordSection[]
   /** hop → sets ?record (REPLACE, ops-selection rule 7) */
   onHop: (recordId: string) => void
+  /** v1.1 — save a remark (team/player only); the screen does the saveNotes+refresh.
+   *  Optional so v1 render tests compile; the ghost is hidden when it is absent. */
+  onSaveRemark?: (record: RegistryRecord, remarkText: string) => Promise<void>
 }
 
-export function RecordInspector({ record, linkedSections, onHop }: RecordInspectorProps) {
+export function RecordInspector({ record, linkedSections, onHop, onSaveRemark }: RecordInspectorProps) {
   return (
     <aside
       data-testid="ops-record-inspector"
@@ -98,13 +113,13 @@ export function RecordInspector({ record, linkedSections, onHop }: RecordInspect
           NO RECORD SELECTED
         </div>
       ) : (
-        <InspectorBody record={record} linkedSections={linkedSections} onHop={onHop} />
+        <InspectorBody record={record} linkedSections={linkedSections} onHop={onHop} onSaveRemark={onSaveRemark} />
       )}
     </aside>
   )
 }
 
-function InspectorBody({ record, linkedSections, onHop }: { record: RegistryRecord } & Omit<RecordInspectorProps, 'record'>) {
+function InspectorBody({ record, linkedSections, onHop, onSaveRemark }: { record: RegistryRecord } & Omit<RecordInspectorProps, 'record'>) {
   const provenance =
     record.source === 'MANUAL'
       ? 'MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE'
@@ -209,12 +224,72 @@ function InspectorBody({ record, linkedSections, onHop }: { record: RegistryReco
         </div>
       )}
 
-      {/* ── + ADD REMARK ghost — INERT here (pin 4; C-5 wires it) ── */}
+      {/* ── remark affordance (v1.1) — KIND-GATED (team/player only), never by notes.
+          key={record.id} REMOUNTS the editor on selection change → a fresh closed
+          editor with an empty draft (never carries one record's draft to another). ── */}
+      {REMARK_KINDS.includes(record.kind) && onSaveRemark && (
+        <RemarkEditor key={record.id} record={record} onSaveRemark={onSaveRemark} />
+      )}
+    </>
+  )
+}
+
+/**
+ * Inline remark editor (v1.1) — LOCAL interaction state only (editing/draft/
+ * isSaving/error). Ghost LABEL keys on the notes value; SAVE is single-flight
+ * (a synchronous `isSavingRef` latch — mirrors C-4's create — plus the disabled
+ * button as the secondary layer). Success leaves edit mode (the screen's refresh
+ * re-derives `record.notes`); failure keeps the editor open with an inline error.
+ */
+function RemarkEditor({
+  record,
+  onSaveRemark,
+}: {
+  record: RegistryRecord
+  onSaveRemark: NonNullable<RecordInspectorProps['onSaveRemark']>
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [remarkDraft, setRemarkDraft] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const isSavingRef = useRef(false)
+
+  const hasRemark = !!record.notes?.trim()
+
+  const startEditing = () => {
+    setRemarkDraft(record.notes ?? '')
+    setError(null)
+    setIsEditing(true)
+  }
+
+  const cancel = () => {
+    // no request; draft discarded
+    setIsEditing(false)
+  }
+
+  const save = async () => {
+    if (isSavingRef.current) return // single-flight
+    isSavingRef.current = true
+    setIsSaving(true)
+    setError(null)
+    try {
+      await onSaveRemark(record, remarkDraft)
+      isSavingRef.current = false
+      setIsSaving(false)
+      setIsEditing(false) // success → back to ghost; refresh re-derives record.notes
+    } catch {
+      isSavingRef.current = false
+      setIsSaving(false)
+      setError('Could not save the remark. Please try again.')
+    }
+  }
+
+  if (!isEditing) {
+    return (
       <button
         type="button"
         data-testid="ops-record-add-remark"
-        disabled
-        title="Add remark — coming soon"
+        onClick={startEditing}
         style={{
           ...monoStyle,
           alignSelf: 'flex-start',
@@ -228,13 +303,88 @@ function InspectorBody({ record, linkedSections, onHop }: { record: RegistryReco
           color: 'var(--text-shell-3)',
           borderRadius: '4px',
           padding: '5px 9px',
-          cursor: 'not-allowed',
-          opacity: 0.7,
+          cursor: 'pointer',
         }}
       >
-        + ADD REMARK
+        {hasRemark ? 'EDIT REMARK' : '+ ADD REMARK'}
       </button>
-    </>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-shell)', paddingTop: '11px' }}>
+      <div style={sectionLabelStyle}>REMARKS · MANUAL</div>
+      <textarea
+        data-testid="ops-record-remark-input"
+        value={remarkDraft}
+        onChange={(event) => setRemarkDraft(event.target.value)}
+        rows={3}
+        autoFocus
+        style={{
+          ...monoStyle,
+          width: '100%',
+          fontSize: '11px',
+          lineHeight: 1.5,
+          padding: '9px 11px',
+          background: 'var(--surface-shell-2)',
+          border: '1px solid var(--border-shell)',
+          borderRadius: '6px',
+          color: 'var(--text-shell)',
+          resize: 'vertical',
+          boxSizing: 'border-box',
+        }}
+      />
+      {error && (
+        <div
+          data-testid="ops-record-remark-error"
+          style={{ ...monoStyle, fontSize: '10.5px', fontWeight: 500, color: 'var(--alert-danger)' }}
+        >
+          {error}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          data-testid="ops-record-remark-cancel"
+          onClick={cancel}
+          style={{
+            ...monoStyle,
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            padding: '6px 11px',
+            borderRadius: '5px',
+            border: '1px solid var(--border-shell)',
+            background: 'transparent',
+            color: 'var(--text-shell-2)',
+            cursor: 'pointer',
+          }}
+        >
+          CANCEL
+        </button>
+        <button
+          type="button"
+          data-testid="ops-record-remark-save"
+          onClick={save}
+          disabled={isSaving}
+          style={{
+            ...monoStyle,
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.5px',
+            padding: '6px 11px',
+            borderRadius: '5px',
+            border: 'none',
+            background: 'var(--accent-shell)',
+            color: 'var(--accent-shell-fg)',
+            cursor: isSaving ? 'not-allowed' : 'pointer',
+            opacity: isSaving ? 0.6 : 1,
+          }}
+        >
+          SAVE
+        </button>
+      </div>
+    </div>
   )
 }
 

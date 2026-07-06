@@ -56,11 +56,13 @@ vi.mock('../../components/ops/useLinkedRecords', () => ({
 // here the services are mocked so the screen test exercises the create → refresh →
 // select → close wiring end-to-end.
 const teamsCreate = vi.fn()
+const teamsSaveNotes = vi.fn()
+const playersSaveNotes = vi.fn()
 vi.mock('../../services', () => ({
   sportsApi: { create: vi.fn() },
   competitionsApi: { create: vi.fn() },
-  teamsApi: { create: (...a: unknown[]) => teamsCreate(...a) },
-  playersApi: { create: vi.fn() },
+  teamsApi: { create: (...a: unknown[]) => teamsCreate(...a), saveNotes: (...a: unknown[]) => teamsSaveNotes(...a) },
+  playersApi: { create: vi.fn(), saveNotes: (...a: unknown[]) => playersSaveNotes(...a) },
 }))
 
 import { RegistryScreen } from './RegistryScreen'
@@ -103,6 +105,8 @@ beforeEach(() => {
   hookState.onRefresh = null
   linkedState.sections = []
   teamsCreate.mockReset()
+  teamsSaveNotes.mockReset()
+  playersSaveNotes.mockReset()
 })
 
 afterEach(() => {
@@ -351,5 +355,25 @@ describe('create flow (C-4-T1 — refresh → clear filters → select → close
     expect(within(inspector).getByTestId('ops-record-provenance').textContent).toBe(
       'MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE',
     )
+  })
+})
+
+describe('remark save (C-5-T1 — team/player notes via saveNotes + refresh)', () => {
+  it('saving a remark on a team calls teamsApi.saveNotes(dbId, text) then refresh', async () => {
+    teamsSaveNotes.mockResolvedValue({})
+    let refreshed = false
+    hookState.onRefresh = () => {
+      refreshed = true
+    }
+    renderScreen('/ops/registry?record=team:1')
+
+    fireEvent.click(screen.getByTestId('ops-record-add-remark')) // EDIT REMARK (team:1 has notes)
+    fireEvent.change(screen.getByTestId('ops-record-remark-input'), { target: { value: 'Updated remark' } })
+    fireEvent.click(screen.getByTestId('ops-record-remark-save'))
+
+    // dbId 1 (numeric), NOT the composite 'team:1'
+    await waitFor(() => expect(teamsSaveNotes).toHaveBeenCalledWith(1, 'Updated remark'))
+    await waitFor(() => expect(refreshed).toBe(true))
+    expect(playersSaveNotes).not.toHaveBeenCalled()
   })
 })

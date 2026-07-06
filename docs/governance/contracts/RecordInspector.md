@@ -1,6 +1,29 @@
 # CONTRACT SNAPSHOT: RecordInspector
 
-Version: 1 · Date: 2026-07-06 · Task: C-3-T1 (consumer: RegistryScreen; remark editor amendment lands at C-5 → v1.1)
+Version: 1.1 · Date: 2026-07-06 · Task: C-3-T1 (v1) + C-5-T1 (v1.1 remark editor) · consumer: RegistryScreen
+
+**Changelog**
+- **v1.1 (2026-07-06, C-5-T1):** the `+ ADD REMARK` ghost is no longer inert. It
+  is now KIND-GATED and ACTIVE with an inline editor:
+  - **Visibility keys on KIND** (`record.kind ∈ {team, player}` — the only kinds
+    with a `notes` column + `saveNotes` route), AND requires the new `onSaveRemark`
+    prop (hidden when absent). NEVER keyed on `notes` (null for unsupported kinds
+    AND for a team/player with no remark yet — the exact `+ ADD REMARK` case).
+    sport/competition → NO ghost.
+  - **Label keys on the notes value:** `+ ADD REMARK` when `record.notes` empty/
+    absent, `EDIT REMARK` when non-empty.
+  - **Editor:** a bordered `<textarea>` prefilled with `record.notes ?? ''` +
+    SAVE/CANCEL. CANCEL → discard, no request. SAVE → single-flight (synchronous
+    `isSavingRef` latch + disabled button) → `await onSaveRemark(record, draft)`;
+    success → leave edit mode (screen refresh re-derives `record.notes` → REMARKS
+    box shows the text, label becomes `EDIT REMARK`); failure → editor STAYS OPEN
+    with an inline `var(--alert-danger)` error, SAVE re-enabled.
+  - New OPTIONAL prop `onSaveRemark?(record, remarkText): Promise<void>` (the screen
+    does the `saveNotes(record.dbId, remarkText)` + `refresh`). The inspector still does NO
+    fetch; the editor's editing/draft/isSaving/error is LOCAL interaction state
+    (not derivation — anti-smart-ui intact).
+  - v1 render semantics (empty state, header, provenance, attribute rows, LINKED
+    hops, REMARKS box) are otherwise UNCHANGED.
 
 Registry's OWN 320px right-pane inspector — provenance, conditional attribute
 rows, clickable linked-record hop sections, and a manual REMARKS box. Pure,
@@ -20,6 +43,7 @@ export interface RecordInspectorProps {
   record: RegistryRecord | null           // null → quiet empty state (ops-record-inspector-empty)
   linkedSections: LinkedRecordSection[]    // from useLinkedRecords (registry-selectors v1.1); empties pre-omitted
   onHop: (recordId: string) => void        // hop → setRecordId (REPLACE, ops-selection v2 rule 7)
+  onSaveRemark?: (record: RegistryRecord, remarkText: string) => Promise<void>  // v1.1 — team/player remark save; ghost hidden when absent
 }
 export function RecordInspector(props: RecordInspectorProps): JSX.Element
 
@@ -54,8 +78,13 @@ export function useLinkedRecords(record: RegistryRecord | null, index: RegistryI
    already omitted by `linkedRecordsOf` — the component renders what it receives.
 6. **REMARKS · MANUAL box** (`ops-record-remarks`): rendered ONLY when
    `record.notes?.trim()` is non-empty.
-7. **`+ ADD REMARK` ghost** (`ops-record-add-remark`): ALWAYS rendered, INERT here
-   (disabled + tooltip) — C-5 wires it to `saveNotes` (→ RecordInspector v1.1).
+7. **Remark affordance (v1.1)** (`ops-record-add-remark` ghost; editor
+   `ops-record-remark-input` / `-save` / `-cancel` / `-error`): VISIBILITY keys on
+   `record.kind ∈ {team, player}` AND `onSaveRemark` present (NEVER on `notes`).
+   LABEL keys on the notes value (`+ ADD REMARK` / `EDIT REMARK`). Click → inline
+   editor (prefilled `record.notes ?? ''`). SAVE is single-flight
+   (`isSavingRef` + disabled) → `onSaveRemark(record, draft)`; success closes the
+   editor, failure keeps it open with an inline error. sport/competition → nothing.
 
 ## useLinkedRecords semantics (normative)
 
@@ -83,17 +112,19 @@ setRecordId` (ops-selection v2 REPLACE — hops leave no history).
 
 ## Test seam
 
-RecordInspector: pure — pass projected `FIXTURE_*` records + `linkedSections`
-directly, no router. useLinkedRecords: `renderHook` + mock `'../../services'` +
-deferred promises for the stale/anti-flash pins. RegistryScreen embed: MemoryRouter
-+ mocked `useLinkedRecords`. 12 + 9 + 4 tests.
+RecordInspector: pure — pass projected `FIXTURE_*` records + `linkedSections` (and
+a controllable `onSaveRemark` for the v1.1 editor) directly, no router.
+useLinkedRecords: `renderHook` + mock `'../../services'` + deferred promises for the
+stale/anti-flash pins. RegistryScreen embed: MemoryRouter + mocked
+`useLinkedRecords` + mocked `saveNotes`. 21 (inspector) + 9 (hook) + screen tests.
 
 ## Depends on
 
 `registry-selectors v1.1` (`RegistryRecord`, `linkedRecordsOf`, `LinkedRecord`/
 `LinkedRecordSection`/`LinkedRecordPayloads`), `ops-selection v2` (`useOpsRecord`),
-`useRegistryData v1`, `src/services` (teams/players list + link endpoints),
-ops-tokens v3 (`--kind-*`). No useApp.
+`useRegistryData v1` (incl. `refresh`), `src/services` (teams/players list + link
+endpoints; v1.1 `teamsApi.saveNotes`/`playersApi.saveNotes`), ops-tokens v3
+(`--kind-*`). No useApp.
 
 ## Domain terms used
 

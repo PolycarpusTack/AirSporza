@@ -30,6 +30,7 @@ import { useLinkedRecords } from '../../components/ops/useLinkedRecords'
 import { RecordInspector } from '../../components/ops/RecordInspector'
 import { RegistryCreateModal } from '../../components/ops/RegistryCreateModal'
 import { useOpsRecord } from '../../components/ops/opsUrlState'
+import { playersApi, teamsApi } from '../../services'
 import {
   buildRegistryIndex,
   makeRecordId,
@@ -39,6 +40,7 @@ import {
   type RegistryFacet,
   type RegistryFacetCounts,
   type RegistryKind,
+  type RegistryRecord,
   type RegistryRow,
   type RegistryStatusColor,
   type RegistryToolbarCounts,
@@ -121,6 +123,15 @@ export function RegistryScreen() {
     setFacet('all')
     setRecordId(makeRecordId(kind, id))
     setCreateOpen(false)
+  }
+
+  // Remark save (C-5-T1) — team/player only (the inspector's ghost is kind-gated).
+  // A thrown saveNotes/refresh propagates to the inspector's SAVE handler (editor
+  // stays open + error). Refresh re-derives record.notes → REMARKS box + label update.
+  const handleSaveRemark = async (record: RegistryRecord, remarkText: string) => {
+    const notesApi = record.kind === 'team' ? teamsApi : playersApi
+    await notesApi.saveNotes(record.dbId, remarkText)
+    await refresh()
   }
 
   return (
@@ -257,7 +268,12 @@ export function RegistryScreen() {
           </div>
 
           {/* ── Right inspector (C-3-T1) — onHop REPLACEs ?record (ops-selection rule 7) ── */}
-          <RecordInspector record={selectedRecord} linkedSections={sections} onHop={setRecordId} />
+          <RecordInspector
+            record={selectedRecord}
+            linkedSections={sections}
+            onHop={setRecordId}
+            onSaveRemark={handleSaveRemark}
+          />
         </div>
       )}
 
