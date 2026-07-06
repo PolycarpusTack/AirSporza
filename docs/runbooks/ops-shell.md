@@ -84,11 +84,17 @@ Flag-OFF build, logged in:
 - **Theme is localStorage-only** (useOpsTheme v1 / ADR-013): per-browser, not
   per-user; no server persistence. Private-mode/storage-blocked browsers get
   session-only theming.
-- **E2E intercepts the network** (ops-e2e v1, recorded trade-off): the smoke
-  suite serves fixture payloads via Playwright routes and never exercises the
-  real backend — a gap vs EPIC A DoD "live data". Backend behavior is covered
-  by the backend vitest suite; the e2e layer proves the built bundle, routing,
-  flag wiring and derivations. A live-backend smoke remains future work.
+- **E2E intercepts the network** (ops-e2e v1/**v1.1**, recorded trade-off): the
+  smoke suite serves fixture payloads via Playwright routes and never exercises
+  the real backend — a gap vs EPIC A DoD "live data". **As of C-7 this gap now
+  covers WRITES too:** the registry create (`POST` sports/competitions/teams/
+  players), the duplicate-409, and the protected remark save (`PATCH …/notes`)
+  are EMULATED against an in-memory store (`setUpRegistryE2E`, reset per test) —
+  the smoke proves the built bundle + the write-path UI contract
+  (`registry-create v1` payload/error shape, MANUAL provenance, remark round-trip)
+  wired end-to-end, NOT the real backend routes. Backend write behavior (incl.
+  the C-4-T0 P2002→409 mapping and the notes protected-field route) is covered by
+  the backend vitest suite. A live-backend smoke remains future work.
 - **No runtime flag toggle** (TD-27): see Flag procedure — rollback is a
   redeploy.
 - **`+ PLAN` in the inspector** navigates to legacy `/sports` without
@@ -144,3 +150,43 @@ Verification checklist:
 Known limitation (AS-8): the ON-DEM column lights only when the domain model
 distinguishes a non-MAX on-demand right — reserved until the AS-4/AS-8
 stakeholder session resolves it.
+
+## §registry (`/ops/registry` — EPIC C, smoke: `e2e/smoke-epic-c.flag-on.spec.ts`)
+
+The registry is the sports CMS and the initiative's FIRST WRITE surface (create +
+protected remarks). What the C-7 smoke covers (fixture values in [brackets]):
+
+Verification checklist (flag-ON, logged in):
+1. Visit `/ops/registry` → the toolbar counters read `N SPORTS · N COMPETITIONS ·
+   N TEAMS · N PLAYERS` [`5 SPORTS · 10 COMPETITIONS · 3 TEAMS · 6 PLAYERS`] —
+   `N PLAYERS`, never "PEOPLE" (AS-5). The left BROWSE rail counts match and are
+   ALWAYS unfiltered.
+2. Click the Teams facet → the table filters to the team rows [3]; type an
+   editor's query → rows filter as-you-type and COMPOSE with the active facet
+   (facet counts stay unfiltered). The LINKED column reads the server `_count`
+   [team 1 → `5 linked records`].
+3. Click a row → `?record=<kind>:<id>` appears and the inspector hydrates the
+   record; a linked-record row in the inspector HOPS (updates the inspector + the
+   URL); a fresh load of a `?record=` deep link restores the same inspector.
+4. `+ NEW` → pick a kind, enter the required fields, CREATE → the modal closes,
+   filters clear, and the inspector shows the new record with
+   `MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE` (created records send no
+   `externalRefs` → SOURCE MANUAL). A duplicate name → an inline error and the
+   modal STAYS open (no phantom row).
+5. On a team/player, the remark ghost (`+ ADD REMARK` / `EDIT REMARK`) opens an
+   inline editor; SAVE → the `REMARKS · MANUAL` box renders the saved text.
+
+| Symptom | Likely cause | Check / fix |
+|---|---|---|
+| Registry renders EMPTY (no rows, counters all 0) | One or more of the four list fetches failed, or `isSettled` never flips | DevTools Network: `GET /api/{sports,competitions,teams,players}` — all four must resolve (success OR failure settles the skeleton); the store must be seeded |
+| LINKED column shows `0 …` for everything | the list payload lacks the `_count`/`teamLinks` embeds (C-1-T0) | verify the list responses carry `_count` (competitions/teams) and `teamLinks` (players) |
+| Inspector shows no hop rows | the LAZY linked-record endpoints failed | Network: `GET /teams/:id/competitions`, `/players?teamId=`, `/players/:id/teams`, `/teams?competitionId=` |
+| Create fails / generic error | wrong `*.create` endpoint, or a non-201 that isn't 409 | Network the `POST`; a duplicate must return **409** with a `{ message }` — anything else renders the generic error (`registry-create v1`) |
+| A duplicate create shows the GENERIC error, not the inline "already exists" | backend not mapping P2002 → 409 (C-4-T0) | verify the create route's P2002→409 catch; the UI branches on `status === 409` |
+| Wrong SOURCE word (e.g. TSDB where MANUAL expected) | provenance predicate keys on the FIRST `externalRefs` key (C-1 pin 3); a manual create must send `{}` | inspect the record's `externalRefs`; manual = no keys → MANUAL |
+| Remark not saving | wrong `PATCH …/notes` route, or the refresh didn't re-derive | Network the `PATCH`; a successful save + refetch re-renders the REMARKS box |
+
+Known limitation (writes): see §known-limitations — the C-7 smoke EMULATES the
+create/remark writes in-memory; the real backend write routes are proven by the
+backend vitest suite, not the e2e layer. Rollback of the whole shell (registry
+included) is flag OFF + REBUILD + REDEPLOY (TD-27), never a runtime switch.

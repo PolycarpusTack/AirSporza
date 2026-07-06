@@ -35,7 +35,10 @@ import {
   FIXTURE_EVENTS,
   FIXTURE_NOW_DAYTIME,
   FIXTURE_PLANS,
+  FIXTURE_PLAYERS,
   FIXTURE_SLOTS,
+  FIXTURE_SPORTS,
+  FIXTURE_TEAMS,
   makeSlot,
 } from '../src/components/ops/__fixtures__/opsFixtureWeek'
 
@@ -215,4 +218,203 @@ export async function setUpPlanzaE2E(page: Page): Promise<void> {
   await seedAuthToken(page)
   await pinFixtureClock(page)
   await interceptPlanzaApi(page)
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * C-7-T1 — STATEFUL registry interception (ops-e2e v1.1, first stateful capability).
+ * `setUpRegistryE2E` calls setUpPlanzaE2E (auth/clock/base) then ADDS registry
+ * routes backed by an IN-MEMORY store seeded from the anonymised fixture families
+ * (FIXTURE_{SPORTS,COMPETITIONS,TEAMS,PLAYERS} — NOT E2E_SPORTS, whose sport-5
+ * federation differs). Create/notes round-trips mutate the store so a following
+ * GET re-derives; call it per test (fresh page → fresh store = reset per test).
+ * The real-backend WRITE gap (A-5 trade-off, now covering create/notes) is
+ * recorded in the runbook. Playwright consults routes in REVERSE registration
+ * order — the general `teams`/`players` list routes are registered BEFORE the
+ * specific per-id routes (competitions / roster teams / notes) so the specific
+ * ones win; the registry `sports`/`competitions` are registered LAST so they
+ * override the static base routes. Minimal by design (pin/Size-M): per-kind
+ * arrays, only teamId/competitionId filtering, only the CRUD the 4 ACs exercise.
+ * No deletes.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** deep mutable clone — the FIXTURE_* families are deep-frozen. */
+const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+
+interface RegistryStore {
+  sports: Record<string, unknown>[]
+  competitions: Record<string, unknown>[]
+  teams: Record<string, unknown>[]
+  players: Record<string, unknown>[]
+  nextId: { sport: number; competition: number; team: number; player: number }
+}
+
+/**
+ * Minimal linked graph (pin: a HOP needs a target). team 1 (Riverside United) →
+ * competitions 101/103 + players 1/2; team 2 → comp 102 + player 3; team 3 →
+ * player 6. Competition names mirror FIXTURE_COMPETITIONS (101 League A, 102
+ * Open B, 103 Cup C). Names are anonymised fixture values only (PII pin 2).
+ */
+const TEAM_COMPETITION_LINKS = [
+  { teamId: 1, competition: { id: 101, name: 'League A' } },
+  { teamId: 1, competition: { id: 103, name: 'Cup C' } },
+  { teamId: 2, competition: { id: 102, name: 'Open B' } },
+]
+const PLAYER_TEAM_LINKS = [
+  { teamId: 1, player: { id: 1, name: 'Jonas Vale' } },
+  { teamId: 1, player: { id: 2, name: 'Milo Ferran' } },
+  { teamId: 2, player: { id: 3, name: 'Aria Kessler' } },
+  { teamId: 3, player: { id: 6, name: 'Ivo Marchand' } },
+]
+
+function seedRegistryStore(): RegistryStore {
+  return {
+    sports: clone(FIXTURE_SPORTS as unknown as Record<string, unknown>[]),
+    competitions: clone(FIXTURE_COMPETITIONS as unknown as Record<string, unknown>[]),
+    teams: clone(FIXTURE_TEAMS as unknown as Record<string, unknown>[]),
+    players: clone(FIXTURE_PLAYERS as unknown as Record<string, unknown>[]),
+    nextId: { sport: 6, competition: 111, team: 4, player: 7 },
+  }
+}
+
+/** `/api/teams/12/notes` → 12 (the id is the second-to-last path segment). */
+function idFromPath(url: URL): number {
+  const parts = url.pathname.split('/').filter(Boolean)
+  return Number(parts[parts.length - 2])
+}
+
+export async function setUpRegistryE2E(page: Page): Promise<void> {
+  await setUpPlanzaE2E(page)
+  const store = seedRegistryStore()
+
+  // ── general teams (list, ?competitionId filter, POST create/dup) ──
+  await page.route('**/api/teams*', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (request.method() === 'POST') {
+      const { name } = request.postDataJSON() as { name: string }
+      if (store.teams.some((team) => team.name === name)) {
+        return route.fulfill({ status: 409, json: { message: 'A team with that name already exists' } })
+      }
+      const created = {
+        id: store.nextId.team++,
+        tenantId: 'e2e',
+        name,
+        sportId: null,
+        externalRefs: {}, // → SOURCE MANUAL (registry-selectors pin 3)
+        _count: { competitionLinks: 0, playerLinks: 0 },
+        teamLinks: [],
+      }
+      store.teams.push(created)
+      return route.fulfill({ status: 201, json: created })
+    }
+    const competitionId = url.searchParams.get('competitionId')
+    if (competitionId) {
+      const teamIds = TEAM_COMPETITION_LINKS.filter((l) => l.competition.id === Number(competitionId)).map((l) => l.teamId)
+      return route.fulfill({ json: store.teams.filter((team) => teamIds.includes(team.id as number)) })
+    }
+    return route.fulfill({ json: store.teams })
+  })
+
+  // ── general players (list, ?teamId filter, POST create/dup) ──
+  await page.route('**/api/players*', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (request.method() === 'POST') {
+      const { fullName, sportId } = request.postDataJSON() as { fullName: string; sportId: number }
+      if (store.players.some((player) => player.fullName === fullName)) {
+        return route.fulfill({ status: 409, json: { message: 'A player with those details already exists' } })
+      }
+      const created = {
+        id: store.nextId.player++,
+        tenantId: 'e2e',
+        fullName,
+        sportId,
+        status: 'active',
+        externalRefs: {},
+        teamLinks: [],
+      }
+      store.players.push(created)
+      return route.fulfill({ status: 201, json: created })
+    }
+    const teamId = url.searchParams.get('teamId')
+    if (teamId) {
+      const playerIds = PLAYER_TEAM_LINKS.filter((l) => l.teamId === Number(teamId)).map((l) => l.player.id)
+      return route.fulfill({ json: store.players.filter((player) => playerIds.includes(player.id as number)) })
+    }
+    return route.fulfill({ json: store.players })
+  })
+
+  // ── specific: team → its competition memberships (TeamCompetitionLink[]) ──
+  await page.route('**/api/teams/*/competitions', (route) => {
+    const teamId = idFromPath(new URL(route.request().url()))
+    const links = TEAM_COMPETITION_LINKS.filter((l) => l.teamId === teamId).map((l, index) => ({
+      id: index + 1,
+      teamId,
+      competitionId: l.competition.id,
+      seasonId: null,
+      source: 'manual',
+      competition: { id: l.competition.id, name: l.competition.name, season: '2026' },
+    }))
+    return route.fulfill({ json: links })
+  })
+
+  // ── specific: player → its team memberships (PlayerTeamLink[]) ──
+  await page.route('**/api/players/*/teams', (route) => {
+    const playerId = idFromPath(new URL(route.request().url()))
+    const links = PLAYER_TEAM_LINKS.filter((l) => l.player.id === playerId).map((l, index) => ({
+      id: index + 1,
+      playerId,
+      teamId: l.teamId,
+      competitionId: null,
+      seasonId: null,
+      isCurrent: true,
+      source: 'manual',
+      team: { id: l.teamId, name: (store.teams.find((t) => t.id === l.teamId)?.name as string) ?? `Team ${l.teamId}` },
+    }))
+    return route.fulfill({ json: links })
+  })
+
+  // ── specific: protected remark save (PATCH notes) — mutate the store row ──
+  await page.route('**/api/teams/*/notes', (route) => {
+    const teamId = idFromPath(new URL(route.request().url()))
+    const { notes } = route.request().postDataJSON() as { notes: string | null }
+    const team = store.teams.find((t) => t.id === teamId)
+    if (team) team.notes = notes
+    return route.fulfill({ json: team ?? {} })
+  })
+  await page.route('**/api/players/*/notes', (route) => {
+    const playerId = idFromPath(new URL(route.request().url()))
+    const { notes } = route.request().postDataJSON() as { notes: string | null }
+    const player = store.players.find((p) => p.id === playerId)
+    if (player) player.notes = notes
+    return route.fulfill({ json: player ?? {} })
+  })
+
+  // ── sports / competitions (list + POST) — registered LAST so they override the base ──
+  await page.route('**/api/sports', async (route) => {
+    const request = route.request()
+    if (request.method() === 'POST') {
+      const { name, icon, federation } = request.postDataJSON() as { name: string; icon: string; federation: string }
+      if (store.sports.some((sport) => sport.name === name)) {
+        return route.fulfill({ status: 409, json: { message: 'A sport with that name already exists' } })
+      }
+      const created = { id: store.nextId.sport++, tenantId: 'e2e', name, icon, federation }
+      store.sports.push(created)
+      return route.fulfill({ status: 201, json: created })
+    }
+    return route.fulfill({ json: store.sports })
+  })
+  await page.route('**/api/competitions', async (route) => {
+    const request = route.request()
+    if (request.method() === 'POST') {
+      const { sportId, name, season } = request.postDataJSON() as { sportId: number; name: string; season: string }
+      if (store.competitions.some((competition) => competition.name === name && competition.season === season)) {
+        return route.fulfill({ status: 409, json: { message: 'A competition with that name and season already exists' } })
+      }
+      const created = { id: store.nextId.competition++, tenantId: 'e2e', sportId, name, season, matches: 0, _count: { events: 0, teamLinks: 0 } }
+      store.competitions.push(created)
+      return route.fulfill({ status: 201, json: created })
+    }
+    return route.fulfill({ json: store.competitions })
+  })
 }
