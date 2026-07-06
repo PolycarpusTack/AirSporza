@@ -25,14 +25,17 @@ import {
   makePlayer,
   makeTeam,
 } from './__fixtures__/opsFixtureWeek'
+import type { PlayerTeamLink, TeamCompetitionLink } from '../../services'
 import {
   buildRegistryIndex,
   linkedRecordListPlan,
+  linkedRecordsOf,
   linkedSummaryOf,
   makeRecordId,
   projectRegistryRows,
   registryFacetCounts,
   registryToolbarCounts,
+  type LinkedRecordSection,
   type RegistryKind,
   type RegistryRecord,
 } from './registrySelectors'
@@ -389,5 +392,175 @@ describe('perf probe (pin 7) — build + project over 2,000 records is linear', 
     expect(index.orderedRecords).toHaveLength(COUNT * 4)
     expect(rows.length).toBeGreaterThan(0)
     expect(elapsed).toBeLessThan(500) // generous — pins linearity, NOT the E-1 SLO
+  })
+})
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * registry-selectors v1.1 (C-3-T0) — ADDITIVE: notes/country display fields +
+ * the linkedRecordsOf hop resolver. v1 surface (above) stays byte-stable.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('v1.1 — notes + split country/countryCode display fields (additive)', () => {
+  it('team → notes + country NAME (countryCode null); detail stays byte-stable (country still searchable)', () => {
+    const index = fullIndex()
+    const team1 = index.byId.get('team:1')! // Riverside United (notes + Belgium)
+    expect(team1.notes).toBe('Promoted from the second division')
+    expect(team1.country).toBe('Belgium')
+    expect(team1.countryCode).toBeNull() // teams carry a name, never an ISO code
+    expect(team1.detail).toBe('Belgium') // UNCHANGED — country still folded into the search string
+  })
+
+  it('team → null notes but present country; countryCode still null', () => {
+    const index = fullIndex()
+    const team2 = index.byId.get('team:2')! // Coastal Rovers — no notes, Netherlands
+    expect(team2.notes).toBeNull()
+    expect(team2.country).toBe('Netherlands')
+    expect(team2.countryCode).toBeNull()
+  })
+
+  it('player → notes + countryCode (ISO); country NAME null (honest split — one field never means two things)', () => {
+    const record = playerRecord({ notes: 'Squad captain', countryCode: 'BE' })
+    expect(record.notes).toBe('Squad captain')
+    expect(record.countryCode).toBe('BE')
+    expect(record.country).toBeNull() // players never carry a country NAME
+  })
+
+  it('player → null notes, country and countryCode when absent', () => {
+    const index = fullIndex()
+    const player1 = index.byId.get('player:1')! // Jonas Vale — no notes, no countryCode
+    expect(player1.notes).toBeNull()
+    expect(player1.country).toBeNull()
+    expect(player1.countryCode).toBeNull()
+  })
+
+  it('sport + competition → null notes, country AND countryCode (no such fields on those types)', () => {
+    const index = fullIndex()
+    for (const id of ['sport:1', 'competition:101']) {
+      expect(index.byId.get(id)!.notes).toBeNull()
+      expect(index.byId.get(id)!.country).toBeNull()
+      expect(index.byId.get(id)!.countryCode).toBeNull()
+    }
+  })
+})
+
+/** Link-row builders (service shapes; anonymised — no real athletes/teams). */
+const tcLink = (
+  competition: { id: number; name: string } | null,
+  id = competition?.id ?? 0,
+): TeamCompetitionLink => ({
+  id,
+  teamId: 1,
+  competitionId: competition?.id ?? 0,
+  seasonId: null,
+  source: 'manual',
+  competition: competition ? { id: competition.id, name: competition.name, season: '2026' } : undefined,
+})
+
+const ptLink = (
+  team: { id: number; name: string } | null,
+  id = team?.id ?? 0,
+): PlayerTeamLink => ({
+  id,
+  playerId: 1,
+  teamId: team?.id ?? null,
+  competitionId: null,
+  seasonId: null,
+  isCurrent: true,
+  source: 'manual',
+  team: team ? { id: team.id, name: team.name } : null,
+})
+
+describe('v1.1 — linkedRecordsOf hop resolver (pure; empty sections OMITTED)', () => {
+  it('sport → competitions section from the index adjacency (client-derivable, no fetch)', () => {
+    const index = fullIndex()
+    const sections = linkedRecordsOf(index, 'sport:1', {})
+    expect(sections).toEqual<LinkedRecordSection[]>([
+      {
+        relation: 'competitions',
+        records: [
+          { recordId: 'competition:101', name: 'League A', kind: 'competition' },
+          { recordId: 'competition:103', name: 'Cup C', kind: 'competition' },
+          { recordId: 'competition:108', name: 'Series H', kind: 'competition' },
+        ],
+      },
+    ])
+  })
+
+  it('sport with 0 competitions → [] (empty section omitted)', () => {
+    const index = buildRegistryIndex([{ id: 9, name: 'Rowing', icon: '🚣', federation: 'FISA' }], [], [], [])
+    expect(linkedRecordsOf(index, 'sport:9', {})).toEqual([])
+  })
+
+  it('competition → teams section from the fetched Team[]', () => {
+    const index = fullIndex()
+    const sections = linkedRecordsOf(index, 'competition:101', {
+      teams: [makeTeam({ id: 1, name: 'Riverside United' }), makeTeam({ id: 2, name: 'Coastal Rovers' })],
+    })
+    expect(sections).toEqual<LinkedRecordSection[]>([
+      {
+        relation: 'teams',
+        records: [
+          { recordId: 'team:1', name: 'Riverside United', kind: 'team' },
+          { recordId: 'team:2', name: 'Coastal Rovers', kind: 'team' },
+        ],
+      },
+    ])
+  })
+
+  it('team → TWO sections (competitions + roster); null-competition links are skipped', () => {
+    const index = fullIndex()
+    const sections = linkedRecordsOf(index, 'team:1', {
+      teamCompetitions: [tcLink({ id: 101, name: 'League A' }), tcLink(null, 99)],
+      players: [makePlayer({ id: 1, fullName: 'Jonas Vale' }), makePlayer({ id: 2, fullName: 'Milo Ferran' })],
+    })
+    expect(sections).toEqual<LinkedRecordSection[]>([
+      { relation: 'competitions', records: [{ recordId: 'competition:101', name: 'League A', kind: 'competition' }] },
+      {
+        relation: 'players',
+        records: [
+          { recordId: 'player:1', name: 'Jonas Vale', kind: 'player' },
+          { recordId: 'player:2', name: 'Milo Ferran', kind: 'player' },
+        ],
+      },
+    ])
+  })
+
+  it('team → only the non-empty section survives (competitions present, empty roster)', () => {
+    const index = fullIndex()
+    const sections = linkedRecordsOf(index, 'team:1', {
+      teamCompetitions: [tcLink({ id: 101, name: 'League A' })],
+      players: [],
+    })
+    expect(sections).toEqual<LinkedRecordSection[]>([
+      { relation: 'competitions', records: [{ recordId: 'competition:101', name: 'League A', kind: 'competition' }] },
+    ])
+  })
+
+  it('player → teams section; a null-team link (unattached/startlist) is SKIPPED', () => {
+    const index = fullIndex()
+    const sections = linkedRecordsOf(index, 'player:1', {
+      playerTeams: [ptLink({ id: 1, name: 'Riverside United' }), ptLink(null, 7)],
+    })
+    expect(sections).toEqual<LinkedRecordSection[]>([
+      { relation: 'teams', records: [{ recordId: 'team:1', name: 'Riverside United', kind: 'team' }] },
+    ])
+  })
+
+  it('unattached player → [] (all links null / none fetched)', () => {
+    const index = fullIndex()
+    expect(linkedRecordsOf(index, 'player:5', { playerTeams: [] })).toEqual([])
+    expect(linkedRecordsOf(index, 'player:5', { playerTeams: [ptLink(null)] })).toEqual([])
+  })
+
+  it('unknown / malformed recordId → [] (quiet, ops-selection rule 5)', () => {
+    const index = fullIndex()
+    expect(linkedRecordsOf(index, 'team:999', {})).toEqual([])
+    expect(linkedRecordsOf(index, 'garbage', {})).toEqual([])
+  })
+
+  it('missing fetched payload defaults to [] (no throw)', () => {
+    const index = fullIndex()
+    expect(linkedRecordsOf(index, 'competition:101', {})).toEqual([])
+    expect(linkedRecordsOf(index, 'team:1', {})).toEqual([])
   })
 })

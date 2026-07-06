@@ -17,6 +17,7 @@
  * Event.participants (free text). Search/facet stay O(rows) over the index.
  */
 import type { Competition, Player, Sport, Team } from '../../data/types'
+import type { PlayerTeamLink, TeamCompetitionLink } from '../../services'
 
 export type RegistryKind = 'sport' | 'competition' | 'team' | 'player'
 export type RegistryFacet = 'all' | RegistryKind
@@ -53,6 +54,25 @@ export interface RegistryRecord {
   source: string
   /** STATUS word + semantic color token */
   status: RegistryStatus
+  /**
+   * v1.1: manual remark for the C-3 REMARKS box — team/player `notes`; always
+   * null for sport/competition (no such field on those types). Always present
+   * (null when N/A) so consumers never branch on `in`.
+   */
+  notes: string | null
+  /**
+   * v1.1: team `country` NAME only; null for sport/competition AND player
+   * (players carry an ISO code, not a name — see `countryCode`). ADDITIVE display
+   * field: team country is STILL folded into `detail` (searchable) — unchanged.
+   */
+  country: string | null
+  /**
+   * v1.1: player `countryCode` (ISO code) only; null for sport/competition AND
+   * team. Kept SEPARATE from `country` so one field never means two things —
+   * C-3 renders a single COUNTRY row from `country ?? countryCode` (a team shows
+   * a name, a player shows an ISO code; honest field names, identical output).
+   */
+  countryCode: string | null
 }
 
 /**
@@ -207,6 +227,9 @@ export function buildRegistryIndex(
     linkedSummary: `${competitionIdsBySportId.get(sport.id)?.length ?? 0} competitions`,
     source: MANUAL_SOURCE,
     status: DEFAULT_STATUS,
+    notes: null,
+    country: null,
+    countryCode: null,
   }))
 
   const competitionRecords: RegistryRecord[] = competitions.map((competition) => ({
@@ -219,6 +242,9 @@ export function buildRegistryIndex(
     linkedSummary: `${competition._count?.teamLinks ?? 0} teams`,
     source: MANUAL_SOURCE,
     status: DEFAULT_STATUS,
+    notes: null,
+    country: null,
+    countryCode: null,
   }))
 
   const teamRecords: RegistryRecord[] = teams.map((team) => ({
@@ -231,6 +257,9 @@ export function buildRegistryIndex(
     linkedSummary: `${(team._count?.competitionLinks ?? 0) + (team._count?.playerLinks ?? 0)} linked records`,
     source: deriveSource(team.externalRefs),
     status: DEFAULT_STATUS,
+    notes: team.notes ?? null,
+    country: team.country ?? null,
+    countryCode: null,
   }))
 
   const playerRecords: RegistryRecord[] = players.map((player) => ({
@@ -243,6 +272,9 @@ export function buildRegistryIndex(
     linkedSummary: currentTeamName(player),
     source: deriveSource(player.externalRefs),
     status: derivePlayerStatus(player.status),
+    notes: player.notes ?? null,
+    country: null,
+    countryCode: player.countryCode ?? null,
   }))
 
   const orderedRecords = [...sportRecords, ...competitionRecords, ...teamRecords, ...playerRecords]
@@ -340,5 +372,123 @@ export function linkedRecordListPlan(kind: RegistryKind, dbId: number): LinkedRe
       ]
     case 'player':
       return [{ relation: 'teams', path: `/players/${dbId}/teams` }]
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * registry-selectors v1.1 (C-3-T0): the linkedRecordsOf hop resolver — turns
+ * the LAZY-fetched link payloads (see linkedRecordListPlan) into uniform
+ * clickable hop rows for the inspector. PURE (no fetch — C-3-T1 fetches via the
+ * typed services and passes the raw results in via `fetched`).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** A single clickable hop target (recordId via makeRecordId — the `?record` value). */
+export interface LinkedRecord {
+  recordId: string
+  name: string
+  kind: RegistryKind
+}
+
+/** A titled group of hop rows (matches a linkedRecordListPlan relation). */
+export interface LinkedRecordSection {
+  relation: 'competitions' | 'teams' | 'players'
+  records: LinkedRecord[]
+}
+
+/**
+ * The raw per-selection link payloads C-3-T1 fetches (shapes from src/services/*),
+ * keyed by which fetch produced them. Only the fields relevant to the selected
+ * record's kind are read; the rest may be omitted:
+ *   competition selected → `teams`           (teamsApi.list({ competitionId }))
+ *   team selected        → `teamCompetitions` (teamsApi.listCompetitions) + `players` (roster)
+ *   player selected      → `playerTeams`      (playersApi.listTeams)
+ *   sport selected       → NO fetch (client-derivable from the index adjacency)
+ * NOTE the two shapes: `teamCompetitions`/`playerTeams` are JUNCTION ROWS
+ * (`*Link[]` — the related entity rides an embed that may be null); `teams`/
+ * `players` are plain ENTITY arrays.
+ */
+export interface LinkedRecordPayloads {
+  /** ENTITY array — teams in the selected competition */
+  teams?: Team[]
+  /** JUNCTION ROWS — the selected team's competition memberships (competition embed may be null) */
+  teamCompetitions?: TeamCompetitionLink[]
+  /** ENTITY array — the selected team's roster players */
+  players?: Player[]
+  /** JUNCTION ROWS — the selected player's team memberships (team embed may be null) */
+  playerTeams?: PlayerTeamLink[]
+}
+
+/** Omit-empty rule: returns 0-or-1 sections — a zero-row section is dropped so the
+ *  inspector renders no empty header (C-3 never sees a section to special-case away). */
+function sectionIfAny(
+  relation: LinkedRecordSection['relation'],
+  records: LinkedRecord[],
+): LinkedRecordSection[] {
+  return records.length > 0 ? [{ relation, records }] : []
+}
+
+function toLinkedRecord(record: RegistryRecord): LinkedRecord {
+  return { recordId: record.id, name: record.name, kind: record.kind }
+}
+
+/**
+ * Resolves the selected record's linked-record hop sections (mirrors the
+ * linkedRecordListPlan relations). Unknown/malformed recordId → [] (quiet,
+ * ops-selection rule 5). Links whose related entity is null are skipped
+ * (team-competition links with no competition; player-team links with no team —
+ * the unattached / competition-startlist case has no team to hop to). Empty
+ * sections are omitted.
+ */
+export function linkedRecordsOf(
+  index: RegistryIndex,
+  recordId: string,
+  fetched: LinkedRecordPayloads = {},
+): LinkedRecordSection[] {
+  const record = index.byId.get(recordId)
+  if (!record) return []
+
+  switch (record.kind) {
+    case 'sport': {
+      // client-derivable (pin 7): no fetch — read the index adjacency.
+      const competitionIds = index.competitionIdsBySportId.get(record.dbId) ?? []
+      const records = competitionIds
+        .map((id) => index.byId.get(makeRecordId('competition', id)))
+        .filter((linked): linked is RegistryRecord => linked !== undefined)
+        .map(toLinkedRecord)
+      return sectionIfAny('competitions', records)
+    }
+    case 'competition': {
+      const records = (fetched.teams ?? []).map((team) => ({
+        recordId: makeRecordId('team', team.id),
+        name: team.name,
+        kind: 'team' as const,
+      }))
+      return sectionIfAny('teams', records)
+    }
+    case 'team': {
+      const competitions = (fetched.teamCompetitions ?? [])
+        .filter((link) => link.competition != null)
+        .map((link) => ({
+          recordId: makeRecordId('competition', link.competition!.id),
+          name: link.competition!.name,
+          kind: 'competition' as const,
+        }))
+      const players = (fetched.players ?? []).map((player) => ({
+        recordId: makeRecordId('player', player.id),
+        name: player.fullName,
+        kind: 'player' as const,
+      }))
+      return [...sectionIfAny('competitions', competitions), ...sectionIfAny('players', players)]
+    }
+    case 'player': {
+      const teams = (fetched.playerTeams ?? [])
+        .filter((link) => link.team != null)
+        .map((link) => ({
+          recordId: makeRecordId('team', link.team!.id),
+          name: link.team!.name,
+          kind: 'team' as const,
+        }))
+      return sectionIfAny('teams', teams)
+    }
   }
 }
