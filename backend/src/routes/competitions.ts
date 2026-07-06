@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
@@ -74,6 +75,9 @@ router.post('/', authenticate, authorize('admin'), validate({ body: s.competitio
 
     res.status(201).json(competition)
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return next(createError(409, 'A competition with that name and season already exists'))
+    }
     next(error)
   }
 })
