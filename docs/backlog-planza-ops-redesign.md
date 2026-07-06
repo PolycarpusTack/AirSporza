@@ -5,7 +5,7 @@
 > `backlog-builder-agent-v2.md` (workflow) · `gpm-v2.1.md` (ZAP/CIP/PREP execution)
 > **Solution design:** `docs/design_handoff_planza_ops/README.md` + `Planza App.dc.html` + screenshots
 > **Current-state baseline:** codebase survey 2026-07-02 (see §6 Architecture Memory delta)
-> **Status:** v1 — EPICs A, B & C COMPLETE incl. retros (C done 2026-07-06); EPICs D–E outlined, expand EPIC D next (BB v5.1 §10)
+> **Status:** v1 — EPICs A, B & C COMPLETE incl. retros (C done 2026-07-06); EPIC D detailed 2026-07-06; EPIC E outlined (BB v5.1 §10)
 
 ---
 
@@ -81,7 +81,7 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 | AS-4 ◐ provisional | Contract → Rights Status mapping: `EXPIRING` = `validUntil` within 90 days; `NEGOTIATION` = contract status field; `MISSING` = no contract for competition. **Stakeholder decision 2026-07-02: build A-3 with these standard formulas; contract start/end time/date formulas to be revisited in a dedicated session.** Mitigation: thresholds live in ONE place (`ops/selectors`, single source for the 90-day rule per B-3-T1 Abstraction Check) so the revisit is a cheap, test-pinned change | A-3 | Dedicated threshold-formula session (post-A-3) |
 | AS-5 ✅ resolved | "Performer" and "Staff" Kinds map to existing person-entities where present; if absent, Registry v1 ships with sports/competitions/teams/players only and performers/staff are an EPIC C follow-up story | C scope | **Verified 2026-07-05 (EPIC C expansion gate):** schema has full `Player`/`PlayerTeam` (+ canonical bridge) and `Team`; NO Performer/Staff/Person model exists anywhere (crew names in TechPlans are free text, not entities). Fallback applies: **Registry v1 = sports/competitions/teams/players**; performer/staff Kinds = follow-up story gated on a product/schema decision (out of this UI initiative's scope). |
 | AS-6 | IBM Plex Sans/Mono already loaded (survey: configured in tailwind fonts) — no new font pipeline | A-1 | Trivial |
-| AS-7 | Merge decisions call existing endpoints (`approve-merge` / `ignore`); idempotency handled server-side per existing routes | D | EPIC D pull gate |
+| AS-7 ✅ resolved (REFUTED 2026-07-06, EPIC D expansion gate) | Merge decisions call existing endpoints (`approve-merge` / `create-new`); the premise "idempotency handled server-side per existing routes" is **FALSE** — `backend/src/routes/import/mergeCandidates.ts` has NO already-decided guard: `approve-merge` re-runs `manualMergeNormalizedEvent` and `create-new` re-runs `manualCreateNormalizedEvent` (creating a DUPLICATE event) on a repeat call. Mitigation: UI single-flight + terminal button-replacement + pending-only listing (D-3-T1); a CONDITIONAL additive backend already-decided guard (D-3-T0) is architect-gated | D | **Verified 2026-07-06 in `mergeCandidates.ts` — resolved into D-3 pins** |
 | AS-8 (added 2026-07-04, B-3 re-gate) | The rights matrix ON-DEM column is RESERVED: real `Contract.platforms[]` has no value distinct from `'on-demand'`→MAX (legacy `maxRights` lineage), and the design demo never lights ON-DEM. It lights only when the domain model distinguishes a non-MAX on-demand right (candidate source: RightsPolicy `Platform` SVOD/AVOD) | B-3 display honesty | AS-4 threshold/stakeholder session (same venue) |
 
 ---
@@ -144,7 +144,8 @@ Components (new):
                        STATUS token→var map is occurrence-two of the RecordInspector copy)
   opsUrlState:         + useOpsRecord (?record) — BUILT (ops-selection v2; 3rd useOpsSearchParam
                        caller, opaque ids, inherits all v1 semantics)
-  SyncScreen:          job cards + merge review queue — planned (placeholder; EPIC D)
+  SyncScreen:          job cards + merge review queue — planned (placeholder; EPIC D detailed
+                       2026-07-06 — syncSelectors + useSyncData + merge-decision write path)
 
 Components (existing, consumed — do not modify):
   AppProvider (events/sports/competitions + socket), services/* (27 APIs),
@@ -800,18 +801,155 @@ canonical records) argues even harder for keeping it. Next per §10.4: expand **
 
 ---
 
+## EPIC D — SYNC (import health + merge review)
+
+- **Objective:** The operations surface over the existing import pipeline: nightly-sync job-health cards and the MERGE REVIEW deduplication queue — the initiative's SECOND write surface (irreversible merge decisions on canonical records), rendered as pure UI over `backend/src/routes/import/*` with NO backend change expected for the read paths.
+- **Tracer Bullet?:** NO
+- **Mode:** DELIVERY (retained at the EPIC C retro — irreversible merge decisions argue even harder for full governance than EPIC C's creates)
+- **Scope (verified 2026-07-06 against `mergeCandidates.ts` + `jobs.ts`):** SYNC v1 surfaces (1) job-health cards from `importsApi.listJobs` and (2) the merge-review queue from `importsApi.listMergeCandidates({status:'pending'})` with two terminal decisions — APPROVE MERGE (`approve-merge`) and KEEP SEPARATE (`create-new`). Backend enforces `entityType === 'event'` on every decision route ("Only event merge candidates are currently reviewable") → SYNC v1 is an EVENT-dedup surface; non-event candidates never reach a decision. `ignore` has no design surface (the design's 2-button footer is merge/keep) → OUT of SYNC v1 (legacy ImportView retains it). Dead-letter management, sources config, aliases and provenance stay in the legacy ImportView (ADR-012 — untouched; SYNC is the redesigned monitoring slice, not a full ImportView replacement — that reconciliation is an EPIC E cutover concern).
+- **DoD additions:** (1) No merge decision fires twice per user intent — a single-flight guard is unit-tested per decision (create-new duplicating an event on re-decide is the specific hazard, see AS-7 finding); (2) after a decision the card's buttons are replaced by the terminal status line (`✓ MERGED INTO REGISTRY` / `KEPT AS SEPARATE RECORDS`) and the SYNC tab badge decrements — asserted unit + e2e; (3) ALL event/name fixtures (unit + e2e) use ANONYMISED invented data — no real athletes/fixtures (PII, EPIC C DoD 3 carried); (4) the merge diff table renders INCOMING vs CURRENT for a candidate with a `suggestedEntityId`, and a candidate with `suggestedEntityId === null` renders APPROVE MERGE disabled (create-only) — never a dead merge button.
+- **Business Value:** Ops staff triage last night's sync health and clear the dedup queue from one screen, instead of the six-tab legacy ImportView. Success metric: an operator confirms all nightly jobs succeeded and resolves a merge candidate (with an INCOMING-vs-CURRENT field diff) in ≤ 2 clicks from `/ops/sync`.
+- **Risk:** **High — re-decide is not idempotent server-side (AS-7 REFUTED, verified in `mergeCandidates.ts`): `approve-merge` re-runs the merge and `create-new` creates a SECOND event on a repeat call → mitigation: (a) UI single-flight guard per candidate + terminal button-replacement + pending-only listing so a decided candidate never re-appears; (b) a CONDITIONAL backend already-decided guard (D-3-T0) if the architect deems the residual multi-operator / stale-card risk unacceptable — gate-decided, mirrors C-4-T0.** Med — diff CURRENT values are not in the candidate payload (must resolve the suggested event) → mitigation: D-2 gate resolves the source (AppProvider events vs lazy fetch), mirrors C-1 HYBRID. Med — `confidence` is a Decimal-serialized string typed `number` → mitigation: explicit `Number()` coercion pinned + gate verifies scale vs `DeduplicationService`.
+- **SLOs:** `Ops Sync – initial render < 1.5s p95 @ 50 jobs + 100 merge candidates` · `Merge decision – click → terminal status line < 300ms p95 (optimistic, excl. server round-trip)`. Honest measurement stays at E-1 (the initiative-wide SLO measurement point).
+- **Glossary:** Sync Job, Merge Candidate, Merge Decision (§4 unchanged); display terms: **Job Card**, **Merge Card**, **Diff Table** (`FIELD | INCOMING | CURRENT`), **Confidence Band** (≥90 green / else amber — SYNC-specific, distinct from ImportView's 3-band), **Pending Count** (tab badge), terminal status lines `MERGED INTO REGISTRY` / `KEPT AS SEPARATE RECORDS`.
+- **ADRs:** none new. ADR-012 (legacy ImportView untouched; SYNC is a parallel slice) governs the Rule-of-Three extraction tension (D-2-T0). ADR-014: SYNC has NO per-candidate URL selection in v1 (decisions are in-card, there is no SYNC inspector) — an additive `?candidate=` bump is parked if per-candidate deep-linking is later wanted.
+- **Smoke Test Story:** D-4. **Runbook:** extend `docs/runbooks/ops-shell.md` (add §sync).
+- **Working method (proven A→C, binding here):** DoR re-gate re-verifies each story's premises before start (backlog-health-advisor); pins written testable; derived logic in pure selectors under `src/components/ops/` (anti-smart-ui) — SyncScreen renders + wires only; additive deep-frozen fixtures (anonymised); the Rule-of-Three extraction is a separate PREPARATORY commit (Two Hats); single-flight for writes (registry-create v1 precedent); mutation probes in the review chain; `now`/data seams; ops-selectors v3 + registry-selectors v1.1 stay byte-stable (sibling-module rule).
+
+### Story D-1 — Sync selectors + data hook + job cards + SyncScreen shell
+**As an** import operator **I want** the SYNC screen with nightly-sync job-health cards **so that** I see at a glance whether last night's imports succeeded or produced dead letters, without opening the six-tab ImportView.
+
+Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (jobs-list shape VERIFIED 2026-07-06: `GET /import/jobs` embeds `_count: { records, deadLetters }` + `source.code/name`; status enum `queued/running/completed/failed/partial` — no backend change) · INVEST all ✓
+
+**AC:**
+- Given jobs from `listJobs`, When SYNC renders, Then a `NIGHTLY SYNC · 02:00 CET` section label + one Job Card per recent job: status dot (completed→green, failed/partial→red/amber, queued/running→neutral), source name (mono 600 11px), meta line `<HH:MM> · OK · <N> RECORDS` on success or `<HH:MM> · <N> DEAD-LETTERS` when `_count.deadLetters > 0`.
+- Given the SyncScreen mounts, Then it replaces the OpsShell `ops-screen-sync` placeholder in place (root testid `ops-screen-sync` kept — B-1 precedent); the MERGE REVIEW section renders its own quiet skeleton/empty-state until data settles (D-2 fills it).
+- Given pending merge candidates load, Then the SYNC tab reads `SYNC [n]` via the OpsShell badge slot (A-2 AC-4: slot exposed since EPIC A) where n = pending count.
+- Given data still loading, Then a quiet skeleton renders until `isSettled` (B-3 pin-7 / C-2 precedent, incl. the failure path).
+- Alt: zero jobs → empty-state panel; a job with no `startedAt` → meta time falls back to `createdAt`.
+
+**Pinned decisions (expansion gate 2026-07-06 — write tests to these):**
+1. *Job-card derivation is pure:* `deriveJobCard(job): JobCard` (dot state, meta line, record/dead-letter count) lives in `src/components/ops/syncSelectors.ts` (new sibling module; ops-selectors v3 / registry-selectors v1.1 byte-stable). No derivation in the component.
+2. *`NIGHTLY SYNC · 02:00 CET` is static copy* — the nightly schedule is not in any API; the label is presentational (designer note for E-2). Job-card TIMES are real (`startedAt ?? createdAt`, wall-clock rendered — the initiative's TZ seam, rundown precedent).
+3. *Card set:* the N most recent jobs from `listJobs` (design shows 3; real = the list default). No per-source grouping in v1.
+4. *Dead-letter count is per-job* from `job._count.deadLetters` (VERIFIED on the list payload) — NOT the global `metrics().totals.unresolvedDeadLetters`. Success meta uses `_count.records` (ImportView `job._count?.records` precedent) unless `statsJson.recordsProcessed` is present.
+5. *Badge count source:* pending count = length of the pending candidate set loaded by `useSyncData` (single source — avoids a second endpoint / `metrics()` fan-out); the badge decrements as decisions land (D-3). Gate verifies the OpsShell v1 badge-slot mechanism (how a screen publishes its count to the tab).
+6. *Fixtures:* additive `FIXTURE_JOBS` + `FIXTURE_MERGE_CANDIDATES` (+ `makeJob`/`makeMergeCandidate`) in the shared fixture module; existing exports byte-stable. Coverage: one completed job with records, one failed/dead-letter job, one running job; candidates spanning ≥90 and <90 confidence, one with `suggestedEntityId` + one null, one with a differing field (feeds D-2/D-3). Event/name data ANONYMISED (DoD 3).
+
+**Interfaces:** `src/components/ops/syncSelectors.ts`: `deriveJobCard(job): JobCard` · `pendingCandidateCount(candidates): number` (merge-card derivation added in D-2). Plus `src/components/ops/useSyncData.ts`: quiet parallel fetch `{ jobs, candidates, isSettled, refresh() }` (useContracts/useRegistryData idiom; `refresh` pre-planned for D-3's post-decision refetch; both lists are bare arrays — unbounded fetch assumption recorded, E-1 revisits).
+
+- **D-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: Pure `syncSelectors.ts` job-card derivation + `pendingCandidateCount` (pins 1–4) — no React.
+  TDD: dot-state + meta-line permutation table (each status × records/dead-letters) as failing tests first; `Number()` coercion on any Decimal-string field pinned.
+  Pull Gate: `_count.deadLetters`/`_count.records` + `ImportJobStatus` values vs `services/imports.ts` + `jobs.ts` (VERIFIED — re-confirm shapes); TZ seam wording (rundown precedent).
+  Hand-off: Contract Snapshot **`sync-selectors v1`**. Unblocks: D-1-T2, D-2-T0.
+- **D-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: `useSyncData` quiet-fetch hook (`isSettled` on both-settled — useRegistryData precedent; `refresh()` refetches both lists) + SyncScreen replacing the `ops-screen-sync` placeholder: `NIGHTLY SYNC` label + job cards + MERGE REVIEW skeleton + tab-badge wiring (pin 5).
+  TDD: hook tests (parallel fetch, settle-on-failure, refresh) + screen interaction tests (job cards render, skeleton→settle, empty jobs, badge count) first.
+  Pull Gate: `sync-selectors v1`, `OpsShell v1` (placeholder + badge slot), `useRegistryData v1` (idiom).
+  Hand-off: Contract Snapshot **`useSyncData v1`**. Unblocks: D-2-T1, D-4-T1, END OF STORY SEQUENCE.
+
+### Story D-2 — Merge review cards: shared-derivation extraction + diff table (read-only)
+**As an** import operator **I want** each deduplication candidate as a card with an INCOMING-vs-CURRENT field diff and a confidence band **so that** I can judge a match before deciding — without hunting through the legacy Review tab's JSON blob.
+
+Business Value 3 · Priority 4 · Size **M→L** · DoR: **READY (conditional)** — two BLOCKING gate outputs: (a) the ADR-012 extraction-tension call at D-2-T0 (does the PREP refactor legacy `ImportView.ReviewTab`, or defer that to EPIC E?); (b) at D-2-T1 the diff CURRENT-source resolution (AppProvider events vs lazy fetch) + the `confidence` scale/serialization — do NOT guess · INVEST all ✓
+
+**AC:**
+- Given a pending candidate, Then a Merge Card (max-width 960px, radius 8) renders: header = kind chip + incoming name + `→ MATCHES →` (mono `--t3`) + current name + confidence `<pct>% MATCH` (green ≥90, amber below) + `VIA <SOURCE>` (mapped source code).
+- Given a `suggestedEntityId`, Then the Diff Table renders `FIELD | INCOMING | CURRENT` on grid `110px 1fr 1fr`, header row on `--p2`; INCOMING values that differ from CURRENT are amber; comparable fields come from `normalizedJson` (incoming) vs the resolved current event.
+- Given `suggestedEntityId === null`, Then the card renders WITHOUT a CURRENT column (incoming-only), and later (D-3) APPROVE MERGE is disabled (create-only) — never a dead button (ImportView `disabled={!suggestedEntityId}` precedent).
+- Given the decision footer, Then `KEEP SEPARATE` (ghost) + `APPROVE MERGE` (accent) render (INERT here — wired in D-3).
+- Alt: current event not resolvable (outside the loaded set / lazy-fetch fails) → card shows incoming-only with a quiet "current not loaded" note, never a crash (UNASSIGNED-lane honesty precedent).
+
+**Pinned decisions (expansion gate 2026-07-06 — write tests to these):**
+1. **Rule-of-Three extraction (headline architectural decision):** merge-candidate derivation now has TWO consumers — legacy `ImportView.ReviewTab` (occurrence #1) and the new SyncScreen (#2). Per Core §5.5 this is the extract point. The extraction is **SELECTOR-ONLY** — the pure `deriveMergeCard(candidate, currentEvent?): MergeCard` (kind, incoming/current names, confidence percent + band, source code, diff rows with `changed` flags) lands in `syncSelectors.ts`. The decision-WRITE wiring is **NOT** extracted: the two consumers' post-decision UX diverges materially (ImportView removes-from-list + toast; SyncScreen terminal status line + `decided` map + single-flight) → extracting divergent wiring on first co-occurrence is a premature/leaky abstraction (Core §5). The write stays per-consumer (D-3, single-flight).
+2. *ADR-012 tension (gate output):* a true PREP refactors the existing consumer, but ADR-012 mandates legacy ImportView stays untouched. **Recommended: D-2-T0 refactors ONLY the already-duplicated, behavior-preserving bits of `ImportView.ReviewTab` (confidence→percent, source-code display, kind chip) onto the shared selector under byte-stable tests (B-3-T2 useContracts precedent) — a deduplication, not a redesign, within ADR-012's spirit.** If the architect rules that touching legacy is out of bounds, the module ships consumed-by-SyncScreen-only and ImportView's migration becomes an EPIC E cutover item (recorded). Either way the PREP hat holds: the shared derivation is factored into its own tested commit before SyncScreen consumes it (no copy of ImportView's approach). The Diff-Table derivation is NEW (ImportView JSON-stringifies today) → it lands FRESH as FEATURE in D-2-T1, consumed only by SyncScreen in v1.
+3. *Diff CURRENT source (gate output — mirrors C-1 HYBRID):* candidates are `entityType === 'event'` (backend-enforced), so CURRENT = the event with `id === suggestedEntityId`. Preferred source = AppProvider events (already loaded, zero-cost); if coverage is insufficient (suggested event outside the loaded window), a lazy per-card `eventsApi.get(suggestedEntityId)` — decide at the gate. CURRENT values are NOT in the candidate payload (VERIFIED: `listMergeCandidates` includes only `importRecord.source`).
+4. *Confidence (gate output):* `confidence` is `Decimal(5,2)` → serialized as a STRING over JSON though typed `number`; the selector uses explicit `Number(confidence)` (never coercion-by-accident) and bands on `Math.round(Number(confidence) * 100) >= 90 → green else amber`. Scale is 0..1 (ImportView's `>= 0.8`/`* 100` confirm it) — but the gate re-verifies vs `DeduplicationService` before the band tests (C's "verify enum casing before color-map" discipline). Found-work flag: ImportView's `c.confidence >= 0.8` relies on string→number coercion (latent — record).
+5. *Diff field set:* comparable canonical-event fields from `normalizedJson` (`sportName`, `competitionName`, `startsAtUtc`, `homeTeam`, `awayTeam`, `venueName`, `country`, `status`, `seasonLabel`, `stage` — per `isCanonicalImportEvent`) vs the Event entity's equivalents; the exact field mapping is pinned at the gate (only fields present on both sides render a row). `reasonCodes` are NOT shown in v1 (design omits them — designer note).
+6. *Source-code map:* reuse the registry-selectors provenance convention (`the_sports_db→TSDB`, `api_football→API-FB`, `football_data→FB-DATA`; unknown → uppercased raw, never dropped) — verify the merge-source `code` vocabulary at the gate (import source codes may differ from the registry `externalRefs` keys).
+
+- **D-2-T0** · Hat **PREPARATORY** · Model **Sonnet** · Confidence **Med** (ADR-012 carve-out is an architect call)
+  Goal: Extract the already-duplicated merge-candidate derivation (confidence percent/band, source-code display, kind chip) into `syncSelectors.ts` as `deriveMergeCard` scaffolding; refactor `ImportView.ReviewTab`'s inline versions onto it under byte-stable behavior — OR (architect ruling) create the module consumed-by-SyncScreen-only and defer ImportView migration to E (pin 2).
+  TDD: characterization tests pinning ReviewTab's current confidence/source rendering BEFORE the move (byte-stable); the extracted selector's unit tests green after.
+  Pull Gate (BLOCKING): the ADR-012 extraction-tension call (pin 2) + `sync-selectors v1`; confirm ReviewTab's current behavior to preserve.
+  Hand-off: **`sync-selectors v1.1`** amendment (`deriveMergeCard` derivation). Unblocks: D-2-T1.
+- **D-2-T1** · Hat **FEATURE** · Model **Sonnet** (spec) / review **Opus** (diff derivation) · Confidence Med (CURRENT-source + confidence shape gated)
+  Goal: NEW diff derivation (`deriveMergeDiff(normalizedJson, currentEvent) → rows + changed flags`, pin 5) added to `syncSelectors.ts` + Merge Card markup (header, `→ MATCHES →`, confidence badge, diff grid `110px 1fr 1fr`, amber changed-cells, inert footer) rendered into the SyncScreen MERGE REVIEW section; CURRENT resolution per pin 3.
+  TDD: diff-row permutation (changed / unchanged / null-suggested / absent-field) + confidence band boundary (89/90) as failing tests first; current-not-resolvable fallback.
+  Pull Gate (BLOCKING): diff CURRENT-source resolution + confidence scale/serialization (pins 3–4) vs `DeduplicationService`/a real payload; `sync-selectors v1.1`, `useSyncData v1`.
+  Hand-off: **`sync-selectors v1.2`** (diff derivation) + Merge Card in the screen. Unblocks: D-3-T1, END OF STORY SEQUENCE.
+
+### Story D-3 — Merge decisions (2nd write surface: APPROVE MERGE / KEEP SEPARATE, single-flight, AS-7)
+**As an** import operator **I want** to approve a merge or keep records separate from the card **so that** the dedup queue clears and the decision is reflected immediately — without the queue re-firing the same decision.
+
+Business Value 3 · Priority 3 · Size **M** · DoR: **READY (conditional)** — T0's idempotency gate is BLOCKING: the backend routes have NO already-decided guard (AS-7 REFUTED, VERIFIED in `mergeCandidates.ts`) — the architect decides whether a backend guard precedes the UI wiring · INVEST all ✓
+
+**AC:**
+- Given APPROVE MERGE on a candidate with a `suggestedEntityId`, When clicked, Then exactly ONE `approve-merge` request fires (double-click / Enter+click pinned by a single-flight test) and on success the footer buttons are replaced by a right-aligned `✓ MERGED INTO REGISTRY` (green) and the SYNC tab badge decrements.
+- Given KEEP SEPARATE, When clicked, Then exactly ONE `create-new` request fires and on success the footer is replaced by `KEPT AS SEPARATE RECORDS` (`--t2`) and the badge decrements (`decided: Record<id,'merged'|'kept'>` per the design state).
+- Given `suggestedEntityId === null`, Then APPROVE MERGE is disabled (create-only) with a title tooltip; KEEP SEPARATE stays enabled.
+- Given a decision fails, Then an inline error renders on the card, the footer buttons re-enable (retry is user-initiated, still single-flight), and the badge does not change.
+- Given a decided card, Then it is not re-decidable in-view (terminal status line, no live buttons); the pending-only listing means a refresh never re-surfaces it.
+
+**Pinned decisions (expansion gate 2026-07-06 — write tests to these):**
+1. *Decision → endpoint mapping (VERIFIED):* APPROVE MERGE → `approveMergeCandidate(id, suggestedEntityId)` (→ status `approved_merge`, design `'merged'`); KEEP SEPARATE → `createMergeCandidateEntity(id)` (`create-new` → status `create_new`, "both exist as separate records", design `'kept'`). `ignore` is NOT surfaced (out of SYNC v1 scope).
+2. **AS-7 idempotency (REFUTED — the headline write pin):** `mergeCandidates.ts` has NO `status !== 'pending'` guard — `approve-merge` re-runs `manualMergeNormalizedEvent` and **`create-new` re-runs `manualCreateNormalizedEvent`, creating a DUPLICATE event, on a repeat call**. The UI-testable guarantee is the single-flight guard (ONE request per user intent — registry-create v1 `isSubmittingRef` precedent) + terminal button-replacement + pending-only listing. Routes return `{ message, candidate, event }` and validate `mergeDecisionSchema` on approve-merge only — pin the ACTUAL response/error shape from the gate before writing tests; do NOT guess.
+3. *Optimistic vs refetch:* on success, mark `decided[id]` locally (design's terminal state) AND decrement the badge from the local pending set; a `useSyncData.refresh()` is OPTIONAL (background reconcile) — the decided card stays terminal regardless. No socket (C-5 pin-4 no-socket precedent).
+4. *Confirmation:* merge decisions are irreversible on canonical records; v1 executes on click per the design (immediate, per-candidate) — a confirm step is a designer/E-3 note, NOT invented here.
+
+- **D-3-T0** · Hat **PREPARATORY** (backend) · Model **Sonnet** · Confidence Med · **CONDITIONAL (gate output — mirrors C-4-T0)**
+  Goal: IF the architect deems the re-decide hazard unacceptable (create-new duplicating an event), add an already-decided guard to `approve-merge`/`create-new`/`ignore` (`candidate.status !== 'pending'` → 409-style "already decided", additive; existing backend tests stay green). If the architect accepts the UI-only mitigation (single-flight + pending-only listing), this task is SKIPPED and the acceptance recorded.
+  TDD: backend route test — a repeat decision returns the guard status, the first decision unaffected — first.
+  Pull Gate (BLOCKING): the AS-7 finding + the architect ruling; existing import route suite green before/after.
+  Hand-off: idempotency contract recorded in `merge-decision v1` §Depends-on. Unblocks: D-3-T1.
+- **D-3-T1** · Hat **FEATURE** · Model **Sonnet** (spec) / review **Opus** (write-path + error contract) · Confidence Med (first merge write; re-decide gate)
+  Goal: Wire APPROVE MERGE / KEEP SEPARATE decisions (pin 1) with per-candidate single-flight (pin 2), terminal status-line replacement, badge decrement, inline error + re-enable (pins 3–4).
+  TDD: interaction tests first — single-flight double-click (both paths), success → status line + badge decrement, null-suggested → APPROVE disabled, failure → inline error + re-enable, decided card not re-decidable.
+  Pull Gate (BLOCKING): decision response/error shape + idempotency mechanism (pin 2, D-3-T0 output) vs `mergeCandidates.ts` + `services/imports.ts`; `sync-selectors v1.2`, `useSyncData v1`, `OpsShell v1` (badge).
+  Hand-off: Contract Snapshot **`merge-decision v1`** (endpoint mapping + single-flight + the error/idempotency contract actually available). Unblocks: D-4-T1, END OF STORY SEQUENCE.
+
+### Story D-4 — EPIC D smoke test + runbook §sync
+**As a** reviewer **I want** an E2E journey over SYNC including a merge decision **so that** the initiative's second write surface is verifiably deployable and rollbackable.
+
+Business Value 2 · Priority 3 · Size **M** (ops-e2e store gains merge-decision emulation) · DoR: **READY** (gate MUST re-verify harness premises — the A-5 lesson; the C-7 stateful store is the base)
+
+**AC (flag-on profile; flag-off coverage carried by A-5):**
+- Given `/ops/sync`, Then job cards render from the fixture jobs (literal status-dot + meta assertions incl. one dead-letter card); the SYNC tab reads `SYNC [n]` matching the pending fixture count.
+- Given a merge candidate with a differing field, Then its card shows the `FIELD | INCOMING | CURRENT` diff with the changed field amber and the `<pct>% MATCH` band; a ≥90 candidate is green, a <90 amber.
+- Given APPROVE MERGE, Then the card footer becomes `✓ MERGED INTO REGISTRY` and the tab badge decrements (interception emulates the decision + updates its in-memory store per `merge-decision v1`); a scripted KEEP SEPARATE yields `KEPT AS SEPARATE RECORDS`.
+- Given a failing decision (emulated), Then the inline error renders and the buttons re-enable.
+
+**Pinned decisions:**
+1. *Stateful interception:* the ops-e2e route layer (C-7 registry store precedent) gains an in-memory merge-candidate store (reset per test) so decision round-trips + badge decrements are observable; the real-backend WRITE gap (A-5/C-7 trade-off) now covers merge decisions too — state it in the runbook §sync known limitations, including the AS-7 re-decide finding.
+2. *PII:* SYNC e2e fixtures reuse the anonymised families (DoD 3); a Haiku review-chain step verifies no real athlete/fixture names.
+
+- **D-4-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: `e2e/smoke-epic-d.flag-on.spec.ts` implementing the ACs + the merge-decision interception store (pin 1) + runbook `ops-shell.md` §sync — symptoms: empty SYNC → jobs/candidates fetch + `isSettled`; decision fails → endpoint + shape per `merge-decision v1`; duplicate event after re-decide → the AS-7 finding (single-flight + pending-only listing; backend guard status per D-3-T0); wrong confidence band → the Decimal-string coercion (D-2 pin 4); rollback = flag OFF + REDEPLOY (TD-27).
+  TDD: AC-ordered spec red → green; runbook checklist derived from the passing spec (A-5/C-7 idiom).
+  Pull Gate: `ops-e2e v1.1` (amended) + all EPIC D snapshots (`sync-selectors v1.2`, `useSyncData v1`, `merge-decision v1`); fixture inventory (job/candidate counts) asserted literally; PII check (pin 2, Haiku).
+  Unblocks: **EPIC D RETRO** (Phase Summary + Architecture Memory update + flow data + mode check per BB §10 — then expand EPIC E as HARDENING), END OF STORY SEQUENCE.
+
+### EPIC D — Expansion validator note (BB v5.1 §9, DELIVERY level, run 2026-07-06)
+
+- **Structure/DAG:** D-1-T1 → {D-1-T2, D-2-T0}; D-1-T2 → {D-2-T1, D-4-T1}; D-2-T0 → D-2-T1 → D-3-T1; D-3-T0 (conditional) → D-3-T1 → D-4-T1. No cycles; every detailed task has Hat, Model, TDD order, Pull Gate, Unblocks. ✓
+- **Glossary:** Sync Job / Merge Candidate / Merge Decision used as §4 defines them; the new display terms (Job Card, Merge Card, Diff Table, Confidence Band, Pending Count) are SYNC-local and consistent; the `ignore`-out-of-scope and non-event-out-of-scope decisions are honest reductions of the design, not invented features. ✓
+- **Anti-bureaucracy (Core §5.3):** every task spec is shorter than its expected implementation (largest: D-2-T1 diff + card; smallest: D-3-T0 conditional backend guard — still above overhead). Selectors (D-1/D-2) kept separate from the screen because the derivation has two consumers (job cards + merge cards) and one is a Rule-of-Three extraction — not an always-change-together pair. ✓
+- **Writes:** the merge decision carries a single-flight test + gate-pinned error contract; AS-7 is REFUTED and mitigated (UI single-flight + pending-only + a CONDITIONAL backend guard); PII fixture rule carried from EPIC C; the ONLY possible backend change (D-3-T0) is additive and architect-gated — flagged, not assumed. ✓
+- **Honest deferrals:** `ignore` decision + dead-letter/sources/aliases/provenance stay in legacy ImportView (ADR-012); `NIGHTLY SYNC · 02:00 CET` label + `reasonCodes` + a merge-confirm step → designer/E-3 notes; `ImportView.ReviewTab` migration onto the shared selector → EPIC E cutover if not done in D-2-T0; per-candidate deep-linking parked (no SYNC inspector); SLOs measured at E-1. ✓
+
+---
+
 ## 8. Roadmap EPICs (outline only — expand after EPIC A/B retros, per BB §1 depth rule)
 
 ### EPIC C — REGISTRY (sports CMS surface)
 Expanded 2026-07-05, **COMPLETE 2026-07-06 (retro above)** — see §EPIC C detailed section.
 
 ### EPIC D — SYNC (import health + merge review)
-Pure UI over existing `backend/src/routes/import/*`.
-Stories (draft): D-1 job cards (`GET /jobs` + dead-letter counts; status dot semantics) · D-2 merge review cards (`GET /merge-candidates`, diff table with amber changed-fields, confidence badge ≥90 green) · D-3 merge decisions (`approve-merge` / `ignore` endpoints, optimistic status line, tab badge count live via socket or refetch; **idempotency** AS-7) · D-4 smoke test.
-Note: existing `ImportView` Review tab already implements this flow — D-2/D-3 are a re-skin + relocation; Abstraction Check must evaluate extracting shared merge-candidate logic instead of duplicating (Core §5.5 Rule of Three: this IS the second occurrence → extract).
+**Expanded 2026-07-06 — see §EPIC D detailed section.** Pure UI over existing `backend/src/routes/import/*` (read paths need NO backend change: jobs list already embeds `_count.deadLetters`). Stories: D-1 sync selectors + data hook + job cards + SyncScreen shell · D-2 merge review cards (Rule-of-Three selector extraction + INCOMING/CURRENT diff table) · D-3 merge decisions (APPROVE MERGE→`approve-merge` / KEEP SEPARATE→`create-new`, single-flight; **AS-7 REFUTED — no server-side idempotency guard, conditional backend D-3-T0**) · D-4 smoke test. The existing `ImportView` Review tab is occurrence #1 for the merge derivation → D-2-T0 EXTRACTS the shared selector (ADR-012 legacy-untouched tension pinned as a gate call).
 
 ### EPIC E — HARDENING + cutover decision (Mode: HARDENING)
-No new features. Stories (draft): E-1 perf verification vs all SLOs (numeric thresholds) · E-2 a11y + light-theme QA across all 5 screens (contrast audit follow-ups from A-1-T3) · E-3 security review (STRIDE re-check: registry create is the only new write path besides merge decisions; RBAC parity with old screens) · E-4 TD servicing decisions (TD-23/24/25 + any accrued) · E-5 runbook completion + `opsRedesign` flag rollout plan · E-6 **ADR: old-screen deprecation/cutover** (Architect decision — replace routes, or keep both).
+No new features. Stories (draft): E-1 perf verification vs all SLOs (numeric thresholds) · E-2 a11y + light-theme QA across all 5 screens (contrast audit follow-ups from A-1-T3) · E-3 security review (STRIDE re-check: registry create + merge decisions are the new write paths; RBAC parity with old screens) · E-4 TD servicing decisions (TD-23/24/25 + any accrued) · E-5 runbook completion + `opsRedesign` flag rollout plan · E-6 **ADR: old-screen deprecation/cutover** (Architect decision — replace routes, or keep both; includes ImportView.ReviewTab migration onto the shared merge selector if D-2-T0 deferred it).
 
 ---
 
