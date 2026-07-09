@@ -573,23 +573,39 @@ export const FIXTURE_JOBS: ImportJob[] = deepFreeze([
 
 /**
  * Merge candidates (deep-frozen) — spanning ≥90 and <90 confidence (0..100 scale),
- * one WITH a suggestedEntityId and one null, and differing normalizedJson `venue`
- * fields (feeds the D-2 field-diff / D-3 decrement seams). cand-high's confidence is a
- * Decimal-serialized STRING typed `number` (honest-data pin above). Both pending.
+ * one WITH a resolvable suggestedEntityId and one null (D-2-T1). cand-high's confidence
+ * is a Decimal-serialized STRING typed `number` (honest-data pin above). Both pending.
+ *
+ * D-2-T1 correction: normalizedJson now carries CANONICAL import fields (the D-2
+ * comparable set: sportName/competitionName/startsAtUtc/homeTeam+awayTeam/venueName —
+ * `name`/`venue` were never read by any selector). cand-high.suggestedEntityId is now a
+ * BARE numeric id string (`'1'`, matching DeduplicationService's `String(eventId)`), so
+ * the CURRENT side RESOLVES to FIXTURE_EVENTS[0] (event 1: Football · League A ·
+ * 2026-03-02 · 'Mon late (VALID, crew OK)'). Chosen so the diff has a MATCH (SPORT
+ * 'Football', COMPETITION 'League A', DATE '2026-03-02') and a CHANGE (PARTICIPANTS:
+ * incoming 'Riverside United — Coastal Rovers' vs current 'Mon late …'). cand-low keeps
+ * suggestedEntityId:null (the incoming-only path; incomingName falls to participantsText).
  */
 export const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = deepFreeze([
   makeMergeCandidate({
     id: 'cand-high',
     entityType: 'event',
     confidence: '95.00' as unknown as number, // ≥90 green, STRING (Decimal(5,2) serialisation — D-2 coercion seam)
-    suggestedEntityId: 'event:501',
+    suggestedEntityId: '1', // bare numeric id (String(eventId)) → resolves to FIXTURE_EVENTS[0]
     status: 'pending',
     importRecord: {
       id: 'rec-cand-high',
       sourceId: 'src-fixture',
       sourceRecordId: 'srcrec-cand-high',
       entityType: 'event',
-      normalizedJson: { name: 'Riverside Derby', venue: 'Riverside Arena' },
+      normalizedJson: {
+        sportName: 'Football', // MATCHES event 1 (sport 1)
+        competitionName: 'League A', // MATCHES event 1 (comp 101)
+        startsAtUtc: '2026-03-02T19:00:00.000Z', // date part MATCHES event 1 (2026-03-02)
+        homeTeam: 'Riverside United', // + awayTeam → participants DIFFER from event 1
+        awayTeam: 'Coastal Rovers',
+        venueName: 'Riverside Arena', // not a comparable field — carried for realism
+      },
       sourceUpdatedAt: '2026-01-15T18:00:00.000Z',
       source: { id: 's1', code: 'the_sports_db', name: 'Sports Feed A' },
     },
@@ -598,14 +614,20 @@ export const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = deepFreeze([
     id: 'cand-low',
     entityType: 'event',
     confidence: 62, // <90 amber, plain number (0..100 scale)
-    suggestedEntityId: null,
+    suggestedEntityId: null, // incoming-only path
     status: 'pending',
     importRecord: {
       id: 'rec-cand-low',
       sourceId: 'src-fixture',
       sourceRecordId: 'srcrec-cand-low',
       entityType: 'event',
-      normalizedJson: { name: 'Coastal Classic', venue: 'Harbor Field' }, // differing venue vs cand-high
+      normalizedJson: {
+        sportName: 'Tennis',
+        competitionName: 'Open B',
+        startsAtUtc: '2026-03-05T13:00:00.000Z',
+        participantsText: 'Coastal Classic — Round 1',
+        venueName: 'Harbor Field',
+      },
       sourceUpdatedAt: null,
       source: { id: 's2', code: 'api_football', name: 'Fixture Provider B' },
     },

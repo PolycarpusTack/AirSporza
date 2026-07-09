@@ -6,15 +6,26 @@
  *
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ImportJob, ImportMergeCandidate } from '../../services'
+import type { Competition, Event, Sport } from '../../data/types'
 import { OpsTabBadgeContext, type SetTabBadge } from '../../components/ops/opsTabBadges'
 
 const useSyncData = vi.fn()
 vi.mock('../../components/ops/useSyncData', () => ({
   useSyncData: () => useSyncData(),
+}))
+
+// D-2-T1: the CURRENT side of a merge comes from AppProvider (events/sports/competitions).
+const appState = vi.hoisted(() => ({
+  events: [] as Event[],
+  sports: [] as Sport[],
+  competitions: [] as Competition[],
+}))
+vi.mock('../../context/AppProvider', () => ({
+  useApp: () => ({ events: appState.events, sports: appState.sports, competitions: appState.competitions }),
 }))
 
 import { SyncScreen } from './SyncScreen'
@@ -97,6 +108,27 @@ function renderScreen(
   )
 }
 
+beforeEach(() => {
+  appState.events = [
+    {
+      id: 1,
+      sportId: 1,
+      competitionId: 101,
+      participants: 'Home — Away',
+      startDateBE: '2026-03-02',
+      startTimeBE: '20:00',
+      isLive: false,
+      isDelayedLive: false,
+      customFields: {},
+    },
+  ]
+  appState.sports = [
+    { id: 1, name: 'Football', icon: '⚽', federation: 'FIFA' },
+    { id: 2, name: 'Tennis', icon: '🎾', federation: 'ITF' },
+  ]
+  appState.competitions = [{ id: 101, sportId: 1, name: 'League A', matches: 10, season: '2026' }]
+})
+
 afterEach(() => cleanup())
 
 describe('SyncScreen — structure', () => {
@@ -169,6 +201,163 @@ describe('SyncScreen — merge-review anchor (D-2 fills it)', () => {
   it('hides the empty note when candidates are pending (D-2 will render cards here)', () => {
     renderScreen({ isSettled: true, candidates: FIXTURE_MERGE_CANDIDATES })
     expect(screen.queryByText('NO PENDING CANDIDATES')).toBeNull()
+  })
+})
+
+describe('SyncScreen — merge cards (D-2-T1)', () => {
+  const mergeCandidate = (opts: {
+    id: string
+    confidence?: number
+    suggestedEntityId?: string | null
+    normalizedJson: Record<string, unknown> | null
+    code?: string
+  }): ImportMergeCandidate => ({
+    id: opts.id,
+    entityType: 'event',
+    suggestedEntityId: opts.suggestedEntityId ?? null,
+    confidence: opts.confidence ?? 95,
+    reasonCodes: ['NAME_MATCH'],
+    status: 'pending',
+    reviewedBy: null,
+    reviewedAt: null,
+    createdAt: '2026-07-08T00:00:00Z',
+    importRecord: {
+      id: `rec-${opts.id}`,
+      sourceId: 'src-1',
+      sourceRecordId: `ext-${opts.id}`,
+      entityType: 'event',
+      normalizedJson: opts.normalizedJson,
+      sourceUpdatedAt: null,
+      source: { id: 'src-1', code: opts.code ?? 'the_sports_db', name: 'Sports Feed A' },
+    },
+  })
+
+  it('renders a resolved card with a flagged diff row and the % MATCH in the green band', () => {
+    renderScreen({
+      isSettled: true,
+      candidates: [
+        mergeCandidate({
+          id: 'm1',
+          confidence: 95,
+          suggestedEntityId: '1',
+          // SPORT differs (Tennis vs Football); COMPETITION/DATE/PARTICIPANTS match.
+          normalizedJson: {
+            sportName: 'Tennis',
+            competitionName: 'League A',
+            startsAtUtc: '2026-03-02T10:00:00.000Z',
+            homeTeam: 'Home',
+            awayTeam: 'Away',
+          },
+        }),
+      ],
+    })
+
+    expect(screen.getByTestId('ops-sync-merge-card')).toBeTruthy()
+
+    const match = screen.getByText('95% MATCH')
+    expect(match.style.color).toBe('var(--status-approved)')
+
+    const diffRows = screen.getAllByTestId('ops-sync-diff-row')
+    expect(diffRows).toHaveLength(4)
+
+    // SPORT row: incoming 'Tennis' flagged amber (changed); current 'Football' neutral.
+    const incoming = screen.getByText('Tennis')
+    expect(incoming.style.color).toBe('var(--alert-warning)')
+    const current = screen.getByText('Football')
+    expect(current.style.color).toBe('var(--text-shell-2)')
+
+    // APPROVE enabled when a suggestedEntityId exists.
+    expect((screen.getByTestId('ops-sync-approve') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('renders a sub-90 candidate with the % MATCH in the amber band', () => {
+    renderScreen({
+      isSettled: true,
+      candidates: [
+        mergeCandidate({
+          id: 'm2',
+          confidence: 62,
+          suggestedEntityId: '1',
+          normalizedJson: { sportName: 'Football', homeTeam: 'Home', awayTeam: 'Away' },
+        }),
+      ],
+    })
+    const match = screen.getByText('62% MATCH')
+    expect(match.style.color).toBe('var(--alert-warning)')
+  })
+
+  it('a create-only candidate (null suggestedEntityId) → APPROVE disabled + no CURRENT column', () => {
+    renderScreen({
+      isSettled: true,
+      candidates: [
+        mergeCandidate({
+          id: 'm3',
+          confidence: 70,
+          suggestedEntityId: null,
+          normalizedJson: { sportName: 'Football', homeTeam: 'Home', awayTeam: 'Away' },
+        }),
+      ],
+    })
+    const approve = screen.getByTestId('ops-sync-approve') as HTMLButtonElement
+    expect(approve.disabled).toBe(true)
+    expect(approve.title.length).toBeGreaterThan(0) // tooltip explains why
+    expect(screen.queryAllByTestId('ops-sync-diff-row')).toHaveLength(0)
+  })
+
+  it('an unresolvable current (suggestedEntityId not loaded) → incoming-only, quiet note, no crash', () => {
+    renderScreen({
+      isSettled: true,
+      candidates: [
+        mergeCandidate({
+          id: 'm4',
+          confidence: 88,
+          suggestedEntityId: '999', // not in appState.events
+          normalizedJson: { sportName: 'Football', homeTeam: 'Home', awayTeam: 'Away' },
+        }),
+      ],
+    })
+    expect(screen.getByTestId('ops-sync-merge-card')).toBeTruthy()
+    expect(screen.getByText('CURRENT NOT LOADED')).toBeTruthy()
+    expect(screen.queryAllByTestId('ops-sync-diff-row')).toHaveLength(0)
+    // the whole diff-table chrome is gone, not just the rows (empty header box must not render)
+    expect(screen.queryByText('FIELD')).toBeNull()
+    expect(screen.queryByText('CURRENT')).toBeNull()
+    // suggestedEntityId is non-null → APPROVE stays enabled even though current isn't loaded.
+    expect((screen.getByTestId('ops-sync-approve') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('footer buttons are inert this task — clicking APPROVE/KEEP fires no request', () => {
+    const refresh = vi.fn(async () => {})
+    useSyncData.mockReturnValue({
+      jobs: [],
+      candidates: [
+        mergeCandidate({ id: 'm5', suggestedEntityId: '1', normalizedJson: { homeTeam: 'Home', awayTeam: 'Away' } }),
+      ],
+      isSettled: true,
+      refresh,
+    })
+    render(
+      <MemoryRouter>
+        <OpsTabBadgeContext.Provider value={() => {}}>
+          <SyncScreen />
+        </OpsTabBadgeContext.Provider>
+      </MemoryRouter>,
+    )
+    const card = screen.getByTestId('ops-sync-merge-card')
+    fireEvent.click(within(card).getByTestId('ops-sync-approve'))
+    fireEvent.click(within(card).getByTestId('ops-sync-keep'))
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('renders one card per candidate', () => {
+    renderScreen({
+      isSettled: true,
+      candidates: [
+        mergeCandidate({ id: 'a', suggestedEntityId: '1', normalizedJson: { homeTeam: 'H', awayTeam: 'A' } }),
+        mergeCandidate({ id: 'b', suggestedEntityId: null, normalizedJson: { homeTeam: 'H2', awayTeam: 'A2' } }),
+      ],
+    })
+    expect(screen.getAllByTestId('ops-sync-merge-card')).toHaveLength(2)
   })
 })
 
