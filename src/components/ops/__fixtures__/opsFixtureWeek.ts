@@ -485,9 +485,10 @@ export const FIXTURE_PLAYERS: Player[] = deepFreeze([
  * are winter (January) dates so the America/New_York vitest pin is unambiguously
  * EST (UTC-5): a `…T20:00:00Z` instant reads `15:00`.
  *
- * Honest-data pin: ImportMergeCandidate.confidence is typed `number` but the API
- * serialises a Prisma Decimal as a STRING — cand-high below carries a STRING
- * confidence so the D-2 `Number()` coercion seam is exercised by real fixtures.
+ * Honest-data pin: ImportMergeCandidate.confidence is a Decimal(5,2) on a **0..100**
+ * scale (VERIFIED against DeduplicationService — the raw value IS the percent), typed
+ * `number` but serialised as a STRING — cand-high below carries a STRING confidence so
+ * the D-2 `Number()` coercion seam is exercised by real fixtures.
  * ──────────────────────────────────────────────────────────────────────── */
 
 /** Minimal valid ImportJob with overridable fields (mirrors the other builders). */
@@ -516,7 +517,7 @@ export function makeMergeCandidate(
   return {
     entityType: 'event',
     suggestedEntityId: null,
-    confidence: 0.8,
+    confidence: 80, // 0..100 scale (DeduplicationService) — the raw value IS the percent
     reasonCodes: [],
     status: 'pending',
     reviewedBy: null,
@@ -571,16 +572,16 @@ export const FIXTURE_JOBS: ImportJob[] = deepFreeze([
 ])
 
 /**
- * Merge candidates (deep-frozen) — spanning ≥90 and <90 confidence, one WITH a
- * suggestedEntityId and one null, and differing normalizedJson `venue` fields
- * (feeds the D-2 field-diff / D-3 decrement seams). cand-high's confidence is a
+ * Merge candidates (deep-frozen) — spanning ≥90 and <90 confidence (0..100 scale),
+ * one WITH a suggestedEntityId and one null, and differing normalizedJson `venue`
+ * fields (feeds the D-2 field-diff / D-3 decrement seams). cand-high's confidence is a
  * Decimal-serialized STRING typed `number` (honest-data pin above). Both pending.
  */
 export const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = deepFreeze([
   makeMergeCandidate({
     id: 'cand-high',
     entityType: 'event',
-    confidence: '0.95' as unknown as number, // ≥90, STRING (Decimal serialisation — D-2 coercion seam)
+    confidence: '95.00' as unknown as number, // ≥90 green, STRING (Decimal(5,2) serialisation — D-2 coercion seam)
     suggestedEntityId: 'event:501',
     status: 'pending',
     importRecord: {
@@ -596,7 +597,7 @@ export const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = deepFreeze([
   makeMergeCandidate({
     id: 'cand-low',
     entityType: 'event',
-    confidence: 0.62, // <90, plain number
+    confidence: 62, // <90 amber, plain number (0..100 scale)
     suggestedEntityId: null,
     status: 'pending',
     importRecord: {

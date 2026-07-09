@@ -202,32 +202,29 @@ describe('deriveJobCard — full fixture jobs end-to-end', () => {
   })
 })
 
-describe('mergeConfidencePercent (D-2-T0) — whole-number percent, honest coercion', () => {
+describe('mergeConfidencePercent (D-2-T0 / D-2-T1 scale fix) — 0..100 → whole percent', () => {
+  // VERIFIED scale is 0..100 (DeduplicationService: 100/95/60/score vs 70-95 thresholds,
+  // stored directly by process.ts). The raw value IS the percent — no *100.
   it.each<{ input: number; expected: number }>([
-    { input: 0.9, expected: 90 },
-    { input: 0.62, expected: 62 },
+    { input: 95, expected: 95 }, // fingerprint
+    { input: 62, expected: 62 },
+    { input: 100, expected: 100 }, // exact
+    { input: 0, expected: 0 },
   ])('number $input → $expected%', ({ input, expected }) => {
     expect(mergeConfidencePercent(input)).toBe(expected)
   })
 
   it.each<{ input: string; expected: number }>([
-    { input: '0.95', expected: 95 },
-    { input: '0.8', expected: 80 },
+    { input: '95.00', expected: 95 }, // Decimal(5,2) serialized as a string
+    { input: '60', expected: 60 },
   ])('Decimal-serialized STRING "$input" → $expected% (Number() coercion seam)', ({ input, expected }) => {
     expect(mergeConfidencePercent(input as unknown as number)).toBe(expected)
   })
 
   it.each<{ input: number; expected: number }>([
-    { input: 0.899, expected: 90 }, // rounds up (89.9)
-    { input: 0.894, expected: 89 }, // rounds down (89.4) — float-safe, avoids 0.895 trap
+    { input: 89.6, expected: 90 }, // rounds up
+    { input: 89.4, expected: 89 }, // rounds down (float-safe)
   ])('rounds $input → $expected%', ({ input, expected }) => {
-    expect(mergeConfidencePercent(input)).toBe(expected)
-  })
-
-  it.each<{ input: number; expected: number }>([
-    { input: 0, expected: 0 },
-    { input: 1, expected: 100 },
-  ])('boundary $input → $expected%', ({ input, expected }) => {
     expect(mergeConfidencePercent(input)).toBe(expected)
   })
 })

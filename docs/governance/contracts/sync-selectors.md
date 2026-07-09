@@ -3,15 +3,18 @@
 Version: 1.1 · Date: 2026-07-09 · Task: D-1-T1 (v1) + D-2-T0 (v1.1) · consumers: SyncScreen job list (D-1-T2), merge-review queue (D-2/D-3), legacy ImportView.ReviewTab (v1.1 shared helper)
 
 **Changelog**
-- **v1.1 (2026-07-09, D-2-T0 — architect-gated Rule-of-Three extraction):** ADDITIVE —
-  v1 surface byte-stable. Adds the ONE byte-identical shared bit between the two
-  merge-candidate consumers: `mergeConfidencePercent(confidence): number` =
-  `Math.round(Number(confidence) * 100)`. Legacy `ImportView.ReviewTab` was refactored
-  onto it (byte-stable, characterization-tested). **Gate ruling:** only the
-  confidence→percent is shared; the confidence BAND (ImportView 3-band vs SYNC 2-band),
-  SOURCE display (raw vs mapped), and KIND chip DIVERGE → stay per-consumer, NOT
-  extracted. `deriveMergeCard`/diff derivation is D-2-T1 FEATURE (will consume this
-  helper, not re-inline `*100`).
+- **v1.1 (2026-07-09, D-2-T0 extraction + D-2-T1 pull-gate SCALE FIX):** Adds the
+  shared merge-candidate `mergeConfidencePercent(confidence): number`. **Scale
+  corrected:** confidence is VERIFIED 0..100 (DeduplicationService emits 100/95/60/score
+  vs 70-95 thresholds; process.ts stores it directly) — the raw value IS the percent, so
+  the helper is `Math.round(Number(confidence))` (NOT `*100`). This CORRECTS legacy
+  `ImportView.ReviewTab`, which did `*100` (rendering e.g. 9500% for a 95-candidate — a
+  latent bug the D-2-T0 byte-stable extraction initially preserved; the architect ruled
+  fix-everywhere). ReviewTab consumes the helper → its display is now correct.
+  **Gate ruling (extraction scope):** only the confidence→percent is shared; the
+  confidence BAND (ImportView 3-band vs SYNC 2-band ≥90), SOURCE display (raw vs mapped),
+  and KIND chip DIVERGE → stay per-consumer. `deriveMergeCard`/diff = D-2-T1 FEATURE
+  (consumes this helper + bands on `mergeConfidencePercent(...) >= 90`).
 
 Pure SYNC-projection selectors — a NEW sibling module to `selectors.ts` /
 `registrySelectors.ts` (both stay byte-stable; sibling-module rule / TD-25). No
@@ -37,7 +40,7 @@ export interface JobCard {
 
 export function deriveJobCard(job: ImportJob): JobCard
 export function pendingCandidateCount(candidates: ImportMergeCandidate[]): number
-export function mergeConfidencePercent(confidence: number): number  // v1.1 — 0..1 → 0..100 whole percent
+export function mergeConfidencePercent(confidence: number): number  // v1.1 — 0..100 confidence → whole percent (raw value IS the percent)
 ```
 
 ## Behaviour pins (verified against services/imports.ts + backend/routes/import/jobs.ts)

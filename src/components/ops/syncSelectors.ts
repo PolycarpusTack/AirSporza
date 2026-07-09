@@ -90,15 +90,23 @@ export function deriveJobCard(job: ImportJob): JobCard {
 }
 
 /**
- * Merge-candidate confidence as a whole-number percent (D-2-T0 shared extraction).
- * `confidence` is a Decimal(5,2) in 0..1 serialised as a STRING typed `number` →
- * explicit Number() coercion (never coercion-by-accident). Math.round(Number(x)*100)
- * is OUTPUT-IDENTICAL to the legacy `Math.round(x*100)` (the `*` already coerced) —
- * this extraction is byte-stable, it just names + de-risks the coercion.
- * Shared by ImportView.ReviewTab (legacy) + SyncScreen's deriveMergeCard (D-2-T1).
+ * Merge-candidate confidence as a whole-number percent (D-2-T0 shared extraction;
+ * scale CORRECTED in the D-2-T1 pull-gate fix).
+ *
+ * VERIFIED SCALE (2026-07-09, against DeduplicationService + import/stages/process.ts):
+ * `confidence` is a Decimal(5,2) already on a **0..100** scale — DeduplicationService
+ * emits 100 (exact) / 95 (fingerprint) / 60 (unverified) / a fuzzy `score` compared to
+ * 70-95 thresholds, and process.ts stores `result.confidence` DIRECTLY (no /100). The
+ * value is serialised as a STRING typed `number` → explicit Number() coercion (never by
+ * accident). The whole-number percent is therefore `Math.round(Number(confidence))` —
+ * the raw value IS the percent (design: `92% MATCH`, band ≥90).
+ *
+ * This CORRECTS legacy ImportView.ReviewTab, which did `* 100` (rendering e.g. 9500%
+ * for a real 95-confidence candidate — a latent bug, unnoticed because few real merge
+ * candidates existed). Shared by ImportView.ReviewTab + SyncScreen's deriveMergeCard.
  */
 export function mergeConfidencePercent(confidence: number): number {
-  return Math.round(Number(confidence) * 100)
+  return Math.round(Number(confidence))
 }
 
 /**
