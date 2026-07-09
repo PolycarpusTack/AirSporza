@@ -5,7 +5,7 @@
 > `backlog-builder-agent-v2.md` (workflow) · `gpm-v2.1.md` (ZAP/CIP/PREP execution)
 > **Solution design:** `docs/design_handoff_planza_ops/README.md` + `Planza App.dc.html` + screenshots
 > **Current-state baseline:** codebase survey 2026-07-02 (see §6 Architecture Memory delta)
-> **Status:** v1 — EPICs A, B & C COMPLETE incl. retros (C done 2026-07-06); EPIC D detailed 2026-07-06; EPIC E outlined (BB v5.1 §10)
+> **Status:** v1 — EPICs A, B, C & D COMPLETE incl. retros (D done 2026-07-09 — SYNC: job health + merge review, the 2nd write surface); EPIC E outlined (HARDENING — BB v5.1 §10)
 
 ---
 
@@ -816,7 +816,7 @@ canonical records) argues even harder for keeping it. Next per §10.4: expand **
 - **Smoke Test Story:** D-4. **Runbook:** extend `docs/runbooks/ops-shell.md` (add §sync).
 - **Working method (proven A→C, binding here):** DoR re-gate re-verifies each story's premises before start (backlog-health-advisor); pins written testable; derived logic in pure selectors under `src/components/ops/` (anti-smart-ui) — SyncScreen renders + wires only; additive deep-frozen fixtures (anonymised); the Rule-of-Three extraction is a separate PREPARATORY commit (Two Hats); single-flight for writes (registry-create v1 precedent); mutation probes in the review chain; `now`/data seams; ops-selectors v3 + registry-selectors v1.1 stay byte-stable (sibling-module rule).
 
-### Story D-1 — Sync selectors + data hook + job cards + SyncScreen shell
+### Story D-1 — Sync selectors + data hook + job cards + SyncScreen shell ✅ COMPLETE (af8fe5f, 8c6d0a5)
 **As an** import operator **I want** the SYNC screen with nightly-sync job-health cards **so that** I see at a glance whether last night's imports succeeded or produced dead letters, without opening the six-tab ImportView.
 
 Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (jobs-list shape VERIFIED 2026-07-06: `GET /import/jobs` embeds `_count: { records, deadLetters }` + `source.code/name`; status enum `queued/running/completed/failed/partial` — no backend change) · INVEST all ✓
@@ -849,7 +849,7 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (jobs-list shape 
   Pull Gate: `sync-selectors v1`, `OpsShell v1` (placeholder + badge slot), `useRegistryData v1` (idiom).
   Hand-off: Contract Snapshot **`useSyncData v1`**. Unblocks: D-2-T1, D-4-T1, END OF STORY SEQUENCE.
 
-### Story D-2 — Merge review cards: shared-derivation extraction + diff table (read-only)
+### Story D-2 — Merge review cards: shared-derivation extraction + diff table (read-only) ✅ COMPLETE (ad3fa5a, 0736cd0 scale-fix, 3f0b93c)
 **As an** import operator **I want** each deduplication candidate as a card with an INCOMING-vs-CURRENT field diff and a confidence band **so that** I can judge a match before deciding — without hunting through the legacy Review tab's JSON blob.
 
 Business Value 3 · Priority 4 · Size **M→L** · DoR: **READY (conditional)** — two BLOCKING gate outputs: (a) the ADR-012 extraction-tension call at D-2-T0 (does the PREP refactor legacy `ImportView.ReviewTab`, or defer that to EPIC E?); (b) at D-2-T1 the diff CURRENT-source resolution (AppProvider events vs lazy fetch) + the `confidence` scale/serialization — do NOT guess · INVEST all ✓
@@ -880,7 +880,7 @@ Business Value 3 · Priority 4 · Size **M→L** · DoR: **READY (conditional)**
   Pull Gate (BLOCKING): diff CURRENT-source resolution + confidence scale/serialization (pins 3–4) vs `DeduplicationService`/a real payload; `sync-selectors v1.1`, `useSyncData v1`.
   Hand-off: **`sync-selectors v1.2`** (diff derivation) + Merge Card in the screen. Unblocks: D-3-T1, END OF STORY SEQUENCE.
 
-### Story D-3 — Merge decisions (2nd write surface: APPROVE MERGE / KEEP SEPARATE, single-flight, AS-7)
+### Story D-3 — Merge decisions (2nd write surface: APPROVE MERGE / KEEP SEPARATE, single-flight, AS-7) ✅ COMPLETE (25643a1, d97c11c)
 **As an** import operator **I want** to approve a merge or keep records separate from the card **so that** the dedup queue clears and the decision is reflected immediately — without the queue re-firing the same decision.
 
 Business Value 3 · Priority 3 · Size **M** · DoR: **READY (conditional)** — T0's idempotency gate is BLOCKING: the backend routes have NO already-decided guard (AS-7 REFUTED, VERIFIED in `mergeCandidates.ts`) — the architect decides whether a backend guard precedes the UI wiring · INVEST all ✓
@@ -909,7 +909,7 @@ Business Value 3 · Priority 3 · Size **M** · DoR: **READY (conditional)** —
   Pull Gate (BLOCKING): decision response/error shape + idempotency mechanism (pin 2, D-3-T0 output) vs `mergeCandidates.ts` + `services/imports.ts`; `sync-selectors v1.2`, `useSyncData v1`, `OpsShell v1` (badge).
   Hand-off: Contract Snapshot **`merge-decision v1`** (endpoint mapping + single-flight + the error/idempotency contract actually available). Unblocks: D-4-T1, END OF STORY SEQUENCE.
 
-### Story D-4 — EPIC D smoke test + runbook §sync
+### Story D-4 — EPIC D smoke test + runbook §sync ✅ COMPLETE (eaeef5e)
 **As a** reviewer **I want** an E2E journey over SYNC including a merge decision **so that** the initiative's second write surface is verifiably deployable and rollbackable.
 
 Business Value 2 · Priority 3 · Size **M** (ops-e2e store gains merge-decision emulation) · DoR: **READY** (gate MUST re-verify harness premises — the A-5 lesson; the C-7 stateful store is the base)
@@ -929,6 +929,82 @@ Business Value 2 · Priority 3 · Size **M** (ops-e2e store gains merge-decision
   TDD: AC-ordered spec red → green; runbook checklist derived from the passing spec (A-5/C-7 idiom).
   Pull Gate: `ops-e2e v1.1` (amended) + all EPIC D snapshots (`sync-selectors v1.2`, `useSyncData v1`, `merge-decision v1`); fixture inventory (job/candidate counts) asserted literally; PII check (pin 2, Haiku).
   Unblocks: **EPIC D RETRO** (Phase Summary + Architecture Memory update + flow data + mode check per BB §10 — then expand EPIC E as HARDENING), END OF STORY SEQUENCE.
+
+### EPIC D — RETROSPECTIVE (Phase Summary, completed 2026-07-09)
+
+**Phase Summary.** EPIC D (SYNC) COMPLETE — all 4 stories done in one day on
+`feature/C-1-registry-selectors` (8 commits, stacked on the EPIC C work): D-1-T1
+sync-selectors v1 (`af8fe5f`), D-1-T2 useSyncData v1 + OpsShell v1.1 badge context
+(`8c6d0a5`), D-2-T0 `mergeConfidencePercent` extraction (`ad3fa5a`), the confidence
+SCALE FIX (`0736cd0`), D-2-T1 merge cards sync-selectors v1.2 (`3f0b93c`), D-3-T0 backend
+409 guard (`25643a1`), D-3-T1 merge decisions merge-decision v1 (`d97c11c`), D-4 smoke +
+ops-e2e v1.2 (`eaeef5e`). Test base **715 → 808** vitest (+93) + backend **349 → 355**
+(+6, the D-3-T0 guard) + e2e **10 → 13** (EPIC D flag-on journey), `tsc -b` clean
+throughout. Contracts: sync-selectors v1→v1.1→v1.2 · useSyncData v1 · OpsShell v1→v1.1
+(badge-publish context) · merge-decision v1 · ops-e2e v1.1→v1.2.
+
+**DoD additions check:** (1) no merge decision fires twice — a per-card SYNCHRONOUS
+`isSubmittingRef` single-flight latch (unit-pinned via a same-tick native-click test that
+isolates the ref from React's disabled re-render) AND a backend `status !== 'pending'` 409
+guard (D-3-T0) that asserts the merge/create service is NOT re-called ✓. (2) after a
+decision the footer is replaced by the terminal status line + the SYNC badge decrements —
+asserted unit (SyncScreen) + e2e (`[3]→[2]→[1]`) ✓. (3) all event/name fixtures anonymised
+(shared FIXTURE_* families; e2e reuse) ✓. (4) diff table renders INCOMING vs CURRENT for a
+`suggestedEntityId`, and a null-suggested candidate renders APPROVE MERGE disabled
+(create-only) — asserted unit + e2e ✓.
+
+**Process notes.** (a) **DoR/pull re-gates caught a real latent bug + two architect calls.**
+The D-2-T1 pull gate verified `MergeCandidate.confidence` against `DeduplicationService` +
+`process.ts` and found the scale is **0..100, not 0..1** as the backlog assumed — ImportView's
+legacy `Math.round(c.confidence * 100)` rendered `9500% match` (latent, few real candidates).
+Architect ruled fix-everywhere → `0736cd0` (a `fix` commit separate from the D-2-T1 feature,
+Two Hats). D-2-T0 (ADR-012 Rule-of-Three) verified the "shared" merge derivation was actually
+THIN — only confidence→percent is byte-identical (band 3-vs-2, source raw-vs-mapped, kind chip
+all diverge) → architect dedup'd only the percent, band/source/kind stay per-consumer. D-3-T0
+(AS-7) verified `create-new` creates a DUPLICATE canonical event on re-decide → architect added
+the additive 409 guard. Zero mid-task stalls after each gate. (b) **Mutation probes caught real
+holes on EVERY feature task** — D-1-T1 the `!= null && !== ''` recordsProcessed guard (empty/null
+→ wrong `0 RECORDS`); D-1-T2 the OpsShell badge clear/delete branch (D-3 seam) + the merge-review
+empty note; D-2-T1 the Date-object DATE path under the behind-UTC TZ pin + the incoming-only
+diff-chrome absence; **D-3-T1 the headline one — the single-flight latch was NOT actually tested**
+(the double-click tests passed via React's `disabled` re-render; removing the ref survived) →
+closed with a same-tick `act()` native-click test, the one finding worth blocking on for an
+IRREVERSIBLE write surface; D-4 the status-dot COLOUR (AC-1 only counted dots). (c) The
+review-tooling scratchpad-backup rule (never `git checkout` on uncommitted work) held with zero
+recurrence across all D tasks. (d) Naming reviews fixed public-API names BEFORE the contract
+froze: `meta`→`statusLine`, `dot`→`dotColor` (D-1-T1); `currentResolved`→`isCurrentResolved`,
+`changed`→`isChanged` (D-2-T1); `submitting`→`isSubmitting` (D-3-T1) — the ops `is`-boolean
+convention, again.
+
+**Found work / upstream (not a defect of this epic):** ImportView.ReviewTab rendered
+`9500% match` on a real 95-confidence candidate (confidence is 0..100, not 0..1) — FIXED via the
+shared helper at `0736cd0` (the extraction preserved the bug byte-stably at D-2-T0, then the fix
+corrected it, textbook Two Hats). `create-new`/`approve-merge` had NO already-decided guard →
+re-decide duplicated a canonical event / re-ran the merge (AS-7 confirmed, guarded at D-3-T0). The
+import-router `ensureImportSchemaReady` middleware ($queryRawUnsafe table probe) forces any import
+route test to stub the schema probe — a shared-helper candidate if more import-route tests land.
+
+**Debt candidates awaiting a free `debt-register.md`:** the D-3-T0 409-guard block is inline ×3
+across the decision routes (Rule of Three now MET) — an `assertPending(candidate)` backend helper
+if a 4th decision route appears; `ReviewTab` was made an additive export purely for the D-2-T0
+characterization — remove it with the legacy screen at the EPIC E cutover; SYNC surfaces no
+`ignore` decision (legacy ImportView retains it) — E cutover reconciliation; `dotColor` collapses
+`queued`+`running`→neutral (no not-started vs in-progress distinction); the merge DIFF compares
+only SPORT/COMPETITION/DATE/PARTICIPANTS because the thin `Event` entity has no
+venue/country/status/home-away counterpart (INCOMING carries them — a richer CURRENT source is an
+E item); the SYNC badge populates only on the FIRST Sync visit (no shell-level pre-visit count
+fetch — pin 5 "single source"); `statsJson.recordsProcessed` key assumed, not confirmed against a
+live job payload; `DOT_COLOR`/`BAND_COLOR` token→var maps are a Rule-of-Two watch vs RegistryScreen's
+`STATUS_COLOR`.
+
+**SLOs still unmeasured** (`Ops Sync initial render < 1.5s p95 @ 50 jobs + 100 candidates`,
+`Merge decision click → terminal < 300ms p95`) — E-1 remains the honest measurement point; the
+bare-array unbounded fetch (jobs default limit; candidates no pagination) is recorded there too.
+**Mode check: DELIVERY retained** — EPIC D shipped the initiative's SECOND write surface
+(irreversible merge decisions) and the gates paid off HARD (a 9500% latent bug + a duplicate-event
+hazard + an untested single-flight latch, all caught). EPIC E is **HARDENING** (SLO measurement,
+the deferred ImportView/ReviewTab migration from D-2-T0, TD-27 runtime-flag decision, cutover ADR).
+Next per §10.4: expand **EPIC E** with `backlog-builder`.
 
 ### EPIC D — Expansion validator note (BB v5.1 §9, DELIVERY level, run 2026-07-06)
 
