@@ -23,10 +23,12 @@
  * (pin 5 "single source, no metrics() fan-out") — a cross-screen pre-visit badge
  * is an E-item.
  */
-import { useEffect, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useSyncData } from '../../components/ops/useSyncData'
 import { useApp } from '../../context/AppProvider'
 import { useSetTabBadge } from '../../components/ops/opsTabBadges'
+import { importsApi } from '../../services'
+import { ApiError } from '../../utils/api'
 import {
   deriveJobCard,
   deriveMergeCard,
@@ -35,6 +37,9 @@ import {
   type JobDotColor,
   type MergeCard,
 } from '../../components/ops/syncSelectors'
+
+/** Terminal decision outcome for a reviewed candidate (D-3-T1). */
+type DecisionKind = 'merged' | 'kept'
 
 const monoStyle: CSSProperties = { fontFamily: 'var(--font-mono)' }
 
@@ -76,15 +81,57 @@ const cellStyle: CSSProperties = { ...monoStyle, fontWeight: 500, fontSize: '11p
 const diffGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: '110px 1fr 1fr', gap: '10px', padding: '7px 12px' }
 
 /**
- * Merge-review card (D-2-T1). Pure render of a MergeCard from the selector — no
- * derivation here (anti-smart-ui): the diff, band token, source code and incoming
- * name are all assembled in deriveMergeCard. The footer is INERT this task (D-3
- * wires the approve/keep handlers); APPROVE is disabled when there is no
- * suggestedEntityId (create-only — never a dead merge button). When the current
- * side is unresolved, the CURRENT column is omitted and a quiet note stands in.
+ * Merge-review card (D-2-T1 render; D-3-T1 decision wiring). Pure render of a
+ * MergeCard from the selector — no derivation here (anti-smart-ui): the diff, band
+ * token, source code and incoming name are all assembled in deriveMergeCard.
+ *
+ * Decision write path (D-3-T1, this initiative's 2nd write surface — IRREVERSIBLE):
+ * - SINGLE-FLIGHT (registry-create v1 precedent): a per-card `isSubmittingRef`
+ *   SYNCHRONOUS latch drops a 2nd intent (double-click / Enter+click) BEFORE React
+ *   re-renders the disabled buttons — exactly one request per intent.
+ * - `decidedAs` set → the footer buttons are REPLACED by a terminal mono status
+ *   line (no live buttons remain — not re-decidable in-view; the parent owns the
+ *   decided map). Success keeps the card mounted; the terminal render is driven by
+ *   the parent re-render, so `submitting` is intentionally NOT reset on success.
+ * - On rejection (incl. the 409 "already decided" — human-readable): a quiet inline
+ *   error renders, both buttons re-enable, AND the latch is RELEASED so a
+ *   user-initiated retry is possible (still single-flight).
+ * - APPROVE stays create-gated on `suggestedEntityId` (create-only when null).
  */
-function MergeCardView({ card }: { card: MergeCard }) {
+function MergeCardView({
+  card,
+  decidedAs,
+  onDecide,
+}: {
+  card: MergeCard
+  decidedAs?: DecisionKind
+  onDecide: (kind: DecisionKind) => Promise<void>
+}) {
   const isCreateOnly = card.suggestedEntityId === null
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Synchronous single-flight latch — set before React re-renders the disabled buttons.
+  const isSubmittingRef = useRef(false)
+
+  const decide = async (kind: DecisionKind) => {
+    if (isSubmittingRef.current) return // single-flight: drop the 2nd intent
+    isSubmittingRef.current = true
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      await onDecide(kind)
+      // success → parent sets `decided` → this card re-renders terminal (buttons gone).
+      // deliberately leave `isSubmitting` true — no re-enable flash before the swap.
+    } catch (caught) {
+      // release the latch so a user-initiated retry is possible (still single-flight).
+      isSubmittingRef.current = false
+      setIsSubmitting(false)
+      setError(
+        caught instanceof ApiError && caught.message ? caught.message : 'Could not save your decision. Please try again.',
+      )
+    }
+  }
+
   return (
     <div
       data-testid="ops-sync-merge-card"
@@ -155,48 +202,80 @@ function MergeCardView({ card }: { card: MergeCard }) {
         </div>
       )}
 
-      {/* Footer — INERT this task (D-3 wires handlers). APPROVE create-gated. */}
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-        <button
-          type="button"
-          data-testid="ops-sync-keep"
-          style={{
-            ...monoStyle,
-            border: '1px solid var(--border-shell)',
-            background: 'transparent',
-            color: 'var(--text-shell-2)',
-            borderRadius: '4px',
-            padding: '7px 14px',
-            cursor: 'pointer',
-            fontWeight: 500,
-            fontSize: '10px',
-            letterSpacing: '1px',
-          }}
-        >
-          KEEP SEPARATE
-        </button>
-        <button
-          type="button"
-          data-testid="ops-sync-approve"
-          disabled={isCreateOnly}
-          title={isCreateOnly ? 'No matching record — this candidate can only create a new record' : undefined}
-          style={{
-            ...monoStyle,
-            border: 'none',
-            background: 'var(--accent-shell)',
-            color: 'var(--accent-shell-fg)',
-            borderRadius: '4px',
-            padding: '7px 16px',
-            cursor: isCreateOnly ? 'not-allowed' : 'pointer',
-            opacity: isCreateOnly ? 0.5 : 1,
-            fontWeight: 600,
-            fontSize: '10px',
-            letterSpacing: '1px',
-          }}
-        >
-          APPROVE MERGE
-        </button>
-      </div>
+      {/* Footer. Terminal status line REPLACES the buttons once decided (D-3-T1);
+          otherwise the create-gated APPROVE + KEEP, with an inline error on rejection. */}
+      {decidedAs ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <span
+            data-testid="ops-sync-decision-status"
+            style={{
+              ...monoStyle,
+              fontWeight: 600,
+              fontSize: '10px',
+              letterSpacing: '1px',
+              color: decidedAs === 'merged' ? 'var(--status-approved)' : 'var(--text-shell-2)',
+            }}
+          >
+            {decidedAs === 'merged' ? '✓ MERGED INTO REGISTRY' : 'KEPT AS SEPARATE RECORDS'}
+          </span>
+        </div>
+      ) : (
+        <>
+          {error && (
+            <div
+              data-testid="ops-sync-decision-error"
+              style={{ ...monoStyle, fontSize: '10px', fontWeight: 500, textAlign: 'right', color: 'var(--alert-danger)' }}
+            >
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              data-testid="ops-sync-keep"
+              onClick={() => decide('kept')}
+              disabled={isSubmitting}
+              style={{
+                ...monoStyle,
+                border: '1px solid var(--border-shell)',
+                background: 'transparent',
+                color: 'var(--text-shell-2)',
+                borderRadius: '4px',
+                padding: '7px 14px',
+                cursor: isSubmitting ? 'progress' : 'pointer',
+                opacity: isSubmitting ? 0.6 : 1,
+                fontWeight: 500,
+                fontSize: '10px',
+                letterSpacing: '1px',
+              }}
+            >
+              KEEP SEPARATE
+            </button>
+            <button
+              type="button"
+              data-testid="ops-sync-approve"
+              onClick={() => decide('merged')}
+              disabled={isCreateOnly || isSubmitting}
+              title={isCreateOnly ? 'No matching record — this candidate can only create a new record' : undefined}
+              style={{
+                ...monoStyle,
+                border: 'none',
+                background: 'var(--accent-shell)',
+                color: 'var(--accent-shell-fg)',
+                borderRadius: '4px',
+                padding: '7px 16px',
+                cursor: isCreateOnly || isSubmitting ? 'not-allowed' : 'pointer',
+                opacity: isCreateOnly || isSubmitting ? 0.5 : 1,
+                fontWeight: 600,
+                fontSize: '10px',
+                letterSpacing: '1px',
+              }}
+            >
+              APPROVE MERGE
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -206,12 +285,33 @@ export function SyncScreen() {
   const { events, sports, competitions } = useApp()
   const setTabBadge = useSetTabBadge()
 
+  // D-3-T1: locally-tracked terminal decisions — the source of truth for what has
+  // been reviewed in-view (no refetch; useSyncData.refresh is OPTIONAL background
+  // reconcile, deliberately not auto-wired — C-5 no-socket precedent).
+  const [decided, setDecided] = useState<Record<string, DecisionKind>>({})
+
   // pin 5: publish the pending count up to the shell chrome. NOT cleared on
   // unmount — the badge persists in the chrome after navigating away (design).
+  // D-3-T1: the badge EXCLUDES decided candidates (decrements as `decided` grows)
+  // without changing pendingCandidateCount's selector contract.
   const pendingCount = pendingCandidateCount(candidates)
+  const undecidedPendingCount = candidates.filter(
+    (candidate) => candidate.status === 'pending' && !decided[candidate.id],
+  ).length
   useEffect(() => {
-    setTabBadge('sync', pendingCount > 0 ? pendingCount : undefined)
-  }, [pendingCount, setTabBadge])
+    setTabBadge('sync', undecidedPendingCount > 0 ? undecidedPendingCount : undefined)
+  }, [undecidedPendingCount, setTabBadge])
+
+  // Fire the right write per decision; on success record the terminal outcome (the
+  // card renders terminal). A rejection propagates to the card (inline error + latch release).
+  const decideCandidate = (candidate: (typeof candidates)[number]) => async (kind: DecisionKind) => {
+    if (kind === 'merged') {
+      await importsApi.approveMergeCandidate(candidate.id, candidate.suggestedEntityId)
+    } else {
+      await importsApi.createMergeCandidateEntity(candidate.id)
+    }
+    setDecided((prev) => ({ ...prev, [candidate.id]: kind }))
+  }
 
   return (
     <div
@@ -283,9 +383,16 @@ export function SyncScreen() {
               candidates.map((candidate) => {
                 const currentEvent =
                   candidate.suggestedEntityId != null
-                    ? events.find((e) => String(e.id) === candidate.suggestedEntityId) ?? null
+                    ? events.find((event) => String(event.id) === candidate.suggestedEntityId) ?? null
                     : null
-                return <MergeCardView key={candidate.id} card={deriveMergeCard(candidate, currentEvent, sports, competitions)} />
+                return (
+                  <MergeCardView
+                    key={candidate.id}
+                    card={deriveMergeCard(candidate, currentEvent, sports, competitions)}
+                    decidedAs={decided[candidate.id]}
+                    onDecide={decideCandidate(candidate)}
+                  />
+                )
               })
             )}
           </div>

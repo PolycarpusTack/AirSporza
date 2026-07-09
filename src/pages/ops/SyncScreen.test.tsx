@@ -7,16 +7,24 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ImportJob, ImportMergeCandidate } from '../../services'
 import type { Competition, Event, Sport } from '../../data/types'
 import { OpsTabBadgeContext, type SetTabBadge } from '../../components/ops/opsTabBadges'
+import { ApiError } from '../../utils/api'
 
 const useSyncData = vi.fn()
 vi.mock('../../components/ops/useSyncData', () => ({
   useSyncData: () => useSyncData(),
 }))
+
+// D-3-T1: the merge-decision write path. The screen calls importsApi directly.
+const importsApiMock = vi.hoisted(() => ({
+  approveMergeCandidate: vi.fn(),
+  createMergeCandidateEntity: vi.fn(),
+}))
+vi.mock('../../services', () => ({ importsApi: importsApiMock }))
 
 // D-2-T1: the CURRENT side of a merge comes from AppProvider (events/sports/competitions).
 const appState = vi.hoisted(() => ({
@@ -63,27 +71,35 @@ const FIXTURE_JOBS: ImportJob[] = [
   },
 ]
 
-const candidate = (id: string): ImportMergeCandidate => ({
-  id,
-  entityType: 'team',
-  suggestedEntityId: 'team-9',
-  confidence: 0.9,
+const decisionCandidate = (opts: {
+  id: string
+  suggestedEntityId: string | null
+  confidence?: number
+}): ImportMergeCandidate => ({
+  id: opts.id,
+  entityType: 'event',
+  suggestedEntityId: opts.suggestedEntityId,
+  confidence: opts.confidence ?? 95,
   reasonCodes: ['NAME_MATCH'],
   status: 'pending',
   reviewedBy: null,
   reviewedAt: null,
   createdAt: '2026-07-08T00:00:00Z',
   importRecord: {
-    id: `rec-${id}`,
+    id: `rec-${opts.id}`,
     sourceId: 'src-1',
-    sourceRecordId: `ext-${id}`,
-    entityType: 'team',
-    normalizedJson: null,
+    sourceRecordId: `ext-${opts.id}`,
+    entityType: 'event',
+    // homeTeam/awayTeam so cand-high resolves against appState.events[0] (participants 'Home — Away').
+    normalizedJson: { homeTeam: 'Home', awayTeam: 'Away' },
     sourceUpdatedAt: null,
-    source: { id: 'src-1', code: 'OPTA', name: 'Opta Feed' },
+    source: { id: 'src-1', code: 'the_sports_db', name: 'Sports Feed A' },
   },
 })
-const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = [candidate('c1'), candidate('c2')]
+// cand-high: suggestedEntityId '1' → resolvable + approvable. cand-low: null → create-only.
+const CAND_HIGH = decisionCandidate({ id: 'cand-high', suggestedEntityId: '1' })
+const CAND_LOW = decisionCandidate({ id: 'cand-low', suggestedEntityId: null, confidence: 70 })
+const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = [CAND_HIGH, CAND_LOW]
 
 function renderScreen(
   data: {
@@ -127,6 +143,9 @@ beforeEach(() => {
     { id: 2, name: 'Tennis', icon: '🎾', federation: 'ITF' },
   ]
   appState.competitions = [{ id: 101, sportId: 1, name: 'League A', matches: 10, season: '2026' }]
+
+  importsApiMock.approveMergeCandidate.mockReset().mockResolvedValue({ message: 'ok', candidate: {} })
+  importsApiMock.createMergeCandidateEntity.mockReset().mockResolvedValue({ message: 'ok', candidate: {} })
 })
 
 afterEach(() => cleanup())
@@ -326,29 +345,6 @@ describe('SyncScreen — merge cards (D-2-T1)', () => {
     expect((screen.getByTestId('ops-sync-approve') as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('footer buttons are inert this task — clicking APPROVE/KEEP fires no request', () => {
-    const refresh = vi.fn(async () => {})
-    useSyncData.mockReturnValue({
-      jobs: [],
-      candidates: [
-        mergeCandidate({ id: 'm5', suggestedEntityId: '1', normalizedJson: { homeTeam: 'Home', awayTeam: 'Away' } }),
-      ],
-      isSettled: true,
-      refresh,
-    })
-    render(
-      <MemoryRouter>
-        <OpsTabBadgeContext.Provider value={() => {}}>
-          <SyncScreen />
-        </OpsTabBadgeContext.Provider>
-      </MemoryRouter>,
-    )
-    const card = screen.getByTestId('ops-sync-merge-card')
-    fireEvent.click(within(card).getByTestId('ops-sync-approve'))
-    fireEvent.click(within(card).getByTestId('ops-sync-keep'))
-    expect(refresh).not.toHaveBeenCalled()
-  })
-
   it('renders one card per candidate', () => {
     renderScreen({
       isSettled: true,
@@ -358,6 +354,155 @@ describe('SyncScreen — merge cards (D-2-T1)', () => {
       ],
     })
     expect(screen.getAllByTestId('ops-sync-merge-card')).toHaveLength(2)
+  })
+})
+
+describe('SyncScreen — merge decisions (D-3-T1)', () => {
+  const firstCard = () => screen.getAllByTestId('ops-sync-merge-card')[0]
+
+  it('single-flight APPROVE — a rapid double-click fires approveMergeCandidate exactly once', () => {
+    // deferred promise: the 2nd click lands while the 1st is still in flight.
+    importsApiMock.approveMergeCandidate.mockReturnValue(new Promise(() => {}))
+    renderScreen({ candidates: [CAND_HIGH] })
+
+    const approve = within(firstCard()).getByTestId('ops-sync-approve')
+    fireEvent.click(approve)
+    fireEvent.click(approve)
+
+    expect(importsApiMock.approveMergeCandidate).toHaveBeenCalledTimes(1)
+    // targetEntityId is the suggestedEntityId (VERIFIED contract).
+    expect(importsApiMock.approveMergeCandidate).toHaveBeenCalledWith('cand-high', '1')
+    expect(importsApiMock.createMergeCandidateEntity).not.toHaveBeenCalled()
+  })
+
+  it('single-flight KEEP — a rapid double-click fires createMergeCandidateEntity exactly once', () => {
+    importsApiMock.createMergeCandidateEntity.mockReturnValue(new Promise(() => {}))
+    renderScreen({ candidates: [CAND_HIGH] })
+
+    const keep = within(firstCard()).getByTestId('ops-sync-keep')
+    fireEvent.click(keep)
+    fireEvent.click(keep)
+
+    expect(importsApiMock.createMergeCandidateEntity).toHaveBeenCalledTimes(1)
+    expect(importsApiMock.createMergeCandidateEntity).toHaveBeenCalledWith('cand-high')
+    expect(importsApiMock.approveMergeCandidate).not.toHaveBeenCalled()
+  })
+
+  // The two tests above pass via React's `disabled` re-render between clicks. These
+  // two ISOLATE the synchronous `isSubmittingRef` latch as the SOLE guard: two NATIVE
+  // clicks inside ONE `act()` — no re-render lands between them, so only the ref can
+  // drop the 2nd. (Verified: both FAIL when `if (isSubmittingRef.current) return` is
+  // removed, PASS with it present.) Irreversible 2nd write surface — worth the belt.
+  it('single-flight APPROVE — two synchronous native clicks (ref is the sole guard) fire once', () => {
+    importsApiMock.approveMergeCandidate.mockReturnValue(new Promise(() => {}))
+    renderScreen({ candidates: [CAND_HIGH] })
+
+    const approve = within(firstCard()).getByTestId('ops-sync-approve')
+    act(() => {
+      approve.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      approve.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(importsApiMock.approveMergeCandidate).toHaveBeenCalledTimes(1)
+  })
+
+  it('single-flight KEEP — two synchronous native clicks (ref is the sole guard) fire once', () => {
+    importsApiMock.createMergeCandidateEntity.mockReturnValue(new Promise(() => {}))
+    renderScreen({ candidates: [CAND_HIGH] })
+
+    const keep = within(firstCard()).getByTestId('ops-sync-keep')
+    act(() => {
+      keep.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      keep.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(importsApiMock.createMergeCandidateEntity).toHaveBeenCalledTimes(1)
+  })
+
+  it('APPROVE success → terminal ✓ MERGED status replaces the footer + badge decrements', async () => {
+    const setTabBadge = vi.fn()
+    renderScreen({ candidates: [CAND_HIGH, CAND_LOW] }, setTabBadge)
+    // 2 pending on mount.
+    expect(setTabBadge).toHaveBeenLastCalledWith('sync', 2)
+
+    fireEvent.click(within(firstCard()).getByTestId('ops-sync-approve'))
+
+    const status = await within(firstCard()).findByTestId('ops-sync-decision-status')
+    expect(status.textContent).toBe('✓ MERGED INTO REGISTRY')
+    expect(status.style.color).toBe('var(--status-approved)')
+    // buttons gone — not re-decidable in-view.
+    expect(within(firstCard()).queryByTestId('ops-sync-approve')).toBeNull()
+    expect(within(firstCard()).queryByTestId('ops-sync-keep')).toBeNull()
+    // badge decremented 2 → 1 via the decided-exclusion.
+    await waitFor(() => expect(setTabBadge).toHaveBeenLastCalledWith('sync', 1))
+  })
+
+  it('KEEP success → terminal KEPT AS SEPARATE RECORDS status', async () => {
+    renderScreen({ candidates: [CAND_HIGH] })
+    fireEvent.click(within(firstCard()).getByTestId('ops-sync-keep'))
+
+    const status = await within(firstCard()).findByTestId('ops-sync-decision-status')
+    expect(status.textContent).toBe('KEPT AS SEPARATE RECORDS')
+    expect(status.style.color).toBe('var(--text-shell-2)')
+    expect(within(firstCard()).queryByTestId('ops-sync-keep')).toBeNull()
+  })
+
+  // A 409 "already decided" (human-readable) stands in for any decision rejection.
+  const rejectKeepWith409 = () =>
+    importsApiMock.createMergeCandidateEntity.mockRejectedValueOnce(
+      new ApiError(409, 'Merge candidate has already been decided (create_new)'),
+    )
+
+  it('decision failure → renders the inline error with the message', async () => {
+    rejectKeepWith409()
+    renderScreen({ candidates: [CAND_HIGH] })
+
+    fireEvent.click(within(firstCard()).getByTestId('ops-sync-keep'))
+
+    const err = await within(firstCard()).findByTestId('ops-sync-decision-error')
+    expect(err.textContent).toContain('already been decided')
+  })
+
+  it('decision failure → both APPROVE and KEEP re-enable', async () => {
+    rejectKeepWith409()
+    renderScreen({ candidates: [CAND_HIGH] })
+
+    fireEvent.click(within(firstCard()).getByTestId('ops-sync-keep'))
+    await within(firstCard()).findByTestId('ops-sync-decision-error')
+
+    expect((within(firstCard()).getByTestId('ops-sync-keep') as HTMLButtonElement).disabled).toBe(false)
+    expect((within(firstCard()).getByTestId('ops-sync-approve') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('decision failure → badge count unchanged (decided map untouched)', async () => {
+    const setTabBadge = vi.fn()
+    rejectKeepWith409()
+    renderScreen({ candidates: [CAND_HIGH] }, setTabBadge)
+    expect(setTabBadge).toHaveBeenLastCalledWith('sync', 1)
+
+    fireEvent.click(within(firstCard()).getByTestId('ops-sync-keep'))
+    await within(firstCard()).findByTestId('ops-sync-decision-error')
+
+    expect(setTabBadge).toHaveBeenLastCalledWith('sync', 1)
+  })
+
+  it('decision failure → a subsequent click retries (latch released → fires again)', async () => {
+    rejectKeepWith409() // first attempt rejects; the beforeEach default resolves the retry
+    renderScreen({ candidates: [CAND_HIGH] })
+
+    fireEvent.click(within(firstCard()).getByTestId('ops-sync-keep'))
+    await within(firstCard()).findByTestId('ops-sync-decision-error')
+    expect(importsApiMock.createMergeCandidateEntity).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(within(firstCard()).getByTestId('ops-sync-keep'))
+    await within(firstCard()).findByTestId('ops-sync-decision-status')
+    expect(importsApiMock.createMergeCandidateEntity).toHaveBeenCalledTimes(2)
+  })
+
+  it('null suggestedEntityId → APPROVE disabled, KEEP still enabled', () => {
+    renderScreen({ candidates: [CAND_LOW] })
+    expect((within(firstCard()).getByTestId('ops-sync-approve') as HTMLButtonElement).disabled).toBe(true)
+    expect((within(firstCard()).getByTestId('ops-sync-keep') as HTMLButtonElement).disabled).toBe(false)
   })
 })
 
