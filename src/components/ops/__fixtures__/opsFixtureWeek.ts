@@ -33,6 +33,23 @@
 import type { Contract, Event, TechPlan } from '../../../data/types'
 import { detectCrewConflicts, type ConflictMap } from '../../../utils/crewConflicts'
 
+/**
+ * Deep-freeze (A-4-T0 review hardening): fixtures are SHARED pins — any test that
+ * mutates one corrupts every other suite. Frozen recursively (incl. nested crew
+ * objects and Date instances); mutation attempts throw under ES-module strict mode.
+ * EXPORTED (A-4-T1 review): test files freeze their own module-level shared
+ * objects with the same helper.
+ */
+export function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value)
+    for (const key of Object.getOwnPropertyNames(value)) {
+      deepFreeze((value as Record<string, unknown>)[key])
+    }
+  }
+  return value
+}
+
 /** Wednesday 2026-03-04, midnight UTC — chosen so day-precision boundaries are exact. */
 export const FIXTURE_NOW = new Date('2026-03-04T00:00:00Z')
 
@@ -74,7 +91,7 @@ export function makeContract(
   return { ...contractDefaults, ...overrides }
 }
 
-export const FIXTURE_CONTRACTS: Contract[] = [
+export const FIXTURE_CONTRACTS: Contract[] = deepFreeze([
   // 101 VALID: far validUntil (> now+90d)
   { id: 1, competitionId: 101, status: 'valid', validFrom: '2024-07-01', validUntil: '2027-06-30', ...contractDefaults },
   // 102 EXPIRING: inside the 90-day window (now+42d)
@@ -93,13 +110,13 @@ export const FIXTURE_CONTRACTS: Contract[] = [
   { id: 10, competitionId: 109, status: 'valid', validFrom: '2025-08-01', validUntil: '2027-08-01', ...contractDefaults },
   // 110 EXPIRING boundary: validUntil is EXACTLY FIXTURE_NOW + 90 days (inclusive)
   { id: 11, competitionId: 110, status: 'valid', validFrom: '2024-01-01', validUntil: '2026-06-02', ...contractDefaults },
-]
+])
 
 /**
  * Week events. Mon 03-02 deliberately declares the 20:00 event BEFORE the 14:00
  * one (grouping must sort). e9 uses a Date object; everything else strings.
  */
-export const FIXTURE_EVENTS: Event[] = [
+export const FIXTURE_EVENTS: Event[] = deepFreeze([
   // Monday — out of time order on purpose
   makeEvent({ id: 1, sportId: 1, competitionId: 101, startDateBE: '2026-03-02', startTimeBE: '20:00', durationMin: 120, participants: 'Mon late (VALID, crew OK)' }),
   makeEvent({ id: 2, sportId: 2, competitionId: 102, startDateBE: '2026-03-02T00:00:00.000Z', startTimeBE: '14:00', durationMin: 120, participants: 'Mon early (EXPIRING, crew OK, API-shaped ISO datetime)' }),
@@ -117,10 +134,10 @@ export const FIXTURE_EVENTS: Event[] = [
   // Saturday 03-07 + Sunday 03-08: EMPTY on purpose (empty-weekday coverage)
   // Outside the week — excluded by grouping
   makeEvent({ id: 10, sportId: 1, competitionId: 101, startDateBE: '2026-03-09', startTimeBE: '12:00', durationMin: 60, participants: 'Next Monday (outside week)' }),
-]
+])
 
 /** Crew plans. Conflict people appear ONLY in their pair; all other names unique. */
-export const FIXTURE_PLANS: TechPlan[] = [
+export const FIXTURE_PLANS: TechPlan[] = deepFreeze([
   { id: 1, eventId: 1, planType: 'Live', crew: { encoder: 'ENC-01', reporter: 'Rita Mon' }, isLivestream: true, customFields: [] },
   { id: 2, eventId: 2, planType: 'Live', crew: { encoder: 'ENC-02', reporter: 'Milo Mon' }, isLivestream: true, customFields: [] },
   // FULL conflict: Alex Marks on both Tuesday 18:00 events
@@ -133,7 +150,7 @@ export const FIXTURE_PLANS: TechPlan[] = [
   // e8: required encoder blank (whitespace only) → OPEN
   { id: 8, eventId: 8, planType: 'Live', crew: { encoder: '   ', reporter: 'Ann Solo' }, isLivestream: false, customFields: [] },
   { id: 9, eventId: 9, planType: 'Live', crew: { encoder: 'ENC-09', reporter: 'Fred Fri' }, isLivestream: true, customFields: [] },
-]
+])
 
 /** Precomputed once, exactly as screens will do it (one detect pass per screen). */
 export const FIXTURE_CONFLICTS: ConflictMap = detectCrewConflicts(FIXTURE_PLANS, FIXTURE_EVENTS)

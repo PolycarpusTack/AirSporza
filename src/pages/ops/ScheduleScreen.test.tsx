@@ -67,6 +67,7 @@ vi.mock('../../services', () => ({
   contractsApi: { list: vi.fn(async () => FIXTURE_CONTRACTS) },
 }))
 
+import { contractsApi } from '../../services'
 import { ScheduleScreen } from './ScheduleScreen'
 
 function LocationProbe() {
@@ -231,6 +232,52 @@ describe('empty state', () => {
     expect(screen.queryByTestId(/^ops-schedule-row-/)).toBeNull()
   })
 
+})
+
+describe('inspector integration (A-4-T1)', () => {
+  const inspectorTitle = () => screen.getByTestId('ops-inspector-title').textContent
+
+  it('no selection → inspector renders its quiet empty state as the third pane', () => {
+    renderScreen()
+
+    expect(screen.getByTestId('ops-inspector')).toBeTruthy()
+    expect(screen.getByTestId('ops-inspector-empty')).toBeTruthy()
+  })
+
+  it('deep link ?event= hydrates the inspector with the event title and competition name', () => {
+    renderScreen('/ops/schedule?event=5')
+
+    expect(inspectorTitle()).toBe('Wed partial-conflict A')
+    expect(screen.getByTestId('ops-inspector-competition').textContent).toBe('Masters F')
+  })
+
+  it('unknown ?event= id → empty state, silently (ops-selection opaque-id rule)', () => {
+    renderScreen('/ops/schedule?event=99999')
+
+    expect(screen.getByTestId('ops-inspector-empty')).toBeTruthy()
+  })
+
+  it('selection changes update the inspector WITHOUT refetch or state loss (AC pin: no remount)', async () => {
+    const user = userEvent.setup()
+    const listMock = contractsApi.list as unknown as ReturnType<typeof vi.fn>
+    listMock.mockClear()
+    renderScreen()
+    await screen.findByText('MON 2 MARCH') // contracts fetch settled
+
+    // establish screen-local state that a remount would lose
+    const football = screen.getByRole('button', { name: /Football/ })
+    await user.click(football)
+
+    await user.click(row(1))
+    expect(inspectorTitle()).toBe('Mon late (VALID, crew OK)')
+
+    await user.click(row(3))
+    expect(inspectorTitle()).toBe('Tue full-conflict A (NEGOTIATION, API-shaped ISO datetime)')
+
+    // no refetch across selection changes; sportFilter preserved (no remount/state loss)
+    expect(listMock).toHaveBeenCalledTimes(1)
+    expect(football.getAttribute('aria-pressed')).toBe('true')
+  })
 })
 
 describe('OpsShell contract', () => {

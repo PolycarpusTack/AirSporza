@@ -101,8 +101,10 @@ export function detectCrewConflicts(plans: TechPlan[], events: Event[]): Conflic
 
         const eventA = eventMap.get(a.eventId)!
         const eventB = eventMap.get(b.eventId)!
-        const dateA = typeof eventA.startDateBE === 'string' ? eventA.startDateBE : eventA.startDateBE?.toISOString?.().split('T')[0] || ''
-        const dateB = typeof eventB.startDateBE === 'string' ? eventB.startDateBE : eventB.startDateBE?.toISOString?.().split('T')[0] || ''
+        // A-4-T0 bugfix: display dates via getDateKey (ISO datetimes split on 'T';
+        // LOCAL components for Date objects) — same normalization as parseEventWindow.
+        const dateA = eventA.startDateBE ? getDateKey(eventA.startDateBE) : ''
+        const dateB = eventB.startDateBE ? getDateKey(eventB.startDateBE) : ''
 
         // Add conflict for assignment A (conflicting with B)
         const keyA = `${a.planId}:${a.fieldId}`
@@ -193,8 +195,9 @@ export function groupConflictsByPerson(plans: TechPlan[], events: Event[]): Pers
 
         const evA = eventMap.get(a.eventId)!
         const evB = eventMap.get(b.eventId)!
-        const dateA = typeof evA.startDateBE === 'string' ? evA.startDateBE : evA.startDateBE?.toISOString?.().split('T')[0] || ''
-        const dateB = typeof evB.startDateBE === 'string' ? evB.startDateBE : evB.startDateBE?.toISOString?.().split('T')[0] || ''
+        // A-4-T0 bugfix: same getDateKey normalization as above.
+        const dateA = evA.startDateBE ? getDateKey(evA.startDateBE) : ''
+        const dateB = evB.startDateBE ? getDateKey(evB.startDateBE) : ''
 
         conflicts.push({
           eventA: { id: a.eventId, name: evA.participants, role: a.fieldId, time: `${dateA} ${evA.startTimeBE}` },
