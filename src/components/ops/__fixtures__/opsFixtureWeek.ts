@@ -31,6 +31,7 @@
  *   Sports: 5 sports, uneven counts (sport 1×3, 2×2, 3×2, 4×1, 5×1).
  */
 import type { BroadcastSlot, Channel, Competition, Contract, Event, Player, Sport, Team, TechPlan } from '../../../data/types'
+import type { ImportJob, ImportMergeCandidate } from '../../../services'
 import { detectCrewConflicts, type ConflictMap } from '../../../utils/crewConflicts'
 
 /**
@@ -466,5 +467,146 @@ export const FIXTURE_PLAYERS: Player[] = deepFreeze([
     sport: { id: 3, name: 'Cycling', icon: '🚴' },
     externalRefs: { the_sports_db: 'tsdb-p-6' },
     teamLinks: [{ team: { id: 3, name: 'Mountain Athletic' } }],
+  }),
+])
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * D-1-T1 ADDITIVE extension (Story D-1 pin 6): the SYNC import universe —
+ * import JOBS + merge CANDIDATES feeding syncSelectors.ts. All pre-existing
+ * exports stay byte-stable (the top type-import line gained ImportJob/
+ * ImportMergeCandidate from ../../../services — types erase, no runtime delta).
+ *
+ * PII (EPIC C DoD 3): every event/team/venue name in normalizedJson is an
+ * INVENTED anonymised name — no real fixtures/athletes (same bar as the invented
+ * crew/registry names above).
+ *
+ * TZ note: the job timestamps below are UTC instants; syncSelectors formats them
+ * to a WALL-CLOCK HH:MM in the AMBIENT TZ (the documented D-1 seam). The instants
+ * are winter (January) dates so the America/New_York vitest pin is unambiguously
+ * EST (UTC-5): a `…T20:00:00Z` instant reads `15:00`.
+ *
+ * Honest-data pin: ImportMergeCandidate.confidence is typed `number` but the API
+ * serialises a Prisma Decimal as a STRING — cand-high below carries a STRING
+ * confidence so the D-2 `Number()` coercion seam is exercised by real fixtures.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Minimal valid ImportJob with overridable fields (mirrors the other builders). */
+export function makeJob(overrides: Partial<ImportJob> & { id: string }): ImportJob {
+  return {
+    sourceId: 'src-fixture',
+    entityScope: 'events',
+    mode: 'incremental',
+    status: 'completed',
+    statsJson: {},
+    errorLog: null,
+    cursor: null,
+    startedAt: '2026-01-15T20:00:00.000Z',
+    finishedAt: '2026-01-15T20:05:00.000Z',
+    createdAt: '2026-01-15T19:55:00.000Z',
+    source: { id: 'src-fixture', code: 'the_sports_db', name: 'Sports Feed A' },
+    _count: { records: 0, deadLetters: 0 },
+    ...overrides,
+  }
+}
+
+/** Minimal valid ImportMergeCandidate with overridable fields — INVENTED names only (PII). */
+export function makeMergeCandidate(
+  overrides: Partial<ImportMergeCandidate> & { id: string },
+): ImportMergeCandidate {
+  return {
+    entityType: 'event',
+    suggestedEntityId: null,
+    confidence: 0.8,
+    reasonCodes: [],
+    status: 'pending',
+    reviewedBy: null,
+    reviewedAt: null,
+    createdAt: '2026-01-15T20:00:00.000Z',
+    importRecord: {
+      id: `rec-${overrides.id}`,
+      sourceId: 'src-fixture',
+      sourceRecordId: `srcrec-${overrides.id}`,
+      entityType: 'event',
+      normalizedJson: { name: 'Riverside Derby' },
+      sourceUpdatedAt: null,
+      source: { id: 'src-fixture', code: 'the_sports_db', name: 'Sports Feed A' },
+    },
+    ...overrides,
+  }
+}
+
+/**
+ * Import jobs (deep-frozen): one COMPLETED with records, one FAILED carrying
+ * dead-letters (_count.deadLetters > 0), one RUNNING (no startedAt → the time
+ * falls back to createdAt). Anonymised source names.
+ */
+export const FIXTURE_JOBS: ImportJob[] = deepFreeze([
+  makeJob({
+    id: 'job-completed',
+    status: 'completed',
+    statsJson: { recordsProcessed: 128 },
+    startedAt: '2026-01-15T20:00:00.000Z', // → 15:00 EST
+    createdAt: '2026-01-15T19:55:00.000Z',
+    _count: { records: 128, deadLetters: 0 },
+    source: { id: 's1', code: 'the_sports_db', name: 'Sports Feed A' },
+  }),
+  makeJob({
+    id: 'job-failed',
+    status: 'failed',
+    statsJson: {},
+    startedAt: '2026-01-15T21:00:00.000Z', // → 16:00 EST
+    createdAt: '2026-01-15T20:55:00.000Z',
+    _count: { records: 12, deadLetters: 3 },
+    source: { id: 's2', code: 'api_football', name: 'Fixture Provider B' },
+  }),
+  makeJob({
+    id: 'job-running',
+    status: 'running',
+    statsJson: {},
+    startedAt: null, // no startedAt → time falls back to createdAt (22:00Z → 17:00 EST)
+    createdAt: '2026-01-15T22:00:00.000Z',
+    _count: { records: 0, deadLetters: 0 },
+    source: { id: 's3', code: 'football_data', name: 'League Data C' },
+  }),
+])
+
+/**
+ * Merge candidates (deep-frozen) — spanning ≥90 and <90 confidence, one WITH a
+ * suggestedEntityId and one null, and differing normalizedJson `venue` fields
+ * (feeds the D-2 field-diff / D-3 decrement seams). cand-high's confidence is a
+ * Decimal-serialized STRING typed `number` (honest-data pin above). Both pending.
+ */
+export const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = deepFreeze([
+  makeMergeCandidate({
+    id: 'cand-high',
+    entityType: 'event',
+    confidence: '0.95' as unknown as number, // ≥90, STRING (Decimal serialisation — D-2 coercion seam)
+    suggestedEntityId: 'event:501',
+    status: 'pending',
+    importRecord: {
+      id: 'rec-cand-high',
+      sourceId: 'src-fixture',
+      sourceRecordId: 'srcrec-cand-high',
+      entityType: 'event',
+      normalizedJson: { name: 'Riverside Derby', venue: 'Riverside Arena' },
+      sourceUpdatedAt: '2026-01-15T18:00:00.000Z',
+      source: { id: 's1', code: 'the_sports_db', name: 'Sports Feed A' },
+    },
+  }),
+  makeMergeCandidate({
+    id: 'cand-low',
+    entityType: 'event',
+    confidence: 0.62, // <90, plain number
+    suggestedEntityId: null,
+    status: 'pending',
+    importRecord: {
+      id: 'rec-cand-low',
+      sourceId: 'src-fixture',
+      sourceRecordId: 'srcrec-cand-low',
+      entityType: 'event',
+      normalizedJson: { name: 'Coastal Classic', venue: 'Harbor Field' }, // differing venue vs cand-high
+      sourceUpdatedAt: null,
+      source: { id: 's2', code: 'api_football', name: 'Fixture Provider B' },
+    },
   }),
 ])
