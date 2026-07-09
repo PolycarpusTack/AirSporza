@@ -1,6 +1,19 @@
 # CONTRACT SNAPSHOT: OpsShell
 
-Version: 1 · Date: 2026-07-02 · Task: A-2-T1 (input contract for A-2-T2 deep-linking, all screen stories B/C/D)
+Version: 1.1 · Date: 2026-07-09 · Task: A-2-T1 (v1) + D-1-T2 (v1.1 badge-publish context) · input contract for A-2-T2 deep-linking + all screen stories B/C/D
+
+**Changelog**
+- **v1.1 (2026-07-09, D-1-T2):** ADDITIVE — v1 surface byte-stable (the `tabBadges`
+  prop, routes, chrome, flag/mount all unchanged; every v1 test green). Adds the
+  pin-5 badge-publish mechanism so a nested route-child screen can push its tab count
+  UP to the chrome: new sibling module `src/components/ops/opsTabBadges.ts` exports
+  `OpsTabBadgeContext`, `SetTabBadge`, `useSetTabBadge`. OpsShell holds `dynamicBadges`
+  state fed by that context and renders `{ ...tabBadges, ...dynamicBadges }` — a
+  published count WINS over the seed prop; publishing `undefined` DELETEs the badge
+  (the D-3 decrement seam). `App.tsx` renders `<OpsShell/>` with no `tabBadges`, so the
+  SyncScreen pending-merge count is the only live badge today. Limitation: the badge
+  populates on the FIRST Sync visit (no shell-level pre-visit count fetch — pin 5
+  "single source, no metrics() fan-out"); a cross-screen pre-visit badge is an E-item.
 
 ## Public interface
 
@@ -15,10 +28,19 @@ export const OPS_TABS: readonly { id: OpsTabId; label: string }[]
 export type OpsTabId = 'schedule' | 'planner' | 'rights' | 'registry' | 'sync'
 
 export interface OpsShellProps {
-  /** Badge slot per tab (design: `SYNC [3]`). Wired to real pending-merge data in EPIC D. */
+  /** Badge SEED/override per tab (design: `SYNC [3]`). A screen's live published count
+   *  (v1.1, via OpsTabBadgeContext) is merged OVER this and wins once set. */
   tabBadges?: Partial<Record<OpsTabId, number>>
 }
 export function OpsShell(props: OpsShellProps): JSX.Element
+```
+
+```ts
+// src/components/ops/opsTabBadges.ts (v1.1 — the pin-5 publish channel)
+export type SetTabBadge = (tabId: OpsTabId, count: number | undefined) => void
+export const OpsTabBadgeContext: React.Context<SetTabBadge> // no-op default (unit-testable alone)
+export function useSetTabBadge(): SetTabBadge
+// A screen calls useSetTabBadge()(tabId, count) — `undefined` clears that tab's badge.
 ```
 
 ```ts

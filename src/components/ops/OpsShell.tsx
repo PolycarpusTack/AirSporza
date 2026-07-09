@@ -7,9 +7,16 @@
  *
  * Mounted lazily at /ops/* by AppRoutes behind the opsRedesign flag; this module
  * being in the lazy ops chunk is what the useOpsTheme v1 FOUC guard depends on.
+ *
+ * v1.1 (D-1-T2): screens publish live badge counts UP via OpsTabBadgeContext (a
+ * screen is a <Routes> child — a prop can't reach the chrome). The `tabBadges`
+ * prop remains a seed/override, MERGED UNDER any published count (a published
+ * count wins once set). App renders <OpsShell/> with no tabBadges — the Sync
+ * screen's pending-merge count is the only live badge today (pin 5).
  */
-import type { CSSProperties } from 'react'
+import { useCallback, useMemo, useState, type CSSProperties } from 'react'
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
+import { OpsTabBadgeContext, type SetTabBadge } from './opsTabBadges'
 import { OpsThemeProvider, useOpsTheme } from './OpsThemeProvider'
 import { ScheduleScreen } from '../../pages/ops/ScheduleScreen'
 import { RundownScreen } from '../../pages/ops/RundownScreen'
@@ -143,18 +150,36 @@ export interface OpsShellProps {
 }
 
 export function OpsShell({ tabBadges = {} }: OpsShellProps) {
+  // Live per-tab badges published by the mounted screen (v1.1). Merged OVER the
+  // seed prop, so a screen's published count wins once it sets one.
+  const [dynamicBadges, setDynamicBadges] = useState<Partial<Record<OpsTabId, number>>>({})
+
+  const setTabBadge = useCallback<SetTabBadge>((tabId, count) => {
+    setDynamicBadges((prev) => {
+      // stable render: no-op (return prev) when the value is unchanged.
+      if (prev[tabId] === (count ?? undefined)) return prev
+      const next = { ...prev }
+      if (count == null) delete next[tabId]
+      else next[tabId] = count
+      return next
+    })
+  }, [])
+
+  const mergedBadges = useMemo(() => ({ ...tabBadges, ...dynamicBadges }), [tabBadges, dynamicBadges])
+
   return (
     <OpsThemeProvider>
-      <div
-        style={{
-          minHeight: '100vh',
-          background: 'var(--bg-shell)',
-          color: 'var(--text-shell)',
-          fontFamily: 'var(--font-display)',
-        }}
-      >
-        <OpsChrome tabBadges={tabBadges} />
-        <Routes>
+      <OpsTabBadgeContext.Provider value={setTabBadge}>
+        <div
+          style={{
+            minHeight: '100vh',
+            background: 'var(--bg-shell)',
+            color: 'var(--text-shell)',
+            fontFamily: 'var(--font-display)',
+          }}
+        >
+          <OpsChrome tabBadges={mergedBadges} />
+          <Routes>
           {/* Absolute targets on purpose: a relative `to` inside the `*` route
               resolves against the matched splat segment and loops forever
               (e.g. /ops/bogus -> /ops/bogus/schedule -> still `*` -> …).
@@ -168,8 +193,9 @@ export function OpsShell({ tabBadges = {} }: OpsShellProps) {
           <Route path="sync" element={<SyncScreen />} />
           {/* Unknown tab → schedule (documented in OpsShell v1). */}
           <Route path="*" element={<Navigate to={`${OPS_BASE}/schedule`} replace />} />
-        </Routes>
-      </div>
+          </Routes>
+        </div>
+      </OpsTabBadgeContext.Provider>
     </OpsThemeProvider>
   )
 }
