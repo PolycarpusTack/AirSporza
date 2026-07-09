@@ -95,12 +95,52 @@ Flag-OFF build, logged in:
   preselecting the event; `RequireRole` may bounce non-planner roles
   (EventInspector v1, accepted).
 
-## §rundown (stub — EPIC B)
+## §rundown (`/ops/planner` — B-1/B-2, smoke: `e2e/smoke-epic-b.flag-on.spec.ts`)
 
-Populated by story B-4: day-pill navigation, lane math symptoms, shared
-selection Schedule↔Rundown.
+Verification checklist (fixture values in [brackets], per the EPIC B smoke):
+1. Select an event on SCHEDULE → URL gains `?event=<id>`; open
+   `/ops/planner?day=<its day>&event=<id>` [e3 → `?day=2026-03-03&event=3`] →
+   the same event's block carries the ACCENT outline (selection is shared via
+   URL — EPIC B DoD); a crew-conflicted partner keeps the DANGER outline.
+2. The day pill for the resolved day is active [TUE 3]; block positions are
+   correct to the minute on the 05:00–24:00 axis [e3: left ≈68.42%, width
+   ≈10.53% — slot 18:00–20:00 on Eén].
+3. Click another day pill → lanes swap to that day's blocks, `?day=` updates,
+   `?event=` survives [MON → blocks e1+e2, e3 gone].
+4. Unresolvable-channel events appear in the UNASSIGNED lane (never dropped);
+   clamped/off-axis blocks are tooltip-flagged.
 
-## §rights (stub — EPIC B)
+| Symptom | Likely cause | Check / fix |
+|---|---|---|
+| All blocks in UNASSIGNED / lanes missing | `GET /api/channels` or `/api/broadcast-slots` failed (quiet fallback puts everything in UNASSIGNED, event-window positioned) | DevTools Network for both endpoints; slots must return the day's window |
+| Block at the wrong time vs the schedule | Slot-vs-event window divergence is BY DESIGN (slot wins — rundown-layout v1); verify the slot's `plannedStartUtc` | Compare the block tooltip (raw window) with the slot row |
+| Day pill counts ≠ visible blocks | Counts are UNFILTERED events per day; blocks show the SELECTED day only | Expected behavior — check `?day=` |
+| Params lost when clicking the PLANNER tab | Tab NavLinks are plain paths — `?day`/`?event` drop on tab switch (retro item) | Deep-link with params; not a defect today |
 
-Populated by story B-4: stat-tile reconciliation vs `contractsApi`, matrix
-symptoms, validity progress.
+## §rights (`/ops/rights` — B-3, smoke: `e2e/smoke-epic-b.flag-on.spec.ts`)
+
+Verification checklist:
+1. Tiles show VALID / EXPIRING / IN NEGOTIATION / MISSING counts that
+   reconcile 1:1 with the matrix rows below [fixture: 3/2/1/3] — tiles are a
+   FOLD over the rows (identity by construction).
+2. Matrix rows order severity-first (MISSING, EXPIRING, NEGOTIATION, VALID)
+   then name; status words are DERIVED (never the stored contract.status —
+   a stored 'expiring' on a lapsed contract correctly shows MISSING).
+3. Platform cells: ● = right held (linear→LINEAR, on-demand→MAX, radio→RADIO);
+   ON-DEM is RESERVED and always `·` (AS-8 — see known limitations).
+4. Validity: `Until <date>` + 3px bar (red <15% / amber <50% / green of the
+   term remaining); NO CONTRACT rows show the red word and no bar; lapsed rows
+   keep their past date with the bar gone.
+5. Until contracts settle, the screen shows LOADING CONTRACTS (never an
+   everything-MISSING flash).
+
+| Symptom | Likely cause | Check / fix |
+|---|---|---|
+| Every row NO CONTRACT / MISSING tile = row count | `GET /api/contracts` failed (quiet — screen renders honestly after settle) | DevTools Network `/api/contracts`; backend up? |
+| Tile counts look wrong vs the contracts table | Words are DERIVED from validUntil vs today — stored statuses are ignored (stale) | Check `validUntil`; see ops-selectors v3 §rights precedence |
+| ON-DEM column never lights | RESERVED by design (AS-8) — `'on-demand'` maps to MAX | Not a defect; revisit at the AS-4/AS-8 stakeholder session |
+| Screen stuck on LOADING CONTRACTS | The contracts request never settles (hung network) | DevTools Network — the skeleton clears on success OR failure |
+
+Known limitation (AS-8): the ON-DEM column lights only when the domain model
+distinguishes a non-MAX on-demand right — reserved until the AS-4/AS-8
+stakeholder session resolves it.

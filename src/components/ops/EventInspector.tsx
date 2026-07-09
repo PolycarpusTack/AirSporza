@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Contract, Event, FieldConfig, TechPlan } from '../../data/types'
 import type { ConflictMap, PersonConflictGroup } from '../../utils/crewConflicts'
 import { effectiveDurationMin, getDateKey } from '../../utils/dateTime'
+import { formatOpsDayLabel } from './dayLabels'
 import {
   deriveCrewRoles,
   deriveRightsInfo,
@@ -81,22 +82,18 @@ const EDITORIAL_COLOR: Record<string, string> = {
   approved: 'var(--status-approved)',
 }
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-const MONTHS_ABBR_UPPER = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 const MONTHS_ABBR_TITLE = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /**
- * startDateBE → "WED 4 MAR". Component-local formatter (occurrence two of
- * day-labelling next to ScheduleScreen's "MON 2 MARCH" — different format,
- * Rule of Three: do NOT extract/share yet). getDateKey normalizes API
- * ISO-datetime strings and local Date objects; local components — no TZ drift.
+ * startDateBE → "WED 4 MAR". Formatting is shared since B-2-T1 (the Rundown
+ * became the family's THIRD consumer — Rule of Three triggered extraction);
+ * getDateKey still normalizes API ISO-datetime strings and local Date objects
+ * here (local components — no TZ drift), formatOpsDayLabel handles the rest
+ * incl. the '—' fallback for date-less events.
  */
 function metaDateLabel(startDateBE: Event['startDateBE']): string {
   const key = startDateBE ? getDateKey(startDateBE) : ''
-  const [year, month, day] = key.split('-').map(Number)
-  if (!year || !month || !day) return '—'
-  const date = new Date(year, month - 1, day)
-  return `${WEEKDAYS[date.getDay()]} ${day} ${MONTHS_ABBR_UPPER[month - 1]}`
+  return formatOpsDayLabel(key, { month: 'abbr' })
 }
 
 /** 'YYYY-MM-DD' (deriveRightsInfo.validUntil) → '30 Jun 2027' (design casing). */

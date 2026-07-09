@@ -11,5 +11,10 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
     testTimeout: 10000,
+    // TZ pin (B-2-T1 review): run every date test under a NEGATIVE UTC offset
+    // so local-vs-UTC day-shift bugs (toISOString around midnight, UTC-midnight
+    // fixture instants) fail loudly on developer machines east of UTC too —
+    // local-components pins are otherwise inert in UTC+ timezones.
+    env: { TZ: 'America/New_York' },
   },
 })

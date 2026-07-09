@@ -1,8 +1,22 @@
 # CONTRACT SNAPSHOT: ops-selectors
 
-Version: 2 · Date: 2026-07-02 · Task: A-4-T0 (input contract for A-4-T1, B-3-T1)
+Version: 3 · Date: 2026-07-04 · Task: B-3-T1 (input contract for B-3-T2 Rights screen, B-4 e2e)
 
 **Changelog**
+- **v3 (2026-07-04, B-3-T1):** Rights tiles/matrix selectors —
+  `deriveCompetitionRightsInfo` (pin-3 extraction: the v2 event-scoped rights
+  body moved VERBATIM to a competition-scoped core; `deriveRightsInfo`
+  delegates via `event.competitionId`; A-3/A-4 permutation suites stayed
+  byte-unchanged as the behavior pin), `deriveRightsMatrix`,
+  `deriveRightsTiles` (a fold over the matrix — reconciliation identity by
+  construction), `deriveValidityProgress` + `deriveValidityBand` (threshold
+  single source). v1/v2 signatures untouched. See §Rights matrix below; ON-DEM
+  column reserved per AS-8.
+  **Review renames (before any consumer):** row field `validityPct` →
+  `validityProgress` — the value is an UNROUNDED 0..1 FRACTION (glossary:
+  validity progress); pin 4's 'pct' shorthand is SUPERSEDED by the glossary
+  term. Row field `platforms` → `platformColumns` (avoids shape collision with
+  the raw `Contract.platforms` string array on the same row).
 - **v2 (2026-07-02, A-4-T0):** ADDITIVE inspector selectors — `deriveRightsInfo`
   (status + governing-contract `validUntil` exposure; `deriveRightsStatus` now delegates
   to it, single-sourced, A-3 permutation rows unchanged), `deriveCrewRoles` (per-role
@@ -59,6 +73,34 @@ export function filterConflictsToEvent(event: Event, groups: PersonConflictGroup
 // Keeps groups whose conflicts touch the event (eventA.id or eventB.id), with the
 // conflict arrays themselves filtered; emptied groups dropped. `role` fields stay
 // RAW crew fieldIds — label mapping is the COMPONENT's job via crewFields (pinned).
+
+// ── v3 additions (B-3-T1, Rights tiles + matrix) ──
+export function deriveCompetitionRightsInfo(competitionId: number, contracts: Contract[], now: Date): RightsInfo
+// The competition-scoped CORE (B-3 pin 3): the v2 rights body verbatim.
+// deriveRightsInfo(e, c, n) === deriveCompetitionRightsInfo(e.competitionId, c, n) — pinned.
+
+export type RightsPlatformColumn = 'LINEAR' | 'MAX' | 'RADIO' | 'ONDEM'
+export interface RightsMatrixRow {
+  competitionId: number
+  competitionName: string      // Competition.name, or 'COMPETITION #<id>' fallback (never dropped)
+  competition: Competition | null // null = dangling competitionId (data-quality signal)
+  status: RightsStatus         // DERIVED only — never the stored contract.status
+  contract: Contract | null    // governing (pickGoverningContract); null = no contract row
+  validUntil: string | null    // as RightsInfo
+  platformColumns: Record<RightsPlatformColumn, boolean> // ONDEM always false today (AS-8); named ≠ Contract.platforms
+  validityProgress: number | null // UNROUNDED 0..1 FRACTION (never 0..100); null = no bar
+  validityLabel: string        // 'Until 30 Jun 2027' | 'In negotiation' | 'No agreement in place' | 'Until —'
+  note: string | null          // governing contract's notes; null when absent/whitespace
+}
+export function deriveRightsMatrix(contracts: Contract[], competitions: Competition[], events: Event[], now: Date): RightsMatrixRow[]
+
+export type RightsTiles = Record<RightsStatus, number>
+export function deriveRightsTiles(contracts: Contract[], competitions: Competition[], events: Event[], now: Date): RightsTiles
+// A FOLD over deriveRightsMatrix rows — tiles == matrix aggregation is an
+// identity by construction (test-pinned, plus ∀-events reconciliation property).
+
+export function deriveValidityProgress(contract: Contract, now: Date): number | null
+export function deriveValidityBand(progress: number): 'red' | 'amber' | 'green'
 ```
 
 **Backlog correction (DoR gate, binding):** `deriveCrewHealth` takes a 4th param
@@ -98,6 +140,59 @@ Pinned semantics:
   Pick happens BEFORE the status rules (a covering `'valid'` row beats a stale `'none'`
   sibling — pinned). A future-`validFrom` draft is NOT covering (pinned).
 - There is NO `'negotiation'` ContractStatus in the codebase — NEGOTIATION == `'draft'`.
+
+## Rights matrix + tiles (v3 — B-3 pins 1/2/4/5, AS-8)
+
+**Row universe (pin 2):** competitions with ≥1 contract row ∪ competitions with
+≥1 event — ALL events, no date scoping (deferred to the AS-4 threshold
+session). One row per competition = its GOVERNING contract (comp 109 renders
+successor id 10 — pinned). Dangling `competitionId` → fallback label
+`COMPETITION #<id>`, `competition: null`, never dropped. A Competition record
+with neither contracts nor events is EXCLUDED (fixture comp 107 'Quiet G'
+pins this).
+
+**Platform → column (pin 1; pull-gated vocabulary `['linear','on-demand','radio']`):**
+
+| platforms[] value | Column |
+|---|---|
+| `linear` | LINEAR |
+| `on-demand` | MAX (legacy `maxRights` lineage — VRT MAX is the OTT service) |
+| `radio` | RADIO |
+| *(none)* | **ONDEM — RESERVED, false for all rows (AS-8)**; lights only when the domain distinguishes a non-MAX on-demand right |
+| unknown value | NO column + `console.warn` ONCE per distinct value per process (module-level Set guard — deliberate purity exception, observability only) |
+
+**Validity progress (pin 4 — its 'pct' shorthand superseded by the glossary term):**
+`progress = clamp((validUntilEndOfDayMs − now) / (validUntilEndOfDayMs − toEpochMs(validFrom)), 0, 1)`
+— an UNROUNDED 0..1 FRACTION, never a 0..100 percentage. `null` (no bar) for
+absent/`''`/garbage `validFrom` OR `validUntil`, and degenerate
+`validFrom ≥ END-OF-DAY validUntil` (a SAME-DAY term is NOT degenerate — the
+end-of-day widening keeps it a real 1-day window; mutation-pinned). Lapsed ⇒ 0
+exactly (bar disappears when the word flips); future `validFrom` clamps to 1.
+Threshold bands are single-sourced in `deriveValidityBand`: red `< 0.15`,
+amber `< 0.50`, green else — **exact 0.15 is amber, exact 0.50 is green**
+(strict `<`, pinned). Matrix wiring is mutation-pinned with literal fixture
+fractions (comp 101 ≈ 0.4420; comp 109 uses the SUCCESSOR's dates ≈ 12/17).
+
+**Validity text variants (pin 4, design HTML ~line 575) — returned by the
+SELECTOR as `validityLabel` (recorded deviation from "components render
+words": the variants are status-coupled derivation with exact pinned strings;
+T2 renders them verbatim):** NEGOTIATION → `In negotiation` (wins over any
+date) · no-agreement MISSING (no row or `'none'`) → `No agreement in place` ·
+lapsed MISSING keeps its informative date → `Until 1 Feb 2026` · date-less
+otherwise → `Until —` · else → `Until <D MMM YYYY>` (the date part comes from
+a selector-local `untilDateLabel` kept BYTE-IDENTICAL to EventInspector's —
+occurrence two of the title-case contract-date family; Rule of Three not met,
+and the literal duplicate keeps the extraction trigger grep-detectable).
+
+**Row note (pin 5):** governing contract's `notes`, `null` when
+absent/whitespace or no contract. **Order (pin 5):** severity-first
+(MISSING, EXPIRING, NEGOTIATION, VALID) then `competitionName` asc (plain
+code-point comparison — deterministic, locale-independent).
+
+**Tiles:** `deriveRightsTiles` folds the matrix rows — reconciliation is an
+identity by construction; the ∀-fixture-events property
+(`deriveRightsStatus(event) === its competition row's status`) is additionally
+test-pinned.
 
 ## Crew precedence (pinned)
 
@@ -139,6 +234,11 @@ DATETIME strings (`'…T00:00:00.000Z'`, the real res.json shape); e9 is a LOCAL
 order · 5 days covered · Sat+Sun empty · e10 outside week. 5 sports, uneven counts
 (3/2/2/1/1). Exports `FIXTURE_CONFLICTS` (precomputed via the REAL `detectCrewConflicts`),
 `makeEvent` and `makeContract` builders. **No `Date.now()` anywhere.**
+v3 addition (B-3 pin 8, ADDITIVE): `FIXTURE_COMPETITIONS` (ids 101–110, names
+mirroring ScheduleScreen.test.tsx; **107 'Quiet G' referenced by nothing** —
+the universe-exclusion pin) + `makeCompetition`. FIXTURE_NOW now carries a
+TZ-pin warning comment (reads as Mar 3 LOCAL under the vitest
+America/New_York pin — never derive a local day from it).
 
 ## Upstream bugfixes shipped alongside (separate commit units)
 

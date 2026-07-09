@@ -30,7 +30,7 @@
  *             · e10 lies outside the week (must be excluded)
  *   Sports: 5 sports, uneven counts (sport 1×3, 2×2, 3×2, 4×1, 5×1).
  */
-import type { Contract, Event, TechPlan } from '../../../data/types'
+import type { BroadcastSlot, Channel, Competition, Contract, Event, TechPlan } from '../../../data/types'
 import { detectCrewConflicts, type ConflictMap } from '../../../utils/crewConflicts'
 
 /**
@@ -50,7 +50,14 @@ export function deepFreeze<T>(value: T): T {
   return value
 }
 
-/** Wednesday 2026-03-04, midnight UTC — chosen so day-precision boundaries are exact. */
+/**
+ * Wednesday 2026-03-04, midnight UTC — chosen so day-precision boundaries are exact.
+ * WARNING (B-2 review, TZ pin): under the repo-wide vitest TZ pin
+ * (America/New_York) this INSTANT reads as Tue Mar 3 in LOCAL components —
+ * never derive a local day from it (e.g. dateStr(FIXTURE_NOW)); selectors take
+ * `now` directly and compare epoch ms, which is safe. Local-day test seams use
+ * a local-noon `new Date(y, m, d, 12)` instead.
+ */
 export const FIXTURE_NOW = new Date('2026-03-04T00:00:00Z')
 
 /** Same Wednesday at 10:00Z — pins end-of-day validUntil semantics (real clocks have a time of day). */
@@ -154,3 +161,150 @@ export const FIXTURE_PLANS: TechPlan[] = deepFreeze([
 
 /** Precomputed once, exactly as screens will do it (one detect pass per screen). */
 export const FIXTURE_CONFLICTS: ConflictMap = detectCrewConflicts(FIXTURE_PLANS, FIXTURE_EVENTS)
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * B-1-T1 ADDITIVE extension (Story B-1 pin 8): Rundown channels + broadcast
+ * slots. All pre-existing EXPORTS are byte-stable — A-3/A-4/A-5 pins depend
+ * on them (the type-import line at the top gained two names, nothing else).
+ *
+ * Slot inventory (see rundown-layout v1 contract):
+ *   s-e2  Mon · Canvas · SLOT-VS-EVENT DIVERGENCE (event 14:00, slot 15:00 — slot wins)
+ *   s-e1  Mon · Eén    · CLAMPED cross-24:00 ([1380,1530] → [1380,1440]; 80-min floor YIELDS at the boundary, width 60)
+ *   s-e3  Tue · Eén    · SAME-LANE OVERLAP pair with s-e4 (no sub-lanes — pin 5 paint order)
+ *   s-e4  Tue · Eén    ·   ″
+ *   s-e9  Fri · Eén    · FULLY OFF-AXIS (02:00–04:00, ends before 05:00 → floored sliver at the left edge, flagged)
+ *   s-e7  Thu · id 99  · DANGLING channelId (99 is NOT in FIXTURE_CHANNELS) → UNASSIGNED (data-quality
+ *                        signal); slot window 16:00–17:30 deliberately DIVERGES from e7's 15:00 event
+ *                        window so a settled render is distinguishable from the pre-fetch fallback paint
+ *                        (B-1-T2 review — screens gate on '16:00 · 90 min')
+ *   e8    Thu           · UNRESOLVABLE by omission: NO slot and NO event.channel relation → UNASSIGNED lane
+ * Channel ids are deliberately NOT aligned with service order (Eén id 2 /
+ * sortOrder 0, Canvas id 1 / sortOrder 1) so lane ordering is pinned to
+ * sortOrder, never id. VRT MAX (id 3) carries ZERO slots — a channel without
+ * events on a day must never produce a lane (pin 6).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Minimal valid Channel with overridable fields (mirrors makeEvent/makeContract). */
+export function makeChannel(overrides: Partial<Channel> & { id: number }): Channel {
+  return {
+    tenantId: 'fixture-tenant',
+    parentId: null,
+    name: `Channel ${overrides.id}`,
+    types: ['linear'],
+    timezone: 'Europe/Brussels',
+    broadcastDayStartLocal: '06:00',
+    platformConfig: {},
+    epgConfig: {},
+    color: '#888888', // data value (Channel.color is DATA — A-3 precedent), not a component literal
+    sortOrder: overrides.id,
+    ...overrides,
+  }
+}
+
+/** Minimal valid BroadcastSlot with overridable fields. UTC datetimes are API-shaped strings. */
+export function makeSlot(overrides: Partial<BroadcastSlot> & { id: string; channelId: number }): BroadcastSlot {
+  return {
+    tenantId: 'fixture-tenant',
+    schedulingMode: 'FIXED',
+    bufferBeforeMin: 0,
+    bufferAfterMin: 0,
+    overrunStrategy: 'EXTEND',
+    anchorType: 'FIXED_TIME',
+    coveragePriority: 0,
+    status: 'PLANNED',
+    contentSegment: 'FULL',
+    sportMetadata: {},
+    ...overrides,
+  }
+}
+
+export const FIXTURE_CHANNELS: Channel[] = deepFreeze([
+  makeChannel({ id: 2, name: 'Eén', color: '#E4572E', sortOrder: 0 }),
+  makeChannel({ id: 1, name: 'Canvas', color: '#4C8DF5', sortOrder: 1 }),
+  makeChannel({ id: 3, name: 'VRT MAX', color: '#2BB673', sortOrder: 2 }), // zero slots on purpose
+])
+
+export const FIXTURE_SLOTS: BroadcastSlot[] = deepFreeze([
+  // Mon — DIVERGENCE: slot window wins over the event window (pin 2).
+  makeSlot({
+    id: 's-e2-canvas',
+    eventId: 2,
+    channelId: 1,
+    plannedStartUtc: '2026-03-02T15:00:00.000Z',
+    plannedEndUtc: '2026-03-02T17:00:00.000Z',
+  }),
+  // Mon — CLAMPED: crosses 24:00; floor yields at the boundary (pin 1).
+  makeSlot({
+    id: 's-e1-een',
+    eventId: 1,
+    channelId: 2,
+    plannedStartUtc: '2026-03-02T23:00:00.000Z',
+    plannedEndUtc: '2026-03-03T01:30:00.000Z',
+  }),
+  // Tue — SAME-LANE OVERLAP pair on Eén (pin 5).
+  makeSlot({
+    id: 's-e3-een',
+    eventId: 3,
+    channelId: 2,
+    plannedStartUtc: '2026-03-03T18:00:00.000Z',
+    plannedEndUtc: '2026-03-03T20:00:00.000Z',
+  }),
+  makeSlot({
+    id: 's-e4-een',
+    eventId: 4,
+    channelId: 2,
+    plannedStartUtc: '2026-03-03T18:30:00.000Z',
+    plannedEndUtc: '2026-03-03T20:00:00.000Z',
+  }),
+  // Fri — FULLY OFF-AXIS (pin 1 sliver rule).
+  makeSlot({
+    id: 's-e9-een',
+    eventId: 9,
+    channelId: 2,
+    plannedStartUtc: '2026-03-06T02:00:00.000Z',
+    plannedEndUtc: '2026-03-06T04:00:00.000Z',
+  }),
+  // Thu — DANGLING channelId (99 not in FIXTURE_CHANNELS) → UNASSIGNED; window
+  // diverges from e7's 15:00 event window so settled renders are recognizable
+  // (ADDITIVE, B-1-T2 review). e8 (Thu) stays slot-less AND relation-less.
+  makeSlot({
+    id: 's-e7-dangling',
+    eventId: 7,
+    channelId: 99,
+    plannedStartUtc: '2026-03-05T16:00:00.000Z',
+    plannedEndUtc: '2026-03-05T17:30:00.000Z',
+  }),
+])
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * B-3-T1 ADDITIVE extension (Story B-3 pin 8): Competition records — the
+ * fixture contracts/events reference comp ids 101–110 that existed nowhere as
+ * records until now. Names mirror ScheduleScreen.test.tsx's local list for
+ * coherence. Id 107 'Quiet G' is deliberately referenced by NO contract and NO
+ * event — it pins the rights-matrix universe EXCLUSION rule (B-3 pin 2).
+ * All pre-existing exports stay byte-stable.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Minimal valid Competition with overridable fields (mirrors the other builders). */
+export function makeCompetition(overrides: Partial<Competition> & { id: number }): Competition {
+  return {
+    sportId: 1,
+    name: `Competition ${overrides.id}`,
+    matches: 10,
+    season: '2026',
+    ...overrides,
+  }
+}
+
+export const FIXTURE_COMPETITIONS: Competition[] = deepFreeze([
+  makeCompetition({ id: 101, sportId: 1, name: 'League A' }),
+  makeCompetition({ id: 102, sportId: 2, name: 'Open B' }),
+  makeCompetition({ id: 103, sportId: 1, name: 'Cup C' }),
+  makeCompetition({ id: 104, sportId: 3, name: 'Tour D' }),
+  makeCompetition({ id: 105, sportId: 4, name: 'GP E' }),
+  makeCompetition({ id: 106, sportId: 2, name: 'Masters F' }),
+  makeCompetition({ id: 107, sportId: 5, name: 'Quiet G' }), // no contract, no event — universe exclusion pin
+  makeCompetition({ id: 108, sportId: 1, name: 'Series H' }),
+  makeCompetition({ id: 109, sportId: 3, name: 'Classic I' }),
+  makeCompetition({ id: 110, sportId: 5, name: 'Champs J' }),
+])

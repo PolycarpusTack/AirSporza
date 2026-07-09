@@ -8,18 +8,18 @@
  * A-4-T1). Derived logic lives in selectors (anti-smart-ui); this component
  * only renders and wires.
  *
- * Contracts are NOT in AppProvider — fetched here once on mount. Loading/error
- * are deliberately QUIET per the ops design: rights render as MISSING until the
- * list arrives (documented judgment call, A-3-T2). If a second ops screen ever
- * duplicates this fetch, that is the Rule-of-Three extraction moment (backlog TD note).
+ * Contracts are NOT in AppProvider — the shared useContracts hook fetches them
+ * once on mount, QUIETLY per the ops design: rights render as MISSING until the
+ * list arrives (A-3-T2 judgment call; extracted at the third consumer, B-3-T2).
  */
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import type { Contract, Event } from '../../data/types'
+import { useMemo, useState, type CSSProperties } from 'react'
+import type { Event } from '../../data/types'
 import { useApp } from '../../context/AppProvider'
-import { contractsApi } from '../../services'
 import { detectCrewConflicts, groupConflictsByPerson } from '../../utils/crewConflicts'
 import { dateStr, weekMonday } from '../../utils/dateTime'
 import { EventInspector } from '../../components/ops/EventInspector'
+import { formatOpsDayLabel } from '../../components/ops/dayLabels'
+import { useContracts } from '../../components/ops/useContracts'
 import { useOpsDay, useOpsSelection } from '../../components/ops/opsUrlState'
 import {
   deriveCrewHealth,
@@ -59,15 +59,8 @@ const EDITORIAL_COLOR: Record<string, string> = {
   approved: 'var(--status-approved)',
 }
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-const MONTHS = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER']
-
-/** "2026-03-02" → "MON 2 MARCH" (local components — no TZ drift). */
-function dayHeaderLabel(dateKey: string): string {
-  const [year, month, day] = dateKey.split('-').map(Number)
-  const date = new Date(year, month - 1, day)
-  return `${WEEKDAYS[date.getDay()]} ${day} ${MONTHS[month - 1]}`
-}
+/** "2026-03-02" → "MON 2 MARCH" — shared formatter since B-2-T1 (Rule of Three). */
+const dayHeaderLabel = (dateKey: string) => formatOpsDayLabel(dateKey, { month: 'full' })
 
 const wordStyle = (color: string): CSSProperties => ({
   ...monoStyle,
@@ -87,22 +80,10 @@ export function ScheduleScreen({ now = new Date() }: ScheduleScreenProps) {
   const { eventId, setEventId } = useOpsSelection()
   const { day } = useOpsDay()
 
-  // Contracts live outside AppProvider — quiet in-screen fetch (see header).
-  const [contracts, setContracts] = useState<Contract[]>([])
-  useEffect(() => {
-    let active = true
-    contractsApi
-      .list()
-      .then((list: Contract[]) => {
-        if (active) setContracts(list)
-      })
-      .catch(() => {
-        /* quiet per ops design — rights stay MISSING/empty */
-      })
-    return () => {
-      active = false
-    }
-  }, [])
+  // Contracts live outside AppProvider — shared quiet fetch (see header).
+  // The hook's `loaded` flag is deliberately unused here: the quiet
+  // everything-MISSING pre-fetch render is this screen's pinned design.
+  const { contracts } = useContracts()
 
   const [sportFilter, setSportFilter] = useState<number | null>(null)
 

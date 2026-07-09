@@ -77,11 +77,12 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 |---|---|---|---|
 | AS-1 ✅ resolved | Parallel flagged shell (ADR-012 accepted 2026-07-02); no old-screen removal in EPICs A–D | Whole plan shape | Done |
 | AS-2 | Existing `--surface/--text/--border` token families are extended with light-theme values; ops screens consume the same vars (README: "extend rather than hard-code hex") | A-1 design | ADR-013 |
-| AS-3 | Rundown lane channel comes from the event's `BroadcastSlot.channelId` (fallback: deprecated `Event.channel`); Eén/Canvas/VRT MAX exist in `channels` service | B-1 | Check slot coverage in seed/prod data during B-1 pull gate; SPIKE if <90% coverage |
+| AS-3 ✅ resolved | Rundown lane channel comes from the event's `BroadcastSlot.channelId` (fallback: the `event.channel` RELATION — the TD-24 sanctioned path; the deprecated fields are the free-text name strings); Eén/Canvas/VRT MAX exist in `channels` service | B-1 | **Pull gate run 2026-07-04 → SPIKE run and CLOSED same day:** seed slot coverage 8/14 (57%, <90%) — but a seed artifact (`take: 8`), not a model gap: 14/14 events carry `channelId`, so slot-first + relation-fallback resolves 100%; unresolvable events go to the UNASSIGNED lane per the B-1 AC. Channels Eén/Canvas/Ketnet/VRT MAX/VRT MAX Sport/Radio 1 exist as Channel rows; `schedulesApi.listSlots({channelId?, date?})` already exposes day-filtered slots. Design as planned — no change. |
 | AS-4 ◐ provisional | Contract → Rights Status mapping: `EXPIRING` = `validUntil` within 90 days; `NEGOTIATION` = contract status field; `MISSING` = no contract for competition. **Stakeholder decision 2026-07-02: build A-3 with these standard formulas; contract start/end time/date formulas to be revisited in a dedicated session.** Mitigation: thresholds live in ONE place (`ops/selectors`, single source for the 90-day rule per B-3-T1 Abstraction Check) so the revisit is a cheap, test-pinned change | A-3 | Dedicated threshold-formula session (post-A-3) |
 | AS-5 | "Performer" and "Staff" Kinds map to existing person-entities where present; if absent, Registry v1 ships with sports/competitions/teams/players only and performers/staff are an EPIC C follow-up story | C scope | EPIC C refinement |
 | AS-6 | IBM Plex Sans/Mono already loaded (survey: configured in tailwind fonts) — no new font pipeline | A-1 | Trivial |
 | AS-7 | Merge decisions call existing endpoints (`approve-merge` / `ignore`); idempotency handled server-side per existing routes | D | EPIC D pull gate |
+| AS-8 (added 2026-07-04, B-3 re-gate) | The rights matrix ON-DEM column is RESERVED: real `Contract.platforms[]` has no value distinct from `'on-demand'`→MAX (legacy `maxRights` lineage), and the design demo never lights ON-DEM. It lights only when the domain model distinguishes a non-MAX on-demand right (candidate source: RightsPolicy `Platform` SVOD/AVOD) | B-3 display honesty | AS-4 threshold/stakeholder session (same venue) |
 
 ---
 
@@ -89,7 +90,7 @@ Synonym flags: design says "PLANNER" → code uses **Rundown** (collision). Desi
 
 ```
 ARCHITECTURE MEMORY: Planza Ops Redesign
-Updated: 2026-07-03 (EPIC A retro)
+Updated: 2026-07-04 (EPIC B retro)
 
 Components (new):
   OpsShell:            chrome + tabs + theme toggle + flag gate — BUILT (OpsShell v1; lazy
@@ -101,17 +102,27 @@ Components (new):
                        memo per screen)
   EventInspector:      shared inspector (Schedule + Rundown) — BUILT (EventInspector v1;
                        props-driven, owns its 320px panel chrome, B-1 embeds it as-is)
-  ops/selectors:       pure derived-status functions — BUILT for Schedule/Inspector scope
-                       (ops-selectors v2: rightsStatus/rightsInfo, crewHealth/crewRoles,
-                       groupEventsByDay, filterConflictsToEvent); lanePosition,
-                       validityProgress, linkedRecords still planned (B-1/B-3/C scope;
-                       B-3-T1 hand-off renumbers to v3)
+  ops/selectors:       pure derived-status functions — BUILT (ops-selectors v3:
+                       rightsStatus/rightsInfo + competition-scoped core, crewHealth/
+                       crewRoles, groupEventsByDay, filterConflictsToEvent, rights
+                       matrix/tiles/validityProgress/Band); linkedRecords still planned
+                       (EPIC C scope)
+  rundownLayout:       pure lane/position selectors (resolveChannel slot-first +
+                       relation fallback, layoutRundown clamp→floor→re-clamp geometry)
+                       — BUILT (rundown-layout v1, B-1; sibling module, slot datetimes
+                       read as wall-clock text — TZ revisit at first real payload)
+  dayLabels:           shared formatOpsDayLabel (Rule-of-Three extraction, B-2 PREP) — BUILT
+  useContracts:        shared quiet contracts fetch { contracts, isSettled } (Rule-of-
+                       Three extraction at the 3rd consumer, B-3 PREP) — BUILT (v1)
   ops e2e harness:     Playwright, two flag-profile builds, full /api/* interception fed
-                       from opsFixtureWeek, pinned clock — BUILT (ops-e2e v1, A-5;
-                       NOT part of the original plan — added by DoR gate, the assumed
-                       "existing e2e stack" did not exist)
-  RundownScreen:       channel lanes + positioned blocks — planned (placeholder mounted)
-  RightsScreen:        stat tiles + rights matrix — planned (placeholder mounted)
+                       from opsFixtureWeek (incl. channels/slots with a HALF-OPEN day
+                       window — deliberate divergence from the backend's inclusive lte,
+                       suspected backend bug), fixed clock — BUILT (ops-e2e v1 + B-4
+                       amendments; NOT part of the original plan — added by DoR gate)
+  RundownScreen:       channel lanes + positioned blocks + day pills + inspector embed
+                       — BUILT (B-1/B-2; /ops/planner URL id per ADR-014)
+  RightsScreen:        stat tiles + rights matrix + validity bars — BUILT (B-3;
+                       isSettled loading state; ON-DEM column reserved per AS-8)
   RegistryScreen:      search/facets/table/inspector/create modal — planned (placeholder)
   SyncScreen:          job cards + merge review queue — planned (placeholder)
 
@@ -124,7 +135,12 @@ Components (existing, consumed — do not modify):
 Key ADRs: ADR-012 shell strategy · ADR-013 theming · ADR-014 deep-linking (all Accepted 2026-07-02, docs/governance/adr/)
 
 Contract snapshots (docs/governance/contracts/): ops-tokens v3 · useOpsTheme v1 ·
-OpsShell v1 · ops-selection v1 · ops-selectors v2 · EventInspector v1 · ops-e2e v1
+OpsShell v1 · ops-selection v1 · ops-selectors v3 · EventInspector v1 (amended) ·
+ops-e2e v1 (amended) · rundown-layout v1 · useContracts v1
+
+Open architect decisions parked at the EPIC B retro: ADR-014 amendment (carry ?day/?event
+across tab switches — currently deep-link only) · backend broadcastSlots.ts inclusive-lte
+day window (midnight slot returned for two days — suspected bug, e2e models half-open)
 
 Active TD (pre-existing, relevant):
   TD-23: ui/Btn.tsx vs ui/Button.tsx duplication — do NOT import either into ops/ until consolidated
@@ -134,7 +150,8 @@ Active TD (pre-existing, relevant):
   TD-27: VITE_OPS_REDESIGN is build-time only — rollback = env change + REDEPLOY; e2e must
          run a two-build matrix until/unless a runtime override lands
 
-Current Mode: DELIVERY (retained at EPIC A retro 2026-07-03 — see EPIC A §Retro)
+Current Mode: DELIVERY (retained at EPIC A retro 2026-07-03 and EPIC B retro 2026-07-04 —
+EPIC C brings the first new write paths, full governance stays)
 ```
 
 ---
@@ -365,63 +382,132 @@ remain PROVISIONAL pending the rights-windows track (ADR-015).
 - **ADRs:** ADR-014 (shared selection).
 - **Smoke Test Story:** B-4. **Runbook:** extend `ops-shell.md` (§rundown, §rights).
 
-### Story B-1 — Rundown lanes + positioned blocks
+### Story B-1 — Rundown lanes + positioned blocks ✅ DONE 2026-07-04
 **As a** channel manager **I want** one timeline lane per channel with positioned event blocks **so that** I see each channel's day rundown and collisions instantly.
 
-Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (pull gate AS-3) · INVEST all ✓
+Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (re-gated 2026-07-04: AS-3 pull gate CLOSED — see Assumptions Ledger; DoR check found 8 unpinned premises, all pinned below) · INVEST all ✓
 
 **AC:**
-- Given events on the selected day, Then each renders in its channel's lane at `left=(startMin−300)/1140`, `width=max(duration,80)/1140` (%), channel color at 15% alpha + 3px left border, two-line content per README §2.
-- Given an event before 05:00 or past 24:00, Then the block clamps to the axis and is flagged in a title tooltip (edge AC).
+- Given events on the selected day, Then each renders in its channel's lane at `left=(startMin−300)/1140`, `width=max(duration,80min)/1140` (%), channel color at 15% alpha + 3px left border, two-line content per README §2.
+- Given an event before 05:00 or past 24:00, Then the block clamps to the axis and is flagged in a title tooltip (edge AC; geometry pins below).
 - Given a block is clicked, Then `?event=` updates and the shared `EventInspector` opens (Rundown embeds the inspector, same as Schedule).
-- Given the selected event has a crew conflict, Then the block gets a 1px `#E5484D` outline; selected → accent outline.
+- Given the selected event has a crew conflict, Then the block gets a 1px `--alert-danger` outline; selected → accent outline.
+- Given a day with zero events, Then the axis renders with an empty-state panel (no lanes) — mirrors A-3's empty-week AC.
 - Alt: event with no resolvable channel → rendered in an `UNASSIGNED` overflow lane (visible, never dropped) — flagged as data quality signal.
 
-- **B-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence Med (AS-3)
-  Goal: Pure lane/position selectors: `resolveChannel(event, slots, channels)`, `layoutRundown(events, day): Lane[]` with clamping.
-  TDD first: minute-precision positioning table + property test (blocks never overflow axis).
-  Pull Gate: **AS-3 data check** — sample events' `BroadcastSlot` coverage; if <90%, stop and raise `SPIKE: channel derivation` (timebox S).
+**Pinned decisions (DoR re-gate 2026-07-04 — write tests to these):**
+1. *Geometry:* block = intersection of the event window with the axis `[300,1440]`, both edges (start-day owns the event per `getDateKey`; overnight events render clamped at 24:00, never on the next day). The 80-min width floor applies AFTER intersection, then the right edge re-clamps to 1440 (floor yields at the boundary). Fully-off-axis events render as a floored sliver pinned at the nearer axis edge, tooltip-flagged (never dropped — mirrors the UNASSIGNED rule). Property test: ∀ blocks, `0 ≤ left ∧ left+width ≤ 100%`.
+2. *Window source (TD-24):* `startMin`/duration derive slot-first from the resolved `BroadcastSlot` window; fallback = event window via the sanctioned accessors (`effectiveDurationMin`, never `Event.duration`/deprecated fields). Divergent slot-vs-event windows: slot wins (the broadcast reality the Rundown depicts) — one fixture case pins this.
+3. *Day default:* `?day` absent/invalid → Rundown defaults to today, resolved screen-side through the `now` prop seam (keeps fixture/e2e clock pinning working); `?day=<ISO>` overrides. B-1 is complete and demoable without B-2's pills.
+4. *Fetching (Rule of Three):* `schedulesApi.listSlots({date})` per selected day; contracts/techPlans in-screen duplicating the ScheduleScreen pattern (2nd occurrence — TD entry now; extraction triggers at the 3rd consumer, B-3, as a PREP task there). Conflict scans: ONE memoized `detectCrewConflicts` + ONE `groupConflictsByPerson` pass per screen feeding BOTH block outlines and the inspector (EventInspector v1 obligation).
+5. *Same-lane overlap:* NO sub-lane splitting in v1 (design shows 64px single-row tracks). Deterministic paint order — sort `startMin` asc, then id; later-starting block on top — and every block carries a title tooltip, so an occluded block stays discoverable. Sub-row stacking = UX follow-up candidate at the EPIC B retro.
+6. *Lane inventory:* lanes = channels with ≥1 event on the selected day, in channel service order; `UNASSIGNED` appended only when non-empty.
+7. *Unmapped channel colors:* README fixed colors cover Eén/Canvas/VRT MAX only; unmapped channels (Ketnet, VRT MAX Sport, Radio 1) and the UNASSIGNED lane use a neutral fallback (`--text-shell-3` at 15% alpha + border) — extending ops-tokens with real channel vars is an E-2/designer item, not B-1 scope. Channel color from the Channel record's `color` field stays DATA (A-3 precedent).
+8. *Test data:* `opsFixtureWeek` carries no BroadcastSlot/Channel payloads yet — B-1-T1 extends it ADDITIVELY with slot fixtures incl. one clamped, one same-lane overlap, one slot-vs-event divergence, and one unresolvable-channel case (A-5 e2e interception inherits them for B-4).
+
+- **B-1-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High (was Med — AS-3 resolved) · ✅ **DONE 2026-07-04** — `src/components/ops/rundownLayout.ts` (sibling module; ops-selectors v2 byte-stable) + 21 tests incl. seeded property sweep; fixture ADDITIVE extension (FIXTURE_CHANNELS/FIXTURE_SLOTS + makeChannel/makeSlot); Contract Snapshot `docs/governance/contracts/rundown-layout.md`.
+  Goal: Pure lane/position selectors: `resolveChannel(event, slots, channels)`, `layoutRundown(events, slots, channels, day): Lane[]` implementing pins 1/2/5/6.
+  TDD first: minute-precision positioning table + property test (pin 1) + fixture extension (pin 8).
+  Pull Gate: ~~AS-3 data check~~ ✅ CLOSED 2026-07-04 (slot coverage 57% is a seed artifact; slot-first + `event.channel`-relation fallback = 100%, see Assumptions Ledger).
   Hand-off: Contract Snapshot `rundown-layout v1`. Unblocks: B-1-T2.
-- **B-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Rundown screen markup: axis ticks, lanes, blocks, legend row, `EventInspector v1` embed.
-  TDD: interaction tests (select, outline states, unassigned lane).
+- **B-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-04** — RundownScreen replaces the placeholder (root testid `ops-screen-planner` kept per OpsShell contract); pins 3/4/7 implemented (channels via `channelsApi.list()` — recorded; contracts in-screen = 2nd occurrence, B-3 extraction trigger marked in code); selected-wins outline precedence (from the design HTML); EventInspector v1 embedded; 21 interaction tests. **STORY B-1 COMPLETE.**
+  Goal: Rundown screen markup: axis ticks, lanes, blocks, legend row, `EventInspector v1` embed; fetching per pin 4, day default per pin 3, empty-day AC.
+  TDD: interaction tests (select, outline states, unassigned lane, empty day).
   Pull Gate: `rundown-layout v1`, `EventInspector v1`. Unblocks: B-2-T1, END OF STORY SEQUENCE.
 
-### Story B-2 — Day pills + shared day state
+### Story B-2 — Day pills + shared day state ✅ DONE 2026-07-04
 **As a** channel manager **I want** MON–SUN day pills with event counts **so that** I move through the week without leaving the rundown.
 
 Size **S** · Priority 3 · DoR: **READY**
 
-- **B-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+- **B-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-04** — pill row on RundownScreen (component-local — Rule of Two; counts via reused `groupEventsByDay`, active accent per design HTML, right label `WED 4 MARCH 2026`); PRE-COMMIT PREP unit (Rule of Three TRIGGERED): shared `src/components/ops/dayLabels.ts` `formatOpsDay` extracted from ScheduleScreen/EventInspector under green tests. 8 pill tests + 6 formatter pins. **STORY B-2 COMPLETE.**
   Goal: Day pill row (counts, active accent state, right-aligned date label) bound to `useOpsDay` (URL-backed, shared with Schedule's week context).
   TDD: count + navigation tests. Pull Gate: `ops-selection v1`.
   Unblocks: B-4-T1, END OF STORY SEQUENCE.
 
-### Story B-3 — Rights tiles + matrix
+### Story B-3 — Rights tiles + matrix ✅ DONE 2026-07-04
 **As a** rights manager **I want** contract-health tiles and a competitions × platforms matrix **so that** expiring/missing rights are visible before they bite.
 
-Business Value 3 · Priority 4 · Size **M** · DoR: **READY** · INVEST all ✓
+Business Value 3 · Priority 4 · Size **M** · DoR: **READY** (re-gated 2026-07-04: reconciliation universe + 8 further premises pinned below; pull gate run — real `platforms[]` vocabulary is exactly `['linear','on-demand','radio']`) · INVEST all ✓
 
-**AC:**
-- Given all contracts, Then 4 tiles show counts (VALID / EXPIRING ≤90d / IN NEGOTIATION / MISSING = competitions with events but no contract) in semantic colors; counts reconcile with the matrix rows below.
-- Given a contract with `platforms[]`, Then LINEAR/MAX/RADIO/ON-DEM cells show accent `●` (has right) or `--t3` `·`.
-- Given `validUntil`, Then validity shows `Until <date>` + 3px progress bar: red <15% term remaining, amber <50%, green else; `NO CONTRACT` rows show the red status word and no bar.
+**AC (amended at the 2026-07-04 re-gate):**
+- Given all contracts + competitions + events, Then 4 tiles show counts (VALID / EXPIRING / IN NEGOTIATION / MISSING) as a FOLD over the matrix rows' DERIVED statuses — MISSING covers all three derivation causes (no contract row for an event-bearing competition, picked status `'none'`, lapsed `validUntil`), same derivation as Schedule/Inspector; reconciliation tiles == matrix aggregation is an identity by construction (T2 pins it plus a property test: ∀ events, `deriveRightsStatus(event, contracts, now)` === the event's competition-row status).
+- Given a contract with `platforms[]`, Then LINEAR/MAX/RADIO/ON-DEM cells show accent `●` (has right) or `--text-shell-3` `·`.
+- Given `validUntil`, Then validity shows `Until <date>` + 3px progress bar: red <15% term remaining, amber <50%, green else (unrounded comparisons); `NO CONTRACT` rows show the red status word and no bar.
 - Edge: contract without `validFrom` → bar suppressed, date shown.
 
-- **B-3-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Pure selectors `deriveRightsTiles(contracts, competitions, events)`, `deriveValidityProgress(contract, now)`; extends `ops-selectors v1` (Abstraction Check: reuse `deriveRightsStatus` thresholds — single source for 90-day rule).
-  TDD first (threshold boundary table).
-  Pull Gate: `platforms[]` values enumerated from real data (map to 4 columns; unknown platforms → logged, not dropped).
-  Hand-off: `ops-selectors v2` snapshot. Unblocks: B-3-T2.
-- **B-3-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Rights screen markup (tiles grid + matrix grid per README §3).
-  TDD: reconciliation test (tiles == matrix aggregation).
+**Pinned decisions (DoR re-gate 2026-07-04 — write tests to these):**
+1. *Platform → column mapping:* `linear→LINEAR`, `on-demand→MAX` (backend derives `'on-demand'` from legacy `maxRights`; VRT MAX is the OTT service; the design demo never lights ON-DEM), `radio→RADIO`; **ON-DEM renders `·` for all rows** (reserved — see AS-8). Unknown platform values light NO column and are logged once (not dropped silently). Note: "MAX" as a column label is VRT/tenant vocabulary — E-2/designer note, not B-3 scope.
+2. *Row universe:* matrix rows = competitions with ≥1 contract row ∪ competitions with ≥1 event (ALL events, no date scoping — date-scoping deferred to the AS-4 threshold session). ONE row per competition = its GOVERNING contract (pickGoverningContract semantics — fixture comp 109 renders successor id 10). Dangling `competitionId` (no Competition record) → row with fallback label `COMPETITION #<id>`, never dropped.
+3. *Competition-scoped core:* extract `deriveCompetitionRightsInfo(competitionId, contracts, now)` inside `selectors.ts`; `deriveRightsInfo` delegates (event → `event.competitionId`) — A-3 permutation rows stay the pin for both. Status words on this screen are DERIVED only, never stored `contract.status` (seed contract 4 stores `'expiring'` but derives MISSING at a lapsed clock — correct).
+4. *Validity progress:* `pct = clamp((validUntilEndOfDayMs − now) / (validUntilEndOfDayMs − toEpochMs(validFrom)), 0, 1)`, returned UNROUNDED (null = no bar); thresholds compare unrounded; pct 0 ⇔ lapsed (bar disappears exactly when the word flips). Null for absent/garbage `validFrom` OR `validUntil`, degenerate `validFrom ≥ validUntil`; future `validFrom` clamps to 1. Text variants (design HTML): NEGOTIATION → `In negotiation`; no-agreement MISSING → `No agreement in place`; open-ended VALID → `Until —`.
+5. *Row note:* governing contract's `notes` (10px line), omitted when empty/no contract. *Row order:* severity-first (MISSING, EXPIRING, NEGOTIATION, VALID), then competition name asc.
+6. *`now` seam:* `RightsScreen({ now = new Date() })` — the only impure edge, same as siblings; no `Date.now()` in selectors.
+7. *Loading:* empty-state/skeleton until the first `contractsApi.list()` resolution (contracts are this screen's PRIMARY data — the everything-MISSING pre-fetch flash is not acceptable here); the `loaded` flag lands in the FEATURE unit, keeping the PREP behavior-preserving.
+8. *Fixtures:* additive `FIXTURE_COMPETITIONS` + `makeCompetition` (fixture contracts reference comp ids 101–110 that exist nowhere yet); existing exports byte-stable.
+9. *Root testid:* keep `ops-screen-rights` (OpsShell contract, B-1 precedent).
+
+- **B-3-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-04** — ops-selectors v3 (deriveCompetitionRightsInfo extraction with A-3/A-4 suites byte-unchanged as the behavior pin; deriveRightsMatrix/Tiles; deriveValidityProgress + deriveValidityBand threshold single source); additive FIXTURE_COMPETITIONS incl. 107 'Quiet G' exclusion pin; 23 tests.
+  Goal: Pure selectors `deriveRightsTiles(contracts, competitions, events, now)`, `deriveValidityProgress(contract, now)`, `deriveRightsMatrix(...)` (or equivalent row derivation) + the pin-3 `deriveCompetitionRightsInfo` extraction; reuse `deriveRightsStatus` thresholds — single source for the 90-day rule (AS-4).
+  TDD first (threshold boundary table + pin-4 edge table).
+  Pull Gate: ✅ RUN 2026-07-04 — `platforms[]` = `['linear','on-demand','radio']`; mapping pinned (pin 1).
+  Hand-off: **`ops-selectors v3`** snapshot (the v2 changelog pre-records this renumber). Unblocks: B-3-T2.
+- **B-3-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High · ✅ **DONE 2026-07-04** — PREP unit: `useContracts(): { contracts }` strictly behavior-preserving (Schedule/Rundown refactored, their suites byte-unchanged; snapshot `docs/governance/contracts/useContracts.md` v1). FEATURE unit: additive `isSettled` hook extension (review-renamed from `loaded` — promise-spec term, flips on success OR failure) + RightsScreen (tiles + matrix per README §3; pin-7 skeleton incl. failure path; NO CONTRACT variant; bar rule `progress > 0` from the design HTML); 16 interaction tests. **STORY B-3 COMPLETE.**
+  Goal: PRE-COMMIT PREP unit (B-2-T1 precedent, separate REFACTORING commit): extract `useContracts()` to `src/components/ops/useContracts.ts` — behavior-preserving quiet fetch (Schedule + Rundown refactored under green tests; 3rd consumer = the trigger B-1 pin 4 pre-authorized). Then FEATURE: Rights screen markup (tiles grid + matrix grid per README §3), hook extended to `{ contracts, loaded }` for pin 7.
+  TDD: reconciliation test (tiles == matrix aggregation) + the pin-1 property test.
   Unblocks: B-4-T1, END OF STORY SEQUENCE.
 
-### Story B-4 — EPIC B smoke test
-- **B-4-T1** · Hat **FEATURE** · Model **Sonnet** · Size **S**
+### Story B-4 — EPIC B smoke test ✅ DONE 2026-07-04
+- **B-4-T1** · Hat **FEATURE** · Model **Sonnet** · Size **S** · ✅ **DONE 2026-07-04** — `e2e/smoke-epic-b.flag-on.spec.ts` (full journey with literal geometry/tile/bar assertions; interception extended with `/api/channels` + date-window-honoring `/api/broadcast-slots`; E2E_COMPETITIONS → shared FIXTURE_COMPETITIONS); runbook §rundown/§rights filled; 6/6 e2e green. Retro note: tab NavLinks drop `?day`/`?event` (deep-link workaround in the spec).
   Goal: E2E: schedule → select event → switch to RUNDOWN → same event selected + outlined → switch day via pills → RIGHTS tab → tile counts match seeded contracts. Extend runbook.
   Unblocks: **EPIC B RETRO**, END OF STORY SEQUENCE.
+
+### EPIC B — Retro (2026-07-04, per §10.4 / BB §10)
+
+**Phase Summary.** EPIC B COMPLETE — all 4 stories done in one day on `feature/B-1-rundown-lanes`
+(11 commits, stacked on the EPIC A branch/PR #10): B-1 Rundown lanes (`00572ae` rundown-layout v1
++ `210141c` screen), B-2 day pills (`77d0222` PREP + `9c129ae`), B-3 rights (`3ba6f72` PREP +
+`584a324` ops-selectors v3 + `c8d28d6` useContracts PREP + `e942796` screen), B-4 smoke
+(`7c58c6a`), plus two DoR re-gate commits (`f462798`, `21f8428`). Test base 445 → **551** vitest
+(under the new repo-wide TZ pin) + e2e 5 → **6** (EPIC B cross-screen journey), `tsc -b` clean
+throughout. Contracts: rundown-layout v1 · useContracts v1 · ops-selectors v3 · ops-e2e amendments.
+
+**DoD additions check:** (1) minute-precise positions incl. clamping — unit property sweep +
+e2e clamp literals ✓. (3) rights numbers reconcile 1:1 — reconciliation-by-construction fold +
+∀-events property + e2e tile/bar literals ✓. (2) selection shared via URL — **mechanism ✓, UX
+partial**: OpsShell tab NavLinks drop `?day`/`?event`, so cross-screen selection works via deep
+links only. OPEN RETRO DECISION → ADR-014 amendment candidate: carry ops params across tab
+switches (small change, needs the architect).
+
+**Process notes.** (a) DoR re-gates before B-1 and B-3 pinned 8 + 9 premises and caught a
+reconciliation AC that would have contradicted the Schedule screen — zero mid-task stalls
+followed; the A-5 lesson (verify premises) is now the working method. (b) Mutation probes became
+a standard review-chain step and caught unenforced pins at B-1-T1 (3) and B-3-T1 (2) plus a
+100x fraction-vs-percent naming landmine before any consumer existed. (c) Two Hats produced 4
+clean REFACTORING commits (formatOpsDayLabel, deriveCompetitionRightsInfo, useContracts, plus
+hunk-split staging) — the Rule-of-Three triggers pre-recorded in EPIC A all fired as predicted.
+(d) The vitest TZ pin (`America/New_York`) retroactively made every date assertion able to fail
+on TZ bugs; zero fragile tests surfaced.
+
+**Found work / upstream questions (not fixed here):** backend `broadcastSlots.ts` day-window
+uses inclusive `lte` — a midnight-UTC slot returns for BOTH adjacent days (suspected bug; e2e
+interception deliberately models half-open and documents the divergence; needs a backend
+decision). Slot wall-clock TZ semantics (rundownLayout reads slot UTC strings textually —
+revisit at the first real slot payload, alongside `Channel.timezone`).
+
+**Debt candidates awaiting a free `debt-register.md`:** contracts-duplication loop opened
+B-1-T2 → closed B-3-T2 PREP (record the closed loop); e2e TS not typechecked by `tsc -b`; e2e
+profile builds serial/un-cached; `isNoAgreement` selector boolean (v3.1, replaces the
+validityLabel string discriminant); title-case contract-date formatter at occurrence two;
+theme-toggle e2e selector testid; sub-lane stacking UX (overlap pair renders occluded per pin 5);
+live-backend smoke gap; season label unwired (E-2/designer); rights matrix recompute per
+events-socket update (check at E-1 SLO run).
+
+**SLOs still unmeasured** (`day switch < 200ms p95`, `rights render < 1s p95 @ 100 contracts`)
+— E-1 remains the measurement point. **Mode check: DELIVERY retained** — unchanged rationale;
+EPIC C (Registry) introduces the first new WRITE paths (create/remarks), which if anything
+argues for keeping full governance. Next per §10.4: expand **EPIC C** with `backlog-builder`
+(AS-5 performer/staff verification is the first gate) — architect/user call.
 
 ---
 

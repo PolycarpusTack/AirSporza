@@ -10,13 +10,17 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-// The real ScheduleScreen (A-3-T2) needs AppProvider data + a contracts fetch —
-// stubbed empty here (screen behavior is covered by ScheduleScreen.test.tsx;
-// this file tests the shell chrome/routing only).
+// The real ScheduleScreen (A-3-T2) and RundownScreen (B-1-T2) need AppProvider
+// data + quiet fetches — stubbed empty here (screen behavior is covered by
+// their own test files; this file tests the shell chrome/routing only).
 vi.mock('../../context/AppProvider', () => ({
   useApp: () => ({ events: [], sports: [], competitions: [], techPlans: [], crewFields: [] }),
 }))
-vi.mock('../../services', () => ({ contractsApi: { list: vi.fn(async () => []) } }))
+vi.mock('../../services', () => ({
+  contractsApi: { list: vi.fn(async () => []) },
+  channelsApi: { list: vi.fn(async () => []) },
+  schedulesApi: { listSlots: vi.fn(async () => []) },
+}))
 
 import { OpsShell, OPS_TABS, type OpsTabId } from './OpsShell'
 
@@ -62,7 +66,7 @@ describe('routing inside the shell', () => {
     expect(currentPath()).toBe('/ops/schedule')
   })
 
-  it('clicking the PLANNER tab navigates to /ops/planner and shows the Rundown placeholder', async () => {
+  it('clicking the PLANNER tab navigates to /ops/planner and shows the Rundown screen', async () => {
     const user = userEvent.setup()
     renderShell('/ops')
 
