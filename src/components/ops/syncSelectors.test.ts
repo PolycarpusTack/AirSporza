@@ -21,7 +21,12 @@ import {
   makeJob,
   makeMergeCandidate,
 } from './__fixtures__/opsFixtureWeek'
-import { deriveJobCard, pendingCandidateCount, type JobDotColor } from './syncSelectors'
+import {
+  deriveJobCard,
+  mergeConfidencePercent,
+  pendingCandidateCount,
+  type JobDotColor,
+} from './syncSelectors'
 
 describe('deriveJobCard — dot state map (pin 1, all 5 statuses)', () => {
   it.each<{ status: ImportJob['status']; dot: JobDotColor }>([
@@ -194,6 +199,36 @@ describe('deriveJobCard — full fixture jobs end-to-end', () => {
       { id: 'job-failed', sourceName: 'Fixture Provider B', dotColor: 'red', statusLine: '16:00 · 3 DEAD-LETTERS' },
       { id: 'job-running', sourceName: 'League Data C', dotColor: 'neutral', statusLine: '17:00 · OK · 0 RECORDS' },
     ])
+  })
+})
+
+describe('mergeConfidencePercent (D-2-T0) — whole-number percent, honest coercion', () => {
+  it.each<{ input: number; expected: number }>([
+    { input: 0.9, expected: 90 },
+    { input: 0.62, expected: 62 },
+  ])('number $input → $expected%', ({ input, expected }) => {
+    expect(mergeConfidencePercent(input)).toBe(expected)
+  })
+
+  it.each<{ input: string; expected: number }>([
+    { input: '0.95', expected: 95 },
+    { input: '0.8', expected: 80 },
+  ])('Decimal-serialized STRING "$input" → $expected% (Number() coercion seam)', ({ input, expected }) => {
+    expect(mergeConfidencePercent(input as unknown as number)).toBe(expected)
+  })
+
+  it.each<{ input: number; expected: number }>([
+    { input: 0.899, expected: 90 }, // rounds up (89.9)
+    { input: 0.894, expected: 89 }, // rounds down (89.4) — float-safe, avoids 0.895 trap
+  ])('rounds $input → $expected%', ({ input, expected }) => {
+    expect(mergeConfidencePercent(input)).toBe(expected)
+  })
+
+  it.each<{ input: number; expected: number }>([
+    { input: 0, expected: 0 },
+    { input: 1, expected: 100 },
+  ])('boundary $input → $expected%', ({ input, expected }) => {
+    expect(mergeConfidencePercent(input)).toBe(expected)
   })
 })
 

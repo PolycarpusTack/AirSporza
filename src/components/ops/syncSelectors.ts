@@ -90,6 +90,18 @@ export function deriveJobCard(job: ImportJob): JobCard {
 }
 
 /**
+ * Merge-candidate confidence as a whole-number percent (D-2-T0 shared extraction).
+ * `confidence` is a Decimal(5,2) in 0..1 serialised as a STRING typed `number` →
+ * explicit Number() coercion (never coercion-by-accident). Math.round(Number(x)*100)
+ * is OUTPUT-IDENTICAL to the legacy `Math.round(x*100)` (the `*` already coerced) —
+ * this extraction is byte-stable, it just names + de-risks the coercion.
+ * Shared by ImportView.ReviewTab (legacy) + SyncScreen's deriveMergeCard (D-2-T1).
+ */
+export function mergeConfidencePercent(confidence: number): number {
+  return Math.round(Number(confidence) * 100)
+}
+
+/**
  * Count of candidates still awaiting review (pin 5). The server pre-filters to
  * pending, but we count defensively by `status === 'pending'` — this documents
  * the D-3 decrement seam (an approved/ignored candidate drops out of the count
