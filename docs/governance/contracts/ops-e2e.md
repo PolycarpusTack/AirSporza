@@ -1,8 +1,20 @@
 # CONTRACT SNAPSHOT: ops-e2e
 
-Version: 1.1 · Date: 2026-07-06 · Task: A-5-T0 (v1) + C-7-T1 (v1.1 stateful registry store)
+Version: 1.2 · Date: 2026-07-09 · Task: A-5-T0 (v1) + C-7-T1 (v1.1 stateful registry store) + D-4-T1 (v1.2 stateful sync store)
 
 **Changelog**
+- **v1.2 (2026-07-09, D-4-T1):** SECOND stateful capability. New `setUpSyncE2E(page)`
+  (ADDITIVE — calls `setUpPlanzaE2E` then registers the SYNC import routes) backed by an
+  IN-MEMORY sync store seeded per test. Routes: `GET /import/jobs` (STATIC, frozen
+  `FIXTURE_JOBS` clone), `GET /import/merge-candidates?status=pending` (store, seeded from
+  `FIXTURE_MERGE_CANDIDATES` + an e2e-local `cand-fail`), `POST .../:id/approve-merge` &
+  `.../create-new` (mutate store `status` → `approved_merge`/`create_new`, fulfil
+  `merge-decision v1` `{message,candidate,event}`; `id === 'cand-fail'` → 500 to drive the
+  inline-error AC). CURRENT diff side is served by the base `events` route. **Known
+  fidelity note:** SyncScreen decrements the badge via its LOCAL `decided` map (no refetch),
+  so the store's status-mutation/pending re-derivation is defensive, not smoke-exercised —
+  the badge assertions validate the real (local-map) path. Real-backend write gap (decisions
+  emulated, jobs static) recorded in runbook §sync — same A-5/C-7 trade-off.
 - **v1.1 (2026-07-06, C-7-T1):** FIRST STATEFUL interception capability. New
   `setUpRegistryE2E(page)` (ADDITIVE — calls `setUpPlanzaE2E` for auth/clock/base,
   then registers the registry routes) backed by an IN-MEMORY `RegistryStore`

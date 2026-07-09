@@ -26,19 +26,23 @@
  * and 404 — unlike 401 — has no auth side effects). socket.io uses websockets,
  * which route interception does not cover; the connection fails quietly.
  */
-import type { Page } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 import type { Event } from '../src/data/types'
+import type { ImportMergeCandidate } from '../src/services'
 import {
   FIXTURE_CHANNELS,
   FIXTURE_COMPETITIONS,
   FIXTURE_CONTRACTS,
   FIXTURE_EVENTS,
+  FIXTURE_JOBS,
+  FIXTURE_MERGE_CANDIDATES,
   FIXTURE_NOW_DAYTIME,
   FIXTURE_PLANS,
   FIXTURE_PLAYERS,
   FIXTURE_SLOTS,
   FIXTURE_SPORTS,
   FIXTURE_TEAMS,
+  makeMergeCandidate,
   makeSlot,
 } from '../src/components/ops/__fixtures__/opsFixtureWeek'
 
@@ -417,4 +421,112 @@ export async function setUpRegistryE2E(page: Page): Promise<void> {
     }
     return route.fulfill({ json: store.competitions })
   })
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * D-4-T1 — STATEFUL sync interception (ops-e2e v1.2, first SYNC stateful capability).
+ * `setUpSyncE2E` calls setUpPlanzaE2E (auth/clock/base) then ADDS the import routes
+ * the SYNC screen boots on (verified against src/services/imports.ts):
+ *   GET  /api/import/jobs                              -> importsApi.listJobs() (bare)
+ *   GET  /api/import/merge-candidates?status=pending   -> importsApi.listMergeCandidates
+ *   POST /api/import/merge-candidates/:id/approve-merge -> approveMergeCandidate (body targetEntityId)
+ *   POST /api/import/merge-candidates/:id/create-new    -> createMergeCandidateEntity
+ * The CURRENT side of a merge diff is served by the BASE harness (API_EVENTS from
+ * FIXTURE_EVENTS via the events route, resolved by bare-numeric-id string match).
+ *
+ * The base harness's catch-all 404 for unhandled /api endpoints otherwise makes the
+ * import routes return 404 -> useSyncData quietly settles empty; these routes are
+ * registered AFTER setUpPlanzaE2E so (Playwright's reverse-order routing) they WIN.
+ * The merge-candidates LIST route is registered BEFORE the specific approve-merge +
+ * create-new decision routes so the specific decision routes win.
+ *
+ * Jobs are STATIC (served from the frozen FIXTURE_JOBS clone — no state). Candidates
+ * are STATEFUL: an in-memory store, seeded per test (fresh page → fresh store = reset).
+ * A decision mutates the store candidate's `status` (approved_merge / create_new) and
+ * `route.fulfill`s the merge-decision v1 shape ({ message, candidate, event }). NOTE:
+ * SyncScreen does NOT refetch after a decision (useSyncData.refresh is not auto-wired —
+ * the badge decrement is driven by the component's LOCAL `decided` map, matching
+ * production). So the store's status-mutation + the LIST route's pending re-derivation
+ * are defensive/forward-compat here, NOT what the badge assertions exercise — the smoke
+ * validates the real (local-map) decrement path. The `cand-fail` candidate's decision
+ * routes 500 to drive the inline-error AC (the REAL-BACKEND WRITE gap: decisions are
+ * emulated in-memory, jobs static — recorded in runbook §sync). PII (EPIC C DoD 3):
+ * anonymised fixture values only (no real fixtures/athletes).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** The one candidate whose decision routes 500 (drives the inline-error AC). */
+const SYNC_FAIL_CANDIDATE_ID = 'cand-fail'
+
+interface SyncStore {
+  candidates: ImportMergeCandidate[]
+}
+
+/**
+ * Seed the sync store: the two shared FIXTURE_MERGE_CANDIDATES (cand-high — conf
+ * '95.00', suggestedEntityId '1', PARTICIPANTS differs → the amber changed row;
+ * cand-low — conf 62, suggestedEntityId null → incoming-only) PLUS a third e2e-local
+ * `cand-fail` (pending, suggestedEntityId null → KEEP SEPARATE is the clickable path)
+ * used only for the failure AC. All pending → the SYNC tab reads `SYNC [3]`.
+ */
+function seedSyncStore(): SyncStore {
+  return {
+    candidates: [
+      ...clone(FIXTURE_MERGE_CANDIDATES as unknown as ImportMergeCandidate[]),
+      makeMergeCandidate({
+        id: SYNC_FAIL_CANDIDATE_ID,
+        entityType: 'event',
+        confidence: 55,
+        suggestedEntityId: null, // create-only → KEEP SEPARATE is the clickable decision
+        status: 'pending',
+        importRecord: {
+          id: 'rec-cand-fail',
+          sourceId: 'src-fixture',
+          sourceRecordId: 'srcrec-cand-fail',
+          entityType: 'event',
+          normalizedJson: {
+            sportName: 'Football',
+            competitionName: 'League A',
+            startsAtUtc: '2026-03-06T13:00:00.000Z',
+            participantsText: 'Summit United — River Falls', // anonymised, distinct
+          },
+          sourceUpdatedAt: null,
+          source: { id: 's2', code: 'api_football', name: 'Fixture Provider B' },
+        },
+      }),
+    ],
+  }
+}
+
+/** `/import/merge-candidates/:id/approve-merge` → the STRING id (2nd-to-last segment). */
+function decisionCandidateId(url: URL): string {
+  const parts = url.pathname.split('/').filter(Boolean)
+  return parts[parts.length - 2]
+}
+
+export async function setUpSyncE2E(page: Page): Promise<void> {
+  await setUpPlanzaE2E(page)
+  const store = seedSyncStore()
+
+  // GET jobs — STATIC (frozen fixture clone; no state).
+  await page.route('**/api/import/jobs', (route) => route.fulfill({ json: clone(FIXTURE_JOBS) }))
+
+  // GET merge-candidates — pending-only derive from the store (registered BEFORE the
+  // specific decision routes so those win on the /:id/… paths).
+  await page.route('**/api/import/merge-candidates*', (route) =>
+    route.fulfill({ json: store.candidates.filter((candidate) => candidate.status === 'pending') }),
+  )
+
+  // POST decisions — approve-merge / create-new. cand-fail → 500 (inline-error AC);
+  // else mutate the store candidate's status + fulfill the merge-decision v1 shape.
+  const decide = (nextStatus: ImportMergeCandidate['status']) => (route: Route) => {
+    const id = decisionCandidateId(new URL(route.request().url()))
+    if (id === SYNC_FAIL_CANDIDATE_ID) {
+      return route.fulfill({ status: 500, json: { status: 'error', message: 'Emulated decision failure' } })
+    }
+    const candidate = store.candidates.find((c) => c.id === id)
+    if (candidate) candidate.status = nextStatus
+    return route.fulfill({ json: { message: 'ok', candidate: candidate ?? null, event: { id: 1 } } })
+  }
+  await page.route('**/api/import/merge-candidates/*/approve-merge', decide('approved_merge'))
+  await page.route('**/api/import/merge-candidates/*/create-new', decide('create_new'))
 }

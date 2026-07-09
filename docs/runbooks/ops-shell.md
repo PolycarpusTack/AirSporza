@@ -190,3 +190,64 @@ Known limitation (writes): see §known-limitations — the C-7 smoke EMULATES th
 create/remark writes in-memory; the real backend write routes are proven by the
 backend vitest suite, not the e2e layer. Rollback of the whole shell (registry
 included) is flag OFF + REBUILD + REDEPLOY (TD-27), never a runtime switch.
+
+## §sync (`/ops/sync` — EPIC D, smoke: `e2e/smoke-epic-d.flag-on.spec.ts`)
+
+SYNC surfaces two things: nightly IMPORT-JOB health (did last night's ingest run
+clean?) and the MERGE-REVIEW queue (deduplication candidates awaiting a human
+approve/keep decision — the initiative's 2nd write surface, IRREVERSIBLE). Data:
+`useSyncData v1` fetches `GET /api/import/jobs` (bare) + `GET
+/api/import/merge-candidates?status=pending` in parallel; decisions POST to
+`/api/import/merge-candidates/:id/approve-merge` (body `{targetEntityId}`) and
+`/create-new`. The CURRENT side of a merge diff comes from AppProvider events
+(bare-numeric-id string match). What the D-4 smoke covers (fixture values in
+[brackets]):
+
+Verification checklist (flag-ON, logged in):
+1. Visit `/ops/sync` → the `NIGHTLY SYNC · 02:00 CET` label + one job card per recent
+   job [3]. Each card shows a status dot (completed→green / failed→red / partial→amber /
+   queued·running→neutral) and a meta line `HH:MM · OK · N RECORDS` or `HH:MM · N
+   DEAD-LETTERS` [`15:00 · OK · 128 RECORDS`, `16:00 · 3 DEAD-LETTERS`, `17:00 · OK · 0
+   RECORDS`]. The `HH:MM` is `startedAt ?? createdAt` as WALL-CLOCK time in the browser
+   TZ (the one ambient-TZ read — the smoke pins `America/New_York`; live reads the
+   viewer's TZ). The SYNC shell tab shows the pending-candidate count [`SYNC [3]`].
+2. Each pending candidate is a MERGE CARD: kind chip · incoming name · `→ MATCHES →` ·
+   current name · `N% MATCH` (green band ≥90, amber <90) · `VIA <source>`. When the
+   current side resolves, a `FIELD | INCOMING | CURRENT` diff renders (`ops-sync-diff-row`
+   rows for SPORT/COMPETITION/DATE/PARTICIPANTS that BOTH sides carry); a CHANGED
+   INCOMING cell is amber. A candidate with a null `suggestedEntityId` is INCOMING-ONLY
+   (`CURRENT NOT LOADED`, no diff table) and APPROVE is create-gated OFF.
+3. `APPROVE MERGE` (enabled only when a `suggestedEntityId` exists) → the footer becomes
+   `✓ MERGED INTO REGISTRY`; `KEEP SEPARATE` → `KEPT AS SEPARATE RECORDS`. The decided
+   card's buttons are REPLACED by the terminal line (not re-decidable in-view) and the
+   SYNC badge decrements. Decisions are SINGLE-FLIGHT (a rapid double-click fires once).
+4. A rejected decision (e.g. a 409 "already decided", or any 5xx) renders a quiet inline
+   error (`ops-sync-decision-error`) with the message, re-enables both buttons for a
+   user-initiated retry, and leaves the badge unchanged.
+
+| Symptom | Likely cause | Check / fix |
+|---|---|---|
+| SYNC renders `NO RECENT SYNC JOBS` / `NO PENDING CANDIDATES` unexpectedly | one/both fetches failed (QUIET by design — a failed fetch still settles the skeleton) | DevTools Network: `GET /api/import/jobs` + `/api/import/merge-candidates?status=pending` must resolve |
+| Job times off by hours | the wall-clock is the AMBIENT browser TZ (the documented D-1 seam) — not a bug | confirm the viewer's TZ; the smoke pins `America/New_York` |
+| Job stuck on `LOADING SYNC` | neither fetch settled (hung network) — the skeleton clears on success OR failure | DevTools Network — both requests must settle |
+| Merge card shows `CURRENT NOT LOADED` where a match was expected | the suggested event isn't in AppProvider (not loaded), or `suggestedEntityId` is non-numeric | verify `GET /api/events` carries the id; DeduplicationService emits `String(eventId)` |
+| `N% MATCH` looks 100× too big/small | `confidence` is a Decimal(5,2) already on a 0..100 scale — the raw value IS the percent (sync-selectors v1.2 corrected the legacy `*100`) | inspect the candidate's raw `confidence`; never re-scale |
+| APPROVE MERGE greyed out | create-only candidate (`suggestedEntityId` null) — KEEP SEPARATE creates a new record | expected; the tooltip explains it |
+| A decision "sticks" then reappears after reload | decisions are EMULATED in-memory in e2e (see below); a real reload refetches the backend | not an e2e concern on live data — the backend 409 guard is the real idempotency |
+
+Known limitations (§sync):
+- **Writes are EMULATED in e2e** (ops-e2e **v1.2**, extends the A-5/C-7 gap): the D-4
+  smoke serves import JOBS STATICALLY and the merge-candidate store IN-MEMORY
+  (`setUpSyncE2E`, reset per test) — approve/keep decisions mutate that store and never
+  hit the real backend. The smoke proves the built bundle + the EPIC D contracts
+  (`sync-selectors v1.2` diff/band derivation, `useSyncData v1` quiet-settle, the
+  `merge-decision v1` single-flight write path incl. the inline-error branch) wired
+  end-to-end — NOT the real routes. The real idempotency is the D-3-T0 backend 409 guard
+  ("already decided"), covered by the backend vitest suite; a live-backend smoke remains
+  future work.
+- **`NIGHTLY SYNC · 02:00 CET` is STATIC copy** (design) — it is not read from a scheduler;
+  the actual cadence lives in the backend cron/config, not the UI.
+- **The badge is FIRST-VISIT populated** (pin 5): the pending count publishes UP to the
+  shell tab only once the Sync screen mounts and settles; there is no pre-visit
+  cross-screen count fetch (an E-item). It is not cleared on navigating away (persistent
+  chrome, by design).
