@@ -5,7 +5,7 @@
 > `backlog-builder-agent-v2.md` (workflow) · `gpm-v2.1.md` (ZAP/CIP/PREP execution)
 > **Solution design:** `docs/design_handoff_planza_ops/README.md` + `Planza App.dc.html` + screenshots
 > **Current-state baseline:** codebase survey 2026-07-02 (see §6 Architecture Memory delta)
-> **Status:** v1 — EPICs A, B, C & D COMPLETE incl. retros (D done 2026-07-09 — SYNC: job health + merge review, the 2nd write surface); EPIC E outlined (HARDENING — BB v5.1 §10)
+> **Status:** v1 — **ALL EPICs A–E COMPLETE incl. retros (INITIATIVE CLOSED 2026-07-10).** A–D merged to main; EPIC E (HARDENING) on `feature/E-hardening` (unpushed). Cutover = ADR-016 COEXIST (flag ON as a browse layer). Remaining = outward-facing housekeeping (push/merge E + flip the prod flag) + a follow-on initiative (ops mutation surfaces + ImportView reconciliation).
 
 ---
 
@@ -1050,7 +1050,7 @@ Next per §10.4: expand **EPIC E** with `backlog-builder`.
 > 7. **E-4 — backend `broadcastSlots.ts` inclusive-`lte` day-window fix.** `plannedStartUtc.lte = dateEnd` (VERIFIED, line 32) returns a midnight-UTC slot for TWO adjacent days; the e2e models half-open and documents the divergence (EPIC B retro). Whether to change to a half-open `lt` window (and re-baseline any consumer) is a backend correctness call.
 > *(Out of band: AS-4 rights-window threshold formulas remain PROVISIONAL on the domain-gaps track / ADR-015 — NOT an EPIC E gate; noted so E-2/E-3 do not re-open it.)*
 
-### Story E-1 — Performance verification vs ALL SLOs
+### Story E-1 — Performance verification vs ALL SLOs ✅ COMPLETE (c1095af measure, 5a1c0a0 fix)
 **As an** architect **I want** every EPIC's SLO measured against its numeric target at the specified volume **so that** the go/no-go flag decision rests on numbers, not hope, and any regression is a surfaced gate rather than a production surprise.
 
 Business Value 3 · Priority 5 · Size **L** · DoR: **READY (conditional)** — E-1-T0's measurement-methodology decision is BLOCKING (the repo has a Playwright harness with pinned-clock interception but NO perf-measurement rig; "we can just measure it" is an A-5-class premise that must be verified before E-1-T1). INVEST I✓ N✓ V✓ E✓ S✓ T✓
@@ -1083,7 +1083,7 @@ INVEST note: independently valuable (the SLO table stands alone), estimable once
   Pull Gate: E-1-T0 rig trusted; each SLO's target/volume re-read from its EPIC header (this section's consolidated list is the index, the EPIC headers are the source).
   Hand-off: `docs/ops-perf-verification.md` complete (feeds E-5 runbook §performance + E-6-T0 cutover evidence). Unblocks: E-5-T1, E-6-T0, END OF STORY SEQUENCE.
 
-### Story E-2 — Accessibility + light-theme QA across all 5 screens
+### Story E-2 — Accessibility + light-theme QA across all 5 screens ✅ COMPLETE (55c962e..76fba65)
 **As an** ops user on assistive tech or in a daylight office **I want** every screen keyboard-operable and AA-clean in both themes **so that** the redesign is usable by everyone, not only mouse users in a dark control room.
 
 Business Value 3 · Priority 4 · Size **L** · DoR: **READY** — the built screens exist to audit; remediation may surface designer-decision gates (accrued E-2 notes), flagged below. INVEST all ✓
@@ -1120,7 +1120,7 @@ Business Value 3 · Priority 4 · Size **L** · DoR: **READY** — the built scr
   Pull Gate: `ops-a11y-audit.md` designer-gate list; ADR-013 (token-system single-source rule — no second token system).
   Hand-off: designer dispositions recorded (feeds E-4 debt servicing + E-6-T0). Unblocks: E-6-T0, END OF STORY SEQUENCE.
 
-### Story E-3 — Security review: STRIDE re-check + RBAC parity
+### Story E-3 — Security review: STRIDE re-check + RBAC parity ✅ COMPLETE (fe37529, e300afc)
 **As a** security-conscious architect **I want** a STRIDE re-check on the two ops write paths and a documented RBAC posture vs the legacy peers **so that** the redesign does not widen the attack surface or silently drop an authorization the old screens enforced.
 
 Business Value 3 · Priority 5 · Size **M** · DoR: **READY (conditional)** — E-3-T2's RBAC-parity policy is an ARCHITECT gate (which roles, shell vs per-tab); the STRIDE re-check (E-3-T1) is unblocked. INVEST all ✓ · DoR **+security** (HARDENING).
@@ -1151,7 +1151,7 @@ Business Value 3 · Priority 5 · Size **M** · DoR: **READY (conditional)** —
   Pull Gate (BLOCKING): the RBAC-parity policy decision (gate 4); `RequireRole` semantics (pin 3); flag-gated (no legacy regression).
   Hand-off: `ops-security-review.md` finalized (decision + implementation/acceptance recorded — feeds E-5 runbook §security-rbac + E-6-T0). Unblocks: E-5-T1, E-6-T0, END OF STORY SEQUENCE.
 
-### Story E-4 — TD servicing decisions (no invisible debt)
+### Story E-4 — TD servicing decisions (no invisible debt) ✅ COMPLETE (8b34486, 50096b1, cfc2c1a, 4cea569)
 **As an** engineering lead **I want** every debt item accrued across A–D entered and given a servicing decision **so that** the initiative closes with no invisible debt and the architect can weigh each shortcut explicitly.
 
 Business Value 2 · Priority 4 · Size **M** · DoR: **gated** — the servicing DECISIONS are architect calls (gates 5/6/7 below); the CONSOLIDATION of text-recorded debt into `debt-register.md` is unblocked. INVEST all ✓
@@ -1179,7 +1179,7 @@ INVEST note: valuable (closes the "awaiting a free debt-register" loop that ever
   Pull Gate: the A/B/C/D retro debt lists (the source index); `debt-register.md` current TD-23..29 state (TD-26 already SETTLED — do not re-open); `src/flags.ts` (TD-27), `App.tsx` (ADR-014), `backend/src/routes/broadcastSlots.ts` (gate 7) for re-verification.
   Hand-off: serviced `debt-register.md` + the three architect gate frames (feeds E-5 rollout §TD-27, E-6-T0 cutover). Unblocks: E-5-T1, E-6-T0, END OF STORY SEQUENCE.
 
-### Story E-5 — Runbook completion + `opsRedesign` flag rollout plan
+### Story E-5 — Runbook completion + `opsRedesign` flag rollout plan ✅ COMPLETE (d4bef99)
 **As an** on-call operator **I want** a complete ops runbook and an honest flag-rollout plan **so that** enabling, verifying, and rolling back the redesign is a documented procedure, not tribal knowledge.
 
 Business Value 2 · Priority 3 · Size **S→M** · DoR: **READY (conditional)** — consumes E-1 (SLO results), E-3 (RBAC decision), E-4 (TD-27 runtime-flag decision); the runbook prose is unblocked but the rollout plan cannot be honest until those land. INVEST all ✓
@@ -1205,7 +1205,7 @@ Business Value 2 · Priority 3 · Size **S→M** · DoR: **READY (conditional)**
   Pull Gate: `docs/ops-perf-verification.md` (E-1), `ops-a11y-audit.md` (E-2), `ops-security-review.md` (E-3), the serviced `debt-register.md` TD-27 decision (E-4); `src/flags.ts` (build-time constraint wording).
   Hand-off: complete runbook (feeds E-6-T0 cutover ADR — the rollout plan is an ADR input). Unblocks: E-6-T0, END OF STORY SEQUENCE.
 
-### Story E-6 — Cutover ADR + ImportView.ReviewTab migration (the headline architect decision)
+### Story E-6 — Cutover ADR + ImportView.ReviewTab migration ✅ COMPLETE (41788c4, ada2b85 — COEXIST)
 **As an** architect **I want** a decided cutover strategy (replace legacy routes vs coexist) and the deferred ImportView.ReviewTab migration resolved **so that** the org has one path off the legacy screens and the temporary D-2-T0 scaffolding is retired.
 
 Business Value 3 · Priority 5 · Size **L** · DoR: **gated** — E-6-T0 IS the architect decision (gate 1, the headline); it cannot be pre-decided, and E-6-T1 is entirely conditional on its ruling + on E-1..E-5 clearing. INVEST all ✓
@@ -1246,6 +1246,68 @@ Business Value 3 · Priority 5 · Size **L** · DoR: **gated** — E-6-T0 IS the
 - **Anti-bureaucracy (Core §5.3):** each task spec is shorter than its expected artifact (largest: E-6-T1 migration + regression; the audits E-1-T1/E-2-T1/E-3-T1 produce tables longer than their card). No task over-decomposed — E-1 kept as measure-all-SLOs (one rig, one report) rather than 9 micro-tasks; E-4 kept as one servicing pass (the items always change the same register together). The clickable-row a11y fix is a Rule-of-Three EXTRACTION (4 occurrences), not four copies (Core §5). ✓
 - **Architect gates surfaced, not decided:** 7 gates flagged (cutover strategy [headline], any-SLO-miss, pagination, RBAC parity, TD-27 runtime-flag, ADR-014 tab-param-carry, broadcastSlots `lte`) — each framed with options/cost, none pre-decided by the backlog. AS-4 threshold formulas explicitly kept OUT (domain-gaps track). ✓
 - **Honest deferrals:** the full ImportView reconciliation (ignore/dead-letters/sources/aliases/provenance) is scoped BY the E-6 ADR, not assumed; ReviewTab-export retirement is the debt-closing floor even under COEXIST; TD-26 noted as already SETTLED (not re-opened); RLS/tenant isolation left to the mitigation-plan track. ✓
+
+### EPIC E — RETROSPECTIVE (Phase Summary — INITIATIVE CLOSE, 2026-07-10)
+
+**Phase Summary.** EPIC E (HARDENING) COMPLETE — all 6 stories done on `feature/E-hardening`
+(off `main`, 16 commits `55c962e`→`ada2b85`, UNPUSHED). This closes the **whole A–E Ops
+redesign**. Final baselines: **vitest 832 · backend 378 (7 skips) · e2e 13 + the perf spec ·
+`tsc -b`/`tsc --noEmit` clean.** New docs: `ops-a11y-audit.md`, `ops-security-review.md`,
+`ops-perf-verification.md`, `ops-debt-servicing.md`, ADR-016. Contract bumps: ops-tokens v3.1
+(a11y contrast); OpsShell.md (ADR-014 tab-param note).
+- **E-1 (perf):** `c1095af` measured all 9 SLOs (6 PASS, #2 inconclusive/harness-floor, #5/#7
+  FAIL) → `5a1c0a0` remediated the unvirtualised 2000-row registry table (React.memo + a
+  stable latest-ref callback + jsdom-safe windowing via pure `computeVisibleWindow`). Retires
+  "SLOs unmeasured."
+- **E-2 (a11y):** `55c962e`→`76fba65` (5) — audit; Registry-row keyboard + Rundown focus-ring
+  bug + shared `getRowActivationProps` (renamed from a mis-`use*`-prefixed pure fn); 2
+  light-theme colours nudged to real AA; 7 designer notes deferred.
+- **E-3 (security):** `fe37529` STRIDE+RBAC audit → `e300afc` dropped `sports` from the merge
+  write routes (a LIVE backend over-permission) + F-1 tenant-scoped the manual-merge target.
+- **E-4 (TD servicing):** `8b34486` debt doc (38 items dispositioned) → `50096b1`
+  (assertPending extraction) + `cfc2c1a` (F-2 audit-emit actor attribution, F-3 sport-ownership,
+  broadcastSlots `lte`→`lt`) + `4cea569` (ADR-014 tab-param-carry, RegistryCreateModal dialog
+  a11y). TD-27 DECIDED (accept redeploy-rollback).
+- **E-5 (runbook):** `d4bef99` — §performance/§accessibility/§security-rbac/§rollout folded in.
+- **E-6 (cutover):** `41788c4` ADR-016 draft → `ada2b85` ACCEPTED — **COEXIST, flag flipped ON
+  as a browse layer** (verified: ops is a monitoring/browse layer, not a replacement — 4/5
+  screens delegate all editing to legacy; SyncScreen covers ~1.5 of ImportView's 6 tabs).
+
+**DoD additions check:** (1) every SLO measured vs target, misses surfaced as gates + FIXED
+(#5/#7) ✓. (2) all 5 screens keyboard-operable + AA in both themes ✓. (3) both write paths
+STRIDE-re-checked + `/ops/*` RBAC posture documented (authenticated-only; backend authoritative;
+`sports` dropped) ✓. (4) every accrued debt item dispositioned (`ops-debt-servicing.md` — debt-
+register.md stays the blocked parallel-session file; merge is a housekeeping follow-up) ✓.
+(5) runbook covers all 5 screens + a flag-rollout plan honest vs TD-27 ✓. (6) an accepted
+cutover ADR exists; ReviewTab-export retirement scheduled ✓.
+
+**Process notes.** (a) **HARDENING verification caught two real defects, both then FIXED:** the
+E-1 perf pass found the registry table FAILs its render/select SLOs at 2000 records (unvirtualised
+— selectors were cheap); the E-3 STRIDE pass found `sports` could perform irreversible merge
+decisions the backend accepted (the legacy ImportView UI gate was masking a live backend
+over-permission). Neither was visible without the measure/audit discipline. (b) Mutation probes
+kept biting: the E-3 tenant test's outcome assertion was decorative (shared findFirst/findUnique
+spy) → hardened with distinct spies; the E-1 #7 memo fix had ZERO unit guard (both defeating
+mutations survived) → closed with a per-row-render count guard. (c) The `use*`-not-a-hook naming
+smell (E-2 `useRowActivation`) forced a rules-of-hooks eslint-disable → renamed to
+`getRowActivationProps`, deleting the suppression. (d) Architect gates resolved cleanly: 7 surfaced,
+all decided (registry-virtualize-both, RBAC backend-fix, COEXIST-flag-ON, TD-27 redeploy, ADR-014
+carry, broadcastSlots `lt`, all E-4 fixes). (e) Parallel subagents used for the independent
+E-4/E-5/E-6-T0 analysis + the E-4 backend/frontend fix batches — no cross-file collision.
+
+**Found work / still open (dispositioned in `ops-debt-servicing.md`, not silent):** F-2 used the
+audit-emit path (no `createdBy` column — a per-column provenance migration is a scheduled story if
+ever wanted); the full ImportView reconciliation + making ops the SOLE surface is a **follow-on
+initiative** (ADR-016); a pre-existing flaky `App.ops-routing.flag-on` lazy-chunk 10s-timeout on
+cold cores (env, not ops); `debt-register.md` still needs the parallel session to free it for the
+E-4 entries to merge in.
+
+**Mode check + initiative close.** HARDENING achieved its exit: measured, accessible, at RBAC
+parity, debt-serviced, runbook-complete, cutover-decided. **The A–E Ops redesign is COMPLETE.**
+`main` holds A–D (merged); `feature/E-hardening` holds E (UNPUSHED — push/merge + flip the prod
+build flag ON per ADR-016 §rollout is the remaining outward-facing housekeeping). Next real work
+per the ADR = the follow-on initiative (ops mutation surfaces + ImportView reconciliation) —
+outside this backlog.
 
 ---
 
