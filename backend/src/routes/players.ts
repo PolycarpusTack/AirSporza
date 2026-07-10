@@ -4,6 +4,7 @@ import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import { writeAuditLog } from '../utils/audit.js'
 import { getPagination, paginationEnvelope } from '../utils/pagination.js'
 import * as s from '../schemas/players.js'
 
@@ -126,6 +127,20 @@ router.post('/', authenticate, authorize('admin'), validate({ body: s.playerCrea
         externalRefs,
         tenantId: req.tenantId!
       }
+    })
+
+    // E-4 F-2: actor attribution on registry create. No createdBy column on the
+    // registry models → emit an audit-log entry (mirrors events.ts, no migration).
+    const user = req.user as { id: string }
+    await writeAuditLog({
+      userId: user.id,
+      action: 'player.create',
+      entityType: 'player',
+      entityId: String(player.id),
+      newValue: player,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.status(201).json(player)

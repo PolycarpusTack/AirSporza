@@ -25,11 +25,14 @@ router.get('/', validate({ query: s.slotsQuery }), async (req, res, next) => {
     if (eventId) where.eventId = eventId
     if (status) where.status = status
 
-    // Date range filter on plannedStartUtc
+    // Date range filter on plannedStartUtc — HALF-OPEN [dateStart, dateEnd).
+    // E-4 item 4: the sole caller (schedulesApi.listSlots) passes dateEnd =
+    // next-day-midnight as an EXCLUSIVE end, so an inclusive `lte` double-counts
+    // a midnight-UTC slot into both adjacent days. `lt` assigns it to one day.
     if (dateStart || dateEnd) {
       const plannedStartUtc: Record<string, Date> = {}
       if (dateStart) plannedStartUtc.gte = dateStart
-      if (dateEnd) plannedStartUtc.lte = dateEnd
+      if (dateEnd) plannedStartUtc.lt = dateEnd
       where.plannedStartUtc = plannedStartUtc
     }
 
