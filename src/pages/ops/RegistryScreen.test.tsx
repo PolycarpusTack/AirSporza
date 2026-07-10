@@ -65,6 +65,21 @@ vi.mock('../../services', () => ({
   playersApi: { create: vi.fn(), saveNotes: (...a: unknown[]) => playersSaveNotes(...a) },
 }))
 
+// E-1 #7 guard seam: RegistryTableRow calls getRowActivationProps EXACTLY once per
+// render, so wrapping the REAL impl with a counter gives a per-row-render tally. The
+// real return value is preserved → row behavior (role/tabIndex/Enter/Space) unchanged.
+const rowActivationCalls = vi.hoisted(() => ({ count: 0 }))
+vi.mock('../../components/ops/rowActivation', async (importActual) => {
+  const actual = await importActual<typeof import('../../components/ops/rowActivation')>()
+  return {
+    ...actual,
+    getRowActivationProps: (onActivate: () => void) => {
+      rowActivationCalls.count++
+      return actual.getRowActivationProps(onActivate)
+    },
+  }
+})
+
 import { RegistryScreen } from './RegistryScreen'
 
 function LocationProbe() {
@@ -107,6 +122,7 @@ beforeEach(() => {
   teamsCreate.mockReset()
   teamsSaveNotes.mockReset()
   playersSaveNotes.mockReset()
+  rowActivationCalls.count = 0
 })
 
 afterEach(() => {
@@ -246,6 +262,86 @@ describe('row selection (?record — ops-selection v2)', () => {
   it('hydrates the selected row from an incoming ?record deep link', () => {
     renderScreen('/ops/registry?record=player:3')
     expect(row('player:3').style.background).toBe('var(--surface-shell-2)')
+  })
+
+  // E-2-T2 FEATURE (WCAG 2.1.1): the row was a mouse-only clickable <div>. It is
+  // now keyboard-operable (role/tabIndex + Enter/Space), matching ScheduleRow /
+  // the Rundown block via the shared getRowActivationProps primitive.
+  it('the row is keyboard-operable (role=button, tabIndex 0) and Enter/Space selects it', () => {
+    renderScreen()
+    const r = row('team:1')
+    expect(r.getAttribute('role')).toBe('button')
+    expect(r.tabIndex).toBe(0)
+
+    fireEvent.keyDown(r, { key: 'Enter' })
+    expect(recordParam()).toBe('team:1')
+
+    // Space selects a different row too (and, in a real browser, suppresses scroll)
+    fireEvent.keyDown(row('player:3'), { key: ' ' })
+    expect(recordParam()).toBe('player:3')
+  })
+})
+
+// E-1 remediation (EPIC E · HARDENING · FEATURE): the registry table now windows
+// the row list so the mounted node count is bounded by the viewport (closes SLO #5)
+// and each row is React.memo'd behind a STABLE onSelect (closes SLO #7). jsdom
+// reports clientHeight 0 → the "render all" fallback keeps every 24-record test
+// above fully green; here we stub a positive viewport height to exercise windowing.
+describe('E-1 windowing (jsdom fallback renders all; positive height windows)', () => {
+  it('renders ALL rows when no positive viewport height is measured (jsdom fallback)', () => {
+    hookState.teams = [...FIXTURE_TEAMS, ...Array.from({ length: 200 }, (_, i) => makeTeam({ id: 500 + i }))]
+    renderScreen()
+    // 24 base fixture records + 200 extra teams = 224, all mounted (clientHeight 0)
+    expect(rowIds().length).toBe(224)
+  })
+
+  it('windows to a bounded subset once a positive viewport height is measured', () => {
+    // jsdom reports 0 for layout; a real browser measures a positive height. Stub it.
+    const heightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(440)
+    try {
+      hookState.teams = [...FIXTURE_TEAMS, ...Array.from({ length: 200 }, (_, i) => makeTeam({ id: 500 + i }))]
+      renderScreen()
+      const rendered = rowIds()
+      // 440px / 44px ≈ 10 visible + overscan → far fewer than the 224 total
+      expect(rendered.length).toBeGreaterThan(0)
+      expect(rendered.length).toBeLessThan(40)
+      // the scroll container + its spacers exist so scroll offset is preserved
+      expect(screen.getByTestId('ops-registry-scroll')).toBeTruthy()
+    } finally {
+      heightSpy.mockRestore()
+    }
+  })
+})
+
+// E-1 #7 REGRESSION GUARD: selecting a row must re-render ONLY the rows whose
+// `selected` boolean flips — not the whole table. This is the entire point of the
+// React.memo(RegistryTableRow) + STABLE handleSelectRow fix. Both defeating mutations
+// blow this up to the full row count:
+//   (a) drop the `useCallback([])` on handleSelectRow → a fresh fn each render → the
+//       onSelect prop changes for EVERY row → memo re-renders all → delta = 24.
+//   (b) remove React.memo from RegistryTableRow → every row re-renders on any state
+//       change → delta = 24.
+// getRowActivationProps fires once per row render (mocked counter above), so the
+// post-click delta is the count of rows that actually re-rendered.
+describe('E-1 #7 selection re-render is bounded (memo + stable callback guard)', () => {
+  it('selecting a row re-renders only the changed rows, not all 24', () => {
+    renderScreen()
+    // first paint: one getRowActivationProps call per mounted row (jsdom fallback = all 24)
+    expect(rowActivationCalls.count).toBe(24)
+    rowActivationCalls.count = 0
+
+    // first selection: only team:1 flips false→true → exactly 1 row re-renders
+    fireEvent.click(row('team:1'))
+    expect(recordParam()).toBe('team:1') // behavior intact (mock preserved real props)
+    expect(rowActivationCalls.count).toBeGreaterThan(0)
+    expect(rowActivationCalls.count).toBeLessThanOrEqual(2) // « 24 — both mutations would give 24
+    rowActivationCalls.count = 0
+
+    // hop: team:1 flips true→false AND team:2 flips false→true → exactly 2 rows re-render
+    fireEvent.click(row('team:2'))
+    expect(recordParam()).toBe('team:2')
+    expect(rowActivationCalls.count).toBeGreaterThan(0)
+    expect(rowActivationCalls.count).toBeLessThanOrEqual(3) // still « 24 (2 + tiny margin)
   })
 })
 

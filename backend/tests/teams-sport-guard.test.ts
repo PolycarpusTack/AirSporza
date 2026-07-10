@@ -16,6 +16,8 @@ vi.mock('../src/db/prisma.js', () => ({
       update: vi.fn(),
     },
     sport: { findFirst: vi.fn().mockResolvedValue(null) },
+    // E-4 F-2: team create now emits an audit-log entry for actor attribution.
+    auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     $executeRaw: vi.fn().mockResolvedValue(undefined),
     $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn(),

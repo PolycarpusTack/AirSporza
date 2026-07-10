@@ -18,6 +18,7 @@ import { useApp } from '../../context/AppProvider'
 import { detectCrewConflicts, groupConflictsByPerson } from '../../utils/crewConflicts'
 import { dateStr, weekMonday } from '../../utils/dateTime'
 import { EventInspector } from '../../components/ops/EventInspector'
+import { getRowActivationProps } from '../../components/ops/rowActivation'
 import { formatOpsDayLabel } from '../../components/ops/dayLabels'
 import { useContracts } from '../../components/ops/useContracts'
 import { useOpsDay, useOpsSelection } from '../../components/ops/opsUrlState'
@@ -286,12 +287,8 @@ function ScheduleRow({
       data-testid={`ops-schedule-row-${event.id}`}
       data-event-id={String(event.id)}
       data-selected={selected ? 'true' : 'false'}
-      role="button"
-      tabIndex={0}
+      {...getRowActivationProps(onSelect)}
       onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onSelect()
-      }}
       style={{
         ...GRID,
         padding: '10px 16px',

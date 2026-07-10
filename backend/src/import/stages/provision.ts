@@ -877,7 +877,8 @@ export async function manualMergeNormalizedEvent(params: {
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    const ev = await updateImportedEvent(targetEventId, normalized, sport.id, competition.id, sourceId, sourceRecordId, sourceUpdatedAt || null, tx)
+    // F-1: pass tid (truthy only) so the user-supplied target is tenant-scoped.
+    const ev = await updateImportedEvent(targetEventId, normalized, sport.id, competition.id, sourceId, sourceRecordId, sourceUpdatedAt || null, tx, tid || undefined)
     await writeOutboxEvent(tx, { tenantId: ev.tenantId, eventType: 'event.updated', aggregateType: 'Event', aggregateId: String(ev.id), payload: ev })
     return ev
   })
@@ -968,11 +969,15 @@ async function updateImportedEvent(
   sourceId: string,
   sourceRecordId: string,
   sourceUpdatedAt: Date | null,
-  db: Prisma.TransactionClient = prisma
+  db: Prisma.TransactionClient = prisma,
+  tenantId?: string
 ) {
-  const existing = await db.event.findUnique({
-    where: { id: eventId }
-  })
+  // F-1: when a tenantId is supplied (manual-merge path, where the target id is
+  // user-supplied), scope the lookup so a cross-tenant target is NOT found.
+  // Automated-import callers pass no tenantId -> id-only lookup, unchanged.
+  const existing = tenantId
+    ? await db.event.findFirst({ where: { id: eventId, tenantId } })
+    : await db.event.findUnique({ where: { id: eventId } })
 
   if (!existing) {
     throw new Error(`Event '${eventId}' not found.`)

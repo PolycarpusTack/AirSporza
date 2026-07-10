@@ -61,6 +61,12 @@ export function isOpsRedesignEnabled(): boolean
 | `/ops/sync` | `SyncScreen` (placeholder, EPIC D) | |
 | `/ops/<anything else>` | `Navigate → /ops/schedule` (replace) | Documented fallback for unknown tabs |
 
+**Tab param carry (ADR-014 amendment, E-4):** each tab `NavLink` targets
+`{ pathname: `${OPS_BASE}/${tab.id}`, search: location.search }` — switching tabs now
+PRESERVES the current ops query string (`?day`/`?event`/`?record`) instead of dropping it.
+The whole search string is carried (screens ignore params they don't consume); the pathname
+stays absolute per the splat-relative gotcha below.
+
 **Splat-relative gotcha (normative for all ops routing code):** inside the `/ops/*` splat
 route, RELATIVE `to` values resolve INCLUDING the matched splat segment
 (`/ops/schedule` + `planner` → `/ops/schedule/planner`); a relative target in the `*`

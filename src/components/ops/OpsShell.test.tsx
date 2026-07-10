@@ -75,7 +75,13 @@ const pendingCandidate = (id: string): ImportMergeCandidate => ({
 const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = [pendingCandidate('c1'), pendingCandidate('c2')]
 
 function LocationProbe() {
-  return <span data-testid="location">{useLocation().pathname}</span>
+  const location = useLocation()
+  return (
+    <>
+      <span data-testid="location">{location.pathname}</span>
+      <span data-testid="location-search">{location.search}</span>
+    </>
+  )
 }
 
 const renderShell = (initialPath = '/ops', tabBadges?: Partial<Record<OpsTabId, number>>) =>
@@ -89,6 +95,7 @@ const renderShell = (initialPath = '/ops', tabBadges?: Partial<Record<OpsTabId, 
   )
 
 const currentPath = () => screen.getByTestId('location').textContent
+const currentSearch = () => screen.getByTestId('location-search').textContent
 
 afterEach(() => {
   cleanup() // vitest runs without globals — RTL auto-cleanup is off (codebase convention)
@@ -134,6 +141,28 @@ describe('routing inside the shell', () => {
 
     expect(currentPath()).toBe(`/ops/${tab.id}`)
     expect(screen.getByTestId(`ops-screen-${tab.id}`)).toBeTruthy()
+  })
+})
+
+describe('tab navigation carries ops query params (ADR-014 amendment)', () => {
+  it('preserves ?day when switching tabs', async () => {
+    const user = userEvent.setup()
+    renderShell('/ops/planner?day=2026-03-02')
+
+    await user.click(screen.getByRole('link', { name: 'SCHEDULE' }))
+
+    expect(currentPath()).toBe('/ops/schedule')
+    expect(currentSearch()).toBe('?day=2026-03-02')
+  })
+
+  it('preserves ?record when switching tabs', async () => {
+    const user = userEvent.setup()
+    renderShell('/ops/registry?record=team-7')
+
+    await user.click(screen.getByRole('link', { name: 'RIGHTS' }))
+
+    expect(currentPath()).toBe('/ops/rights')
+    expect(currentSearch()).toBe('?record=team-7')
   })
 })
 

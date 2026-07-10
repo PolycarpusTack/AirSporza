@@ -15,7 +15,7 @@
  * screen's pending-merge count is the only live badge today (pin 5).
  */
 import { useCallback, useMemo, useState, type CSSProperties } from 'react'
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { OpsTabBadgeContext, type SetTabBadge } from './opsTabBadges'
 import { OpsThemeProvider, useOpsTheme } from './OpsThemeProvider'
 import { ScheduleScreen } from '../../pages/ops/ScheduleScreen'
@@ -113,6 +113,12 @@ function ThemeToggle() {
 }
 
 function OpsChrome({ tabBadges }: { tabBadges: Partial<Record<OpsTabId, number>> }) {
+  // ADR-014 amendment: tabs CARRY the current ops query params (`?day`/`?event`/
+  // `?record`) across a tab switch — shared selection is otherwise deep-link-only
+  // (EPIC B retro finding). Carrying the WHOLE search string is safe because each
+  // screen ignores params it doesn't use (schedule ignores `?record`, registry
+  // ignores `?day`, …), so no per-param filtering is needed here.
+  const { search } = useLocation()
   return (
     <header style={chromeStyle}>
       <span style={brandStyle}>
@@ -124,9 +130,14 @@ function OpsChrome({ tabBadges }: { tabBadges: Partial<Record<OpsTabId, number>>
         {OPS_TABS.map((tab) => {
           const badge = tabBadges[tab.id]
           return (
-            // Absolute `to` on purpose: relative links inside the /ops/* splat route
-            // resolve INCLUDING the matched splat segment (→ /ops/schedule/planner).
-            <NavLink key={tab.id} to={`${OPS_BASE}/${tab.id}`} style={({ isActive }) => tabStyle(isActive)}>
+            // Absolute `pathname` on purpose: relative links inside the /ops/* splat
+            // route resolve INCLUDING the matched splat segment (→ /ops/schedule/planner).
+            // `search` carries the current ops params across the switch (ADR-014 amend).
+            <NavLink
+              key={tab.id}
+              to={{ pathname: `${OPS_BASE}/${tab.id}`, search }}
+              style={({ isActive }) => tabStyle(isActive)}
+            >
               {badge != null ? `${tab.label} [${badge}]` : tab.label}
             </NavLink>
           )

@@ -62,9 +62,9 @@ reproducible from this table).
 
 | Design | CSS var | Dark | Light ⚠ |
 |---|---|---|---|
-| live / conflict / danger | `--alert-danger` | `#E5484D` | `#D71F24` |
+| live / conflict / danger | `--alert-danger` | `#E5484D` | `#D31F24` |
 | warning / expiring | `--alert-warning` | `#E5A13C` | `#976214` |
-| negotiation | `--alert-negotiation` | `#E07B39` | `#AE551B` |
+| negotiation | `--alert-negotiation` | `#E07B39` | `#A9551B` |
 
 Note: legacy `--danger #F87171` / `--warning #F59E0B` differ in value — untouched; the `--alert-*`
 family is the ops set.
@@ -109,9 +109,9 @@ decision 3) — light chips pair the dark-tuned tint with the AA-derived light t
 | `--status-draft` | light | `#98A2B3` | `#5C687D` | −22.3% | 4.60 (chip) |
 | `--status-ready` | light | `#4C8DF5` | `#0C5CDC` | −17.3% | 4.64 (chip) |
 | `--status-approved` | light | `#2BB673` | `#1C744A` | −15.9% | 4.65 (chip) |
-| `--alert-danger` | light | `#E5484D` | `#D71F24` | −10.8% | 4.61 (word on `--surface-shell-2`) |
+| `--alert-danger` | light | `#E5484D` | `#D31F24` | −10.8% | 4.61 (word on `--surface-shell-2`) |
 | `--alert-warning` | light | `#E5A13C` | `#976214` | −23.1% | 4.66 (word on `--surface-shell-2`) |
-| `--alert-negotiation` | light | `#E07B39` | `#AE551B` | −15.6% | 4.61 (word on `--surface-shell-2`) |
+| `--alert-negotiation` | light | `#E07B39` | `#A9551B` | −15.6% | 4.61 (word on `--surface-shell-2`) |
 | `--channel-een` | light | `#E4572E` | `#C13F19` | −10.9% | 4.62 (on `--bg-shell`) |
 | `--channel-canvas` | light | `#4C8DF5` | `#0D63EC` | −14.0% | 4.60 (on `--bg-shell`) |
 | `--channel-vrtmax` | light | `#2BB673` | `#1D7B4E` | −14.2% | 4.62 (on `--bg-shell`) |

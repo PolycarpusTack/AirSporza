@@ -24,12 +24,14 @@
  * dedicated --registry-* family, if ever wanted, is an E-2 designer note (text
  * debt candidate) — not added now.
  */
-import { useMemo, useState, type CSSProperties } from 'react'
+import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { computeVisibleWindow } from './registryWindow'
 import { useRegistryData } from '../../components/ops/useRegistryData'
 import { useLinkedRecords } from '../../components/ops/useLinkedRecords'
 import { RecordInspector } from '../../components/ops/RecordInspector'
 import { RegistryCreateModal } from '../../components/ops/RegistryCreateModal'
 import { useOpsRecord } from '../../components/ops/opsUrlState'
+import { getRowActivationProps } from '../../components/ops/rowActivation'
 import { playersApi, teamsApi } from '../../services'
 import {
   buildRegistryIndex,
@@ -47,6 +49,16 @@ import {
 } from '../../components/ops/registrySelectors'
 
 const monoStyle: CSSProperties = { fontFamily: 'var(--font-mono)' }
+
+/**
+ * E-1 remediation (EPIC E · HARDENING · FEATURE) — row windowing constants.
+ * The registry rows are single-line, so a UNIFORM row height is exact enough for
+ * the offset math (registryWindow.ts). Measured current row ≈ 44px (11px padding
+ * top+bottom + a ~21px 12.5px line + 1px bottom border). If the row ever becomes
+ * multi-line this must switch to a measured height.
+ */
+const ROW_HEIGHT = 44
+const WINDOW_OVERSCAN = 8
 
 /** BACKLOG grid (keeps the NAME min-width the README's `1fr` shorthand drops). */
 const TABLE_GRID: CSSProperties = {
@@ -109,6 +121,35 @@ export function RegistryScreen() {
   const rows = useMemo(() => projectRegistryRows(index, { query, facet }), [index, query, facet])
   const facetCounts = useMemo(() => registryFacetCounts(index), [index]) // ALWAYS unfiltered
   const counters = useMemo(() => registryToolbarCounts(index), [index])
+
+  // E-1 #7 — STABLE selection handler so React.memo can skip unchanged rows. In
+  // react-router v7 `setRecordId` is NOT referentially stable (its setSearchParams
+  // closes over the current location.search), so a `useCallback([setRecordId])`
+  // wrapper would still change on every selection and re-render the whole list. A
+  // latest-ref indirection gives a callback that is stable for the component's life
+  // yet always invokes the current setter. Rows are useMemo'd (identical refs on a
+  // selection change), so only the 2 rows whose `selected` flips re-render.
+  const setRecordIdRef = useRef(setRecordId)
+  setRecordIdRef.current = setRecordId
+  const handleSelectRow = useCallback((id: string) => setRecordIdRef.current(id), [])
+
+  // E-1 #5 — windowing state. `viewportHeight` defaults to 0 → the render-all
+  // fallback (jsdom/pre-measure/SSR); a positive height measured in a real browser
+  // engages windowing. `measureRef` is a stable callback ref that reads clientHeight
+  // on attach and observes resizes (where ResizeObserver exists).
+  const [viewportHeight, setViewportHeight] = useState(0)
+  const [scrollTop, setScrollTop] = useState(0)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const measureRef = useCallback((el: HTMLDivElement | null) => {
+    resizeObserverRef.current?.disconnect()
+    resizeObserverRef.current = null
+    if (!el) return
+    setViewportHeight(el.clientHeight)
+    if (typeof ResizeObserver === 'undefined') return // jsdom / SSR — keep render-all
+    const observer = new ResizeObserver(() => setViewportHeight(el.clientHeight))
+    observer.observe(el)
+    resizeObserverRef.current = observer
+  }, [])
 
   // Deep-link hydration is automatic: recordId (URL) → index.byId → record;
   // unknown/malformed id → null → inspector empty state (no crash). Hops REPLACE.
@@ -256,14 +297,31 @@ export function RegistryScreen() {
                 NO MATCHING RECORDS
               </div>
             ) : (
-              rows.map((row) => (
-                <RegistryTableRow
-                  key={row.id}
-                  row={row}
-                  selected={recordId === row.id}
-                  onSelect={() => setRecordId(row.id)}
-                />
-              ))
+              (() => {
+                const total = rows.length
+                const { start, end } = computeVisibleWindow(scrollTop, viewportHeight, ROW_HEIGHT, total, WINDOW_OVERSCAN)
+                const topSpacer = start * ROW_HEIGHT
+                const bottomSpacer = (total - end) * ROW_HEIGHT
+                return (
+                  <div
+                    ref={measureRef}
+                    data-testid="ops-registry-scroll"
+                    onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+                    style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}
+                  >
+                    {topSpacer > 0 && <div aria-hidden style={{ height: `${topSpacer}px` }} />}
+                    {rows.slice(start, end).map((row) => (
+                      <RegistryTableRow
+                        key={row.id}
+                        row={row}
+                        selected={recordId === row.id}
+                        onSelect={handleSelectRow}
+                      />
+                    ))}
+                    {bottomSpacer > 0 && <div aria-hidden style={{ height: `${bottomSpacer}px` }} />}
+                  </div>
+                )
+              })()
             )}
           </div>
 
@@ -285,20 +343,24 @@ export function RegistryScreen() {
   )
 }
 
-function RegistryTableRow({
+// E-1 #7 — memoized so a selection change re-renders ONLY the rows whose `selected`
+// boolean flips (row objects are useMemo'd; `onSelect` is the stable handleSelectRow).
+const RegistryTableRow = memo(function RegistryTableRow({
   row,
   selected,
   onSelect,
 }: {
   row: RegistryRow
   selected: boolean
-  onSelect: () => void
+  onSelect: (id: string) => void
 }) {
+  const activate = () => onSelect(row.id)
   return (
     <div
       data-testid={`ops-registry-row-${row.id}`}
       data-kind={row.kind}
-      onClick={onSelect}
+      {...getRowActivationProps(activate)}
+      onClick={activate}
       style={{
         ...TABLE_GRID,
         padding: '11px 12px',
@@ -360,4 +422,4 @@ function RegistryTableRow({
       </span>
     </div>
   )
-}
+})

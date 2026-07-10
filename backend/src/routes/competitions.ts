@@ -4,6 +4,7 @@ import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
+import { writeAuditLog } from '../utils/audit.js'
 import * as s from '../schemas/competitions.js'
 
 const router = Router()
@@ -69,8 +70,29 @@ router.post('/', authenticate, authorize('admin'), validate({ body: s.competitio
   try {
     const { sportId, name, matches, season } = req.body
 
+    // E-4 F-3: sportId must reference a sport belonging to this tenant
+    // (mirror teams.ts / players.ts — competition create previously trusted it).
+    const sport = await prisma.sport.findFirst({
+      where: { id: sportId, tenantId: req.tenantId }
+    })
+    if (!sport) return next(createError(400, 'Unknown sport'))
+
     const competition = await prisma.competition.create({
       data: { sportId, name, matches: matches || 0, season, tenantId: req.tenantId! }
+    })
+
+    // E-4 F-2: actor attribution on registry create. No createdBy column on the
+    // registry models → emit an audit-log entry (mirrors events.ts, no migration).
+    const user = req.user as { id: string }
+    await writeAuditLog({
+      userId: user.id,
+      action: 'competition.create',
+      entityType: 'competition',
+      entityId: String(competition.id),
+      newValue: competition,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      tenantId: req.tenantId,
     })
 
     res.status(201).json(competition)

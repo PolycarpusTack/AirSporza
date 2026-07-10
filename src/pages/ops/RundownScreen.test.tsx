@@ -15,6 +15,8 @@
  *   Outline precedence: SELECTED wins over conflicted (design HTML:
  *   `blockOl: isSel ? accent : conflict ? danger : none`).
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation, useSearchParams } from 'react-router-dom'
@@ -293,12 +295,34 @@ describe('block outlines (crew conflict via the screen\'s single ConflictMap pas
     expect(getBlock(4).style.outlineColor).toBe('var(--alert-danger)')
   })
 
-  it('non-conflicted, unselected blocks have no outline (e2, Mon)', async () => {
+  it('non-conflicted, unselected blocks carry NO selection/conflict outline (e2, Mon)', async () => {
     renderScreen('/ops/planner?day=2026-03-02')
 
     await waitForLane(EEN_CHANNEL_ID)
     const e2 = getBlock(2)
-    expect(e2.style.outlineStyle).toBe('none')
+    expect(e2.style.outlineColor).toBe('')
+  })
+
+  // E-2-T2 focus fix (WCAG 2.4.7): the block used to bake `outline-style: none`
+  // whenever unselected/unconflicted, which suppressed the keyboard focus ring on
+  // MOST blocks in BOTH themes. It must no longer hard-suppress the outline.
+  it('an unselected block does NOT suppress its focus ring (no baked outline:none)', async () => {
+    renderScreen('/ops/planner?day=2026-03-02')
+
+    await waitForLane(EEN_CHANNEL_ID)
+    const e2 = getBlock(2)
+    expect(e2.style.outlineStyle).not.toBe('none')
+  })
+
+  // jsdom cannot compute :focus-visible; pin the stylesheet contract instead
+  // (mirrors the OpsShell.test ops.css-keyframe precedent). The ring reuses
+  // --accent-shell — the same token the SELECTED state already uses.
+  it('ops.css defines a :focus-visible ring for the rundown block (both themes)', () => {
+    const css = readFileSync(resolve(__dirname, '../../components/ops/ops.css'), 'utf8')
+    const rule = css.match(/\[data-testid\^="ops-rundown-block-"\]:focus-visible\s*\{[\s\S]*?\}/)?.[0]
+    expect(rule).toBeDefined()
+    expect(rule).toContain('outline')
+    expect(rule).toContain('var(--accent-shell)')
   })
 
   it('SELECTED wins over conflicted (design HTML precedence): selected e3 shows the accent outline', async () => {

@@ -251,3 +251,226 @@ Known limitations (§sync):
   shell tab only once the Sync screen mounts and settles; there is no pre-visit
   cross-screen count fetch (an E-item). It is not cleared on navigating away (persistent
   chrome, by design).
+
+## §performance (EPIC E — HARDENING, E-1: `docs/ops-perf-verification.md`)
+
+Two measurement layers: Layer A = deterministic vitest selector benches (node, no
+network, warm-up + N samples, p50/p95/p99) pinning the algorithmic ceiling; Layer B =
+Playwright `goto → settled-testid` wall-clock against the flag-on preview build, full
+`/api/*` interception. Layer B numbers are **cold-boot-inclusive upper bounds** (each
+iteration is a fresh SPA boot) — a real in-app tab switch is faster.
+
+### SLO summary (9 SLOs, machine: win32 x64 i5-1345U, Chromium via `vite preview`)
+
+| # | SLO (target · volume) | Measured | Verdict |
+|---|---|---|---|
+| 1 | Schedule initial render < 1.5s p95 @ 500 events | PW p95 1162ms (p50 959); derive p95 9.6ms | PASS |
+| 2 | Theme toggle swap < 100ms p99 | PW p99 162ms (p50 97, min 80) | INCONCLUSIVE — see limitations |
+| 3 | Rundown day-switch < 200ms p95 | PW p95 118ms (p50 100) | PASS |
+| 4 | Rights render < 1s p95 @ 100 contracts | derive p95 0.63ms; DOM-at-scale not PW-measured | PASS (derivation) — see limitations |
+| 5 | Registry initial render < 1.5s p95 @ 2,000 | pre-fix p50 2732/p95 3418ms (FAIL); post-remediation p50 **1083ms**/min 746ms, cold-boot p95 **1762ms** | DOM-render FIXED — median PASS; p95 tail now fetch/boot-bound |
+| 6 | Registry search keystroke < 50ms p95 @ 2,000 | derive p95 2.5ms | PASS |
+| 7 | Registry inspector hop < 100ms p95 | pre-fix p95 991/p50 850ms (FAIL); post-remediation p95 **108–153ms**/p50 **74–97ms** (~8× better) | APP OPERATION FIXED — residual ≈ Playwright harness floor |
+| 8 | Sync initial render < 1.5s p95 @ 50 jobs + 100 candidates | PW p95 1032ms; derive p95 23ms | PASS |
+| 9 | Merge decision click → terminal < 300ms (optimistic) | derive p95 0.002ms | PASS |
+
+Original run: 6 PASS · 2 FAIL (#5, #7) · 1 INCONCLUSIVE (#2), plus a #4 DOM-at-scale
+measurement gap. Every derivation layer is cheap (< 25ms) — no selector was ever the
+bottleneck; both FAILs were DOM/React-render costs on the unvirtualized 2,000-row
+registry table.
+
+### Registry-virtualization remediation (closes #5/#7, flag-gated FEATURE, architect-approved A+C)
+
+`src/pages/ops/RegistryScreen.tsx` + `registryWindow.ts`:
+- **Row windowing** (closes #5) — the row list sits in a bounded-height scroll
+  container; only the visible window (+ overscan) renders, with top/bottom spacer divs
+  preserving scrollbar geometry. Uniform `ROW_HEIGHT = 44px`. **jsdom/pre-measure
+  fallback:** a measured 0 viewport height (jsdom) renders the FULL range — windowing
+  engages only on a real positive height (real browser), so existing unit tests keep
+  seeing all rows.
+- **`React.memo` row + a stable selection callback** (closes #7) — `RegistryTableRow`
+  is memoized; a latest-ref indirection gives a truly stable `onSelect` (react-router
+  v7's `setRecordId` is not referentially stable on its own), so a selection change
+  re-renders only the two affected rows instead of the whole table.
+- No backend change; the pure selectors were untouched (they were never the
+  bottleneck). Pinned by `registryWindow.test.ts` (6 tests) + 2 new `RegistryScreen`
+  windowing tests (RED→GREEN); full suite stayed green, `tsc -b` clean.
+
+### Known measurement limitations (honest, not PASSes)
+
+| Limitation | Detail |
+|---|---|
+| #2 theme toggle | Not isolatable below the ~70–90ms Playwright click+`waitFor` harness floor at this measurement layer; a clean verdict needs an in-page `performance.mark` (a production edit, out of the VERIFICATION hat). GATE: approve that instrumentation, or accept the toggle as visually-instant and de-scope the p99 SLO. |
+| #4 rights DOM-at-scale | Only the derivation (0.63ms) was measured; the full DOM render at 100 contracts was not independently Playwright-measured (fixture screen renders ~9 rows). Row-count interpolation makes a DOM PASS *likely*, not proven. |
+| Cold-boot upper bounds | Render numbers include a full SPA boot (React mount + AppProvider fetch + auth + screen mount). The #5 FAIL held regardless (min 1.4s pre-fix); #1/#8 PASSes are conservative. |
+| Chromium-only | Layer B is Chromium-only by design. |
+
+### Bare-array / pagination posture
+
+- **Registry** (`useRegistryData`, 4-way bare arrays): derivation does not cross the
+  1.5s budget until the hundreds-of-thousands range (271ms @ 80k records), but the
+  **binding ceiling was always the DOM**, not the derivation — the unvirtualized table
+  failed #5/#7 already at the 2,000-record SLO target. The E-1 remediation above
+  (windowing) is what actually raises the client ceiling; the list is now windowed,
+  not paginated (no backend contract change).
+- **Sync** (`useSyncData`, jobs + candidates bare arrays): no breach of the 1.5s
+  derivation budget to 20,000 candidates; at the SLO volume the DOM render also
+  PASSES. Sync volumes are **server-bounded** (pending-only query) → no near-term
+  pagination pressure, though the same bare-array pattern would recur if a source ever
+  floods the pending queue.
+
+### How to re-run
+
+```
+# Layer A (node benches — deterministic, no server):
+npx vitest run --config vitest.perf.config.ts
+
+# Layer B (Playwright — needs the flag-on preview server on :4181):
+npx vite preview --outDir dist-e2e/on --port 4181 --strictPort   # build first if dist-e2e/on is stale
+npx playwright test --project=flag-on perf.flag-on.spec.ts --workers=1
+```
+
+## §accessibility (EPIC E — HARDENING, E-2: `docs/ops-a11y-audit.md`)
+
+Scope: the 5 ops screens + shared components they render (`EventInspector`,
+`RecordInspector`, `RegistryCreateModal`, `OpsShell`). Dimensions checked: keyboard
+operability, contrast (both themes, WCAG AA), visible focus.
+
+### Keyboard operability — status: PASS (all 3 clickable rows/blocks)
+
+The clickable-row/block shape occurred 3 times (`ScheduleRow`, the Rundown timeline
+block, the Registry table row) — Rule of Three. `ScheduleRow` and the Rundown block
+already had `role="button"` + `tabIndex={0}` + `onKeyDown` (Enter/Space); the Registry
+table row had none of it (mouse-only FAIL at audit time). E-2-T2 fixed Registry and
+extracted the shared primitive (`getRowActivationProps`) that all three now consume —
+de-duplicated and consistent. All native `<button>`/`NavLink` controls across the 5
+screens were already keyboard-operable by the UA.
+
+### Focus visibility — status: PASS (after E-2-T2 fix)
+
+No ops-authored `:focus`/`:focus-visible` rule existed anywhere in `ops.css`; every
+native control relies on (and correctly shows) the browser default ring. One bug was
+found and fixed: the **Rundown timeline block** set `outline-style: none` inline
+whenever unselected/non-conflicted — since this is a selection/conflict indicator, not
+a focus indicator, it unconditionally suppressed the UA focus ring for keyboard users
+on most blocks, in both themes. E-2-T2 gave focus its own indicator independent of the
+selection/conflict outline.
+
+### Contrast — status: AA in both themes (after E-2-T3 nudge)
+
+Two light-theme-only FAILs were found (both final-intent colors from the A-1-T4
+sign-off, so nudged rather than silently re-picked, per that round's own rule):
+
+| Token (light) | Before | Ratio | After | Ratio |
+|---|---|---|---|---|
+| `--alert-danger` | `#D71F24` | 4.49 | `#D31F24` | 4.63 (AA) |
+| `--alert-negotiation` | `#AE551B` | 4.48 | `#A9551B` | 4.61 (AA) |
+
+Same hue, single-channel (R) −4/−5 darkening, applied to `tokens.css`
+`[data-theme="light"]` only; dark theme was already passing (5.03 / 6.62) and is
+untouched. These surfaced specifically on RightsScreen's MISSING/NEGOTIATION matrix
+rows and ScheduleScreen's unselected-row RIGHTS/CREW words — both render directly on
+`--bg-shell`, a backdrop the earlier v2 contrast audit (A-1) hadn't checked. All other
+pairs (93, from `docs/ops-contrast-audit.md`) carry forward unchanged.
+
+### DEFERRED — 7 designer-polish notes (owner: dedicated designer session, AC-4)
+
+None of these block cutover; tracked for E-4 debt servicing or a designer pass:
+
+1. `--registry-*` STATUS token family (borrows other tokens today — naming/family decision)
+2. Channel color vars for Ketnet / VRT MAX Sport / Radio 1 (Rundown unmapped/UNASSIGNED lanes)
+3. Sport-icon/federation + per-kind create fields (RegistryCreateModal)
+4. Provenance SOURCE-code-vs-full-name copy (`SYNCED FROM TSDB` vs "THE SPORTS DB")
+5. `N PLAYERS` vs design's `12 PEOPLE` (AS-5) — already resolved as deliberate display-honesty; listed for completeness only
+6. Copy strings: `MAX` platform header / `NIGHTLY SYNC · 02:00 CET` / season-label
+7. `reasonCodes` + a merge-confirm step ahead of an irreversible decision (no code yet — new UX flow)
+
+## §security-rbac (EPIC E — HARDENING, E-3: `docs/ops-security-review.md`)
+
+STRIDE re-check of the two ops write paths (registry create, merge decisions) plus an
+RBAC-parity comparison against the legacy `RequireRole` gates. Verdict: both write
+paths are authenticated, rate-limited, tenant-scoped in their primary queries,
+input-validated (Zod), and Prisma-parameterised.
+
+### RBAC posture (current, post E-3-T2)
+
+- **`/ops/*` stays authenticated-only** (no front-end `RequireRole` around `OpsShell`)
+  — this was deliberately ACCEPTED, not left as an oversight: the backend
+  `authorize()` middleware on every write route is the real, unchanged authorization
+  boundary, and a UI guard would only duplicate a control already correct and
+  enforced server-side. Per-tab UI role-hiding (graying out buttons a role can't use)
+  is deferred as UX polish, not a security requirement.
+- **Merge-decision write routes tightened: `sports` dropped.** All three routes
+  (`POST /merge-candidates/:id/{approve-merge,create-new,ignore}`) now gate
+  `authorize('planner', 'admin')`, matching legacy `ImportView`'s `['admin',
+  'planner']`. Previously `authorize('planner','sports','admin')` let `sports` reach a
+  one-click, irreversible merge decision that legacy `/import` denied at the UI — the
+  real elevation this story closed. GET reads (`/merge-candidates`, `/jobs`) are
+  unchanged (authenticated-only) — only writes were gated.
+- **F-1 tenant guard added to the merge target lookup** (defense-in-depth,
+  independent of RLS activation status). `updateImportedEvent` now accepts an
+  optional `tenantId` and, when supplied, scopes the target lookup
+  (`findFirst({ where: { id, tenantId } })`) instead of an id-only `findUnique`.
+  `manualMergeNormalizedEvent` (the user-supplied-target path) threads it; the
+  automated-import callers pass none (unchanged behavior, zero import-pipeline
+  blast radius). Effect: a cross-tenant `targetEntityId` now finds no target instead
+  of silently merging onto another tenant's event.
+- Registry create was already `authorize('admin')` at the backend regardless of who
+  reaches the `/ops/registry` modal — no data-level elevation there; a non-admin
+  create still 403s (cosmetic UI exposure only, already covered by the disposition
+  above).
+
+### Open items (not closed by E-3-T2)
+
+| Item | Description | Disposition |
+|---|---|---|
+| F-2 — no actor attribution | The 4 registry create routes (teams/players/sports/competitions) write no `createdBy` and emit nothing to `/api/audit`; a created record can't be traced to a user. Contrast the merge path, which records `reviewedBy`/`reviewedAt`. | Open — cheap fix (mirror the merge path); not yet scheduled |
+| F-3 — missing sport-ownership check | `competitions.ts` create omits the tenant-ownership check teams/players perform, letting an admin reference a foreign-tenant `sportId`. | Open — cheap fix (`prisma.sport.findFirst({ id, tenantId })` guard); not yet scheduled |
+
+Neither is a shipped data breach on its own (admin-only trust, low severity); both are
+integrity/audit-trail gaps recorded for a future hardening pass.
+
+## §rollout (`opsRedesign` / `VITE_OPS_REDESIGN` flag — E-5)
+
+**Stated honestly against TD-27:** the flag is read from `import.meta.env` at BUILD
+time (`src/flags.ts`) — there is **no runtime toggle**. Enabling or disabling `/ops/*`
+for a population of users is a **rebuild + redeploy**, not a config flip or a
+feature-flag-service switch. Rollback is symmetric: redeploy the flag-OFF build. See
+§Flag procedure above for the mechanics; this section is the rollout SEQUENCE.
+
+### Staged rollout suggestion (build-time flag, given the above constraint)
+
+1. **Staging build, flag ON.** Build with `VITE_OPS_REDESIGN=true` and deploy to a
+   staging environment only. Run the manual verification checklist (this runbook, all
+   §sections) plus the automated smoke suites (`e2e/smoke*.flag-on.spec.ts`) against
+   that build.
+2. **Smoke sign-off.** Confirm the E-1 performance SLOs, E-2 accessibility fixes, and
+   E-3 RBAC posture all hold on the staging build (not just in isolated test runs) —
+   this is a real-build check, since the flag changes what bundle ships.
+3. **Canary / limited-prod build, flag ON.** A separate build+deploy targeting a
+   canary slice (or a subset of traffic/tenants if the deployment topology supports
+   it) — still a distinct artifact from the flag-OFF prod build, since there's no way
+   to flip a subset of already-deployed clients at runtime.
+4. **Full prod build, flag ON.** Once the canary holds, build+deploy the flag-ON
+   artifact as the new production build. Rollback at any stage = redeploy the
+   previous (flag-OFF, or previous-stage) build — plan the deploy pipeline to keep
+   the last flag-OFF artifact ready to re-deploy, since "rollback" here is a deploy
+   action, not a toggle.
+
+### TD-27 runtime-flag — DECIDED (E-4, 2026-07-10)
+
+The architect **accepted redeploy-rollback for now** (no runtime override built). The flag
+stays build-time; rollback = redeploy the flag-OFF build, as the staged plan above assumes.
+A runtime override (settings service / env-served config / header override) remains a
+possible future add — revisit if the two-live-surfaces cadence needs a faster kill-switch —
+but is deliberately NOT built in this epic.
+
+### Cutover cross-reference (ADR-016, E-6)
+
+**ADR-016 is DECIDED (2026-07-10): COEXIST — flag flipped ON as a browse layer.** `/ops/*`
+ships ON in prod ALONGSIDE the legacy screens (legacy retained for ALL editing + the
+ImportView operator tabs SYNC doesn't cover); no legacy route is removed. So this §rollout
+sequence (staged flag-ON builds) IS the cutover — there is no legacy-removal step. Making
+ops the sole surface is a follow-on initiative (build the missing ops editors + reconcile
+ImportView's dropped tabs). The staged-rollout mechanics above are how flag-ON traffic
+live safely; ADR-016/E-6 covers making it the default.

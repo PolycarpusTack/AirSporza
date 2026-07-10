@@ -21,6 +21,8 @@ vi.mock('../src/db/prisma.js', () => ({
     competition: { create: vi.fn() },
     team: { create: vi.fn() },
     player: { create: vi.fn() },
+    // E-4 F-2: registry create routes now emit an audit-log entry (actor attribution).
+    auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     $executeRaw: vi.fn().mockResolvedValue(undefined),
     $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn(),
