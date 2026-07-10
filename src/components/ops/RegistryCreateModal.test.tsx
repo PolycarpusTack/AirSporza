@@ -98,6 +98,66 @@ describe('RegistryCreateModal — chrome + kind chips', () => {
   })
 })
 
+describe('RegistryCreateModal — dialog a11y (E-4 item 2)', () => {
+  it('exposes role=dialog, aria-modal, and aria-labelledby → the title', () => {
+    renderModal()
+    const dialog = screen.getByTestId('ops-create-modal')
+    expect(dialog.getAttribute('role')).toBe('dialog')
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    const labelledby = dialog.getAttribute('aria-labelledby')
+    expect(labelledby).toBeTruthy()
+    const title = document.getElementById(labelledby as string)
+    expect(title?.textContent).toContain('NEW ENTITY')
+  })
+
+  it('Escape closes the modal (calls onCancel)', () => {
+    const { onCancel } = renderModal()
+    fireEvent.keyDown(screen.getByTestId('ops-create-modal'), { key: 'Escape' })
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('sets initial focus inside the modal on open', () => {
+    renderModal()
+    const modal = screen.getByTestId('ops-create-modal')
+    expect(modal.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).toBe(screen.getByTestId('ops-create-name'))
+  })
+
+  it('Tab from the last focusable wraps to the first; Shift+Tab from the first wraps to the last', () => {
+    renderModal()
+    typeName('Riverside United') // enables CREATE so it is the last focusable
+    const modal = screen.getByTestId('ops-create-modal')
+    const close = screen.getByTestId('ops-create-close')
+    const create = screen.getByTestId('ops-create-submit')
+
+    create.focus()
+    fireEvent.keyDown(modal, { key: 'Tab' })
+    expect(document.activeElement).toBe(close)
+
+    close.focus()
+    fireEvent.keyDown(modal, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(create)
+  })
+
+  it('returns focus to the trigger element on close', () => {
+    const trigger = document.createElement('button')
+    trigger.textContent = '+ NEW'
+    document.body.appendChild(trigger)
+    trigger.focus()
+    expect(document.activeElement).toBe(trigger)
+
+    const { unmount } = render(
+      <RegistryCreateModal sports={SPORTS} onCancel={vi.fn()} onCreated={vi.fn()} />,
+    )
+    // initial focus moved inside the modal
+    expect(document.activeElement).not.toBe(trigger)
+
+    unmount()
+    expect(document.activeElement).toBe(trigger)
+    trigger.remove()
+  })
+})
+
 describe('RegistryCreateModal — empty name is a no-op', () => {
   it('CREATE fires NO request when the name is empty/whitespace', () => {
     renderModal()

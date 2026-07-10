@@ -18,7 +18,7 @@
  *   re-enable flash). Optimistic append is REJECTED: the new row's provenance/
  *   LINKED must come from the server refetch (RegistryScreen handleCreated).
  */
-import { useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Sport } from '../../data/types'
 import { ApiError } from '../../utils/api'
 import { competitionsApi, playersApi, sportsApi, teamsApi } from '../../services'
@@ -44,6 +44,14 @@ const fieldStyle: CSSProperties = {
   color: 'var(--text-shell)',
   boxSizing: 'border-box',
 }
+
+// Dialog a11y (E-4 item 2, self-contained focus trap — no new dep, ops-token native
+// so it stays clear of ui/Btn|Button per TD-23). jsdom computes no layout, so we
+// cannot filter by visibility (offsetParent is always null); the :not([disabled])
+// selector is enough for this modal's flat, always-visible field set.
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+const TITLE_ID = 'ops-create-title'
 
 const labelStyle: CSSProperties = {
   ...monoStyle,
@@ -72,6 +80,42 @@ export function RegistryCreateModal({ sports, onCancel, onCreated }: RegistryCre
 
   // Synchronous single-flight latch — set before React re-renders the disabled button.
   const isSubmittingRef = useRef(false)
+
+  // Dialog a11y refs: the modal container (focus-trap scope) + the first field to
+  // receive initial focus. The trigger (`+ NEW`) is captured on open so focus can
+  // return to it on close (return-focus contract).
+  const modalRef = useRef<HTMLDivElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null
+    nameInputRef.current?.focus() // initial focus INTO the modal (first field)
+    return () => trigger?.focus?.() // return focus to the opener on close
+  }, [])
+
+  const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      onCancel()
+      return
+    }
+    if (event.key !== 'Tab') return
+    const modal = modalRef.current
+    if (!modal) return
+    const focusables = Array.from(modal.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (event.shiftKey) {
+      if (active === first || !modal.contains(active)) {
+        event.preventDefault()
+        last.focus()
+      }
+    } else if (active === last || !modal.contains(active)) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
 
   const trimmedName = name.trim()
   const hasRequiredFields =
@@ -139,9 +183,12 @@ export function RegistryCreateModal({ sports, onCancel, onCreated }: RegistryCre
       }}
     >
       <div
+        ref={modalRef}
         data-testid="ops-create-modal"
         role="dialog"
         aria-modal="true"
+        aria-labelledby={TITLE_ID}
+        onKeyDown={handleDialogKeyDown}
         style={{
           width: '430px',
           maxWidth: 'calc(100vw - 32px)',
@@ -156,7 +203,7 @@ export function RegistryCreateModal({ sports, onCancel, onCreated }: RegistryCre
       >
         {/* header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ ...monoStyle, fontSize: '10px', fontWeight: 600, letterSpacing: '2px', color: 'var(--text-shell-2)' }}>
+          <div id={TITLE_ID} style={{ ...monoStyle, fontSize: '10px', fontWeight: 600, letterSpacing: '2px', color: 'var(--text-shell-2)' }}>
             NEW ENTITY
           </div>
           <button
@@ -207,12 +254,12 @@ export function RegistryCreateModal({ sports, onCancel, onCreated }: RegistryCre
               NAME
             </label>
             <input
+              ref={nameInputRef}
               id="ops-create-name-input"
               data-testid="ops-create-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Record name"
-              autoFocus
               style={fieldStyle}
             />
           </div>
