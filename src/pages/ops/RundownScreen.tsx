@@ -33,7 +33,7 @@ import { formatOpsDayLabel } from '../../components/ops/dayLabels'
 import { useContracts } from '../../components/ops/useContracts'
 import { useOpsDay, useOpsSelection } from '../../components/ops/opsUrlState'
 import { deriveCrewHealth, groupEventsByDay } from '../../components/ops/selectors'
-import { useRowActivation } from '../../components/ops/useRowActivation'
+import { getRowActivationProps } from '../../components/ops/rowActivation'
 import {
   AXIS_SPAN_MIN,
   AXIS_START_MIN,
@@ -279,10 +279,7 @@ export function RundownScreen({ now = new Date() }: RundownScreenProps) {
                             data-testid={`ops-rundown-block-${laneBlock.event.id}`}
                             data-event-id={String(laneBlock.event.id)}
                             data-selected={isSelected ? 'true' : 'false'}
-                            // useRowActivation is a pure prop-builder (no React
-                            // hooks inside); safe to call per-block in this map.
-                            // eslint-disable-next-line react-hooks/rules-of-hooks
-                            {...useRowActivation(() => setEventId(String(laneBlock.event.id)))}
+                            {...getRowActivationProps(() => setEventId(String(laneBlock.event.id)))}
                             title={blockTitle(laneBlock)}
                             onClick={() => setEventId(String(laneBlock.event.id))}
                             style={{

@@ -250,7 +250,7 @@ describe('row selection (?record — ops-selection v2)', () => {
 
   // E-2-T2 FEATURE (WCAG 2.1.1): the row was a mouse-only clickable <div>. It is
   // now keyboard-operable (role/tabIndex + Enter/Space), matching ScheduleRow /
-  // the Rundown block via the shared useRowActivation primitive.
+  // the Rundown block via the shared getRowActivationProps primitive.
   it('the row is keyboard-operable (role=button, tabIndex 0) and Enter/Space selects it', () => {
     renderScreen()
     const r = row('team:1')
