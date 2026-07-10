@@ -20,9 +20,59 @@ vi.mock('../../services', () => ({
   contractsApi: { list: vi.fn(async () => []) },
   channelsApi: { list: vi.fn(async () => []) },
   schedulesApi: { listSlots: vi.fn(async () => []) },
+  // C-2-T2: the registry tab now renders the real RegistryScreen → useRegistryData
+  // fetches these four (quiet — stubbed empty; RegistryScreen behavior has its own suite).
+  sportsApi: { list: vi.fn(async () => []) },
+  competitionsApi: { list: vi.fn(async () => []) },
+  teamsApi: { list: vi.fn(async () => []) },
+  playersApi: { list: vi.fn(async () => []) },
+  // D-1-T2: the sync tab now renders the real SyncScreen → useSyncData fetches
+  // these two (quiet — stubbed empty; per-test overrides via vi.mocked for the
+  // pin-5 badge integration test below).
+  importsApi: { listJobs: vi.fn(async () => []), listMergeCandidates: vi.fn(async () => []) },
 }))
 
 import { OpsShell, OPS_TABS, type OpsTabId } from './OpsShell'
+import { importsApi, type ImportJob, type ImportMergeCandidate } from '../../services'
+
+const FIXTURE_JOBS: ImportJob[] = [
+  {
+    id: 'job-1',
+    sourceId: 'src-1',
+    entityScope: 'teams',
+    mode: 'incremental',
+    status: 'completed',
+    statsJson: { recordsProcessed: 42 },
+    errorLog: null,
+    cursor: null,
+    startedAt: '2026-07-08T20:00:00Z',
+    finishedAt: '2026-07-08T20:05:00Z',
+    createdAt: '2026-07-08T20:00:00Z',
+    source: { id: 'src-1', code: 'OPTA', name: 'Opta Feed' },
+    _count: { records: 42, deadLetters: 0 },
+  },
+]
+const pendingCandidate = (id: string): ImportMergeCandidate => ({
+  id,
+  entityType: 'team',
+  suggestedEntityId: 'team-9',
+  confidence: 0.9,
+  reasonCodes: ['NAME_MATCH'],
+  status: 'pending',
+  reviewedBy: null,
+  reviewedAt: null,
+  createdAt: '2026-07-08T00:00:00Z',
+  importRecord: {
+    id: `rec-${id}`,
+    sourceId: 'src-1',
+    sourceRecordId: `ext-${id}`,
+    entityType: 'team',
+    normalizedJson: null,
+    sourceUpdatedAt: null,
+    source: { id: 'src-1', code: 'OPTA', name: 'Opta Feed' },
+  },
+})
+const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = [pendingCandidate('c1'), pendingCandidate('c2')]
 
 function LocationProbe() {
   return <span data-testid="location">{useLocation().pathname}</span>
@@ -169,5 +219,44 @@ describe('SYNC badge slot (wired for real in EPIC D)', () => {
 
     const sync = screen.getByRole('link', { name: 'SYNC' })
     expect(sync.textContent).toBe('SYNC')
+  })
+
+  // pin-5 end-to-end: the real SyncScreen (mounted at /ops/sync) publishes its
+  // pending-merge count UP through OpsTabBadgeContext to the shell tab bar. No
+  // tabBadges prop — the live count is the sole source.
+  it('SYNC tab reflects the live pending-merge count from the mounted SyncScreen', async () => {
+    vi.mocked(importsApi.listJobs).mockResolvedValue(FIXTURE_JOBS)
+    vi.mocked(importsApi.listMergeCandidates).mockResolvedValue(FIXTURE_MERGE_CANDIDATES)
+
+    renderShell('/ops/sync')
+
+    expect(await screen.findByRole('link', { name: 'SYNC [2]' })).toBeTruthy()
+
+    vi.mocked(importsApi.listJobs).mockResolvedValue([])
+    vi.mocked(importsApi.listMergeCandidates).mockResolvedValue([])
+  })
+
+  // pin-5 clear path (the D-3 decrement seam): once a later sync load has no
+  // pending candidates, SyncScreen publishes `undefined` and the shell must
+  // DELETE the badge — the tab returns to a plain SYNC. Driven here by a
+  // navigate-away-and-back remount (a proxy for D-3's post-decision refresh()).
+  it('clears the SYNC badge when a later sync load returns zero pending candidates', async () => {
+    const user = userEvent.setup()
+    vi.mocked(importsApi.listJobs).mockResolvedValue(FIXTURE_JOBS)
+    vi.mocked(importsApi.listMergeCandidates).mockResolvedValue(FIXTURE_MERGE_CANDIDATES)
+
+    renderShell('/ops/sync')
+    expect(await screen.findByRole('link', { name: 'SYNC [2]' })).toBeTruthy()
+
+    // the next load clears out — the candidate was decided elsewhere
+    vi.mocked(importsApi.listMergeCandidates).mockResolvedValue([])
+
+    await user.click(screen.getByRole('link', { name: 'SCHEDULE' }))
+    await user.click(screen.getByRole('link', { name: /^SYNC/ })) // remount → refetch → publish undefined
+
+    expect(await screen.findByRole('link', { name: 'SYNC' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'SYNC [2]' })).toBeNull()
+
+    vi.mocked(importsApi.listJobs).mockResolvedValue([])
   })
 })

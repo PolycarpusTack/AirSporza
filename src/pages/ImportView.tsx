@@ -14,6 +14,7 @@ import { Toggle } from '../components/ui/Toggle'
 import { useToast } from '../components/Toast'
 import { handleApiError } from '../utils/apiError'
 import { fmtAgo, fmtDateTime } from '../utils/dateTime'
+import { mergeConfidencePercent } from '../components/ops/syncSelectors'
 
 type ImportTab = 'sources' | 'jobs' | 'review' | 'dead-letters' | 'aliases' | 'provenance'
 
@@ -468,7 +469,7 @@ function JobsTab() {
 
 // ── Review (Merge Candidates) ─────────────────────────────────────────────────
 
-function ReviewTab() {
+export function ReviewTab() {
   const toast = useToast()
   const [candidates, setCandidates] = useState<ImportMergeCandidate[]>([])
   const [loading, setLoading] = useState(true)
@@ -516,7 +517,7 @@ function ReviewTab() {
                   c.confidence >= 0.5 ? 'bg-warning/10 text-warning' :
                   'bg-danger/10 text-danger'
                 }`}>
-                  {Math.round(c.confidence * 100)}% match
+                  {mergeConfidencePercent(c.confidence)}% match
                 </span>
                 {c.suggestedEntityId && (
                   <span className="text-xs text-text-3 font-mono">→ {c.suggestedEntityId}</span>

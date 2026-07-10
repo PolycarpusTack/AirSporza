@@ -1,8 +1,47 @@
 # CONTRACT SNAPSHOT: ops-e2e
 
-Version: 1 · Date: 2026-07-03 · Task: A-5-T0 (input contract for A-5-T1 smoke spec, B-4/EPIC-B smoke stories)
+Version: 1.2 · Date: 2026-07-09 · Task: A-5-T0 (v1) + C-7-T1 (v1.1 stateful registry store) + D-4-T1 (v1.2 stateful sync store)
 
 **Changelog**
+- **v1.2 (2026-07-09, D-4-T1):** SECOND stateful capability. New `setUpSyncE2E(page)`
+  (ADDITIVE — calls `setUpPlanzaE2E` then registers the SYNC import routes) backed by an
+  IN-MEMORY sync store seeded per test. Routes: `GET /import/jobs` (STATIC, frozen
+  `FIXTURE_JOBS` clone), `GET /import/merge-candidates?status=pending` (store, seeded from
+  `FIXTURE_MERGE_CANDIDATES` + an e2e-local `cand-fail`), `POST .../:id/approve-merge` &
+  `.../create-new` (mutate store `status` → `approved_merge`/`create_new`, fulfil
+  `merge-decision v1` `{message,candidate,event}`; `id === 'cand-fail'` → 500 to drive the
+  inline-error AC). CURRENT diff side is served by the base `events` route. **Known
+  fidelity note:** SyncScreen decrements the badge via its LOCAL `decided` map (no refetch),
+  so the store's status-mutation/pending re-derivation is defensive, not smoke-exercised —
+  the badge assertions validate the real (local-map) path. Real-backend write gap (decisions
+  emulated, jobs static) recorded in runbook §sync — same A-5/C-7 trade-off.
+- **v1.1 (2026-07-06, C-7-T1):** FIRST STATEFUL interception capability. New
+  `setUpRegistryE2E(page)` (ADDITIVE — calls `setUpPlanzaE2E` for auth/clock/base,
+  then registers the registry routes) backed by an IN-MEMORY `RegistryStore`
+  seeded from the anonymised fixture families (`FIXTURE_{SPORTS,COMPETITIONS,
+  TEAMS,PLAYERS}` — NOT `E2E_SPORTS`, whose sport-5 federation differs).
+  **Reset per test:** a fresh `page` → a fresh store (call it per test / in
+  `beforeEach`). Routes: `GET /sports|/competitions` (store); query-aware
+  `GET **/api/teams*` (`?competitionId` → linked teams, else full store WITH
+  `_count`) and `GET **/api/players*` (`?teamId` → roster, else full store WITH
+  `teamLinks`); `GET **/api/teams/*/competitions` (`TeamCompetitionLink[]`) and
+  `GET **/api/players/*/teams` (`PlayerTeamLink[]`); `POST` team/player/sport/
+  competition → append + return the created entity with `externalRefs: {}`
+  (→ SOURCE MANUAL) and, for teams, `_count:{competitionLinks:0,playerLinks:0}`;
+  a NAME collision → `409 { message: '<kind> … already exists' }` (the shape
+  `registry-create v1` pins; the modal branches on `status===409`);
+  `PATCH **/api/teams|players/*/notes` → mutate the store row's `notes` (the next
+  list GET re-derives). A minimal linked graph is seeded so a HOP has a target
+  (team 1 → competitions 101/103 + players 1/2). **Registration order** (Playwright
+  reverse-order): general `teams`/`players` BEFORE the specific per-id routes;
+  registry `sports`/`competitions` LAST so they override the static base routes.
+  **Recorded gap:** the A-5 real-backend trade-off now covers WRITES too — the
+  create/duplicate/remark round-trips are EMULATED in-memory, not proven against
+  the real backend (backend routes covered by backend vitest incl. C-4-T0
+  P2002→409). New spec `e2e/smoke-epic-c.flag-on.spec.ts` (4 ACs). Runbook
+  §registry + writes-known-limitation added. Scope pinned MINIMAL (Size M): per-
+  kind arrays, only teamId/competitionId filtering, only the CRUD the 4 ACs
+  exercise — NO general fake-backend, no delete routes.
 - **v1 amendment (2026-07-04, B-4-T1):** interception surface EXTENDED —
   `GET /api/channels` (FIXTURE_CHANNELS) and `GET /api/broadcast-slots*`
   (FIXTURE_SLOTS + the e2e-local `MIDNIGHT_BOUNDARY_SLOT`, honoring the
@@ -120,6 +159,13 @@ quietly (retries are console noise only).
   `/dashboard` (NOT `/login`), legacy `DashboardView-*.js` chunk requested,
   `OpsShell-*.js` NEVER requested (closes OpsShell v1 §Resolved ambiguities #4
   + EPIC A DoD "bundle-split verified").
+- `e2e/smoke-epic-b.flag-on.spec.ts` — EPIC B journey (schedule selection →
+  rundown lanes/pills → rights tiles/matrix; B-4-T1).
+- `e2e/smoke-epic-c.flag-on.spec.ts` — EPIC C registry (C-7-T1, uses the stateful
+  `setUpRegistryE2E`): AC-1 counters/facets/search-facet-compose; AC-2 row select
+  → `?record` + inspector, LINKED hop, deep-link restore; AC-3 create (MANUAL
+  provenance) + duplicate-409 inline error, modal stays open; AC-4 protected
+  remark save → `REMARKS · MANUAL` box.
 
 ## Isolation guarantees
 

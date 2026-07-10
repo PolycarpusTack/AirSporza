@@ -9,19 +9,20 @@ import { cleanup, renderHook, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, describe, expect, it } from 'vitest'
-import { useOpsDay, useOpsSelection } from './opsUrlState'
+import { useOpsDay, useOpsRecord, useOpsSelection } from './opsUrlState'
 
 const wrapperAt = (initialEntry: string) =>
   function Wrapper({ children }: { children: ReactNode }) {
     return <MemoryRouter initialEntries={[initialEntry]}>{children}</MemoryRouter>
   }
 
-/** Renders both hooks + location/navigation probes under one router. */
+/** Renders all three hooks + location/navigation probes under one router. */
 const renderOpsUrlState = (initialEntry = '/ops/schedule') =>
   renderHook(
     () => ({
       selection: useOpsSelection(),
       dayState: useOpsDay(),
+      recordState: useOpsRecord(),
       location: useLocation(),
       navigate: useNavigate(),
     }),
@@ -165,5 +166,92 @@ describe('history behavior (judgment call recorded in ops-selection v1)', () => 
     act(() => result.current.navigate(-1))
     expect(result.current.location.pathname).toBe('/ops/schedule')
     expect(result.current.selection.eventId).toBeNull()
+  })
+})
+
+/**
+ * `?record` (ops-selection v2, C-2-T1): the RESERVED param delivered by the
+ * Registry story. Mirrors the `?event` idiom EXACTLY — opaque id, NO validation
+ * (unknown/malformed resolves screen-side, not here), inherits all v1 semantics.
+ */
+describe('useOpsRecord — ?record selection (ops-selection v2 additive bump)', () => {
+  it('?record=team:12 hydrates recordId', () => {
+    const { result } = renderOpsUrlState('/ops/registry?record=team:12')
+
+    expect(result.current.recordState.recordId).toBe('team:12')
+  })
+
+  it('absent ?record → null', () => {
+    const { result } = renderOpsUrlState('/ops/registry')
+
+    expect(result.current.recordState.recordId).toBeNull()
+  })
+
+  it('empty ?record= is treated as absent → null', () => {
+    const { result } = renderOpsUrlState('/ops/registry?record=')
+
+    expect(result.current.recordState.recordId).toBeNull()
+  })
+
+  it('malformed ?record=zzz returns AS-IS (opaque — no validation, unlike ?day)', () => {
+    const { result } = renderOpsUrlState('/ops/registry?record=zzz')
+
+    expect(result.current.recordState.recordId).toBe('zzz')
+  })
+
+  it('setRecordId writes ?record= and preserves ?day= and ?event=', () => {
+    const { result } = renderOpsUrlState('/ops/registry?day=2026-03-04&event=abc')
+
+    act(() => result.current.recordState.setRecordId('player:3'))
+
+    expect(result.current.recordState.recordId).toBe('player:3')
+    expect(urlParam(result, 'record')).toBe('player:3')
+    expect(urlParam(result, 'day')).toBe('2026-03-04')
+    expect(urlParam(result, 'event')).toBe('abc')
+  })
+
+  it('setRecordId(null) removes the param and leaves ?day= intact', () => {
+    const { result } = renderOpsUrlState('/ops/registry?record=team:1&day=2026-03-04')
+
+    act(() => result.current.recordState.setRecordId(null))
+
+    expect(result.current.recordState.recordId).toBeNull()
+    expect(urlParam(result, 'record')).toBeNull()
+    expect(urlParam(result, 'day')).toBe('2026-03-04')
+  })
+
+  it('the path is never touched by setRecordId', () => {
+    const { result } = renderOpsUrlState('/ops/registry')
+
+    act(() => result.current.recordState.setRecordId('sport:5'))
+
+    // guard: prove the setter actually wrote, so this test can't pass vacuously
+    expect(urlParam(result, 'record')).toBe('sport:5')
+    expect(result.current.location.pathname).toBe('/ops/registry')
+  })
+
+  it('hydration follows location changes: back restores the previous pushed record', () => {
+    const { result } = renderOpsUrlState('/ops/registry?record=team:1')
+
+    act(() => result.current.navigate('/ops/registry?record=player:2'))
+    expect(result.current.recordState.recordId).toBe('player:2')
+
+    act(() => result.current.navigate(-1))
+    expect(result.current.recordState.recordId).toBe('team:1')
+  })
+
+  it('setRecordId updates REPLACE, not push: rapid selection does not spam history', () => {
+    const { result } = renderOpsUrlState('/ops/registry')
+
+    // a real pushed entry first, so back has somewhere meaningful to go
+    act(() => result.current.navigate('/ops/schedule'))
+    act(() => result.current.recordState.setRecordId('team:1'))
+    act(() => result.current.recordState.setRecordId('team:2'))
+    expect(result.current.recordState.recordId).toBe('team:2')
+
+    // ONE back-press exits the screen — the two selection sets left no history entries
+    act(() => result.current.navigate(-1))
+    expect(result.current.location.pathname).toBe('/ops/registry')
+    expect(result.current.recordState.recordId).toBeNull()
   })
 })

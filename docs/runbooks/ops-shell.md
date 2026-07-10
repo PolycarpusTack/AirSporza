@@ -84,11 +84,17 @@ Flag-OFF build, logged in:
 - **Theme is localStorage-only** (useOpsTheme v1 / ADR-013): per-browser, not
   per-user; no server persistence. Private-mode/storage-blocked browsers get
   session-only theming.
-- **E2E intercepts the network** (ops-e2e v1, recorded trade-off): the smoke
-  suite serves fixture payloads via Playwright routes and never exercises the
-  real backend — a gap vs EPIC A DoD "live data". Backend behavior is covered
-  by the backend vitest suite; the e2e layer proves the built bundle, routing,
-  flag wiring and derivations. A live-backend smoke remains future work.
+- **E2E intercepts the network** (ops-e2e v1/**v1.1**, recorded trade-off): the
+  smoke suite serves fixture payloads via Playwright routes and never exercises
+  the real backend — a gap vs EPIC A DoD "live data". **As of C-7 this gap now
+  covers WRITES too:** the registry create (`POST` sports/competitions/teams/
+  players), the duplicate-409, and the protected remark save (`PATCH …/notes`)
+  are EMULATED against an in-memory store (`setUpRegistryE2E`, reset per test) —
+  the smoke proves the built bundle + the write-path UI contract
+  (`registry-create v1` payload/error shape, MANUAL provenance, remark round-trip)
+  wired end-to-end, NOT the real backend routes. Backend write behavior (incl.
+  the C-4-T0 P2002→409 mapping and the notes protected-field route) is covered by
+  the backend vitest suite. A live-backend smoke remains future work.
 - **No runtime flag toggle** (TD-27): see Flag procedure — rollback is a
   redeploy.
 - **`+ PLAN` in the inspector** navigates to legacy `/sports` without
@@ -144,3 +150,104 @@ Verification checklist:
 Known limitation (AS-8): the ON-DEM column lights only when the domain model
 distinguishes a non-MAX on-demand right — reserved until the AS-4/AS-8
 stakeholder session resolves it.
+
+## §registry (`/ops/registry` — EPIC C, smoke: `e2e/smoke-epic-c.flag-on.spec.ts`)
+
+The registry is the sports CMS and the initiative's FIRST WRITE surface (create +
+protected remarks). What the C-7 smoke covers (fixture values in [brackets]):
+
+Verification checklist (flag-ON, logged in):
+1. Visit `/ops/registry` → the toolbar counters read `N SPORTS · N COMPETITIONS ·
+   N TEAMS · N PLAYERS` [`5 SPORTS · 10 COMPETITIONS · 3 TEAMS · 6 PLAYERS`] —
+   `N PLAYERS`, never "PEOPLE" (AS-5). The left BROWSE rail counts match and are
+   ALWAYS unfiltered.
+2. Click the Teams facet → the table filters to the team rows [3]; type an
+   editor's query → rows filter as-you-type and COMPOSE with the active facet
+   (facet counts stay unfiltered). The LINKED column reads the server `_count`
+   [team 1 → `5 linked records`].
+3. Click a row → `?record=<kind>:<id>` appears and the inspector hydrates the
+   record; a linked-record row in the inspector HOPS (updates the inspector + the
+   URL); a fresh load of a `?record=` deep link restores the same inspector.
+4. `+ NEW` → pick a kind, enter the required fields, CREATE → the modal closes,
+   filters clear, and the inspector shows the new record with
+   `MANUAL RECORD · PROTECTED FROM SYNC OVERWRITE` (created records send no
+   `externalRefs` → SOURCE MANUAL). A duplicate name → an inline error and the
+   modal STAYS open (no phantom row).
+5. On a team/player, the remark ghost (`+ ADD REMARK` / `EDIT REMARK`) opens an
+   inline editor; SAVE → the `REMARKS · MANUAL` box renders the saved text.
+
+| Symptom | Likely cause | Check / fix |
+|---|---|---|
+| Registry renders EMPTY (no rows, counters all 0) | One or more of the four list fetches failed, or `isSettled` never flips | DevTools Network: `GET /api/{sports,competitions,teams,players}` — all four must resolve (success OR failure settles the skeleton); the store must be seeded |
+| LINKED column shows `0 …` for everything | the list payload lacks the `_count`/`teamLinks` embeds (C-1-T0) | verify the list responses carry `_count` (competitions/teams) and `teamLinks` (players) |
+| Inspector shows no hop rows | the LAZY linked-record endpoints failed | Network: `GET /teams/:id/competitions`, `/players?teamId=`, `/players/:id/teams`, `/teams?competitionId=` |
+| Create fails / generic error | wrong `*.create` endpoint, or a non-201 that isn't 409 | Network the `POST`; a duplicate must return **409** with a `{ message }` — anything else renders the generic error (`registry-create v1`) |
+| A duplicate create shows the GENERIC error, not the inline "already exists" | backend not mapping P2002 → 409 (C-4-T0) | verify the create route's P2002→409 catch; the UI branches on `status === 409` |
+| Wrong SOURCE word (e.g. TSDB where MANUAL expected) | provenance predicate keys on the FIRST `externalRefs` key (C-1 pin 3); a manual create must send `{}` | inspect the record's `externalRefs`; manual = no keys → MANUAL |
+| Remark not saving | wrong `PATCH …/notes` route, or the refresh didn't re-derive | Network the `PATCH`; a successful save + refetch re-renders the REMARKS box |
+
+Known limitation (writes): see §known-limitations — the C-7 smoke EMULATES the
+create/remark writes in-memory; the real backend write routes are proven by the
+backend vitest suite, not the e2e layer. Rollback of the whole shell (registry
+included) is flag OFF + REBUILD + REDEPLOY (TD-27), never a runtime switch.
+
+## §sync (`/ops/sync` — EPIC D, smoke: `e2e/smoke-epic-d.flag-on.spec.ts`)
+
+SYNC surfaces two things: nightly IMPORT-JOB health (did last night's ingest run
+clean?) and the MERGE-REVIEW queue (deduplication candidates awaiting a human
+approve/keep decision — the initiative's 2nd write surface, IRREVERSIBLE). Data:
+`useSyncData v1` fetches `GET /api/import/jobs` (bare) + `GET
+/api/import/merge-candidates?status=pending` in parallel; decisions POST to
+`/api/import/merge-candidates/:id/approve-merge` (body `{targetEntityId}`) and
+`/create-new`. The CURRENT side of a merge diff comes from AppProvider events
+(bare-numeric-id string match). What the D-4 smoke covers (fixture values in
+[brackets]):
+
+Verification checklist (flag-ON, logged in):
+1. Visit `/ops/sync` → the `NIGHTLY SYNC · 02:00 CET` label + one job card per recent
+   job [3]. Each card shows a status dot (completed→green / failed→red / partial→amber /
+   queued·running→neutral) and a meta line `HH:MM · OK · N RECORDS` or `HH:MM · N
+   DEAD-LETTERS` [`15:00 · OK · 128 RECORDS`, `16:00 · 3 DEAD-LETTERS`, `17:00 · OK · 0
+   RECORDS`]. The `HH:MM` is `startedAt ?? createdAt` as WALL-CLOCK time in the browser
+   TZ (the one ambient-TZ read — the smoke pins `America/New_York`; live reads the
+   viewer's TZ). The SYNC shell tab shows the pending-candidate count [`SYNC [3]`].
+2. Each pending candidate is a MERGE CARD: kind chip · incoming name · `→ MATCHES →` ·
+   current name · `N% MATCH` (green band ≥90, amber <90) · `VIA <source>`. When the
+   current side resolves, a `FIELD | INCOMING | CURRENT` diff renders (`ops-sync-diff-row`
+   rows for SPORT/COMPETITION/DATE/PARTICIPANTS that BOTH sides carry); a CHANGED
+   INCOMING cell is amber. A candidate with a null `suggestedEntityId` is INCOMING-ONLY
+   (`CURRENT NOT LOADED`, no diff table) and APPROVE is create-gated OFF.
+3. `APPROVE MERGE` (enabled only when a `suggestedEntityId` exists) → the footer becomes
+   `✓ MERGED INTO REGISTRY`; `KEEP SEPARATE` → `KEPT AS SEPARATE RECORDS`. The decided
+   card's buttons are REPLACED by the terminal line (not re-decidable in-view) and the
+   SYNC badge decrements. Decisions are SINGLE-FLIGHT (a rapid double-click fires once).
+4. A rejected decision (e.g. a 409 "already decided", or any 5xx) renders a quiet inline
+   error (`ops-sync-decision-error`) with the message, re-enables both buttons for a
+   user-initiated retry, and leaves the badge unchanged.
+
+| Symptom | Likely cause | Check / fix |
+|---|---|---|
+| SYNC renders `NO RECENT SYNC JOBS` / `NO PENDING CANDIDATES` unexpectedly | one/both fetches failed (QUIET by design — a failed fetch still settles the skeleton) | DevTools Network: `GET /api/import/jobs` + `/api/import/merge-candidates?status=pending` must resolve |
+| Job times off by hours | the wall-clock is the AMBIENT browser TZ (the documented D-1 seam) — not a bug | confirm the viewer's TZ; the smoke pins `America/New_York` |
+| Job stuck on `LOADING SYNC` | neither fetch settled (hung network) — the skeleton clears on success OR failure | DevTools Network — both requests must settle |
+| Merge card shows `CURRENT NOT LOADED` where a match was expected | the suggested event isn't in AppProvider (not loaded), or `suggestedEntityId` is non-numeric | verify `GET /api/events` carries the id; DeduplicationService emits `String(eventId)` |
+| `N% MATCH` looks 100× too big/small | `confidence` is a Decimal(5,2) already on a 0..100 scale — the raw value IS the percent (sync-selectors v1.2 corrected the legacy `*100`) | inspect the candidate's raw `confidence`; never re-scale |
+| APPROVE MERGE greyed out | create-only candidate (`suggestedEntityId` null) — KEEP SEPARATE creates a new record | expected; the tooltip explains it |
+| A decision "sticks" then reappears after reload | decisions are EMULATED in-memory in e2e (see below); a real reload refetches the backend | not an e2e concern on live data — the backend 409 guard is the real idempotency |
+
+Known limitations (§sync):
+- **Writes are EMULATED in e2e** (ops-e2e **v1.2**, extends the A-5/C-7 gap): the D-4
+  smoke serves import JOBS STATICALLY and the merge-candidate store IN-MEMORY
+  (`setUpSyncE2E`, reset per test) — approve/keep decisions mutate that store and never
+  hit the real backend. The smoke proves the built bundle + the EPIC D contracts
+  (`sync-selectors v1.2` diff/band derivation, `useSyncData v1` quiet-settle, the
+  `merge-decision v1` single-flight write path incl. the inline-error branch) wired
+  end-to-end — NOT the real routes. The real idempotency is the D-3-T0 backend 409 guard
+  ("already decided"), covered by the backend vitest suite; a live-backend smoke remains
+  future work.
+- **`NIGHTLY SYNC · 02:00 CET` is STATIC copy** (design) — it is not read from a scheduler;
+  the actual cadence lives in the backend cron/config, not the UI.
+- **The badge is FIRST-VISIT populated** (pin 5): the pending count publishes UP to the
+  shell tab only once the Sync screen mounts and settles; there is no pre-visit
+  cross-screen count fetch (an E-item). It is not cleared on navigating away (persistent
+  chrome, by design).

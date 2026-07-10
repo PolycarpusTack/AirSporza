@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../db/prisma.js'
 import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
@@ -31,7 +32,19 @@ router.get('/', validate({ query: s.teamsListQuery }), async (req, res, next) =>
     const pagination = getPagination({ limit, offset })
     const teams = await prisma.team.findMany({
       where,
-      include: { sport: { select: { id: true, name: true, icon: true } } },
+      include: {
+        sport: { select: { id: true, name: true, icon: true } },
+        // C-1-T0: registry LINKED-summary embeds (team → `N linked records`).
+        // playerLinks is filtered to CURRENT memberships only — ended stints
+        // (isCurrent: false) are not today's squad (mirrors the ?teamId roster
+        // rule, F6). Filtered relation counts are GA in Prisma 5.
+        _count: {
+          select: {
+            competitionLinks: true,
+            playerLinks: { where: { isCurrent: true } },
+          },
+        },
+      },
       orderBy: pagination ? [{ name: 'asc' }, { id: 'asc' }] : { name: 'asc' },
       ...(pagination ? { take: pagination.limit, skip: pagination.offset } : {}),
     })
@@ -111,6 +124,9 @@ router.post('/', authenticate, authorize('admin'), validate({ body: s.teamCreate
 
     res.status(201).json(team)
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return next(createError(409, 'A team with that name already exists'))
+    }
     next(error)
   }
 })

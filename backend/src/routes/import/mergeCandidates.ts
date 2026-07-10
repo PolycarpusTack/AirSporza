@@ -108,6 +108,10 @@ router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('plan
       return next(createError(404, 'Merge candidate not found'))
     }
 
+    if (candidate.status !== 'pending') {
+      return next(createError(409, `Merge candidate has already been decided (${candidate.status})`))
+    }
+
     if (candidate.entityType !== 'event') {
       return next(createError(400, 'Only event merge candidates are currently reviewable'))
     }
@@ -172,6 +176,10 @@ router.post('/merge-candidates/:id/create-new', authenticate, authorize('planner
       return next(createError(404, 'Merge candidate not found'))
     }
 
+    if (candidate.status !== 'pending') {
+      return next(createError(409, `Merge candidate has already been decided (${candidate.status})`))
+    }
+
     if (candidate.entityType !== 'event') {
       return next(createError(400, 'Only event merge candidates are currently reviewable'))
     }
@@ -220,6 +228,10 @@ router.post('/merge-candidates/:id/ignore', authenticate, authorize('planner', '
 
     if (!existing) {
       return next(createError(404, 'Merge candidate not found'))
+    }
+
+    if (existing.status !== 'pending') {
+      return next(createError(409, `Merge candidate has already been decided (${existing.status})`))
     }
 
     const user = req.user as { email?: string; id: string }
