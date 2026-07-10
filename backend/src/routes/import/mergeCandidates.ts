@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../../db/prisma.js'
 import { authenticate, authorize } from '../../middleware/auth.js'
 import { validate } from '../../middleware/validate.js'
-import { createError } from '../../middleware/errorHandler.js'
+import { createError, type AppError } from '../../middleware/errorHandler.js'
 import type { CanonicalImportEvent } from '../../import/types.js'
 import { manualCreateNormalizedEvent, manualMergeNormalizedEvent } from '../../import/services/ImportJobRunner.js'
 import { normalizeImportSchemaError } from '../../import/services/ImportSchemaService.js'
@@ -10,6 +10,17 @@ import { getOffsetPagination, paginationEnvelope } from '../../utils/pagination.
 import * as s from '../../schemas/import.js'
 
 const router = Router()
+
+// D-3-T0 already-decided guard, extracted (Rule of Three): all three decision
+// routes reject a candidate whose status has left 'pending' with the same 409.
+// Returns the AppError to hand to next(), or null when the candidate is still
+// actionable. Behaviour is byte-identical to the previous inline copies.
+function decidedGuardError(candidate: { status: string }): AppError | null {
+  if (candidate.status !== 'pending') {
+    return createError(409, `Merge candidate has already been decided (${candidate.status})`)
+  }
+  return null
+}
 
 function isCanonicalImportEvent(value: unknown): value is {
   sportName: string
@@ -108,9 +119,8 @@ router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('plan
       return next(createError(404, 'Merge candidate not found'))
     }
 
-    if (candidate.status !== 'pending') {
-      return next(createError(409, `Merge candidate has already been decided (${candidate.status})`))
-    }
+    const decided = decidedGuardError(candidate)
+    if (decided) return next(decided)
 
     if (candidate.entityType !== 'event') {
       return next(createError(400, 'Only event merge candidates are currently reviewable'))
@@ -176,9 +186,8 @@ router.post('/merge-candidates/:id/create-new', authenticate, authorize('planner
       return next(createError(404, 'Merge candidate not found'))
     }
 
-    if (candidate.status !== 'pending') {
-      return next(createError(409, `Merge candidate has already been decided (${candidate.status})`))
-    }
+    const decided = decidedGuardError(candidate)
+    if (decided) return next(decided)
 
     if (candidate.entityType !== 'event') {
       return next(createError(400, 'Only event merge candidates are currently reviewable'))
@@ -230,9 +239,8 @@ router.post('/merge-candidates/:id/ignore', authenticate, authorize('planner', '
       return next(createError(404, 'Merge candidate not found'))
     }
 
-    if (existing.status !== 'pending') {
-      return next(createError(409, `Merge candidate has already been decided (${existing.status})`))
-    }
+    const decided = decidedGuardError(existing)
+    if (decided) return next(decided)
 
     const user = req.user as { email?: string; id: string }
     const reviewedBy = user.email || user.id
