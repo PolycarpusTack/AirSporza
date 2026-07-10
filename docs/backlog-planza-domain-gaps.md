@@ -489,6 +489,15 @@ Business Value 3 · Priority 5 · Size **L** · DoR: **READY after RD-2** · INV
   baseline** codes (golden-master regression test — recorded AFTER RD-1F lands, Acceptance record §2).
 - Alt: contract with no windows at all (pre-backfill data guard) → legacy path + `INFO` data-quality note.
 
+**DoR refinements (2026-07-10, architect-delegated — closes the RD-3 DoR punch-list before RD-3-T1):**
+1. **Three DISTINCT INFO codes** (the collapsed "INFO data-quality note" is un-testable as one code — MAX-rigor permutation table needs identity per trigger):
+   `WINDOW_UNSCOPED` (empty `territory[]`/`platforms[]` on a matched window — Acceptance record §4),
+   `NO_WINDOWS` (contract has zero windows — pre-backfill guard, the Alt AC),
+   `HOLDBACK_LIVE_END_UNKNOWN` (holdback applies but neither a ledger LIVE `endedAtUtc` nor a scheduled end exists — §4 step 3). All severity **INFO**. A slot hitting >1 trigger emits each distinct code (dedup by code+scope, existing `deduplicateResults` behavior).
+2. **`MAX_RUNS_NEAR` severity = WARNING** (matches the legacy code at `rightsChecker.ts:143`); `MAX_RUNS_EXCEEDED`/`HOLDBACK_VIOLATION` = ERROR, `WINDOW_CATEGORY_MISSING` = WARNING (per AC).
+3. **Defect-(b) fixture constraint (makes the negative proof watertight, TD-28):** the checker counts only `CONFIRMED|RECONCILED` RunLedger states, which the API's zod `status` enum CANNOT create — so CONFIRMED run fixtures MUST be inserted **directly via Prisma** in the RD-3-T2 tests, never through the run-ledger API. Seeding via the API yields un-counted states → the "forced `[]` vs ledger-query" negative proof passes vacuously and guards nothing.
+4. **`rightsWindows` flag source (RD-3-T2, first backend flag):** add `RIGHTS_WINDOWS: z.coerce.boolean().default(false)` to the `baseSchema` in `backend/src/config/env.ts` (lowest-ceremony, consistent with all other config; build-time per TD-27 → rollback = redeploy, state honestly in the runbook). The **pure** `checkRights` v2 (T1) takes an explicit boolean **param** (`windowsEnabled`) — it never reads env; RD-3-T2's wiring reads `env.RIGHTS_WINDOWS` and passes it. Flag OFF = legacy scalar path = golden-master byte-identical.
+
 **Interfaces:** `checkRights` v2 signature (adds `runIntent`/window resolution) — pure function, no DB.
 **TD:** TD-28 registered at RD-2-T2 (memo §5.7); do not service the remaining drift here (separate Hat).
 **Test data:** RD-2 fixture permutations + RunLedger fixtures per category.
