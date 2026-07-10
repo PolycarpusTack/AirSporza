@@ -247,6 +247,23 @@ describe('row selection (?record — ops-selection v2)', () => {
     renderScreen('/ops/registry?record=player:3')
     expect(row('player:3').style.background).toBe('var(--surface-shell-2)')
   })
+
+  // E-2-T2 FEATURE (WCAG 2.1.1): the row was a mouse-only clickable <div>. It is
+  // now keyboard-operable (role/tabIndex + Enter/Space), matching ScheduleRow /
+  // the Rundown block via the shared useRowActivation primitive.
+  it('the row is keyboard-operable (role=button, tabIndex 0) and Enter/Space selects it', () => {
+    renderScreen()
+    const r = row('team:1')
+    expect(r.getAttribute('role')).toBe('button')
+    expect(r.tabIndex).toBe(0)
+
+    fireEvent.keyDown(r, { key: 'Enter' })
+    expect(recordParam()).toBe('team:1')
+
+    // Space selects a different row too (and, in a real browser, suppresses scroll)
+    fireEvent.keyDown(row('player:3'), { key: ' ' })
+    expect(recordParam()).toBe('player:3')
+  })
 })
 
 describe('cells (SOURCE / STATUS / TYPE chip)', () => {

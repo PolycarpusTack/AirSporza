@@ -30,6 +30,7 @@ import { useLinkedRecords } from '../../components/ops/useLinkedRecords'
 import { RecordInspector } from '../../components/ops/RecordInspector'
 import { RegistryCreateModal } from '../../components/ops/RegistryCreateModal'
 import { useOpsRecord } from '../../components/ops/opsUrlState'
+import { useRowActivation } from '../../components/ops/useRowActivation'
 import { playersApi, teamsApi } from '../../services'
 import {
   buildRegistryIndex,
@@ -298,6 +299,7 @@ function RegistryTableRow({
     <div
       data-testid={`ops-registry-row-${row.id}`}
       data-kind={row.kind}
+      {...useRowActivation(onSelect)}
       onClick={onSelect}
       style={{
         ...TABLE_GRID,

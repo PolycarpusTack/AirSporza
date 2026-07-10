@@ -300,9 +300,14 @@ export function RundownScreen({ now = new Date() }: RundownScreenProps) {
                               padding: '6px 10px',
                               cursor: 'pointer',
                               overflow: 'hidden',
-                              outlineWidth: '1px',
-                              outlineStyle: outlineColor ? 'solid' : 'none',
-                              ...(outlineColor ? { outlineColor } : {}),
+                              // SELECTION/conflict indicator only. When neither,
+                              // set NO outline props at all so the keyboard focus
+                              // ring (ops.css :focus-visible / UA default) is not
+                              // suppressed — the old `outlineStyle:'none'` erased
+                              // it on most blocks (WCAG 2.4.7, E-2-T2 fix).
+                              ...(outlineColor
+                                ? { outlineWidth: '1px', outlineStyle: 'solid', outlineColor }
+                                : {}),
                             }}
                           >
                             <div style={{ ...monoStyle, fontSize: '9.5px', fontWeight: 600, color: 'var(--text-shell-2)' }}>
