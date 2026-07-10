@@ -121,6 +121,7 @@ model Tenant {
   scheduleDrafts        ScheduleDraft[]
   scheduleVersions      ScheduleVersion[]
   rightsPolicies        RightsPolicy[]
+  rightsWindows         RightsWindow[]
   runLedgerEntries      RunLedger[]
   outboxEvents          OutboxEvent[]
   cascadeEstimates      CascadeEstimate[]
@@ -358,6 +359,7 @@ model Contract {
   competition      Competition @relation(fields: [competitionId], references: [id])
   season           Season?     @relation(fields: [seasonId], references: [id])
   runLedgerEntries RunLedger[]
+  rightsWindows    RightsWindow[]
 
   @@index([competitionId])
   @@index([status])
@@ -1564,6 +1566,13 @@ enum CoverageType {
   HIGHLIGHTS
   DELAYED
   CLIP
+  ARCHIVE
+}
+
+enum ExclusivityTier {
+  EXCLUSIVE
+  NON_EXCLUSIVE
+  OPEN_NET
 }
 
 enum Platform {
@@ -1573,6 +1582,31 @@ enum Platform {
   AVOD
   PPV
   STREAMING
+}
+
+// RD-2 (ADR-015 §1): rights as first-class, multi-window children of Contract.
+// Backfilled 1:1 from Contract scalars in migration 20260710120001; contract
+// scalars become @deprecated read-only (flag-OFF path) after RD-2.
+model RightsWindow {
+  id               String          @id @default(uuid()) @db.Uuid
+  tenantId         String          @db.Uuid
+  contractId       Int
+  category         CoverageType
+  exclusivity      ExclusivityTier @default(NON_EXCLUSIVE)
+  territory        String[]        @default([])
+  platforms        String[]        @default([])
+  windowStartUtc   DateTime?       @db.Timestamptz
+  windowEndUtc     DateTime?       @db.Timestamptz
+  maxRuns          Int?
+  holdbackHoursMin Int?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  contract Contract @relation(fields: [contractId], references: [id])
+
+  @@index([tenantId])
+  @@index([contractId])
 }
 
 enum RunType {

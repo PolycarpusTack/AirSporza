@@ -33,6 +33,17 @@ export const eventStatusEnum = z.enum([
   'draft', 'ready', 'approved', 'published', 'live', 'completed', 'cancelled'
 ])
 
+/**
+ * Rights coverage category — full DB CoverageType set (ADR-015 §2). Introduced by
+ * RD-2-T2 for the NEW rights-window validation surface ONLY. The narrow
+ * contract/policy `coverageType` enum in contracts.ts/rights.ts is deliberately
+ * left unchanged (widening it is a separate, tested change — Two Hats).
+ */
+export const coverageTypeEnum = z.enum(['LIVE', 'HIGHLIGHTS', 'DELAYED', 'CLIP', 'ARCHIVE'])
+
+/** Rights-window exclusivity tier (ADR-015 §3). */
+export const exclusivityTierEnum = z.enum(['EXCLUSIVE', 'NON_EXCLUSIVE', 'OPEN_NET'])
+
 /** Positive integer — reusable for FK references */
 export const positiveInt = z.coerce.number().int().positive()
 
