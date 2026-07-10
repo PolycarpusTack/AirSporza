@@ -265,3 +265,30 @@ keyboard/focus claim was verified by reading the actual component source, not in
 The one soft gap: the "`reasonCodes` + a merge-confirm step" AC-4 note (§5) has no
 corresponding code yet in `SyncScreen.tsx` — it is carried in this audit purely because
 the task brief named it as an accrued note to enumerate, not because it was found in code.
+
+---
+
+## E-2-T3 — Resolution (2026-07-10, architect-decided)
+
+**Contrast fails → FIXED (nudge to real AA).** Both light-theme status colors were
+final-intent (A-1-T4 sign-off), so the architect decided a minimal darkening rather than
+a silent shift (audit-honesty). Verified with the WCAG relative-luminance formula against
+light `--bg-shell` `#EDF1F2`:
+
+| Token (light) | Before | Ratio | After | Ratio | Verdict |
+|---|---|---|---|---|---|
+| `--alert-danger` | `#D71F24` | 4.49 | **`#D31F24`** | **4.63** | ✅ AA |
+| `--alert-negotiation` | `#AE551B` | 4.48 | **`#A9551B`** | **4.61** | ✅ AA |
+
+Same hue, single-channel (R) −4/−5 darkening; **dark theme untouched** (already passed
+5.03 / 6.62). Applied to `src/styles/tokens.css` `[data-theme="light"]` only.
+
+**Designer-polish notes (7, AC-4) → DEFERRED** to a dedicated designer session (architect
+decision): `--registry-*` STATUS token family · channel color vars (Ketnet / VRT MAX Sport
+/ Radio 1) · sport-icon/federation + per-kind create fields · provenance SOURCE-code-vs-full
+-name · copy (`MAX` / `NIGHTLY SYNC · 02:00 CET` / season-label) · `N PLAYERS` vs `12 PEOPLE`
+(already resolved — AS-5 honesty) · `reasonCodes` + a merge-confirm step (no code yet). None
+block the cutover; tracked open for E-4 debt servicing / a designer pass.
+
+**Story E-2 status: COMPLETE** — T1 audit, T2 remediation (Registry keyboard + Rundown
+focus + shared `getRowActivationProps`), T3 contrast fix + designer-note dispositions.

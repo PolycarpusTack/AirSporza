@@ -1,8 +1,13 @@
 # CONTRACT SNAPSHOT: ops-tokens
 
-Version: 3 · Date: 2026-07-02 · Task: A-3-T2 (input contract for all ops screens)
+Version: 3.1 · Date: 2026-07-10 · Task: A-3-T2 (v3) + E-2-T3 (v3.1 a11y contrast nudge)
 
 **Changelog**
+- **v3.1 (2026-07-10, E-2-T3):** two LIGHT-theme status colours darkened a hair to
+  clear WCAG AA on `--bg-shell` (#EDF1F2): `--alert-danger` `#D71F24`→`#D31F24`
+  (4.49→4.63:1), `--alert-negotiation` `#AE551B`→`#A9551B` (4.48→4.61:1). Same hue,
+  single-channel −4/−5; DARK theme unchanged (already AA). Architect-decided (final-intent
+  colours — not silently shifted). See `docs/ops-a11y-audit.md` §E-2-T3.
 - **v3 (2026-07-02, A-3-T2):** ADDITIVE alias families for Rights Status & Crew Health
   words (architect-authorized): `--rights-valid|expiring|negotiation|missing` and
   `--crew-ok|open|conflict` — pure `var()` references (`--status-approved`,
@@ -52,9 +57,9 @@ never hex.
 | `--status-draft` | `#98A2B3` | `#5C687D` |
 | `--status-ready` | `#4C8DF5` | `#0C5CDC` |
 | `--status-approved` | `#2BB673` | `#1C744A` |
-| `--alert-danger` | `#E5484D` | `#D71F24` |
+| `--alert-danger` | `#E5484D` | `#D31F24` |
 | `--alert-warning` | `#E5A13C` | `#976214` |
-| `--alert-negotiation` | `#E07B39` | `#AE551B` |
+| `--alert-negotiation` | `#E07B39` | `#A9551B` |
 | `--channel-een` | `#E4572E` | `#C13F19` |
 | `--channel-canvas` | `#4C8DF5` | `#0D63EC` |
 | `--channel-vrtmax` | `#2BB673` | `#1D7B4E` |

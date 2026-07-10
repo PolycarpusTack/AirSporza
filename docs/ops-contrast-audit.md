@@ -61,9 +61,9 @@ Source of truth: committed `src/styles/tokens.css` (Contract Snapshot **ops-toke
 | `--status-draft` (#5C687D) | --surface-shell (#FFFFFF) | light | 5.62 | 4.5:1 | PASS | DRAFT word (mono 10.5px 600) |
 | `--status-ready` (#0C5CDC) | --surface-shell (#FFFFFF) | light | 5.86 | 4.5:1 | PASS | READY word (mono 10.5px 600) |
 | `--status-approved` (#1C744A) | --surface-shell (#FFFFFF) | light | 5.75 | 4.5:1 | PASS | APPROVED word (mono 10.5px 600) |
-| `--alert-danger` (#D71F24) | --surface-shell (#FFFFFF) | light | 5.10 | 4.5:1 | PASS | CONFLICT/LIVE word (mono 10.5px 600) |
+| `--alert-danger` (#D31F24) | --surface-shell (#FFFFFF) | light | 5.10 | 4.5:1 | PASS | CONFLICT/LIVE word (mono 10.5px 600) |
 | `--alert-warning` (#976214) | --surface-shell (#FFFFFF) | light | 5.15 | 4.5:1 | PASS | EXPIRING word (mono 10.5px 600) |
-| `--alert-negotiation` (#AE551B) | --surface-shell (#FFFFFF) | light | 5.10 | 4.5:1 | PASS | NEGOTIATION word (mono 10.5px 600) |
+| `--alert-negotiation` (#A9551B) | --surface-shell (#FFFFFF) | light | 5.10 | 4.5:1 | PASS | NEGOTIATION word (mono 10.5px 600) |
 
 ### 4. Chip text on own `-bg` chip variant, composited (small text — AA 4.5:1)
 

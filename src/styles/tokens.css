@@ -180,9 +180,9 @@
   --status-draft:      #5C687D;
   --status-ready:      #0C5CDC;
   --status-approved:   #1C744A;
-  --alert-danger:      #D71F24;
+  --alert-danger:      #D31F24;  /* E-2-T3: nudged from #D71F24 (4.49) → 4.63:1 on --bg-shell (WCAG AA) */
   --alert-warning:     #976214;
-  --alert-negotiation: #AE551B;
+  --alert-negotiation: #A9551B;  /* E-2-T3: nudged from #AE551B (4.48) → 4.61:1 on --bg-shell (WCAG AA) */
   --channel-een:       #C13F19;
   --channel-canvas:    #0D63EC;
   --channel-vrtmax:    #1D7B4E;

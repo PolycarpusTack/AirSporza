@@ -42,9 +42,9 @@ const SEMANTIC_THEME_VARS: Record<string, { dark: string; light: string }> = {
   '--status-ready':      { dark: '#4C8DF5', light: '#0C5CDC' },
   '--status-approved':   { dark: '#2BB673', light: '#1C744A' },
   // Alerts
-  '--alert-danger':      { dark: '#E5484D', light: '#D71F24' },
+  '--alert-danger':      { dark: '#E5484D', light: '#D31F24' },
   '--alert-warning':     { dark: '#E5A13C', light: '#976214' },
-  '--alert-negotiation': { dark: '#E07B39', light: '#AE551B' },
+  '--alert-negotiation': { dark: '#E07B39', light: '#A9551B' },
   // Channels
   '--channel-een':       { dark: '#E4572E', light: '#C13F19' },
   '--channel-canvas':    { dark: '#4C8DF5', light: '#0D63EC' },
