@@ -16,7 +16,7 @@
  *  - {@link getRightsMatrix} — operator-facing per-contract summary with
  *    runs-used / days-to-expiry / platform coverage for the matrix UI.
  */
-import type { Contract, PrismaClient } from '@prisma/client'
+import type { Contract, PrismaClient, RightsWindow } from '@prisma/client'
 import type { ValidationResult } from './validation/types.js'
 import { prisma as defaultPrisma } from '../db/prisma.js'
 
@@ -29,7 +29,21 @@ interface RightsCheckInput {
   currentRunCount?: number // existing runs for this contract (optional — if
                            //   omitted, callers can instead use
                            //   checkRightsForEvent which queries RunLedger)
+
+  // --- RD-3 v2 window-aware fields (populated by the RD-3-T2 caller; the pure
+  //     fn only reads them, never computes them) ---
+  /** CoverageType category the slot represents (LIVE|DELAYED|HIGHLIGHTS|CLIP|ARCHIVE). Default LIVE. */
+  runIntent?: string
+  /** Actual LIVE-run end from the RunLedger (ADR-015 §4 step 1). */
+  liveRunEndedAtUtc?: string | null
+  /** Event scheduled end = startUtc + durationMin (ADR-015 §4 step 2). */
+  scheduledEndUtc?: string | null
 }
+
+/** A contract with its RightsWindow rows attached (v2 path input). */
+type ContractWithWindows = Contract & { rightsWindows?: RightsWindow[] }
+
+const MS_PER_HOUR = 3_600_000
 
 interface BlackoutPeriod {
   start: string   // ISO
@@ -40,10 +54,17 @@ interface BlackoutPeriod {
 /**
  * Check rights for an event against a set of contracts.
  * Pure function — no DB access.
+ *
+ * @param opts.windowsEnabled  When falsy (default), runs the legacy scalar path
+ *   UNCHANGED (golden-master byte-identical, RD-1F baseline). When true, runs the
+ *   RD-3 window-aware path: resolves the applicable RightsWindow by `input.runIntent`
+ *   and enforces per-window platform/time/territory/holdback/run-limit (ADR-015 §2/§4).
+ *   The pure fn takes the flag as a param; it never reads env (RD-3-T2 passes it).
  */
 export function checkRights(
   input: RightsCheckInput,
-  contracts: Contract[],
+  contracts: ContractWithWindows[],
+  opts: { windowsEnabled?: boolean } = {},
 ): ValidationResult[] {
   const results: ValidationResult[] = []
 
@@ -74,103 +95,325 @@ export function checkRights(
   }
 
   for (const contract of applicable) {
-    // 1. Platform coverage check (skip if no channel known)
-    if (input.channelId && input.channelTypes && input.channelTypes.length > 0) {
-      const platforms = contract.platforms.length > 0
-        ? contract.platforms
-        : derivePlatformsFromLegacy(contract)
-
-      const uncovered = input.channelTypes.filter(t => !platforms.includes(t))
-      if (uncovered.length > 0) {
-        results.push({
-          code: 'PLATFORM_NOT_COVERED',
-          severity: 'WARNING',
-          scope: ['rights', 'platform'],
-          message: `Channel type(s) [${uncovered.join(', ')}] not covered by contract #${contract.id}`,
-        })
-      }
-    }
-
-    // 2. Time window check
-    if (contract.windowStartUtc && contract.windowEndUtc && input.startUtc) {
-      const start = new Date(input.startUtc)
-      const winStart = new Date(contract.windowStartUtc)
-      const winEnd = new Date(contract.windowEndUtc)
-      if (start < winStart || start > winEnd) {
-        results.push({
-          code: 'OUTSIDE_RIGHTS_WINDOW',
-          severity: 'WARNING',
-          scope: ['rights', 'window'],
-          message: `Event start is outside the rights window (${winStart.toISOString()} – ${winEnd.toISOString()})`,
-        })
-      }
-    }
-
-    // 3. Blackout period check — sub-windows inside the main contract window
-    //    when broadcast is forbidden (e.g. exclusive simulcast lockout).
-    if (input.startUtc) {
-      const start = new Date(input.startUtc).getTime()
-      const blackouts = parseBlackoutPeriods(contract.blackoutPeriods)
-      for (const b of blackouts) {
-        const bStart = new Date(b.start).getTime()
-        const bEnd = new Date(b.end).getTime()
-        if (Number.isNaN(bStart) || Number.isNaN(bEnd)) continue
-        if (start >= bStart && start <= bEnd) {
-          results.push({
-            code: 'BLACKOUT_PERIOD',
-            severity: 'ERROR',
-            scope: ['rights', 'blackout'],
-            message: b.reason
-              ? `Event falls inside blackout period (${b.reason}) on contract #${contract.id}`
-              : `Event falls inside a blackout period on contract #${contract.id} (${new Date(b.start).toISOString()} – ${new Date(b.end).toISOString()})`,
-          })
-        }
-      }
-    }
-
-    // 4. Run limit check
-    if (contract.maxLiveRuns != null && input.currentRunCount != null) {
-      if (input.currentRunCount >= contract.maxLiveRuns) {
-        results.push({
-          code: 'MAX_RUNS_EXCEEDED',
-          severity: 'ERROR',
-          scope: ['rights', 'runs'],
-          message: `Maximum live runs (${contract.maxLiveRuns}) exceeded — currently ${input.currentRunCount} used`,
-        })
-      } else if (input.currentRunCount >= contract.maxLiveRuns - 1) {
-        results.push({
-          code: 'MAX_RUNS_NEAR',
-          severity: 'WARNING',
-          scope: ['rights', 'runs'],
-          message: `Approaching maximum live runs: ${input.currentRunCount}/${contract.maxLiveRuns}`,
-        })
-      }
-    }
-
-    // 5. Territory check
-    if (input.territory && contract.territory.length > 0) {
-      if (!contract.territory.includes(input.territory)) {
-        results.push({
-          code: 'TERRITORY_BLOCKED',
-          severity: 'ERROR',
-          scope: ['rights', 'territory'],
-          message: `Territory "${input.territory}" is not covered by contract #${contract.id} (allowed: ${contract.territory.join(', ')})`,
-        })
-      }
-    }
-
-    // 6. Contract expiry warning
-    if (contract.status === 'expiring') {
-      results.push({
-        code: 'CONTRACT_EXPIRING',
-        severity: 'WARNING',
-        scope: ['rights', 'expiry'],
-        message: `Contract #${contract.id} is expiring (until ${contract.validUntil?.toISOString().slice(0, 10) ?? 'unknown'})`,
-      })
+    if (opts.windowsEnabled) {
+      checkContractWindows(input, contract, results)
+    } else {
+      checkContractLegacy(input, contract, results)
     }
   }
 
   return results
+}
+
+/**
+ * Legacy scalar per-contract checks — the pre-RD-3 body, unchanged. Preserved
+ * verbatim so the flag-OFF path stays golden-master byte-identical (RD-1F).
+ */
+function checkContractLegacy(
+  input: RightsCheckInput,
+  contract: Contract,
+  results: ValidationResult[],
+): void {
+  // 1. Platform coverage check (skip if no channel known)
+  if (input.channelId && input.channelTypes && input.channelTypes.length > 0) {
+    const platforms = contract.platforms.length > 0
+      ? contract.platforms
+      : derivePlatformsFromLegacy(contract)
+
+    const uncovered = input.channelTypes.filter(t => !platforms.includes(t))
+    if (uncovered.length > 0) {
+      results.push({
+        code: 'PLATFORM_NOT_COVERED',
+        severity: 'WARNING',
+        scope: ['rights', 'platform'],
+        message: `Channel type(s) [${uncovered.join(', ')}] not covered by contract #${contract.id}`,
+      })
+    }
+  }
+
+  // 2. Time window check
+  if (contract.windowStartUtc && contract.windowEndUtc && input.startUtc) {
+    const start = new Date(input.startUtc)
+    const winStart = new Date(contract.windowStartUtc)
+    const winEnd = new Date(contract.windowEndUtc)
+    if (start < winStart || start > winEnd) {
+      results.push({
+        code: 'OUTSIDE_RIGHTS_WINDOW',
+        severity: 'WARNING',
+        scope: ['rights', 'window'],
+        message: `Event start is outside the rights window (${winStart.toISOString()} – ${winEnd.toISOString()})`,
+      })
+    }
+  }
+
+  // 3. Blackout period check — sub-windows inside the main contract window
+  //    when broadcast is forbidden (e.g. exclusive simulcast lockout).
+  checkBlackout(input, contract, results)
+
+  // 4. Run limit check
+  if (contract.maxLiveRuns != null && input.currentRunCount != null) {
+    if (input.currentRunCount >= contract.maxLiveRuns) {
+      results.push({
+        code: 'MAX_RUNS_EXCEEDED',
+        severity: 'ERROR',
+        scope: ['rights', 'runs'],
+        message: `Maximum live runs (${contract.maxLiveRuns}) exceeded — currently ${input.currentRunCount} used`,
+      })
+    } else if (input.currentRunCount >= contract.maxLiveRuns - 1) {
+      results.push({
+        code: 'MAX_RUNS_NEAR',
+        severity: 'WARNING',
+        scope: ['rights', 'runs'],
+        message: `Approaching maximum live runs: ${input.currentRunCount}/${contract.maxLiveRuns}`,
+      })
+    }
+  }
+
+  // 5. Territory check
+  if (input.territory && contract.territory.length > 0) {
+    if (!contract.territory.includes(input.territory)) {
+      results.push({
+        code: 'TERRITORY_BLOCKED',
+        severity: 'ERROR',
+        scope: ['rights', 'territory'],
+        message: `Territory "${input.territory}" is not covered by contract #${contract.id} (allowed: ${contract.territory.join(', ')})`,
+      })
+    }
+  }
+
+  // 6. Contract expiry warning
+  checkExpiry(contract, results)
+}
+
+/**
+ * RD-3 window-aware per-contract checks (ADR-015 §2/§4). Resolves the window whose
+ * `category === input.runIntent` (default LIVE) and enforces its scoped rights.
+ * Blackout + expiry stay contract-level (checked regardless of window).
+ */
+function checkContractWindows(
+  input: RightsCheckInput,
+  contract: ContractWithWindows,
+  results: ValidationResult[],
+): void {
+  const windows = contract.rightsWindows ?? []
+  const runIntent = input.runIntent ?? 'LIVE'
+
+  // Alternate AC (pre-backfill data guard): a contract with no windows at all →
+  // INFO note + the contract's base (scalar) rights checks (which also cover
+  // blackout + expiry, so those are not re-run here).
+  if (windows.length === 0) {
+    results.push({
+      code: 'NO_WINDOWS',
+      severity: 'INFO',
+      scope: ['rights', 'window'],
+      message: `Contract #${contract.id} has no rights windows — verified against the contract's base rights instead (data-quality note)`,
+    })
+    checkContractLegacy(input, contract, results)
+    return
+  }
+
+  // Blackout is a contract-level prohibition — checked regardless of the window.
+  checkBlackout(input, contract, results)
+
+  const window = windows.find(w => w.category === runIntent)
+  if (!window) {
+    results.push({
+      code: 'WINDOW_CATEGORY_MISSING',
+      severity: 'WARNING',
+      scope: ['rights', 'window'],
+      message: `No ${runIntent} rights window on contract #${contract.id}`,
+      remediation: `Add a ${runIntent} window to contract #${contract.id}, or check the slot's run intent.`,
+    })
+    checkExpiry(contract, results)
+    return
+  }
+
+  // The resolved window's scoped rights, read as a sequence of named checks.
+  checkWindowPlatform(input, window, contract, runIntent, results)
+  checkWindowTimeBounds(input, window, contract, runIntent, results)
+  checkWindowTerritory(input, window, contract, runIntent, results)
+  checkHoldback(input, window, contract, runIntent, results)
+  checkWindowRunLimit(input, window, contract, runIntent, results)
+  checkWindowUnscoped(window, contract, runIntent, results)
+
+  checkExpiry(contract, results)
+}
+
+/** Window platform coverage — empty `window.platforms` = unrestricted (no check). */
+function checkWindowPlatform(
+  input: RightsCheckInput, window: RightsWindow, contract: Contract,
+  runIntent: string, results: ValidationResult[],
+): void {
+  if (!(input.channelId && input.channelTypes && input.channelTypes.length > 0 && window.platforms.length > 0)) return
+  const uncovered = input.channelTypes.filter(t => !window.platforms.includes(t))
+  if (uncovered.length > 0) {
+    results.push({
+      code: 'PLATFORM_NOT_COVERED',
+      severity: 'WARNING',
+      scope: ['rights', 'platform'],
+      message: `Channel type(s) [${uncovered.join(', ')}] not covered by the ${runIntent} window on contract #${contract.id}`,
+    })
+  }
+}
+
+/** Window validity bounds — slot start must fall within [windowStart, windowEnd]. */
+function checkWindowTimeBounds(
+  input: RightsCheckInput, window: RightsWindow, contract: Contract,
+  runIntent: string, results: ValidationResult[],
+): void {
+  if (!(window.windowStartUtc && window.windowEndUtc && input.startUtc)) return
+  const start = new Date(input.startUtc)
+  const winStart = new Date(window.windowStartUtc)
+  const winEnd = new Date(window.windowEndUtc)
+  if (start < winStart || start > winEnd) {
+    results.push({
+      code: 'OUTSIDE_RIGHTS_WINDOW',
+      severity: 'WARNING',
+      scope: ['rights', 'window'],
+      message: `Event start is outside the ${runIntent} rights window (${winStart.toISOString()} – ${winEnd.toISOString()})`,
+    })
+  }
+}
+
+/** Window territory — empty `window.territory` = unrestricted (no check). */
+function checkWindowTerritory(
+  input: RightsCheckInput, window: RightsWindow, contract: Contract,
+  runIntent: string, results: ValidationResult[],
+): void {
+  if (!(input.territory && window.territory.length > 0)) return
+  if (!window.territory.includes(input.territory)) {
+    results.push({
+      code: 'TERRITORY_BLOCKED',
+      severity: 'ERROR',
+      scope: ['rights', 'territory'],
+      message: `Territory "${input.territory}" is not covered by the ${runIntent} window on contract #${contract.id} (allowed: ${window.territory.join(', ')})`,
+    })
+  }
+}
+
+/**
+ * Holdback — a non-LIVE window may not start until N hours after the live
+ * exploitation ends (ADR-015 §4). liveEnd resolution ORDER: (1) ledger actual
+ * (`liveRunEndedAtUtc`) → (2) scheduled end (`scheduledEndUtc`) → (3) unknown
+ * (INFO, never guess). Malformed timestamps are treated as unknown, not as a
+ * pass — the same Number.isNaN discipline as checkBlackout — so bad data can
+ * never silently swallow a HOLDBACK_VIOLATION.
+ */
+function checkHoldback(
+  input: RightsCheckInput, window: RightsWindow, contract: Contract,
+  runIntent: string, results: ValidationResult[],
+): void {
+  if (!(window.holdbackHoursMin != null && runIntent !== 'LIVE' && input.startUtc)) return
+
+  let liveEnd: number | null = null
+  if (input.liveRunEndedAtUtc) liveEnd = new Date(input.liveRunEndedAtUtc).getTime()
+  else if (input.scheduledEndUtc) liveEnd = new Date(input.scheduledEndUtc).getTime()
+  if (liveEnd != null && Number.isNaN(liveEnd)) liveEnd = null
+
+  const start = new Date(input.startUtc).getTime()
+
+  // No resolvable live end (absent OR malformed OR an unparseable slot start) →
+  // data-quality note, no enforcement.
+  if (liveEnd == null || Number.isNaN(start)) {
+    results.push({
+      code: 'HOLDBACK_LIVE_END_UNKNOWN',
+      severity: 'INFO',
+      scope: ['rights', 'holdback'],
+      message: `Holdback applies to the ${runIntent} window on contract #${contract.id} but the live-exploitation end is unknown (no ledger run, no scheduled end, or an unparseable timestamp) — not enforced (data-quality note)`,
+    })
+    return
+  }
+
+  const earliest = liveEnd + window.holdbackHoursMin! * MS_PER_HOUR
+  if (start < earliest) {
+    const earliestIso = new Date(earliest).toISOString()
+    results.push({
+      code: 'HOLDBACK_VIOLATION',
+      severity: 'ERROR',
+      scope: ['rights', 'holdback'],
+      message: `${runIntent} slot starts before the ${window.holdbackHoursMin}h holdback after live end (earliest ${earliestIso}) on contract #${contract.id}`,
+      remediation: `Move the ${runIntent} slot to ${earliestIso} or later.`,
+    })
+  }
+}
+
+/** Per-category run limit — null `maxRuns` = no limit (RD-1F semantics). */
+function checkWindowRunLimit(
+  input: RightsCheckInput, window: RightsWindow, contract: Contract,
+  runIntent: string, results: ValidationResult[],
+): void {
+  if (!(window.maxRuns != null && input.currentRunCount != null)) return
+  if (input.currentRunCount >= window.maxRuns) {
+    results.push({
+      code: 'MAX_RUNS_EXCEEDED',
+      severity: 'ERROR',
+      scope: ['rights', 'runs'],
+      message: `Maximum ${runIntent} runs (${window.maxRuns}) exceeded for the window on contract #${contract.id} — currently ${input.currentRunCount} used`,
+    })
+  } else if (input.currentRunCount >= window.maxRuns - 1) {
+    results.push({
+      code: 'MAX_RUNS_NEAR',
+      severity: 'WARNING',
+      scope: ['rights', 'runs'],
+      message: `Approaching maximum ${runIntent} runs: ${input.currentRunCount}/${window.maxRuns} on contract #${contract.id}`,
+    })
+  }
+}
+
+/**
+ * Unscoped-window data-quality note — empty `territory[]` OR `platforms[]` means
+ * unrestricted, so empty-because-unknown never becomes invisible permissiveness
+ * (ADR-015 Acceptance record §4).
+ */
+function checkWindowUnscoped(
+  window: RightsWindow, contract: Contract, runIntent: string, results: ValidationResult[],
+): void {
+  if (window.territory.length === 0 || window.platforms.length === 0) {
+    results.push({
+      code: 'WINDOW_UNSCOPED',
+      severity: 'INFO',
+      scope: ['rights', 'window'],
+      message: `The ${runIntent} window on contract #${contract.id} has an empty territory or platform scope (treated as unrestricted) — verify this is intentional (data-quality note)`,
+    })
+  }
+}
+
+/** Blackout check — sub-windows where broadcast is forbidden. Contract-level. */
+function checkBlackout(
+  input: RightsCheckInput,
+  contract: Contract,
+  results: ValidationResult[],
+): void {
+  if (!input.startUtc) return
+  const start = new Date(input.startUtc).getTime()
+  const blackouts = parseBlackoutPeriods(contract.blackoutPeriods)
+  for (const b of blackouts) {
+    const bStart = new Date(b.start).getTime()
+    const bEnd = new Date(b.end).getTime()
+    if (Number.isNaN(bStart) || Number.isNaN(bEnd)) continue
+    if (start >= bStart && start <= bEnd) {
+      results.push({
+        code: 'BLACKOUT_PERIOD',
+        severity: 'ERROR',
+        scope: ['rights', 'blackout'],
+        message: b.reason
+          ? `Event falls inside blackout period (${b.reason}) on contract #${contract.id}`
+          : `Event falls inside a blackout period on contract #${contract.id} (${new Date(b.start).toISOString()} – ${new Date(b.end).toISOString()})`,
+      })
+    }
+  }
+}
+
+/** Contract expiry warning. */
+function checkExpiry(contract: Contract, results: ValidationResult[]): void {
+  if (contract.status === 'expiring') {
+    results.push({
+      code: 'CONTRACT_EXPIRING',
+      severity: 'WARNING',
+      scope: ['rights', 'expiry'],
+      message: `Contract #${contract.id} is expiring (until ${contract.validUntil?.toISOString().slice(0, 10) ?? 'unknown'})`,
+    })
+  }
 }
 
 /**
