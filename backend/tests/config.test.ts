@@ -36,4 +36,25 @@ describe('Config Module', () => {
       expect(origins).toEqual(['http://localhost:5173'])
     })
   })
+
+  describe('RIGHTS_WINDOWS_ENABLED flag (RD-3-T2 — safe boolean parse)', () => {
+    const base = {
+      NODE_ENV: 'development' as const,
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+      REDIS_URL: 'redis://localhost:6379',
+      CORS_ORIGIN: 'http://localhost:5173',
+    }
+    it("'true' → ON", () => {
+      expect(parseEnv({ ...base, RIGHTS_WINDOWS_ENABLED: 'true' }).RIGHTS_WINDOWS_ENABLED).toBe(true)
+    })
+    it("'false' → OFF (the footgun: z.coerce.boolean would make this TRUE)", () => {
+      expect(parseEnv({ ...base, RIGHTS_WINDOWS_ENABLED: 'false' }).RIGHTS_WINDOWS_ENABLED).toBe(false)
+    })
+    it("'0' → OFF", () => {
+      expect(parseEnv({ ...base, RIGHTS_WINDOWS_ENABLED: '0' }).RIGHTS_WINDOWS_ENABLED).toBe(false)
+    })
+    it('unset → OFF (default)', () => {
+      expect(parseEnv({ ...base }).RIGHTS_WINDOWS_ENABLED).toBe(false)
+    })
+  })
 })

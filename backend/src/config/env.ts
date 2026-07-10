@@ -32,6 +32,16 @@ const baseSchema = z.object({
   IMPORT_JOB_HEARTBEAT_MS: z.coerce.number().int().positive().default(30000),
   IMPORT_JOB_MAX_RETRIES: z.coerce.number().int().positive().default(3),
   IMPORT_WORKER_ID: z.string().optional(),
+
+  // RD-3-T2: first backend feature flag. Gates window-aware rights checking in the
+  // draft validate/publish pipeline + checkRightsForEvent. OFF = legacy scalar path
+  // (byte-identical to the RD-1F golden master). Build-time per TD-27 → rollback =
+  // redeploy with the env changed (stated honestly; no runtime override yet).
+  //
+  // Parsed explicitly: ONLY the literal 'true' enables it. `z.coerce.boolean()` is
+  // `Boolean(value)`, so 'false'/'0' would coerce to TRUE and silently defeat the
+  // rollback=redeploy story — hence the string-equality transform.
+  RIGHTS_WINDOWS_ENABLED: z.string().optional().transform(v => v === 'true'),
 })
 
 export type Env = z.infer<typeof baseSchema>

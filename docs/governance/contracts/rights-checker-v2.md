@@ -88,13 +88,64 @@ ledger end is present, `scheduledEndUtc` is ignored even if later.
 | `HOLDBACK_LIVE_END_UNKNOWN` | INFO | holdback applies but no ledger/scheduled live end |
 | `BLACKOUT_PERIOD` / `CONTRACT_EXPIRING` / `NO_VALID_CONTRACT` | ERROR/WARNING/ERROR | unchanged from v1 |
 
+## RD-3-T2 wiring (flag ON) — how the pure checker is fed live
+
+- **Flag source:** `RIGHTS_WINDOWS: z.coerce.boolean().default(false)` in `env.ts`
+  `baseSchema` (first backend flag; build-time per TD-27 → rollback = redeploy, stated
+  honestly). Read at the route/service boundary; passed down as `windowsEnabled`. The
+  pure checker never reads env.
+- **`ValidationContext` additions** (populated ONLY flag ON; absent = legacy path
+  byte-identical): `contracts?: Array<Contract & { rightsWindows? }>`,
+  `contractRunTally?: ContractRunTally[]` (typed `category: CoverageCategory`),
+  `liveRunEndUtcByEventId?: Record<eventId,ISO>`, `windowsEnabled?`.
+- **Flag:** env var is `RIGHTS_WINDOWS_ENABLED`, parsed so ONLY the literal `'true'` is ON
+  (`z.string().optional().transform(v => v === 'true')`) — `'false'`/`'0'` are OFF.
+  (`z.coerce.boolean()` was a footgun: `Boolean('false') === true` would silently enable it.)
+- **Stage 3 dual path** (`validation/rights.ts`): `if (windowsEnabled && contracts)` →
+  `validateRightsWindows` (checker v2); else the legacy `policyToContractShape` path runs
+  UNCHANGED (TD-29 adapter intact). Per slot: `runIntent = deriveRunIntent(slot)`
+  (reads an optional `slot.runIntent`/`coverageType`, default `'LIVE'`);
+  `currentRunCount = perCategoryLedgerTally + draftFullRuns`; `liveRunEndedAtUtc` from
+  `liveRunEndUtcByEventId`; `scheduledEndUtc = slotStart + durationMin`.
+
+- **REACHABILITY (no over-claim):** `BroadcastSlot` has no coverage-category column, so
+  real slots resolve to `runIntent = 'LIVE'` today. Therefore the **LIVE** window path
+  (platform / time / per-category LIVE run limit) is enforced end-to-end from real slots,
+  but the **DELAYED / HIGHLIGHTS / CLIP** window checks and `HOLDBACK_VIOLATION` are a
+  checker CAPABILITY that is **not yet reachable from real slots** (only via an injected
+  test `runIntent`). The per-category TALLY isolation IS real regardless — a DELAYED
+  ledger run never inflates the LIVE count (proven with direct-Prisma CONFIRMED fixtures).
+  Pinned by a production-boundary test (a real slot with no `runIntent` resolves LIVE and
+  never trips holdback).
+- **Per-CATEGORY tally** (`validation/runTally.ts`): `groupBy(contractId, runType)` where
+  `status IN (CONFIRMED, RECONCILED)`, mapped LIVE→LIVE, TAPE_DELAY→DELAYED,
+  HIGHLIGHTS→HIGHLIGHTS, CLIP→CLIP, **CONTINUATION excluded**, ARCHIVE no source. Replaces
+  the flag-OFF `existingRuns: []` (defect-(b) fix) — flag OFF keeps `[]`.
+- **Channel include is flag-gated** (`slotInclude()` in `schedules.ts`): the `channel` join
+  is added ONLY flag ON, so flag OFF's event-only slot shape (empty `channelTypes`) is
+  byte-identical — adding channel flag-OFF would newly fire `PLATFORM_NOT_COVERED`.
+- **`checkRightsForEvent`/`checkRightsForEvents`:** same flag-gated dual path
+  (`opts.windowsEnabled ?? env.RIGHTS_WINDOWS`); flag ON loads windows + per-category tally;
+  flag OFF unchanged (LIVE-only count).
+- **Territory:** `Channel` has no territory field — not invented; territory stays the
+  event-level input (Acceptance record §3, RD-retro).
+
 ## Scope — what is NOT in T1 (deferred to RD-3-T2)
 
 Pure only: no DB, no env, no route wiring. `checkRightsForEvent`/draft-validation
-wiring, the `RIGHTS_WINDOWS` env flag (`env.ts`), the per-category RunLedger tally
+wiring, the `RIGHTS_WINDOWS_ENABLED` env flag (`env.ts`), the per-category RunLedger tally
 (RunType→category: `TAPE_DELAY→DELAYED`, CONTINUATION excluded, ARCHIVE has no RunType —
 ADR-015 §2), and the defect-(b) `existingRuns` ledger fix are ALL RD-3-T2. This snapshot
 is the pull-gate for that wiring.
+
+## RD-retro refinements (recorded, NOT in RD-3)
+
+- **Slot-level coverage-category source.** `BroadcastSlot` has no coverage-category column,
+  so `deriveRunIntent` resolves LIVE for real slots and DELAYED/HIGHLIGHTS/CLIP + holdback
+  enforcement is unreachable from real slots (checker capability only). Adding the source
+  (slot column or run-intent derivation) unblocks non-LIVE enforcement end-to-end.
+- **Slot-level territory.** `Channel` has no territory field (Acceptance record §3);
+  territory stays event-level input until a per-tenant rights dimension lands (AS-10).
 
 ## Verification
 

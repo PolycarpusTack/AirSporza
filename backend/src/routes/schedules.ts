@@ -4,6 +4,8 @@ import { authenticate, authorize } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { validateSchedule, type ValidationContext, type RightsPolicy } from '../services/validation/index.js'
+import { loadContractRunTally } from '../services/validation/runTally.js'
+import { env } from '../config/env.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { applyOperations, executeOperations, type ScheduleOperation, type SlotState } from '../services/scheduleOperations.js'
 import { CHANGEOVER_MIN, CONFIDENCE_DECAY } from '../services/cascade/compute.js'
@@ -29,6 +31,52 @@ async function loadRightsPolicies(tenantId: string, competitionIds: number[]): P
     windowStart: c.windowStartUtc?.toISOString(),
     windowEnd: c.windowEndUtc?.toISOString(),
   }))
+}
+
+/** eventId → CONFIRMED|RECONCILED LIVE run `endedAtUtc` (ISO) — ledger-actual live end
+ *  for holdback resolution (ADR-015 §4 step 1). */
+async function loadLiveRunEndUtcByEventId(tenantId: string, eventIds: number[]): Promise<Record<number, string>> {
+  if (eventIds.length === 0) return {}
+  const runs = await prisma.runLedger.findMany({
+    where: {
+      tenantId,
+      eventId: { in: eventIds },
+      runType: 'LIVE',
+      status: { in: ['CONFIRMED', 'RECONCILED'] },
+      endedAtUtc: { not: null },
+    },
+    select: { eventId: true, endedAtUtc: true },
+  })
+  const map: Record<number, string> = {}
+  for (const r of runs) if (r.endedAtUtc) map[r.eventId] = r.endedAtUtc.toISOString()
+  return map
+}
+
+/**
+ * RD-3-T2 (flag ON only): the four window-aware ValidationContext fields — applicable
+ * contracts WITH rights windows (status valid|expiring, matching checkRightsForEvent),
+ * the per-CATEGORY CONFIRMED|RECONCILED ledger tally (defect-(b): `existingRuns` from
+ * the ledger, not `[]`), the per-event ledger live-end, and the flag. One place so the
+ * validate + publish routes stay in lock-step.
+ */
+async function buildWindowContext(
+  tenantId: string, competitionIds: number[], eventIds: number[],
+): Promise<Partial<ValidationContext>> {
+  const contracts = competitionIds.length === 0 ? [] : await prisma.contract.findMany({
+    where: { tenantId, competitionId: { in: competitionIds }, status: { in: ['valid', 'expiring'] } },
+    include: { rightsWindows: true },
+  })
+  const contractRunTally = await loadContractRunTally(prisma, tenantId, contracts.map(c => c.id))
+  const liveRunEndUtcByEventId = await loadLiveRunEndUtcByEventId(tenantId, eventIds)
+  return { contracts, contractRunTally, liveRunEndUtcByEventId, windowsEnabled: true }
+}
+
+/** Slot include — the `channel` join (platform checks) is added ONLY on flag ON, so
+ *  the flag-OFF slot shape (event-only) stays byte-identical (no new channelTypes). */
+function slotInclude(windowsEnabled: boolean) {
+  return windowsEnabled
+    ? { event: true, channel: { select: { id: true, types: true } } }
+    : { event: true }
 }
 
 // ─── SCHEDULE DRAFTS ─────────────────────────────────────────────────────────
@@ -202,6 +250,8 @@ router.post('/:id/validate', authenticate, authorize('planner', 'admin'), async 
 
     if (!draft) return next(createError(404, 'Schedule draft not found'))
 
+    const windowsEnabled = env.RIGHTS_WINDOWS_ENABLED
+
     // Load slots for validation
     const slots = await prisma.broadcastSlot.findMany({
       where: {
@@ -212,20 +262,24 @@ router.post('/:id/validate', authenticate, authorize('planner', 'admin'), async 
           lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000)
         }
       },
-      include: {
-        event: true
-      },
+      include: slotInclude(windowsEnabled),
       orderBy: { plannedStartUtc: 'asc' }
     })
 
     // Build validation context with contracts as rights policies
     const events = slots.map(s => s.event).filter((e): e is NonNullable<typeof e> => e != null)
-    const competitionIds = [...new Set(events.map(e => e.competitionId).filter(Boolean))]
+    const competitionIds = [...new Set(events.map(e => e.competitionId).filter(Boolean))] as number[]
     const rightsPolicies = await loadRightsPolicies(req.tenantId!, competitionIds)
     const context: ValidationContext = {
       rightsPolicies,
       existingRuns: [],
       events,
+    }
+
+    // Flag ON: window-aware path — real contracts+windows + per-category ledger tally.
+    // Flag OFF: this block is skipped; rightsPolicies + existingRuns:[] exactly as today.
+    if (windowsEnabled) {
+      Object.assign(context, await buildWindowContext(req.tenantId!, competitionIds, events.map(e => e.id)))
     }
 
     const results = validateSchedule(slots as any[], context)
@@ -398,6 +452,8 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
       return next(createError(400, 'Draft is already published'))
     }
 
+    const windowsEnabled = env.RIGHTS_WINDOWS_ENABLED
+
     // Load slots for validation and snapshot
     let slots = await prisma.broadcastSlot.findMany({
       where: {
@@ -408,20 +464,23 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
           lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000)
         }
       },
-      include: {
-        event: true
-      },
+      include: slotInclude(windowsEnabled),
       orderBy: { plannedStartUtc: 'asc' }
     })
 
     // Validate with contracts as rights policies
     const pubEvents = slots.map(s => s.event).filter((e): e is NonNullable<typeof e> => e != null)
-    const pubCompetitionIds = [...new Set(pubEvents.map(e => e.competitionId).filter(Boolean))]
+    const pubCompetitionIds = [...new Set(pubEvents.map(e => e.competitionId).filter(Boolean))] as number[]
     const pubRightsPolicies = await loadRightsPolicies(req.tenantId!, pubCompetitionIds)
     const context: ValidationContext = {
       rightsPolicies: pubRightsPolicies,
       existingRuns: [],
       events: pubEvents,
+    }
+
+    // Flag ON: window-aware path (same as validate). Flag OFF: skipped — unchanged.
+    if (windowsEnabled) {
+      Object.assign(context, await buildWindowContext(req.tenantId!, pubCompetitionIds, pubEvents.map(e => e.id)))
     }
 
     const results = validateSchedule(slots as any[], context)
@@ -473,7 +532,7 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
             lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000)
           }
         },
-        include: { event: true },
+        include: slotInclude(windowsEnabled),
         orderBy: { plannedStartUtc: 'asc' }
       })
     }

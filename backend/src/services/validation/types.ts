@@ -22,4 +22,16 @@ export interface ValidationContext {
   rightsPolicies: RightsPolicy[]
   existingRuns?: Array<{ eventId: number; count: number }>
   events: any[]
+
+  // --- RD-3-T2 window-aware path (populated ONLY when the RIGHTS_WINDOWS flag is
+  //     ON). When `contracts` is present, stage 3 runs checker v2; when absent, the
+  //     legacy rightsPolicies + `existingRuns: []` path runs UNCHANGED (byte-identical).
+  /** Applicable contracts with their RightsWindow rows (ADR-015 §6). */
+  contracts?: Array<import('@prisma/client').Contract & { rightsWindows?: import('@prisma/client').RightsWindow[] }>
+  /** Per-(contract, category) CONFIRMED|RECONCILED ledger tally (defect-(b) fix). */
+  contractRunTally?: import('./runTally.js').ContractRunTally[]
+  /** eventId → the event's CONFIRMED LIVE run `endedAtUtc` (ISO), for holdback resolution (§4 step 1). */
+  liveRunEndUtcByEventId?: Record<number, string>
+  /** Explicit flag pass-through — the pure checker never reads env. */
+  windowsEnabled?: boolean
 }

@@ -19,6 +19,8 @@
 import type { Contract, PrismaClient, RightsWindow } from '@prisma/client'
 import type { ValidationResult } from './validation/types.js'
 import { prisma as defaultPrisma } from '../db/prisma.js'
+import { loadContractRunTally } from './validation/runTally.js'
+import { env } from '../config/env.js'
 
 interface RightsCheckInput {
   channelId?: number | null
@@ -44,6 +46,7 @@ interface RightsCheckInput {
 type ContractWithWindows = Contract & { rightsWindows?: RightsWindow[] }
 
 const MS_PER_HOUR = 3_600_000
+const MS_PER_MINUTE = 60_000
 
 interface BlackoutPeriod {
   start: string   // ISO
@@ -423,9 +426,11 @@ function checkExpiry(contract: Contract, results: ValidationResult[]): void {
  */
 export async function checkRightsForEvent(
   eventId: number,
-  opts: { db?: PrismaClient; territory?: string } = {},
+  opts: { db?: PrismaClient; territory?: string; windowsEnabled?: boolean } = {},
 ): Promise<{ eventId: number; ok: boolean; results: ValidationResult[] }> {
   const db = opts.db ?? defaultPrisma
+  // Flag read at the service boundary; the pure checker still takes a boolean.
+  const windowsEnabled = opts.windowsEnabled ?? env.RIGHTS_WINDOWS_ENABLED
 
   const event = await db.event.findUnique({
     where: { id: eventId },
@@ -448,7 +453,11 @@ export async function checkRightsForEvent(
 
   // Contract candidate query with season narrowing. A contract with
   // seasonId=null covers the whole competition; one with a specific
-  // seasonId only applies when the event matches.
+  // seasonId only applies when the event matches. Flag ON also pulls windows AND
+  // pre-filters status valid|expiring to MATCH the route path (buildWindowContext),
+  // so both v2 feeds consider the same contract set. Flag OFF stays UNFILTERED —
+  // checkRights filters internally and distinguishes "no contract" vs "no valid
+  // contract" in NO_VALID_CONTRACT, which pre-filtering would change (byte-identity).
   const candidates = await db.contract.findMany({
     where: {
       tenantId: event.tenantId,
@@ -457,37 +466,61 @@ export async function checkRightsForEvent(
         { seasonId: null },
         ...(event.seasonId != null ? [{ seasonId: event.seasonId }] : []),
       ],
+      ...(windowsEnabled ? { status: { in: ['valid', 'expiring'] } } : {}),
     },
+    ...(windowsEnabled ? { include: { rightsWindows: true } } : {}),
   })
-
-  // Actual run consumption — count LIVE runs logged in RunLedger for this
-  // competition + season, for the contracts that made it into candidates.
   const contractIds = candidates.map(c => c.id)
-  const runCount = contractIds.length === 0
-    ? 0
-    : await db.runLedger.count({
-        where: {
-          tenantId: event.tenantId,
-          contractId: { in: contractIds },
-          runType: 'LIVE',
-          status: { in: ['CONFIRMED', 'RECONCILED'] },
-        },
-      })
 
   const startUtc = event.startDateBE && event.startTimeBE
     ? new Date(`${new Date(event.startDateBE).toISOString().slice(0, 10)}T${event.startTimeBE}:00Z`)
     : null
 
-  const results = checkRights(
-    {
-      channelId: event.channelId,
-      channelTypes: event.channel?.types ?? [],
-      startUtc,
-      territory: opts.territory,
-      currentRunCount: runCount,
-    },
-    candidates,
-  )
+  let results: ValidationResult[]
+  if (windowsEnabled) {
+    // Window-aware: per-CATEGORY tally (LIVE run intent at the event level; slot-level
+    // category is an RD-retro refinement). currentRunCount = the LIVE-category tally.
+    const tally = await loadContractRunTally(db, event.tenantId, contractIds)
+    const liveCount = tally.filter(t => t.category === 'LIVE').reduce((s, t) => s + t.count, 0)
+    const scheduledEndUtc = startUtc && event.durationMin != null
+      ? new Date(startUtc.getTime() + event.durationMin * MS_PER_MINUTE).toISOString()
+      : undefined
+    results = checkRights(
+      {
+        channelId: event.channelId,
+        channelTypes: event.channel?.types ?? [],
+        startUtc,
+        territory: opts.territory,
+        currentRunCount: liveCount,
+        runIntent: 'LIVE',
+        scheduledEndUtc,
+      },
+      candidates,
+      { windowsEnabled: true },
+    )
+  } else {
+    // Legacy (flag OFF): LIVE-only run count, scalar checker path — UNCHANGED.
+    const runCount = contractIds.length === 0
+      ? 0
+      : await db.runLedger.count({
+          where: {
+            tenantId: event.tenantId,
+            contractId: { in: contractIds },
+            runType: 'LIVE',
+            status: { in: ['CONFIRMED', 'RECONCILED'] },
+          },
+        })
+    results = checkRights(
+      {
+        channelId: event.channelId,
+        channelTypes: event.channel?.types ?? [],
+        startUtc,
+        territory: opts.territory,
+        currentRunCount: runCount,
+      },
+      candidates,
+    )
+  }
 
   const ok = !results.some(r => r.severity === 'ERROR')
   return { eventId, ok, results }
@@ -496,7 +529,7 @@ export async function checkRightsForEvent(
 /** Batch variant — useful for the Planner event list badge render. */
 export async function checkRightsForEvents(
   eventIds: number[],
-  opts: { db?: PrismaClient; territory?: string } = {},
+  opts: { db?: PrismaClient; territory?: string; windowsEnabled?: boolean } = {},
 ): Promise<Record<number, { ok: boolean; results: ValidationResult[] }>> {
   const out: Record<number, { ok: boolean; results: ValidationResult[] }> = {}
   // Sequential is fine at typical planner page sizes (< 100 events). If this
