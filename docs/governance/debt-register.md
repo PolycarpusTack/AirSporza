@@ -334,6 +334,38 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** decide at EPIC E (E-5 flag rollout plan) whether a runtime override is needed before turning the flag ON for real users; until then the runbook (A-5) must state rollback = redeploy honestly.
 - **Origin:** A-2-T1, 2026-07-02 (flagged in `src/flags.ts` and OpsShell v1 contract).
 
+## TD-28 — zod ↔ Prisma enum drift on rights/broadcast write surfaces
+
+- **Artifact:** three API zod enums narrower/misaligned with their Prisma counterparts:
+  1. **Contract/policy `coverageType`** — zod `['LIVE','DELAYED','HIGHLIGHTS']` (`backend/src/schemas/contracts.ts`,
+     `backend/src/schemas/rights.ts`) vs Prisma `CoverageType` (`LIVE|HIGHLIGHTS|DELAYED|CLIP|ARCHIVE`): `CLIP` and
+     (post-RD-2-T1) `ARCHIVE` are DB-valid but API-rejected on contract/policy writes.
+  2. **`OverrunStrategy`** — broadcast-slot zod `['EXTEND','TRUNCATE','SWITCH']`
+     (`backend/src/schemas/broadcastSlots.ts`) vs Prisma `OverrunStrategy`
+     (`EXTEND|CONDITIONAL_SWITCH|HARD_CUT|SPLIT_SCREEN`): the zod set names values the enum doesn't have and omits the
+     real ones.
+  3. **Run-ledger `status`** — zod `['PENDING','RUNNING','COMPLETED','CANCELLED']` (`backend/src/schemas/rights.ts`
+     `runLedgerCreateSchema`) vs Prisma `RunStatus` (`PENDING|CONFIRMED|RECONCILED|DISPUTED`): the API can only create
+     runs in states the rights checkers never count (`CONFIRMED|RECONCILED` are the only tallied states — memo §5.7),
+     so run-limit enforcement stays vacuous regardless of the ADR-015 window work.
+  Also the **contract `status`** zod (`['valid','expiring','expired','draft','terminated']`) lists `expired`/`terminated`
+  that are not in Prisma `ContractStatus` — same drift class.
+- **Type:** correctness / API-DB contract drift (Core Domain write surfaces)
+- **Cause:** zod enums were hand-authored per-endpoint and never regenerated from the Prisma enums; each drifted
+  independently as the schema evolved.
+- **Principal:** S–M (regenerate the four zod enums from Prisma as the single source; add a guard/test that fails when
+  a zod enum diverges from its Prisma enum).
+- **Interest:** **medium** — (1)/(2) silently 400 legitimate values; (3) makes run-limit checks structurally
+  un-exercisable (the checker counts states the API cannot produce). Not currently exploited by dev data (all-LIVE,
+  no run writers) but blocks RD-3 run-tally correctness.
+- **Compounding:** yes — every new rights/broadcast field copies the per-endpoint hand-authored enum pattern.
+- **Servicing decision:** **registered only** here (RD-2-T2). RD-2-T2's own NEW window surface already validates
+  against the FULL `CoverageType` set (`coverageTypeEnum` in `schemas/common.ts`) + `ExclusivityTier`, so it does not
+  add drift. Fixing the three *existing* drifted surfaces is a separate tested story (widening contract/policy
+  `coverageType` is a runtime behavior change deferred out of the PREPARATORY RD-2-T1 per Two Hats); the run-ledger
+  `status` fix is folded into RD-3 (run-tally rewrite). Do not fix inline.
+- **Origin:** ADR-015 §2 (zod-drift note) + RD-1 memo §5.7; formally registered RD-2-T2, 2026-07-10.
+
 ## TD-29 — Dual rights model: `RightsPolicy` table + lossy Contract→DTO→pseudo-Contract adapter chain
 
 - **Artifact:** Prisma `RightsPolicy` model (`backend/prisma/schema.prisma:1593`) + its CRUD
