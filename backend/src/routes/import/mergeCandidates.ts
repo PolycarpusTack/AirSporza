@@ -95,7 +95,7 @@ router.get('/merge-candidates', authenticate, authorize('planner', 'sports', 'ad
   }
 })
 
-router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('planner', 'sports', 'admin'), validate({ body: s.mergeDecisionSchema }), async (req, res, next) => {
+router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('planner', 'admin'), validate({ body: s.mergeDecisionSchema }), async (req, res, next) => {
   try {
     const candidate = await prisma.mergeCandidate.findFirst({
       where: { id: String(req.params.id), tenantId: req.tenantId },
@@ -163,7 +163,7 @@ router.post('/merge-candidates/:id/approve-merge', authenticate, authorize('plan
   }
 })
 
-router.post('/merge-candidates/:id/create-new', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.post('/merge-candidates/:id/create-new', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
   try {
     const candidate = await prisma.mergeCandidate.findFirst({
       where: { id: String(req.params.id), tenantId: req.tenantId },
@@ -220,7 +220,7 @@ router.post('/merge-candidates/:id/create-new', authenticate, authorize('planner
   }
 })
 
-router.post('/merge-candidates/:id/ignore', authenticate, authorize('planner', 'sports', 'admin'), async (req, res, next) => {
+router.post('/merge-candidates/:id/ignore', authenticate, authorize('planner', 'admin'), async (req, res, next) => {
   try {
     const existing = await prisma.mergeCandidate.findFirst({
       where: { id: String(req.params.id), tenantId: req.tenantId },

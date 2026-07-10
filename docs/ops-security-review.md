@@ -225,3 +225,61 @@ close the divergence deliberately rather than by the current accident of a missi
 ---
 
 *No source file was modified by this review. No git add/commit performed.*
+
+---
+
+## 8. E-3-T2 — Resolution
+
+**Task E-3-T2 · EPIC E (HARDENING) · Hat = FEATURE (architect-decided security remediation
+to parity — "fix the real backend boundary, not heavy UI gating"). Backend only, TDD.**
+Date: 2026-07-10.
+
+The E-3-T1 review (above) surfaced one **live over-permission** (the §4c/§7 headline: `sports`
+reaching an irreversible merge decision) and one **RLS-dependent cross-tenant gap** (§5 F-1).
+E-3-T2 closes both at the real backend boundary. Dispositions:
+
+1. **Merge WRITE routes tightened to `authorize('planner', 'admin')` — `sports` dropped
+   (RESOLVED).** All three decision routes — `POST /merge-candidates/:id/{approve-merge,
+   create-new,ignore}` (mergeCandidates.ts:98/166/223) — now gate `authorize('planner',
+   'admin')`, matching the legacy `ImportView` set `['admin','planner']` (App.tsx:226). This
+   closes the verified elevation: a `sports` user can no longer make an irreversible merge
+   decision at the real boundary. The GET reads (`/merge-candidates` list, `/jobs`) are left
+   UNCHANGED (authenticated-only) by design — the backend gates the *writes*; reads stay as-is.
+   No legacy regression: legacy `ImportView` already blocked `sports` at the UI, so this only
+   *adds* backend enforcement. **Pinned by a new test that exercises the REAL `authorize`
+   middleware** (`tests/mergeCandidates-authz-guard.test.ts`) — the pre-existing import tests
+   mock `authorize` to a no-op and therefore cannot catch an authz regression; the new test
+   injects a role via a partial `authenticate` mock and keeps the real `authorize`, asserting
+   `sports → 403` and `planner|admin → not 403` on each of the 3 write routes.
+
+2. **`/ops/*` UI stays authenticated-only — ACCEPTED (with rationale).** No front-end
+   `RequireRole` is added around `OpsShell`. Rationale: the backend `authorize()` is the
+   authoritative boundary and now matches the legacy per-route role sets, so a UI guard would
+   merely duplicate a control that is already correct and enforced server-side. The §7 Gate-4
+   "which roles reach `/ops/*`" policy question is resolved at the write boundary rather than by
+   a UI gate. (Reads through the ops shell remain authenticated-only, consistent with the
+   decision to gate writes, not navigation.)
+
+3. **Per-tab UI role-hiding — DEFERRED (UX polish, not a security requirement).** Hiding tabs
+   or buttons a role cannot successfully use (e.g. graying out the merge actions for
+   `contracts`, whose clicks 403) is a UX-confusion improvement, not a security control. With
+   the backend authoritative (disposition 1/2), it carries no data-security weight and is
+   deferred.
+
+4. **F-1 (merge target cross-tenant) — FIXED (app-level defense-in-depth, independent of
+   RLS).** `updateImportedEvent` (provision.ts) now accepts an optional `tenantId` and, when
+   supplied, scopes the target lookup as `db.event.findFirst({ where: { id, tenantId } })`
+   instead of the id-only `findUnique`. `manualMergeNormalizedEvent` — the **only**
+   user-supplied-target path (approve-merge) — threads its `tid` (truthy-guarded, so an empty
+   string never over-restricts). The three automated-import callers pass **no** tenantId, so
+   their behavior is identical (zero import-pipeline blast radius, no collision with the
+   RLS/mitigation track's core path). Effect: a tenant-A user who supplies a tenant-B
+   `targetEntityId` finds no target → the route errors instead of silently merging onto the
+   cross-tenant event. This is valuable defense-in-depth regardless of RLS activation status.
+   **Pinned by** `tests/mergeCandidates-tenant-scope.test.ts` — cross-tenant target (lookup
+   returns null) → route does not merge and does not mark the candidate decided; same-tenant
+   target → merges as before (no regression), with the lookup where-clause asserted to carry
+   `tenantId`.
+
+*Frontend, the automated-import callers, and `docs/governance/debt-register.md` were left
+untouched. No git add/commit performed.*
