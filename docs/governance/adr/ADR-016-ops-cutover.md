@@ -1,6 +1,36 @@
 # ADR-016: Ops old-screen deprecation / cutover
 
-**Status:** PROPOSED (architect decision pending)
+**Status:** ACCEPTED — **COEXIST, flag flipped ON as a browse layer** (architect decision 2026-07-10)
+
+## Decision (2026-07-10)
+
+The architect chose **Option B — COEXIST**, with the `opsRedesign` (`VITE_OPS_REDESIGN`)
+flag flipped **ON** in production so `/ops/*` ships as a **browse / monitoring layer
+alongside** the legacy screens:
+- **Legacy is retained for ALL editing** (event/contract/slot/team/player CRUD) and for
+  the ImportView operator tabs the ops SYNC screen does not cover (sources config,
+  dead-letters + replay, aliases CRUD, provenance inspector, the `ignore` merge decision,
+  job run/cancel/retry). Removing any legacy route is OUT of scope — this is COEXIST, not
+  REPLACE.
+- **Making ops the SOLE surface is a FOLLOW-ON initiative** (build the missing ops mutation
+  surfaces + reconcile the dropped ImportView tabs) — explicitly NOT the tail of this epic.
+- **Flag mechanism (TD-27):** the flag stays **build-time**; the prod build sets it ON, and
+  rollback = redeploy the flag-off build (architect accepted redeploy-rollback for now — a
+  runtime override is deferred, revisit if the two-live-surfaces cadence needs a faster
+  kill-switch). Rollout stages are in `docs/runbooks/ops-shell.md` §rollout.
+- **ReviewTab scaffold (D-2-T0):** its temporary `export` + `ImportView.reviewtab.test.tsx`
+  are RETAINED for now (ImportView is kept under COEXIST, so the characterization still has a
+  live subject) and their removal is **SCHEDULED** for the follow-on ImportView reconciliation
+  — satisfying the E-6 DoD ("removed OR its removal is scheduled by the ADR").
+
+Readiness basis: E-1 (perf, registry virtualized → SLOs pass), E-2 (a11y AA + keyboard), and
+E-3 (RBAC — authenticated-only, backend `authorize()` authoritative, `sports` dropped from
+merge decisions) all green — ops is fit **for what it covers**; the only limit is coverage
+breadth, which COEXIST respects.
+
+---
+
+**Original draft below (Status was PROPOSED — retained for the decision record).**
 **Date drafted:** 2026-07-10 · **Author:** E-6-T0 (VERIFICATION hat — this ADR frames the
 decision with verified tradeoffs; it does NOT make it). **Deciders:** Architect / Product.
 **Supersedes stance in:** ADR-012 (the "legacy untouched, cutover deferred to EPIC E"

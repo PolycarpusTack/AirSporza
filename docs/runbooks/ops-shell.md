@@ -457,21 +457,20 @@ feature-flag-service switch. Rollback is symmetric: redeploy the flag-OFF build.
    the last flag-OFF artifact ready to re-deploy, since "rollback" here is a deploy
    action, not a toggle.
 
-### Open architect decision (E-4, TD-27) that would change this plan
+### TD-27 runtime-flag — DECIDED (E-4, 2026-07-10)
 
-Whether to build a **runtime flag override** (settings service, env-served config, or
-header-based override) is an **open architect decision**, tracked as TD-27 in the debt
-register and explicitly deferred to EPIC E TD servicing (E-4). If approved, it would
-let a later rollout skip the rebuild-per-stage requirement above (toggle instead of
-redeploy) — but as of this runbook, no such mechanism exists, and the staged plan
-above must assume build-time-only.
+The architect **accepted redeploy-rollback for now** (no runtime override built). The flag
+stays build-time; rollback = redeploy the flag-OFF build, as the staged plan above assumes.
+A runtime override (settings service / env-served config / header override) remains a
+possible future add — revisit if the two-live-surfaces cadence needs a faster kill-switch —
+but is deliberately NOT built in this epic.
 
 ### Cutover cross-reference (ADR-016, E-6)
 
-The point at which the flag's **default** flips (i.e. `/ops/*` becomes the shipped
-experience rather than an opt-in build) is the planned EPIC E cutover decision — recorded
-as **ADR-016** (not yet written at time of this runbook entry; tracked for E-6). That
-decision also covers retiring the legacy `@deprecated` Event/Contract fields per the
-debt register (E-6 removal decision) and is a separate architect gate from the
-staged-rollout mechanics above — this §rollout section covers getting flag-ON traffic
+**ADR-016 is DECIDED (2026-07-10): COEXIST — flag flipped ON as a browse layer.** `/ops/*`
+ships ON in prod ALONGSIDE the legacy screens (legacy retained for ALL editing + the
+ImportView operator tabs SYNC doesn't cover); no legacy route is removed. So this §rollout
+sequence (staged flag-ON builds) IS the cutover — there is no legacy-removal step. Making
+ops the sole surface is a follow-on initiative (build the missing ops editors + reconcile
+ImportView's dropped tabs). The staged-rollout mechanics above are how flag-ON traffic
 live safely; ADR-016/E-6 covers making it the default.
