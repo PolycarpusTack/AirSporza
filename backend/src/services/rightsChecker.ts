@@ -293,6 +293,21 @@ export async function getRightsMatrix(
   daysUntilExpiry: number | null
   severity: 'ok' | 'warning' | 'error'
   blackoutCount: number
+  // RD-2-T3 (ADR-015): additive — the contract's RightsWindow rows. Exposes each
+  // window's LIMIT (maxRuns) only; a per-window USED tally is deferred to RD-3
+  // (RunType→category mapping + CONTINUATION exclusion). Every field above is
+  // byte-identical to rights-matrix v1.
+  windows: Array<{
+    id: string
+    category: string
+    exclusivity: string
+    territory: string[]
+    platforms: string[]
+    windowStartUtc: string | null
+    windowEndUtc: string | null
+    maxRuns: number | null
+    holdbackHoursMin: number | null
+  }>
 }>> {
   const db = opts.db ?? defaultPrisma
   const contracts = await db.contract.findMany({
@@ -300,6 +315,9 @@ export async function getRightsMatrix(
     include: {
       competition: { select: { name: true } },
       season: { select: { name: true } },
+      // Deterministic order by id so matrix rows are stable across calls. No N+1:
+      // windows arrive with the single contract findMany.
+      rightsWindows: { orderBy: { id: 'asc' } },
     },
     orderBy: [{ competitionId: 'asc' }, { validUntil: 'desc' }],
   })
@@ -358,6 +376,17 @@ export async function getRightsMatrix(
       daysUntilExpiry,
       severity,
       blackoutCount: blackouts.length,
+      windows: (c.rightsWindows ?? []).map(w => ({
+        id: w.id,
+        category: w.category,
+        exclusivity: w.exclusivity,
+        territory: w.territory,
+        platforms: w.platforms,
+        windowStartUtc: w.windowStartUtc?.toISOString() ?? null,
+        windowEndUtc: w.windowEndUtc?.toISOString() ?? null,
+        maxRuns: w.maxRuns,
+        holdbackHoursMin: w.holdbackHoursMin,
+      })),
     }
   })
 }
