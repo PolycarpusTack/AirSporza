@@ -402,7 +402,15 @@ RD-1F merged) · INVEST I✓ N✓ V✓ E✓ S✓ T✓
   Then it persists with a client-supplied UUID id (idempotent retry → 200 same row, not duplicate) and appears in
   `GET /contracts/:id/rights-windows`.
 - Given a window with `exclusivity: 'OPEN_NET'`, Then the matrix row exposes it (additive `windows[]` field).
-- Error flow: overlapping identical-category windows on one contract → 409 with remediation message; unknown category → 400.
+- Error flow: **overlapping** windows on one contract → 409 with remediation message; unknown category → 400.
+  **Overlap semantics (architect decision 2026-07-10, gates RD-2-T1 per continue-prompt §RD-2):** two windows overlap
+  IFF **all four** hold — (1) same `category` AND (2) intersecting validity period AND (3) intersecting territory
+  scope AND (4) intersecting platform scope; an **empty** `territory[]`/`platforms[]` = *unrestricted* and therefore
+  intersects every scope (ADR-015 Acceptance record §4 unrestricted rule). Rationale: ADR-015 made territory/platforms
+  per-window, so two same-category windows with disjoint territories (BE-LIVE vs NL-LIVE) or disjoint platforms
+  (linear vs on-demand) are legitimate and must NOT 409; only a genuine scope+period+category collision is a duplicate.
+  Chosen over "category+validity only" and "category only" (both reject legitimate multi-market windows). Validity
+  intersection is half-open per the existing window-bounds convention.
 - Given `rightsWindows` flag OFF, Then windows are storable/readable but emit **no** new validation codes anywhere.
 
 **Interfaces:** `rightsWindowsApi` (frontend service): `list(contractId)`, `create`, `update`, `delete`; backend
