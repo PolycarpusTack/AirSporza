@@ -238,3 +238,29 @@ consistent with the "bugs get fixed, not accepted" rule the D-2 `9500% match` pr
 **New debt found during this enumeration (not previously recorded in any retro):** one item,
 E4-34 (`RegistryCreateModal` dialog missing Escape-to-close + focus-trap/return-focus), noted by
 the a11y audit itself but never carried to a disposition until now.
+
+---
+
+## 11. Post-fix update (2026-07-10) — E-4 execution + gate decisions
+
+This doc enumerated dispositions; the E-4 execution then **actioned** them. Status now:
+
+- **FIX-NOW — ALL DONE:** E4-20 `assertPending`→`decidedGuardError` extraction (`50096b1`);
+  E4-37 registry-create actor attribution via audit-emit (no `createdBy` column existed → the
+  4 create routes now `writeAuditLog`, `cfc2c1a`); E4-38 competition sport-ownership check
+  (`cfc2c1a`). All backend, TDD, green.
+- **THE THREE ARCHITECT GATES — ALL DECIDED:** TD-27 → **accept redeploy-rollback** (no runtime
+  override; `docs/runbooks/ops-shell.md` §rollout, `.env.production` flag flip `99520c7`);
+  ADR-014 tab-param-carry → **done** (OpsShell NavLinks carry `?day/?event/?record`, `4cea569`);
+  backend `broadcastSlots` `lte`→`lt` → **done** (half-open day window, caller verified, `cfc2c1a`).
+- **E-4-34** (RegistryCreateModal Escape/focus-trap) → **done** (`4cea569`).
+- **Still open (correctly deferred — these are the "leave for evaluation" items):** the SCHEDULE
+  bucket (14 items, mostly folded into the follow-on ImportView-reconciliation initiative +
+  "next touch" polish), the 7→6 E-2 designer-sign-off notes, the perf methodology hardening
+  (E4-30), and F-2's optional per-column provenance MIGRATION (the audit-emit covers "who/when";
+  a schema column is a separate story only if per-column provenance is wanted). None block ship.
+- **Housekeeping:** merging these entries into `docs/governance/debt-register.md` still waits on
+  that file's parallel-session lock to clear.
+
+**Net:** the whole A–E Ops redesign is COMPLETE + merged to `main` + the prod flag flipped ON
+(ADR-016 COEXIST). No in-scope debt left un-serviced.
