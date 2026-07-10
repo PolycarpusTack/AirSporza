@@ -57,7 +57,7 @@ async function overrideRegistry(page: Page): Promise<void> {
   await page.route('**/api/players*', (r) => r.fulfill({ json: reg.players }))
 }
 
-test('PERF-PW #5 registry initial render @2000 (goto → all rows settled)', async ({ page }) => {
+test('PERF-PW #5 registry initial render @2000 (goto → table painted, windowed)', async ({ page }) => {
   await setUpPlanzaE2E(page)
   await overrideRegistry(page)
 
@@ -65,9 +65,15 @@ test('PERF-PW #5 registry initial render @2000 (goto → all rows settled)', asy
   for (let i = 0; i < RENDER_N; i++) {
     const t0 = Date.now()
     await page.goto('/ops/registry')
-    // settled = the LAST player row is in the DOM (no virtualization → rows.map
-    // paints all 2,000 nodes; the last node attaching means the table is done).
-    await page.getByTestId('ops-registry-row-player:1000').waitFor({ state: 'attached', timeout: 20_000 })
+    // E-1 remediation: the table now WINDOWS the row list, so the last row
+    // (player:1000) is deliberately NOT mounted — the pre-fix "all 2,000 nodes
+    // attached" marker is gone by design. Settled = the full data path is done
+    // (all 2,000 records fetched → buildRegistryIndex → projectRegistryRows) and
+    // the windowed table is interactive: the scroll container plus the FIRST
+    // projected row (sport:1) are attached. That is the honest "initial render"
+    // signal for a windowed list.
+    await page.getByTestId('ops-registry-scroll').waitFor({ state: 'attached', timeout: 20_000 })
+    await page.getByTestId('ops-registry-row-sport:1').waitFor({ state: 'attached', timeout: 20_000 })
     samples.push(Date.now() - t0)
   }
   verdict('#5 registry render @2000', samples, 1500, 'p95')
@@ -154,17 +160,19 @@ test('PERF-PW #7 registry row → inspector update @2000 (row click → name set
   await setUpPlanzaE2E(page)
   await overrideRegistry(page)
   await page.goto('/ops/registry')
-  await page.getByTestId('ops-registry-row-player:1000').waitFor({ state: 'attached' })
+  await page.getByTestId('ops-registry-row-sport:1').waitFor({ state: 'attached' })
 
   const samples: number[] = []
   for (let i = 0; i < INTERACT_N; i++) {
-    // hop across distinct team rows so each click is a real selection change.
-    // makeTeam: dbId = idx+1, name = `Team ${idx} United` → dbId D shows `Team ${D-1} United`.
-    const idx = i % 700
-    const dbId = idx + 1
+    // E-1 remediation: the table WINDOWS, so team rows (projection index ≥220) are
+    // NOT mounted at the top — hop between the two FIRST visible rows (sport:1 /
+    // sport:2) instead. Each click is still a real selection change (?record flips,
+    // the selected/unselected booleans flip on two memoized rows), which is exactly
+    // the re-render the #7 SLO measures — now bounded by memo + windowing.
+    const target = i % 2 === 0 ? { id: 'sport:1', name: 'Sport 1' } : { id: 'sport:2', name: 'Sport 2' }
     const t0 = Date.now()
-    await page.getByTestId(`ops-registry-row-team:${dbId}`).click()
-    await expect(page.getByTestId('ops-record-name')).toHaveText(`Team ${idx} United`)
+    await page.getByTestId(`ops-registry-row-${target.id}`).click()
+    await expect(page.getByTestId('ops-record-name')).toHaveText(target.name)
     samples.push(Date.now() - t0)
   }
   verdict('#7 registry row→inspector', samples, 100, 'p95')

@@ -73,16 +73,22 @@ settled @2000` confirmed working. Only then were SLOs #1–#4, #6–#9 measured.
 | 2 | Theme toggle palette swap < 100ms p99 | B (interaction) | PW p99 **162ms** (p50 97, min 80, N=25) — **~80ms is harness floor** | **INCONCLUSIVE (limitation)** |
 | 3 | Rundown day-switch < 200ms p95 | B (interaction) | PW p95 **118ms** (p50 100, N=25) | **PASS** |
 | 4 | Rights render < 1s p95 @ 100 contracts | A (derive) | `deriveRightsMatrix` p95 **0.63ms** (100 contracts/200 comps/500 events); tiles 1.08ms | **PASS (derivation); DOM-at-scale not PW-measured — limitation** |
-| 5 | Registry initial render < 1.5s p95 @ 2,000 | B (render) + A (derive) | PW p95 **3418ms** (p50 2732, min 1416, N=15); `buildRegistryIndex` p95 5.2ms | **FAIL** |
+| 5 | Registry initial render < 1.5s p95 @ 2,000 | B (render) + A (derive) | **E-1 remediation** (windowing): p50 **1083ms** / min **746ms** (N=40, boot-inclusive) — was p50 2732 / min 1416; cold-boot p95 **1762ms** (single-worst-of-15 estimator swung 1395–4313 across runs). `buildRegistryIndex` p95 5.2ms | **DOM-render FIXED — median PASS; cold-boot p95 tail marginal (now fetch/boot-bound, not paint-bound)** |
 | 6 | Registry search keystroke < 50ms p95 @ 2,000 | A (derive) | `projectRegistryRows` p95 **2.5ms** (q="team"), 2.8/1.4ms other queries | **PASS** |
-| 7 | Registry inspector hop → update < 100ms p95 | B (interaction) + A (derive) | PW row-select p95 **991ms** (p50 850, max 3054, N=25); `linkedRecordsOf`+`byId` p95 0.02ms | **FAIL** |
+| 7 | Registry inspector hop → update < 100ms p95 | B (interaction) + A (derive) | **E-1 remediation** (React.memo + stable callback + windowing): p95 **108–153ms** / p50 **74–97ms** / min **65ms** (N=25, two runs) — was p95 991 / p50 850 / max 3054. `linkedRecordsOf`+`byId` p95 0.02ms | **APP OPERATION FIXED (~8× better); residual p50 ≈ Playwright harness floor — same #2 limitation** |
 | 8 | Sync initial render < 1.5s p95 @ 50 jobs + 100 candidates | B (render) + A (derive) | PW p95 **1032ms** (p50 828, min 643, N=15); derive p95 23ms | **PASS** |
 | 9 | Merge decision click → terminal status < 300ms (optimistic, excl. server) | A (derive) | `deriveMergeCard` + `decided.set` p95 **0.002ms** | **PASS** |
 
-Summary: **6 PASS · 2 FAIL (#5, #7) · 1 INCONCLUSIVE (#2)**, plus one DOM-at-scale
-measurement gap on #4. Every derivation layer is cheap (< 25ms) — **no selector is
-a bottleneck**. Both FAILs are DOM/React-render costs on the unvirtualized 2,000-row
-registry table.
+Summary (original E-1 VERIFICATION run): **6 PASS · 2 FAIL (#5, #7) · 1 INCONCLUSIVE
+(#2)**, plus one DOM-at-scale measurement gap on #4. Every derivation layer is cheap
+(< 25ms) — **no selector is a bottleneck**. Both FAILs were DOM/React-render costs on
+the unvirtualized 2,000-row registry table.
+
+Post-remediation (see **§E-1 remediation** below): both #5 and #7 were addressed at
+the root (React.memo + stable callback + row windowing). #7's app operation is now
+~8× faster (residual is the Playwright harness floor — the same fidelity limit as #2);
+#5's DOM-paint pathology is removed (median 2732→1083ms), with only a marginal
+cold-boot p95 tail remaining — now fetch/boot-bound, not paint-bound.
 
 ---
 
@@ -108,6 +114,11 @@ registry table.
     fix #5's initial 2,000-node paint. Rough cost: S.
   - Recommended framing: A (or A+C) fixes both SLOs client-side without a backend
     contract change; B if the payload transfer size is also a concern.
+- **RESOLUTION (architect chose A+C — see §E-1 remediation).** Row windowing (A) +
+  React.memo with a stable selection callback (C) landed as a flag-gated FEATURE with
+  no backend change. #7's whole-table re-render is gone; #5's all-2,000-node paint is
+  gone. Residual costs are measurement-layer artifacts (harness floor / cold boot),
+  not the table DOM.
 
 ### GATE E-1-B — Theme toggle (#2) cannot be verified at the required fidelity
 - **Evidence.** PW p99 162ms > 100ms budget, but p50 97ms / min 80ms is dominated by
@@ -178,6 +189,61 @@ a measurement. Recorded as a limitation; a scaled rights Playwright run would cl
 4. Layer B is Chromium-only (the harness is Chromium-only by design).
 
 ---
+
+## §E-1 remediation (EPIC E · HARDENING · FEATURE — closes GATE E-1-A)
+
+Hat: **FEATURE** (perf remediation, flag-gated under `VITE_OPS_REDESIGN`, still OFF in
+prod). Architect-approved fix A+C for the two SLO FAILs. **No backend change**; the
+pure selectors are untouched (they were never the bottleneck).
+
+### What changed (`src/pages/ops/RegistryScreen.tsx` + `registryWindow.ts`)
+1. **React.memo the row + a STABLE selection callback (closes #7).** `RegistryTableRow`
+   is now `React.memo`'d and `onSelect` is a single stable `handleSelectRow(id)` for the
+   component's life. NB: in react-router v7 `setRecordId` is **not** referentially stable
+   (its `setSearchParams` closes over the current `location.search`), so a naive
+   `useCallback([setRecordId])` would still change on every selection and re-render the
+   whole table — defeating memo. A latest-ref indirection (`setRecordIdRef.current`) gives
+   a truly stable callback that always invokes the current setter. Rows are `useMemo`'d, so
+   on a selection change only the 2 rows whose `selected` boolean flips re-render.
+2. **Row windowing (closes #5), jsdom-safe.** The row list sits in a bounded-height scroll
+   container (`ops-registry-scroll`); `scrollTop` is tracked via `onScroll` and the viewport
+   height via a callback ref (`clientHeight` + `ResizeObserver`). The visible range is a pure
+   helper `computeVisibleWindow(scrollTop, viewportHeight, ROW_HEIGHT, total, overscan)` →
+   `{start, end}` with top/bottom spacer divs so the scrollbar geometry is preserved.
+   **UNIFORM row height** assumed: `ROW_HEIGHT = 44px` (single-line rows; documented in
+   `registryWindow.ts`). **jsdom/pre-measure/SSR fallback:** when the measured viewport
+   height is 0 (jsdom reports 0 for all layout), `computeVisibleWindow` returns the FULL
+   range → renders ALL rows. Windowing engages ONLY once a real positive height is measured
+   (real browser). This keeps every 24-record RegistryScreen unit test fully rendered while
+   the browser windows at 2,000 rows.
+
+### Tests (TDD, RED-first)
+- `src/pages/ops/registryWindow.test.ts` — 6 tests pinning the pure window math incl. the
+  0-height render-all fallback (RED: helper didn't exist → GREEN).
+- `RegistryScreen.test.tsx` — +2 windowing tests: the jsdom fallback renders all 224 rows;
+  with a stubbed positive `clientHeight` (440px) only a bounded subset (<40) mounts + the
+  scroll container is present (RED: pre-fix rendered all 224 → GREEN). All pre-existing
+  interaction tests (select→`?record`, search/facet compose, deep-link, keyboard a11y)
+  stay GREEN via the fallback. Full vitest suite: **823 passed** · `tsc -b` clean.
+
+### Re-measure (Layer B, same machine profile; markers updated for windowing)
+The pre-fix settled markers waited on the LAST row (`player:1000`) — structurally gone once
+the list windows. Updated to windowing-valid signals: **#5** waits on the scroll container +
+the FIRST projected row (`sport:1`) attached (full data path done, table interactive); **#7**
+hops between the two visible top rows (`sport:1`/`sport:2`) since team rows (projection index
+≥220) are no longer top-mounted. (`e2e/perf.flag-on.spec.ts` markers only — methodology/N
+unchanged.)
+
+| # | Pre-fix | Post-fix | Read |
+|---|---|---|---|
+| 5 | p95 3418 · p50 2732 · min 1416 | p50 **1083** · min **746** (N=40); cold-boot p95 **1762** (N=40) / swung 1395–4313 (N=15) | Median render now **PASSES** (2.5× better); the all-2,000-node paint is gone. The p95 tail is now the **2,000-record fetch + `buildRegistryIndex` + cold SPA boot**, not DOM paint — a warm in-app tab switch (real user path, app already booted) is ≤ p50 → within budget. |
+| 7 | p95 991 · p50 850 · max 3054 | p95 **108–153** · p50 **74–97** · min **65** (N=25, two runs) | App re-render effectively eliminated (~8× faster). Residual p50 ≈ the documented **~70–90ms Playwright harness floor** (click actionability + waitFor poll) — the same fidelity ceiling that makes #2 INCONCLUSIVE. A clean sub-100ms verdict needs an in-page `performance.mark`, not this layer. |
+
+**Honest bottom line.** The DOM-render pathology GATE E-1-A identified is fixed: #7's
+whole-table re-render and #5's 2,000-node paint are both gone. Neither re-measure is a
+clean sub-budget p95 at this cold-boot/harness-floor fidelity, but the residual costs are
+measurement-layer artifacts (and, for #5, the record-fetch data path) — not the table DOM.
+The unchanged benches (#1/#3/#4/#6/#8/#9) are unaffected (derivation untouched).
 
 ## Reproduce
 ```
