@@ -334,6 +334,34 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** decide at EPIC E (E-5 flag rollout plan) whether a runtime override is needed before turning the flag ON for real users; until then the runbook (A-5) must state rollback = redeploy honestly.
 - **Origin:** A-2-T1, 2026-07-02 (flagged in `src/flags.ts` and OpsShell v1 contract).
 
+## TD-29 — Dual rights model: `RightsPolicy` table + lossy Contract→DTO→pseudo-Contract adapter chain
+
+- **Artifact:** Prisma `RightsPolicy` model (`backend/prisma/schema.prisma:1593`) + its CRUD
+  (`backend/src/routes/rights.ts`, `RightsPoliciesPanel.tsx`, `rightsApi` policy methods); the thin DTO *also named*
+  `RightsPolicy` (`backend/src/services/validation/types.ts:11` — name-collides with the Prisma model but is
+  populated from **Contract**); `loadRightsPolicies` (`backend/src/routes/schedules.ts:15`, lossy mapping incl.
+  `maxLiveRuns ?? 0`) + `policyToContractShape` (`backend/src/services/validation/rights.ts:84`, hardcoded legacy
+  booleans, `platforms: []`, blackouts dropped, `status: 'valid'`, `id: 0`).
+- **Type:** architecture (two rights models + a lossy validation bridge in the Core Domain)
+- **Cause:** the enrichment migration copied RightsPolicy's fields onto Contract ("unified from RightsPolicy" —
+  schema comment) but the policy table/CRUD was never retired; draft validation kept a DTO bridge instead of
+  consuming Contract directly.
+- **Principal:** M (freeze policy writes, migrate rows to Contract windows, delete adapter chain + DTO name collision,
+  drop table)
+- **Interest:** **high** — the bridge silently disables blackout/platform/territory/expiry checks in draft
+  validation, emits false blocking `MAX_RUNS_EXCEEDED` for no-limit contracts (can 422-block publish), never
+  consults the RunLedger (`existingRuns: []` hardcoded), and every rights feature must first decide which model to
+  touch. Verified in the RD-1 spike (`docs/plans/rd-1-rights-model-spike.md` §1).
+- **Compounding:** **yes** — Rights Windows (EPIC RD) build directly on the rights model; without a disposition every
+  RD story doubles the divergence.
+- **Servicing decision:** per **ADR-015 (Proposed)**: windows attach to Contract; stage 3 switches to a
+  contract-backed context behind the `rightsWindows` flag (RD-3-T2); RightsPolicy is **deprecated** — write-freeze,
+  row migration, adapter/DTO deletion, and table drop are executed in **story RD-6** (scoped at the RD retro).
+  RD-2/RD-3 leave RightsPolicy untouched (no third model). The flag-OFF path deliberately preserves today's adapter
+  behavior (byte-identical DoD) until RD-6 — including the two defects above, unless the architect schedules a
+  separate defect fix before the golden master (memo §5.1).
+- **Origin:** domain-gaps backlog survey §6 (candidate), formally registered by RD-1 spike, 2026-07-02.
+
 ---
 
 ## Verification notes (ASM-10 re-check, 2026-06-12)
