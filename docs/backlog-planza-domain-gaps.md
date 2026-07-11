@@ -6,8 +6,11 @@
 > **Requirements input:** `docs/ops-domain-gap-analysis.md` (verified research, gaps G1–G15, open questions Q1–Q4, caveats §6)
 > **Current-state baseline:** codebase survey 2026-07-02 (§6 below) — **the research's assumed baseline
 > ("flat platforms[] + derived per-event status") materially understates the code**; this backlog is built on the verified delta.
-> **Status:** v1.1 — EPICs RD & RC detailed; EPICs SV & RL outlined (first story detailed), expand after RD retro (BB v5.1 §10).
-> EPIC RD re-refined 2026-07-02 against **accepted** ADR-015 (RD-1-T2 hand-off — see §9 re-refinement entry).
+> **Status:** v1.2 — **EPIC RD COMPLETE (2026-07-11 retro; RD-1..RD-5 merged/committed — see per-story status +
+> `docs/plans/2026-07-11-epic-rd-phase-summary.md`).** RD-6 (RightsPolicy deprecation) now DoR-ready; two RD-retro
+> refinements recorded as RD-7/RD-8; EPICs RC detailed, SV & RL outlined (first story detailed).
+> EPIC RD re-refined 2026-07-02 against **accepted** ADR-015 (RD-1-T2 hand-off — see §9 re-refinement entry);
+> **EPIC RD retro 2026-07-11 (§9 retro entry) — Architecture Memory §6 updated with the shipped delta.**
 > **Parallel initiative:** `docs/backlog-planza-ops-redesign.md` (flag `opsRedesign`, `/ops/*`). **Non-collision rule:**
 > this initiative touches **no** ops screen components (`src/components/ops/`, `src/pages/ops/`); all new capabilities are
 > exposed as backend services + validation codes + pure frontend services/selectors with Contract Snapshots that ops
@@ -49,11 +52,11 @@ default posture is **validate + annotate, never silently block** until ADR-017 s
 
 | # | Gap | Resolution path | Owner |
 |---|---|---|---|
-| **ADR-015** (**Accepted 2026-07-02**) | **Rights-window data model + dual rights model.** Survey finding: the codebase has TWO parallel rights models — `Contract` (enriched: territory[], platforms[], coverageType, windows, blackouts, maxLiveRuns) and `RightsPolicy` (separate CRUD + a `policyToContractShape` adapter in `validation/rights.ts`). Adding Rights Windows without a consolidation decision doubles the divergence. **Decided:** RightsWindow as child table of Contract; RightsPolicy **deprecated** (execution in RD-6, servicing TD-29); empty `territory[]`/`platforms[]` = unrestricted + INFO note; defect (a) hotfixed before RD-2 (RD-1F), defect (b) folded into RD-3 with non-skippable ACs (Acceptance record §2/§4). | RD-1 SPIKE → ADR ✓ accepted | Architect |
+| **ADR-015** (**Accepted 2026-07-02**) | **Rights-window data model + dual rights model.** Survey finding: the codebase has TWO parallel rights models — `Contract` (enriched: territory[], platforms[], coverageType, windows, blackouts, maxLiveRuns) and `RightsPolicy` (separate CRUD + a `policyToContractShape` adapter in `validation/rights.ts`). Adding Rights Windows without a consolidation decision doubles the divergence. **Decided:** RightsWindow as child table of Contract; RightsPolicy **deprecated** (execution in **RD-6 — now DoR-ready at the RD retro**, servicing TD-29); empty `territory[]`/`platforms[]` = unrestricted + INFO note; defect (a) hotfixed before RD-2 (RD-1F), defect (b) folded into RD-3 with non-skippable ACs (Acceptance record §2/§4). **Status: shipped through RD-2..RD-5 (2026-07-11).** | RD-1 SPIKE → ADR ✓ accepted; RD-2..RD-5 ✅ | Architect |
 | **ADR-016** (to write, SV-1) | **Schedule Ripple review-before-apply semantics.** Survey finding: event edits via `routes/events.ts` auto-sync to BroadcastSlots (`eventSlotBridge`), but **import-driven kickoff changes do not** (`import/stages/provision.ts` writes `startDateBE/startTimeBE` with no slot sync); the cascade engine silently overwrites slot estimated fields. Define: Ripple Proposal entity, which change sources produce proposals vs direct writes, apply mechanics (via `scheduleOperations`?), idempotency. | SV-1 SPIKE → ADR | Architect |
-| **ADR-017** (to write, RC-0) | **Regulatory enforcement boundary (Q2).** Where Planza ends and traffic/playout/EPG begins for listed-events FTA status, accessibility, ad limits: validate (ERROR, blocks publish) vs annotate (WARNING) vs merely record. Determines every severity in EPIC RC and confirms G13 deferral. | RC-0 stakeholder session → ADR | Architect + stakeholder |
+| **ADR-017** (to write, RC-0) | **Regulatory enforcement boundary (Q2).** Where Planza ends and traffic/playout/EPG begins for listed-events FTA status, accessibility, ad limits: validate (ERROR, blocks publish) vs annotate (WARNING) vs merely record. Determines every severity in EPIC RC and confirms G13 deferral. **Still open — people-work gate (see §9 retro next-EPIC recommendation).** | RC-0 stakeholder session → ADR | Architect + stakeholder |
 | **ADR-018** (deferred to RL refinement) | **Resource booking + labour-rule placement.** Whether resource bookings stay tech-plan-anchored (today: `ResourceAssignment` rides the event window) or become first-class bookings with own windows; where labour rules are evaluated (client preflight vs server validation stage). | RL refinement after Q3 | Architect |
-| Open (Q1) | Which rights dimensions VRT contracts actually distinguish, and which Planza validates at scheduling time vs leaves to legal. | AS-4; RD-1 stakeholder input; window categories shipped behind flag either way | Stakeholder |
+| Open (Q1) | Which rights dimensions VRT contracts actually distinguish, and which Planza validates at scheduling time vs leaves to legal. **Gates RD-7/RD-8 (slot-level coverage-category + territory refinements) — see §7.** | AS-4; RD-1 stakeholder input; window categories shipped behind flag either way | Stakeholder |
 | Open (Q3) | Which non-crew resources ops books today and which conflicts hurt most. | AS-5; gates RL-1-T3 (new resource types) only — the preflight mechanism is type-agnostic | Stakeholder |
 | Open (Q4) | Remit/accessibility KPI reporting pipeline: does Planza feed an existing pipeline or become system of record? | AS-6; RC-3 scoped read-only either way | Stakeholder |
 
@@ -81,6 +84,10 @@ Rigor calibration within DELIVERY: rights-window resolution, holdback math, list
 ripple apply mechanics = **max rigor** (Core Domain + regulatory). CRUD plumbing, seed data, reporting aggregation =
 standard rigor. Nothing in this initiative is "cheap to redo" — there is no low-rigor tier here, only standard vs max.
 
+**Mode check (RD retro, 2026-07-11):** stays DELIVERY. The review chain earned its keep on RD (six pre-merge defect
+catches, one out-of-hat revert — §9 retro); RC is regulated/compliance-bearing; RD-6 is a Core-Domain one-way-door
+migration. No case for down-shifting.
+
 ---
 
 ## 4. Domain Glossary (Core §2 P3 — enforced in code names)
@@ -89,13 +96,13 @@ Reconciled against existing code names. **Bold** = new term this initiative intr
 
 | Term | Definition | Existing code reconciliation |
 |---|---|---|
-| **Rights Window** | A temporal exploitation category on a Contract — one of `LIVE / DELAYED / HIGHLIGHTS / CLIP / ARCHIVE` — with its own territory, platforms, exclusivity, validity window, run limit and holdback. The unit rights verification operates on. | Absorbs today's *scalar* `Contract.coverageType` + `windowStartUtc/EndUtc` + `maxLiveRuns` (one value per contract). `CoverageType` enum already exists with 4 of the 5 values (`ARCHIVE` missing — add per ADR-015). |
-| Territory | Geographic scope of a right; drives geo-blocking and exclusivity. | **Exists**: `Contract.territory: string[]` + `TERRITORY_BLOCKED` check in `rightsChecker.ts`. Moves to per-window under ADR-015. |
-| **Exclusivity Tier** | `EXCLUSIVE / NON_EXCLUSIVE / OPEN_NET` qualifier on a Rights Window. | New. "Open net" is a *value* of this tier, not a separate entity. |
+| **Rights Window** | A temporal exploitation category on a Contract — one of `LIVE / DELAYED / HIGHLIGHTS / CLIP / ARCHIVE` — with its own territory, platforms, exclusivity, validity window, run limit and holdback. The unit rights verification operates on. | Absorbs today's *scalar* `Contract.coverageType` + `windowStartUtc/EndUtc` + `maxLiveRuns` (one value per contract). `CoverageType` enum already exists with 4 of the 5 values (`ARCHIVE` missing — add per ADR-015). **Shipped RD-2.** |
+| Territory | Geographic scope of a right; drives geo-blocking and exclusivity. | **Exists**: `Contract.territory: string[]` + `TERRITORY_BLOCKED` check in `rightsChecker.ts`. Moved to per-window under ADR-015 (RD-2); slot/channel-level territory remains event-level pending RD-8. |
+| **Exclusivity Tier** | `EXCLUSIVE / NON_EXCLUSIVE / OPEN_NET` qualifier on a Rights Window. | New (shipped RD-2). "Open net" is a *value* of this tier, not a separate entity. |
 | Blackout | A contractual prohibition sub-window inside a contract's validity during which broadcast is forbidden. | **Exists**: `Contract.blackoutPeriods` (JSON) + `BLACKOUT_PERIOD` ERROR in `rightsChecker.ts`. ⚠ Synonym flag: the research folds "holdbacks/blackouts" together — code keeps them distinct. |
-| **Holdback** | An earliest-release constraint on a Rights Window: content in this window may not run until N hours after the live end (e.g. delayed/on-demand embargo). NOT a Blackout. | Partially exists as `Contract.tapeDelayHoursMin` — **stored via CRUD but consumed by no validator** (survey). Becomes a first-class per-window field, enforced. |
-| Run / Run Ledger | One consumed exploitation of a right (LIVE/TAPE_DELAY/HIGHLIGHTS/CLIP…), tallied against a window's run limit. | **Exists**: `RunLedger` model, `RunType`/`RunStatus` enums, tallied in `checkRightsForEvent` (LIVE only today). |
-| Rights Status | Per-event/per-slot derivation over Rights Windows × Territory × Exclusivity — no longer a per-contract scalar. | Existing ops glossary term; its meaning is *redefined* by this initiative (gap analysis §3 note). Ops backlog's `deriveRightsStatus` selector is unaffected until it opts into `rights-matrix v2`. |
+| **Holdback** | An earliest-release constraint on a Rights Window: content in this window may not run until N hours after the live end (e.g. delayed/on-demand embargo). NOT a Blackout. | Was `Contract.tapeDelayHoursMin` (stored, consumed by no validator). Now first-class per-window `holdbackHoursMin`, **enforced in checker v2 (RD-3)**. |
+| Run / Run Ledger | One consumed exploitation of a right (LIVE/TAPE_DELAY/HIGHLIGHTS/CLIP…), tallied against a window's run limit. | **Exists**: `RunLedger` model, `RunType`/`RunStatus` enums. **Now tallied per category (RD-3)** on the ADR-015 §2 mapping, no longer LIVE-only. |
+| Rights Status | Per-event/per-slot derivation over Rights Windows × Territory × Exclusivity — no longer a per-contract scalar. | Existing ops glossary term; redefined by this initiative. `deriveSlotRightsStatus` selector shipped RD-4 (`slot-rights v1`); ops `deriveRightsStatus` unaffected until it opts into `rights-matrix v2`. |
 | **Listed Event** | An event matching a category of the Flemish events-of-major-importance list (besluit 28 May 2004), carrying a full-live-FTA obligation flag. | New. List is data (seeded, editable — AS-3), never hardcoded. |
 | **Free-to-Air (FTA)** | Channel property: receivable without conditional access. Input to the Listed Event constraint. | New `Channel` field (RC-1); today only `platformConfig` JSON exists. |
 | **Accessibility Deliverable** | Per-event required access service — `T888` (subtitling), `AUDIO_DESCRIPTION`, `VGT` (Flemish Sign Language) — each with lifecycle status. | New entity. Supersedes the dead stub read of `sportMetadata.hasSubtitles/hasAudioDescription` in `validation/regulatory.ts` (survey: no writer exists for those fields). |
@@ -118,16 +125,16 @@ entity (→ Exclusivity Tier value `OPEN_NET`).
 
 | ID | Assumption | Impact | Verify by |
 |---|---|---|---|
-| AS-1 ⚠ **High-impact gate** | KPI numbers cited from the **2021-2025** beheersovereenkomst (99% T888, ≥90% online subtitling, 32 sports, 30% Sporza share, AD expansion) hold in the **2026-2030** agreement (signed July 2025). **No RC acceptance criterion referencing a KPI number is final until re-verified** (gap analysis caveat §6.3). | RC-2 AC thresholds, RC-3 targets | RC-0-T1 — blocking gate for RC-2/RC-3 DoR |
-| AS-2 ⚠ **High-impact gate** | Planza's regulatory posture is **validate + annotate (WARNING), never block publish**, until ADR-017 decides otherwise (Q2: enforcement boundary vs traffic/playout). All RC validation severities are provisional WARNINGs. | All RC severities; G13 deferral | RC-0-T2 (ADR-017) |
+| AS-1 ⚠ **High-impact gate** | KPI numbers cited from the **2021-2025** beheersovereenkomst (99% T888, ≥90% online subtitling, 32 sports, 30% Sporza share, AD expansion) hold in the **2026-2030** agreement (signed July 2025). **No RC acceptance criterion referencing a KPI number is final until re-verified** (gap analysis caveat §6.3). **Still open — RC-0-T1 people-work.** | RC-2 AC thresholds, RC-3 targets | RC-0-T1 — blocking gate for RC-2/RC-3 DoR |
+| AS-2 ⚠ **High-impact gate** | Planza's regulatory posture is **validate + annotate (WARNING), never block publish**, until ADR-017 decides otherwise (Q2: enforcement boundary vs traffic/playout). All RC validation severities are provisional WARNINGs. **Still open — RC-0-T2.** | All RC severities; G13 deferral | RC-0-T2 (ADR-017) |
 | AS-3 | The Flemish listed-events list (2004, under parliamentary revision — caveat §6.4) is modelled as **seeded, editable data**, never as code constants; a list update is a data change, not a release. | RC-1 design | Inherent (design constraint) |
-| AS-4 | Rights Window categories = existing `CoverageType` enum + `ARCHIVE`; VRT contracts meaningfully distinguish territory, exclusivity and live/delayed/highlights (Q1). If Q1 reveals fewer dimensions in practice, unused categories stay in the enum, unused validation stays flag-off — no rework. **Accepted-now path confirmed by architect (ADR-015 Acceptance record §3): Q1 is informative, not blocking — answers calibrate defaults, they do not gate RD-2..RD-5.** | RD-2/RD-3 scope | Q1 packet `docs/plans/rd-1-q1-stakeholder-questions.md` (informative, not a gate); flag `rightsWindows` limits blast radius |
+| AS-4 | Rights Window categories = existing `CoverageType` enum + `ARCHIVE`; VRT contracts meaningfully distinguish territory, exclusivity and live/delayed/highlights (Q1). If Q1 reveals fewer dimensions in practice, unused categories stay in the enum, unused validation stays flag-off — no rework. **Accepted-now path confirmed by architect (ADR-015 Acceptance record §3): Q1 is informative, not blocking — answers calibrate defaults, they do not gate RD-2..RD-5.** **RD retro note:** RD-2..RD-5 shipped without Q1; Q1 now gates RD-7/RD-8 (slot-level coverage-category + territory) — see §7. | RD-2/RD-3 scope (shipped); RD-7/RD-8 scope | Q1 packet `docs/plans/rd-1-q1-stakeholder-questions.md` (informative for RD-2..RD-5; a gate for RD-7/RD-8) |
 | AS-5 | Studio / edit suite / facility become new `ResourceType` values only if Q3 confirms the ops team books them; the conflict-preflight mechanism (RL-1) is type-agnostic and ships regardless. | RL-1-T3 only | Q3 stakeholder answer |
 | AS-6 | Remit coverage (RC-3) is **read-only reporting inside Planza** (aggregation + endpoint); whether it feeds an external pipeline or becomes system of record (Q4) changes consumers, not the aggregation. | RC-3 scope ceiling | Q4 stakeholder answer at RC retro |
 | AS-7 | Ripple apply reuses the existing draft/operations machinery (`scheduleOperations` append + optimistic version, `eventSlotBridge` for auto-linked slots) rather than a new write path. | SV-2/SV-3 | SV-1 SPIKE + ADR-016 |
 | AS-8 | Cascade-engine debt **TD-5/TD-12/TD-13/TD-14** (untested orchestrator, midnight anchoring, non-idempotent outbox key, split transactions) is serviced before SV builds on cascade outputs — SV-2+ carries a blocking pull gate on the `CASCADE_PREVIEW_PARITY` story from the debt register. | EPIC SV sequencing | SV-1 pull gate |
-| AS-9 | New validation codes surface through the existing draft-validation UI and future ops screens; flags `rightsWindows` / `regulatoryCompliance` gate *emission* of new codes so flag-off = byte-identical validation output. Flags are build-time per TD-27 — runbooks must state rollback = redeploy honestly. | All EPICs | Flag tests per task |
-| AS-10 | **VRT is a test/first client, not the sole target** (ADR-015 Acceptance record §3): client-specific rights dimensions and (EPIC RC) regulatory obligations are **per-tenant configuration, not product constants**. Q1 answers calibrate defaults; they must not harden VRT-specific rules into the model. | RD dimension/enum design; EPIC RC rule modelling — listed-events/accessibility/remit obligations are tenant-configurable rule sets, VRT = first configuration | Design constraint (inherent); revisit at each client onboarding + RC DoR framing check |
+| AS-9 | New validation codes surface through the existing draft-validation UI and future ops screens; flags `rightsWindows` / `regulatoryCompliance` gate *emission* of new codes so flag-off = byte-identical validation output. Flags are build-time per TD-27 — runbooks must state rollback = redeploy honestly. **RD confirmed:** flag OFF byte-identical to the post-RD-1F baseline (golden master, RD-3). | All EPICs | Flag tests per task |
+| AS-10 | **VRT is a test/first client, not the sole target** (ADR-015 Acceptance record §3): client-specific rights dimensions and (EPIC RC) regulatory obligations are **per-tenant configuration, not product constants**. Q1 answers calibrate defaults; they must not harden VRT-specific rules into the model. | RD dimension/enum design; EPIC RC rule modelling; RD-8 (channel territory is per-tenant config) | Design constraint (inherent); revisit at each client onboarding + RC DoR framing check |
 
 ---
 
@@ -135,7 +142,40 @@ entity (→ Exclusivity Tier value `OPEN_NET`).
 
 ```
 ARCHITECTURE MEMORY: Planza Domain Gaps
-Updated: 2026-07-02
+Updated: 2026-07-11 (EPIC RD shipped; RD-6 DoR-ready; refinements RD-7/RD-8 raised)
+
+── SHIPPED (EPIC RD, 2026-07-02 .. 2026-07-11) ──
+
+RightsWindow (child table of Contract) + ExclusivityTier enum + ARCHIVE on
+  CoverageType — RD-2 (PR #15 aaf316f). RLS tenant_isolation on the table.
+  Backfill: 1 window per existing contract (ADR-015 §1 mapping, NON_EXCLUSIVE).
+  Cross-package enum regen (Prisma + shared union + zod) fixed the CLIP drift.
+  Overlap-409 = pure 4-way predicate (category ∧ validity ∧ territory ∧
+  platform; empty[] = unrestricted → intersects all). Idempotent create
+  (client UUID). Snapshots: rights-window v1, rights-matrix v2 (additive windows[]).
+checkRights v2 (pure, window-aware) — RD-3 (PR #16 29ecebd): window resolution
+  by run intent, holdback math (ADR-015 §4 live-end order: ledger actual →
+  scheduled end → INFO), per-window/per-category run limits. New codes:
+  WINDOW_CATEGORY_MISSING (WARN), HOLDBACK_VIOLATION (ERR), WINDOW_UNSCOPED /
+  NO_WINDOWS / HOLDBACK_LIVE_END_UNKNOWN (INFO). Legacy path behind explicit
+  windowsEnabled param (pure fn never reads env); frozen-message golden master.
+  Wired into draft validate/publish behind RIGHTS_WINDOWS_ENABLED (explicit
+  env parse — NOT z.coerce.boolean): ValidationContext.contracts (windows
+  included) + channel on slot query; defect-(b) fixed (existingRuns from the
+  RunLedger, non-skippable, negative proof). Snapshot: rights-checker v2.
+GET /rights/check-slots (ADR-009 paginated) + deriveSlotRightsStatus pure
+  selector — RD-4 (PR #17 e6ec688). SLOT_EVENT_MISSING / SLOT_EVENT_UNRESOLVED.
+  Snapshot: slot-rights v1 (ops Rundown/Schedule consumption point).
+Gated tracer smoke + runbook docs/runbooks/rights-windows.md — RD-5
+  (b607bc1, branch feature/RD-5-smoke-runbook — NOT yet merged to main).
+Metrics: backend vitest 498 pass; tsc clean (backend/shared/frontend);
+  flag OFF byte-identical to the post-RD-1F baseline (golden master).
+
+REACHABILITY CAVEAT (RD retro): non-LIVE holdback + per-window enforcement is
+  checker CAPABILITY but NOT reachable from real published slots — BroadcastSlot
+  has no coverage-category column (real slots resolve to runIntent=LIVE). The
+  per-category tally ISOLATION is real/tested. Reaching non-LIVE enforcement
+  needs RD-7. Territory stays event-level (Channel has no territory) → RD-8.
 
 ── CURRENT-STATE SURVEY (2026-07-02) — corrections to the research baseline ──
 
@@ -143,20 +183,22 @@ Rights (research said G1/G2/G3 "not covered"; reality is ◐/◐/◐):
   rightsChecker.ts (backend):  UNIFIED checker — platform coverage, time window,
     blackout periods (ERROR), run limits vs RunLedger (LIVE only), territory
     (ERROR), expiry (WARNING). Pure fn + DB-backed per-event + batch + matrix.
+    NOW: window-aware v2 shipped (RD-3) — per-category tallies, holdbacks.
   routes/rights.ts + services/rights.ts:  policies CRUD, /rights/check,
     /rights/check/batch (territory param), /rights/matrix (runsUsed, expiry,
-    severity, blackoutCount).
+    severity, blackoutCount). NOW: + /rights/check-slots (RD-4), matrix v2.
   validation/rights.ts (stage 3):  per-SLOT rights validation inside draft
-    validation — slot-level checking EXISTS for drafts; the gap is the
-    published/live schedule surface + window-category awareness.
-  DUAL MODEL (new finding): Contract (enriched) AND RightsPolicy run in
-    parallel, bridged by policyToContractShape() with hardcoded legacy
-    booleans — consolidation decision needed (ADR-015).
-  Stored-but-unconsumed: Contract.tapeDelayHoursMin (no validator reads it).
-  CoverageType enum exists (LIVE/HIGHLIGHTS/DELAYED/CLIP) but is SCALAR per
-    contract and IGNORED by the checker; RunLedger tallies LIVE only.
-  TRUE DELTA G1-G5: window multiplicity + category-aware matching, exclusivity
-    tier (incl. OPEN_NET), holdback enforcement, published-schedule slot check.
+    validation. NOW: contract-backed context (ValidationContext.contracts)
+    behind rightsWindows flag; adapter chain still runs flag-OFF until RD-6.
+  DUAL MODEL: Contract (enriched) AND RightsPolicy in parallel, bridged by
+    policyToContractShape(). Disposition = DEPRECATE (ADR-015 §5); execution
+    = RD-6 (DoR-ready). RD-2/RD-3 left RightsPolicy untouched (no third model).
+  Stored-but-unconsumed: Contract.tapeDelayHoursMin — NOW backfilled into
+    RightsWindow.holdbackHoursMin and enforced (RD-3); scalar @deprecated.
+  CoverageType enum: NOW LIVE/HIGHLIGHTS/DELAYED/CLIP/ARCHIVE, per-window.
+  TRUE DELTA G1-G5: window multiplicity + category-aware matching ✓,
+    exclusivity tier incl. OPEN_NET ✓, holdback enforcement ✓ (capability;
+    reachability gated on RD-7), published-schedule slot check ✓ (RD-4).
 
 Volatility (research said G6 "not covered"; reality is ◐):
   cascade/ (engine, compute, estimator, alerts): court-chain retiming with
@@ -172,9 +214,8 @@ Volatility (research said G6 "not covered"; reality is ◐):
   THE GAP (verified): import/stages/provision.ts writes startDateBE/
     startTimeBE from feeds WITHOUT calling syncEventToSlot — feed-driven
     kickoff changes do NOT ripple to slots. No review-before-apply anywhere.
-  DRIFT (new TD candidate): schemas/broadcastSlots.ts zod enum
-    ['EXTEND','TRUNCATE','SWITCH'] diverges from the Prisma OverrunStrategy
-    enum — API layer rejects values the DB and validators support.
+  DRIFT (TD-28): schemas/broadcastSlots.ts zod OverrunStrategy enum diverges
+    from Prisma — registered RD-2-T2, servicing separate (see below).
 
 Regulatory (research said G10-G12 "not covered"; confirmed greenfield, BUT
   an insertion point exists):
@@ -198,38 +239,49 @@ Resources & labour (research said G14/G15 "not covered"; G14 is ◐):
 ── PLANNED COMPONENTS ──
 
 Components (new):
-  RightsWindow (entity + CRUD):        per-contract exploitation windows — planned
-  rightsChecker v2:                    window-aware matching + holdback — planned
-  /rights/check-slots:                 published-schedule slot verification — planned
-  ListedEventCategory (+ Channel.isFreeToAir): listed-events data + constraint — planned
-  AccessibilityDeliverable:            per-event T888/AD/VGT lifecycle — planned
-  remitCoverage service:               per-sport/category KPI aggregation — planned
-  RippleProposal (ADR-016):            reviewable feed/cascade change sets — planned
+  RightsWindow (entity + CRUD):        SHIPPED RD-2 (PR #15)
+  rightsChecker v2:                    SHIPPED RD-3 (PR #16)
+  /rights/check-slots:                 SHIPPED RD-4 (PR #17)
+  BroadcastSlot coverage-category src: planned RD-7 (refinement; Q1-gated)
+  Channel territory source:            planned RD-8 (refinement; Q1/AS-10-gated)
+  ListedEventCategory (+ Channel.isFreeToAir): listed-events data + constraint — planned RC-1
+  AccessibilityDeliverable:            per-event T888/AD/VGT lifecycle — planned RC-2
+  remitCoverage service:               per-sport/category KPI aggregation — planned RC-3
+  RippleProposal (ADR-016):            reviewable feed/cascade change sets — planned SV
   ContingencySchedule:                 pre-built alternate slot sets — planned (SV-4)
-  resourceConflicts (server):          preflight at booking time — planned
+  resourceConflicts (server):          preflight at booking time — planned RL-1
   LabourRule + evaluator:              working-time checks at assignment — planned (RL-2)
 
 Components (existing, consumed — do not fork):
-  rightsChecker.ts, validation/* pipeline, cascade/*, eventSlotBridge,
+  rightsChecker.ts (now v2), validation/* pipeline, cascade/*, eventSlotBridge,
   scheduleOperations, ChannelSwitch routes, RunLedger, resourcesApi,
   utils/resourceConflicts.ts, utils/crewConflicts.ts
 
+Contract Snapshots published (integration points for ops backlog):
+  rights-window v1, rights-matrix v2, rights-checker v2, slot-rights v1.
+  (upcoming: listed-events v1, accessibility v1, remit-coverage v1, ripple v1,
+   resource-preflight v1)
+
 Key ADRs: ADR-001 outbox · ADR-004/007 raw-SQL migrations · ADR-009 pagination ·
-  ADR-011 RLS (every new table needs a policy) · ADR-015..018 (this initiative, §2)
+  ADR-011 RLS (every new table needs a policy) · ADR-015 (Accepted; shipped) ·
+  ADR-016..018 (this initiative, §2)
 
 Active TD (pre-existing, relevant):
   TD-5/12/13/14: cascade engine debt — SV-2+ blocked until serviced (AS-8)
   TD-22: RLS enforcement activation pending — new tables still need policies NOW
   TD-24: never consume @deprecated Event/Contract fields (note: rightsChecker's
          derivePlatformsFromLegacy is the sanctioned backend fallback; new code
-         must not add consumers)
+         must not add consumers). RD-2 @deprecated the Contract rights scalars.
   TD-27: feature flags are build-time (rollback = redeploy)
-TD candidates raised by this survey (register on first touching story):
-  TD-28: broadcastSlots zod OverrunStrategy enum drift vs Prisma enum
+TD from this initiative (status):
+  TD-28: zod↔Prisma enum drift — REGISTERED RD-2-T2. Partially serviced (new
+         window surface + CLIP contract-write fixed in the RD-2 regen); the
+         contract/policy coverageType+status and run-ledger status drift remain
+         a separate tested story (may be picked up in RD-6, one Hat).
   TD-29: dual rights model (Contract ∥ RightsPolicy) + policyToContractShape
-         adapter with hardcoded legacy booleans — serviced via ADR-015
-  TD-30: validation/regulatory.ts ACCESSIBILITY_MISSING reads fields nothing
-         writes (dead check) — superseded by RC-2
+         adapter — REGISTERED; servicing = RD-6 (DoR-ready). Interest HIGH.
+  TD-30: validation/regulatory.ts ACCESSIBILITY_MISSING dead check — untouched;
+         superseded by RC-2.
 
 Current Mode: DELIVERY
 ```
@@ -247,357 +299,209 @@ Model routing per Core §6 noted per task (Opus = judgment, Sonnet = generation,
 ### Proposed EPIC sequencing (dependency-ordered)
 
 ```
-RD (tracer bullet) ──► RC ──► SV ──► RL
-        │               ▲
-        │  Exclusivity  │ RC-0 gates (AS-1 KPI verify + ADR-017) resolve
-        └─ Tier feeds ──┘ during RD execution; if still blocked at the RD
-           OPEN_NET use    retro, SV pulls forward ahead of RC (its SV-1
-                           SPIKE has no external gate).
+RD (tracer bullet, ✅ COMPLETE) ──► RC ──► SV ──► RL
+        │                            ▲
+        │  Exclusivity Tier          │ RC-0 gates (AS-1 KPI verify + ADR-017)
+        └─ feeds OPEN_NET use ───────┘ still OPEN at the RD retro → SV pulls
+                                       forward for CODE work while RC-0 runs
+                                       as the people-work long pole (§9 retro).
 ```
 
-Rationale: **RD first** — it is the tracer bullet (schema → checker → validation stage → API → frontend service),
-and RC's open-net remit logic consumes its Exclusivity Tier. **RC second** — Must-priority legal exposure, greenfield
-(no rework risk), but gate-dependent; its gates are *people* work that runs concurrently with RD. **SV third, not
+Rationale: **RD first** — it was the tracer bullet (schema → checker → validation stage → API → frontend service),
+now shipped, and RC's open-net remit logic consumes its Exclusivity Tier. **RC second** — Must-priority legal exposure,
+greenfield (no rework risk), but gate-dependent; its gates are *people* work. **SV third, not
 second** — it builds on the cascade engine, which carries open HIGH-interest debt (TD-5/12/13/14) that must be
 serviced first (AS-8); sequencing SV later buys that servicing window. **RL last** — Should-priority, smallest true
 delta (server-side preflight + greenfield labour rules).
 
+**RD-retro sequencing decision (2026-07-11):** RC-0's two gates (AS-1 KPI verify + ADR-017) were **not** resolved
+during RD execution and are people-work. Per the sequencing rule, **SV-1 (SPIKE) pulls forward as the code-ready next
+step** (its only pull gate — "RD retro complete / Architecture Memory current" — is now satisfied, and it carries no
+external gate), while **RC-0 starts concurrently as the long-pole people-work**. See §9 retro for the full recommendation.
+
 ---
 
-## EPIC RD — Rights Depth (Tracer Bullet)
+## EPIC RD — Rights Depth (Tracer Bullet) — ✅ COMPLETE (2026-07-11)
 
 - **Objective:** Rights Windows with exclusivity tiers as first-class contract children, a window-aware rights
   checker enforcing holdbacks, and slot-level verification of the published schedule — one thin slice from migration
-  to consumable frontend selector.
-- **Tracer Bullet?:** YES — RD-2 cuts through schema → backend service → validation stage → API → frontend service snapshot.
+  to consumable frontend selector. **Delivered** (RD-2..RD-5); reachability caveat recorded (RD-7).
+- **Tracer Bullet?:** YES — RD-2 cut through schema → backend service → validation stage → API → frontend service snapshot.
 - **Mode:** DELIVERY
-- **DoD additions:** (1) With `rightsWindows` ON, a contract's windows drive `/rights/check` results incl.
-  `HOLDBACK_VIOLATION`; flag OFF → validation output byte-identical to the **post-RD-1F baseline** (regression suite
-  proves it; golden master recorded after RD-1F lands — ADR-015 Acceptance record §2).
-  (2) `/rights/check-slots` verifies every published slot of a channel-day in one call. (3) Backfill gives every
-  existing contract exactly one window equivalent to its scalar fields — matrix totals reconcile 1:1 pre/post.
-- **Business Value:** G1/G2/G3/G5 — rights verification per market/platform/window is the category-standard
-  capability (Mediagenix/Provys parity). Success metric: a rights manager can answer "may we run highlights of
-  Saturday's race on VRT MAX on Sunday?" from data, not from reading the contract PDF.
-- **Risk:** Med — dual rights model consolidation (TD-29) could balloon → mitigation: ADR-015 decides *disposition
-  only*; actual RightsPolicy migration is its own later story, not smuggled into RD-2. Med — Q1 may invalidate window
-  categories → mitigation: AS-4 (enum superset + flag). Low — backfill correctness → reconciliation test in RD-2-T1.
-- **SLOs:** `Rights check-slots – p95 < 500ms @ 200 slots/day` · `Rights matrix v2 – p95 < 1s @ 100 contracts × 3 windows` · `Draft validation – rights stage adds < 150ms p95 @ 200-slot draft`.
-- **Glossary:** Rights Window, Exclusivity Tier, Holdback, Blackout, Run, Rights Status.
-- **ADRs:** ADR-015 (produced here — **Accepted 2026-07-02**, incl. Acceptance record), ADR-009 (pagination on new
-  list endpoints), ADR-011 (RLS on new tables).
-- **Smoke Test Story:** RD-5.
-- **Runbook:** `docs/runbooks/rights-windows.md` (RD-5 deliverable): flag off = legacy checker path; symptoms:
-  unexpected HOLDBACK/WINDOW codes (check window backfill row for that contract), matrix drift (run reconciliation
-  script), check-slots 4xx (pagination params).
+- **DoD outcome:** (1) With `rightsWindows` ON, a contract's windows drive `/rights/check` incl. `HOLDBACK_VIOLATION`;
+  flag OFF → byte-identical to the post-RD-1F baseline (golden master ✓). (2) `/rights/check-slots` verifies a
+  channel-day in one call ✓. (3) Backfill gives every contract exactly one equivalent window; matrix totals
+  reconcile 1:1 ✓.
+- **Business Value:** G1/G2/G3/G5 — category-standard rights verification per market/platform/window (Mediagenix/Provys parity).
+- **Snapshots produced:** `rights-window v1`, `rights-matrix v2`, `rights-checker v2`, `slot-rights v1`.
+- **Metrics:** backend vitest 498 pass; tsc clean; flag OFF byte-identical.
+- **Runbook:** `docs/runbooks/rights-windows.md` (RD-5).
+- **Phase summary:** `docs/plans/2026-07-11-epic-rd-phase-summary.md`.
 
 ---
 
 ### Story RD-1 — SPIKE: rights model consolidation + VRT contract dimensions → ADR-015
-`SPIKE: Research rights-window data model` — timeboxed **M**.
-
-**As a** architect **I want** a decided data model for Rights Windows and a disposition for the dual
-Contract/RightsPolicy situation **so that** RD-2 builds on one model instead of adding a third.
-
-Business Value 3 · Priority 5 · Size **M** · DoR: **READY** · INVEST I✓ N✓ V✓ E✓ S✓ T✓ (spike variant)
-
-**AC:**
-- Given the survey findings (§6), When the spike concludes, Then ADR-015 records: RightsWindow shape (child of
-  Contract), enum decision (`CoverageType` + `ARCHIVE`?), exclusivity tier values, holdback semantics
-  (relation to `tapeDelayHoursMin`), and RightsPolicy disposition (merge / deprecate / season-override) with
-  alternatives + consequences.
-- Given Q1 is unanswered by then, Then ADR-015 marks dimension-usage assumptions explicitly (AS-4) rather than blocking.
-- Findings memo ≤ 2 pages; rejected options recorded.
-
-**Spike rules (DoR conditions C1–C3 + D1, health check 2026-07-02):**
-- **C1 (data access):** name the environment for the contract-shape inventory at kickoff and confirm read access.
-  If only synthetic/seed data is available, rescope that AC honestly to "schema + seed inventory + request for real
-  distributions via Q1" — do not present seed distributions as production evidence.
-- **C2 (explicit question):** ADR-015 MUST answer: *"From which model does draft-validation stage 3 resolve Rights
-  Windows?"* Stage 3 today consumes only `RightsPolicy → policyToContractShape` (no windows); if windows live only on
-  `Contract` children without a decided path for the policy-driven draft flow, RD-5's `HOLDBACK_VIOLATION` smoke test
-  is unimplementable.
-- **C3 (timebox exhaustion):** when the M timebox exhausts, ADR-015 ships with explicitly-marked open assumptions;
-  the spike is never extended to chase certainty.
-- **D1 (anchoring guard):** "RightsWindow as child of Contract" is a **hypothesis to test**, not a conclusion to
-  rationalize. Evaluate ≥2 genuine alternatives with consequences; RD-2's pre-written Gherkin does not constrain the
-  ADR outcome (see re-refinement step in RD-1-T2).
-
-- **RD-1-T1** · Hat **PREPARATORY** · Model **Opus** · Confidence High
-  Goal: Trace both rights models end-to-end (writers, readers, adapter), inventory real contract data shapes
-  (territory/platform/coverage value distributions via read-only query — per C1), draft the RightsWindow model +
-  2 alternatives, and answer C2 (stage-3 window resolution path) explicitly.
-  Deliverables: findings memo `docs/plans/rd-1-rights-model-spike.md` → draft ADR-015.
-  Pull Gate: none (first task). Unblocks: RD-1-T2.
-- **RD-1-T2** · Hat **PREPARATORY** · Model **Opus** (architect review) · Confidence High
-  Goal: Finalize `docs/governance/adr/ADR-015-rights-windows-model.md` (status **Proposed** — acceptance authority is
-  the architect, per §2); register TD-29 (dual model) with servicing decision; send Q1 to stakeholder with the
-  dimension inventory attached; **re-refine RD-2..RD-5 ACs against the accepted ADR-015** (W1: field names, enum
-  values, and the RD-5 smoke path are pre-ADR drafts and go stale on any deviation) and scope RD-6 from the
-  RightsPolicy disposition.
-  Hand-off: **ADR-015 accepted** (blocking gate for RD-2) — ✓ accepted 2026-07-02; re-refinement executed same day
-  (§9 entry).
-  Unblocks: RD-1F-T1, END OF STORY SEQUENCE.
+**Status: ✅ COMPLETE (2026-07-02).** ADR-015 authored + **Accepted**: RightsWindow child-of-Contract; RightsPolicy →
+**deprecate** (RD-6); enum `CoverageType`+`ARCHIVE`; `ExclusivityTier {EXCLUSIVE,NON_EXCLUSIVE,OPEN_NET}`; empty
+`territory[]`/`platforms[]` = unrestricted + INFO; C2 answered (stage 3 resolves windows from Contract). Findings memo
+`docs/plans/rd-1-rights-model-spike.md`. TD-29 registered (deprecate disposition); Q1 packet sent as informative
+(AS-4). Two live defects surfaced → (a) RD-1F, (b) folded into RD-3. RD-2..RD-5 ACs re-refined same day (§9).
 
 ---
 
-### Story RD-1F — HOTFIX: `maxLiveRuns` null semantics (defect (a) — pre-golden-master, per ADR-015 Acceptance record §2)
-**As a** planner **I want** a contract with no run limit set (`maxLiveRuns: null`) to stop producing false
-`MAX_RUNS_EXCEEDED` errors in draft validation **so that** publish is never 422-blocked by a limit nobody configured.
-
-Business Value 3 · Priority 5 · Size **S** · DoR: **READY** (mandated at ADR-015 acceptance) · INVEST I✓ N✓ V✓ E✓ S✓ T✓
-
-Defect (a), verified in the RD-1 memo (§1): `policyToContractShape` / the `loadRightsPolicies` DTO chain
-(`backend/src/validation/rights.ts:84`, loader at `routes/schedules.ts:15`) maps `maxLiveRuns: c.maxLiveRuns ?? 0` —
-"no limit set" becomes "limit 0", so any FULL slot for a covered event yields a false `MAX_RUNS_EXCEEDED` ERROR that
-can 422-block publish.
-
-**AC (Gherkin):**
-- Given a contract with `maxLiveRuns: null` covering an event, When its draft is validated
-  (`POST /schedule-drafts/:id/validate`) or published, Then **no** `MAX_RUNS_EXCEEDED` result is emitted for that
-  contract (null = no limit → run-limit check skipped).
-- Given a contract with `maxLiveRuns: 0` explicitly set, Then `MAX_RUNS_EXCEEDED` still fires — null and 0 are
-  distinct values.
-- Given a contract with a positive `maxLiveRuns`, Then existing run-limit behavior is unchanged (regression).
-
-**Feature Flag: none — justified per Core §5.1:** this is a defect fix restoring the intended semantics of *current*
-behavior, not a new user-facing capability; flagging it would make the false 422 the flag-OFF behavior and poison
-RD-3's golden master. Rollback = revert commit (small, isolated diff; easy to undo → minimum ceremony).
-**Golden-master implication (ADR-015 Acceptance record §2):** RD-3's flag-OFF golden master MUST be recorded AFTER
-this story lands, so it pins correct null-semantics — never the defect. RD-2-T1 pull-gates on this story being merged.
-
-- **RD-1F-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Fix null-semantics at the named sites: the `maxLiveRuns ?? 0` coercion in the `loadRightsPolicies` →
-  `policyToContractShape` chain (`validation/rights.ts:84`, `routes/schedules.ts:15`) must preserve `null`, and the
-  run-limit branch of `checkRights` in `rightsChecker.ts` must treat `null`/absent as "no limit" (skip the check)
-  while keeping `0` as a genuine limit.
-  TDD: (1) failing test FIRST reproducing the false block — draft validation of a contract with `maxLiveRuns: null`
-  emits `MAX_RUNS_EXCEEDED` today; (2) minimal fix; (3) refactor. Cover null-vs-0 distinction + positive-limit
-  regression.
-  Pull Gate: ADR-015 accepted ✓ (Acceptance record §2 mandates this story before RD-2).
-  Unblocks: RD-2-T1, END OF STORY SEQUENCE.
+### Story RD-1F — HOTFIX: `maxLiveRuns` null semantics
+**Status: ✅ COMPLETE — merged `a4b40bd`.** `maxLiveRuns: null` no longer coerced to `0` in the
+`loadRightsPolicies → policyToContractShape` chain and in `checkRights`: null/absent = no limit (check skipped),
+`0` = genuine limit, positive unchanged. Unflagged defect fix (justified); landed **before** RD-2 so RD-3's flag-OFF
+golden master pins correct null-semantics, not the defect.
 
 ---
 
 ### Story RD-2 — RightsWindow entity + Exclusivity Tier (tracer slice)
-**As a** rights manager **I want** contracts to carry one or more Rights Windows (category, territory, platforms,
-exclusivity, validity, run limit, holdback) **so that** what may be scheduled per market/platform/window is data,
-not a footnote.
-
-Business Value 3 · Priority 5 · Size **L** · DoR: **READY** (ADR-015 accepted 2026-07-02; RD-2-T1 pull-gates on
-RD-1F merged) · INVEST I✓ N✓ V✓ E✓ S✓ T✓
-
-**AC (Gherkin):**
-- Given an existing contract with scalar rights fields, When the backfill migration runs, Then it owns exactly one
-  RightsWindow mapped per ADR-015 §1 — `coverageType→category`, `windowStartUtc/EndUtc` bounds, `territory`/`platforms`
-  *as stored*, `maxLiveRuns→maxRuns`, `tapeDelayHoursMin→holdbackHoursMin`, `exclusivity: 'NON_EXCLUSIVE'` (no source
-  data — ADR-015 open assumption 2) — and `/rights/matrix` totals are unchanged (reconciliation test; caveat memo
-  §5.4: `runsUsed` is 0 for all dev data — no CONFIRMED writer exists — so reconciliation is structural evidence
-  only, NOT evidence of run-limit correctness).
-- Given a backfilled or new window with empty `territory[]` or `platforms[]`, Then empty = **unrestricted** (nothing
-  to check — ADR-015 Acceptance record §4, matching current checker behavior for those contracts). Window `platforms`
-  use the **lowercase channel-type vocabulary** (`linear|on-demand|radio|fast|pop-up`) that `checkRights` matches
-  against `Channel.types` — never the orphaned UPPERCASE `Platform` enum (ADR-015 §1).
-- Given a contract, When I `POST /contracts/:id/rights-windows` with `{category: 'HIGHLIGHTS', exclusivity: 'NON_EXCLUSIVE', …}`,
-  Then it persists with a client-supplied UUID id (idempotent retry → 200 same row, not duplicate) and appears in
-  `GET /contracts/:id/rights-windows`.
-- Given a window with `exclusivity: 'OPEN_NET'`, Then the matrix row exposes it (additive `windows[]` field).
-- Error flow: **overlapping** windows on one contract → 409 with remediation message; unknown category → 400.
-  **Overlap semantics (architect decision 2026-07-10, gates RD-2-T1 per continue-prompt §RD-2):** two windows overlap
-  IFF **all four** hold — (1) same `category` AND (2) intersecting validity period AND (3) intersecting territory
-  scope AND (4) intersecting platform scope; an **empty** `territory[]`/`platforms[]` = *unrestricted* and therefore
-  intersects every scope (ADR-015 Acceptance record §4 unrestricted rule). Rationale: ADR-015 made territory/platforms
-  per-window, so two same-category windows with disjoint territories (BE-LIVE vs NL-LIVE) or disjoint platforms
-  (linear vs on-demand) are legitimate and must NOT 409; only a genuine scope+period+category collision is a duplicate.
-  Chosen over "category+validity only" and "category only" (both reject legitimate multi-market windows). Validity
-  intersection is half-open per the existing window-bounds convention.
-- Given `rightsWindows` flag OFF, Then windows are storable/readable but emit **no** new validation codes anywhere.
-
-**Interfaces:** `rightsWindowsApi` (frontend service): `list(contractId)`, `create`, `update`, `delete`; backend
-nested router under `contracts`. **Contract Snapshot `rights-window v1`** (type + endpoints + error shapes).
-**TD:** TD-29 serviced per ADR-015 (RightsPolicy untouched here — no third model; deprecation executes in RD-6);
-TD-28 registered formally at RD-2-T2. **Test data:** fixture contracts
-covering every category × exclusivity permutation (reused by RD-3/RD-4/RD-5).
-**Idempotency:** client-generated UUID + unique constraint; PUT is full-replace by id.
-**Security/compliance:** tenant-scoped; **RLS `tenant_isolation` policy in the same migration** (ADR-011 gate).
-
-- **RD-2-T1** · Hat **PREPARATORY** · Model **Sonnet** · Confidence High
-  Goal: Raw-SQL migration (ADR-004/007): `RightsWindow` table per ADR-015 §1 + `ExclusivityTier` enum + `ARCHIVE`
-  added to `CoverageType` + RLS policy + backfill (1 window per existing contract, field mapping per ADR-015 §1,
-  `exclusivity NON_EXCLUSIVE`) + rollback script; Prisma model.
-  **Migration sequencing (ADR-015 §2):** the enum additions are raw-SQL `ALTER TYPE ... ADD VALUE` and **cannot run
-  inside a transaction block** — sequence each as its own migration statement outside the transactional part.
-  TDD: (1) failing migration test (backfill reconciliation: matrix totals pre == post; every contract has ≥1 window;
-  null scalars stay null on the window — no `?? 0` coercion, RD-1F semantics) (2) migration (3) refactor.
-  Deliverables: migration + rollback → Prisma schema → backfill reconciliation test.
-  Scope note (W4, per ADR-015 §2/§3): the enum changes are **cross-package** and move as one unit — Prisma enums +
-  `packages/shared/types.ts:122` TS union + **zod schemas regenerated to the full value set** (this fixes the
-  existing drift where `CLIP` is DB-valid but API-rejected — same failure class as TD-28, fixed in the same change
-  so DB, shared types and API validate identically).
-  Pull Gate: ADR-015 accepted ✓ (2026-07-02); **RD-1F merged** (golden-master ordering, Acceptance record §2);
-  confirm no pending migration collisions on main.
-  Unblocks: RD-2-T2.
-- **RD-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Nested CRUD routes + zod schemas + `rightsWindowsApi` frontend service; overlap/duplicate 409 logic;
-  idempotent create. **Register TD-28 formally** in `docs/governance/debt-register.md` (first touching story — memo
-  §5.7): zod/Prisma enum drift covering `OverrunStrategy`, contract `status` (`expired|terminated` invalid vs
-  Prisma), and the run-ledger zod `status` gap (`RUNNING|COMPLETED|CANCELLED` vs Prisma `CONFIRMED|RECONCILED` — the
-  API can only create runs the checkers never count). Registration only; servicing beyond the RD-2-T1 enum
-  regeneration is a separate story.
-  TDD: route tests first (CRUD, idempotent retry, 409 overlap, 400 category, tenant isolation).
-  Feature Flag: n/a for storage (data model is not user-facing); emission gating lands in RD-3.
-  Hand-off: **Contract Snapshot `rights-window v1`**. Unblocks: RD-2-T3, RD-3-T1.
-- **RD-2-T3** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Extend `getRightsMatrix` with additive `windows[]` (category, exclusivity, holdback, runs per window) —
-  existing fields untouched so the ops backlog's B-3 consumer is unaffected.
-  TDD: matrix shape tests first (additive-only assertion + reconciliation).
-  Pull Gate: `rights-window v1`; verify ops backlog B-3 consumes `contractsApi` not `rightsApi.matrix` (survey says
-  yes — re-check at execution).
-  Hand-off: **Contract Snapshot `rights-matrix v2`**. Unblocks: RD-4-T2, END OF STORY SEQUENCE.
+**Status: ✅ COMPLETE — PR #15 (`aaf316f`).**
+- **T1 (PREP):** raw-SQL migration — `RightsWindow` child table + `ExclusivityTier` enum + `ARCHIVE` on `CoverageType`
+  (`ALTER TYPE … ADD VALUE` sequenced outside the tx) + `tenant_isolation` RLS + backfill (1 window/contract, ADR-015
+  §1 mapping, `NON_EXCLUSIVE`) + rollback. Cross-package enum regen (Prisma + shared union + zod) that also fixed the
+  `CLIP` API-reject drift. Backfill reconciliation test (matrix totals pre == post; null scalars preserved).
+- **T2 (FEATURE):** nested CRUD + `rightsWindowsApi`; **pure 4-way overlap-409 predicate** (same category ∧
+  intersecting validity ∧ territory ∧ platform; empty[] = unrestricted → intersects all — architect decision
+  2026-07-10); idempotent create (client UUID, retry → 200 same row). **TD-28 registered.**
+- **T3 (FEATURE):** additive `windows[]` on `getRightsMatrix` (existing fields untouched; ops B-3 unaffected).
+- **Snapshots:** `rights-window v1`, `rights-matrix v2`.
 
 ---
 
 ### Story RD-3 — Window-aware verification + holdback enforcement (Core Domain)
-**As a** planner **I want** every rights check to resolve the *applicable window* (by run type/content segment) and
-enforce holdbacks and per-window run limits **so that** a delayed rerun or highlights slot is validated against its
-own right, not the live right.
-
-Business Value 3 · Priority 5 · Size **L** · DoR: **READY after RD-2** · INVEST I✓ N✓ V✓ E✓ S✓ T✓
-
-**AC (Gherkin):**
-- Given a contract with only a LIVE window, When a slot with a DELAYED-run intent is checked, Then
-  `WINDOW_CATEGORY_MISSING` (WARNING) with remediation naming the missing category.
-- Given a DELAYED window with holdback 24h and a live end at T, When a delayed slot starts before T+24h, Then
-  `HOLDBACK_VIOLATION` (ERROR); at/after T+24h → no result. T resolves per ADR-015 §4, in order: (1) the event's
-  `RunLedger` LIVE run `endedAtUtc` (actual) → (2) else the event's scheduled end (`startUtc + durationMin`) →
-  (3) if neither exists, INFO data-quality note and no violation — never guess (ADR-015 open assumption 3).
-- Given a window with `maxRuns: 2` and 2 CONFIRMED runs in the RunLedger for that window's category, When a third
-  is checked, Then `MAX_RUNS_EXCEEDED` scoped to the window (and `MAX_RUNS_NEAR` at 1 remaining) — run tallies are
-  **per category** on the ADR-015 §2 mapping (TAPE_DELAY→DELAYED; CONTINUATION excluded), no longer LIVE-only.
-- **Defect-(b) fix — non-skippable (ADR-015 Acceptance record §2; architect: "nothing skipped"):** Given a window
-  with `maxRuns: 2` and 2 CONFIRMED ledger runs in that category, When the **DRAFT is validated**
-  (`POST /schedule-drafts/:id/validate` — not merely the event checked via `/rights/check`), Then
-  `MAX_RUNS_EXCEEDED` — draft validation consults the RunLedger.
-- **Defect-(b) fix — negative proof (non-skippable):** a test proves `existingRuns` in draft validation is populated
-  **from the RunLedger query**, not today's hardcoded `[]` at both call sites (memo §1): with ledger runs present the
-  violation fires; with the array forced empty it does not — a regression to `[]` fails the suite. These two ACs may
-  not be dropped or deferred during implementation.
-- Given a window with empty `territory[]`/`platforms[]`, Then those dimensions are **unrestricted** (no violation)
-  and checker v2 emits an **INFO data-quality note** for the unscoped window (Acceptance record §4 —
-  empty-because-unknown never becomes invisible permissiveness).
-- Given `rightsWindows` flag OFF, Then the checker takes the legacy scalar path and emits exactly the **post-RD-1F
-  baseline** codes (golden-master regression test — recorded AFTER RD-1F lands, Acceptance record §2).
-- Alt: contract with no windows at all (pre-backfill data guard) → legacy path + `INFO` data-quality note.
-
-**DoR refinements (2026-07-10, architect-delegated — closes the RD-3 DoR punch-list before RD-3-T1):**
-1. **Three DISTINCT INFO codes** (the collapsed "INFO data-quality note" is un-testable as one code — MAX-rigor permutation table needs identity per trigger):
-   `WINDOW_UNSCOPED` (empty `territory[]`/`platforms[]` on a matched window — Acceptance record §4),
-   `NO_WINDOWS` (contract has zero windows — pre-backfill guard, the Alt AC),
-   `HOLDBACK_LIVE_END_UNKNOWN` (holdback applies but neither a ledger LIVE `endedAtUtc` nor a scheduled end exists — §4 step 3). All severity **INFO**. A slot hitting >1 trigger emits each distinct code (dedup by code+scope, existing `deduplicateResults` behavior).
-2. **`MAX_RUNS_NEAR` severity = WARNING** (matches the legacy code at `rightsChecker.ts:143`); `MAX_RUNS_EXCEEDED`/`HOLDBACK_VIOLATION` = ERROR, `WINDOW_CATEGORY_MISSING` = WARNING (per AC).
-3. **Defect-(b) fixture constraint (makes the negative proof watertight, TD-28):** the checker counts only `CONFIRMED|RECONCILED` RunLedger states, which the API's zod `status` enum CANNOT create — so CONFIRMED run fixtures MUST be inserted **directly via Prisma** in the RD-3-T2 tests, never through the run-ledger API. Seeding via the API yields un-counted states → the "forced `[]` vs ledger-query" negative proof passes vacuously and guards nothing.
-4. **`rightsWindows` flag source (RD-3-T2, first backend flag):** add `RIGHTS_WINDOWS: z.coerce.boolean().default(false)` to the `baseSchema` in `backend/src/config/env.ts` (lowest-ceremony, consistent with all other config; build-time per TD-27 → rollback = redeploy, state honestly in the runbook). The **pure** `checkRights` v2 (T1) takes an explicit boolean **param** (`windowsEnabled`) — it never reads env; RD-3-T2's wiring reads `env.RIGHTS_WINDOWS` and passes it. Flag OFF = legacy scalar path = golden-master byte-identical.
-
-**Interfaces:** `checkRights` v2 signature (adds `runIntent`/window resolution) — pure function, no DB.
-**TD:** TD-28 registered at RD-2-T2 (memo §5.7); do not service the remaining drift here (separate Hat).
-**Test data:** RD-2 fixture permutations + RunLedger fixtures per category.
-
-- **RD-3-T1** · Hat **FEATURE** · Model **Sonnet** (spec) / review **Opus** (holdback + resolution logic) · Confidence Med
-  Goal: Pure `checkRights` v2 in `rightsChecker.ts`: window resolution (slot `contentSegment` + run intent →
-  category), holdback math (live-end resolution order per ADR-015 §4: ledger actual → scheduled end → INFO note),
-  per-window run limits, unscoped-window INFO data-quality note (Acceptance record §4), new codes; legacy path
-  preserved behind flag param.
-  TDD: full permutation table as failing tests FIRST (max rigor, ≥80% branch coverage) + golden-master legacy suite
-  (recorded post-RD-1F — pins correct null-semantics).
-  Pull Gate: `rights-window v1` shape; **adopt the ADR-015 §2 RunType→category mapping — the prior "1:1" assumption
-  is VOID:** LIVE→LIVE, TAPE_DELAY→DELAYED, HIGHLIGHTS→HIGHLIGHTS, CLIP→CLIP; CONTINUATION counts with its parent
-  run (excluded from tallies, existing `/run-ledger/count` semantics); ARCHIVE has **no** RunType yet — no tally
-  source (ADR-015 open assumption 4, raise at RD retro).
-  Hand-off: **Contract Snapshot `rights-checker v2`**. Unblocks: RD-3-T2.
-- **RD-3-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: Wire v2 per ADR-015 §6: with `rightsWindows` ON, the draft validate/publish routes load `Contract` rows
-  **with `rightsWindows` included** and pass real contracts into checker v2 — `ValidationContext` gains a
-  `contracts` field alongside the legacy `rightsPolicies`; per-category RunLedger tally in
-  `checkRightsForEvent`/`checkRightsForEvents` AND in draft validation (defect-(b) wiring: `existingRuns` populated
-  from the ledger); the **slot query must include `channel`** so platform checks go live (memo §5.5); batch endpoint
-  unchanged in shape. Flag OFF: the legacy `loadRightsPolicies` → `policyToContractShape` adapter chain runs
-  unchanged — byte-identical output (golden master recorded post-RD-1F).
-  **Territory note (Acceptance record §3):** `Channel` has **no** `territory` field — do NOT invent one silently;
-  territory checking stays scoped to what is modelable now (event-level input, as `checkRightsForEvent` takes today)
-  and the slot-level territory source is recorded as a refinement item for the RD retro (per-tenant rights dimension
-  — AS-10).
-  TDD: DB-backed tests first (flag on/off parity, per-category tallies, draft-consults-ledger negative proof,
-  channel include).
-  Pull Gate: `rights-checker v2`; TD-29 servicing decision honored (RightsPolicy adapter still runs the flag-OFF
-  path — do not break; deletion is RD-6).
-  Unblocks: RD-4-T1, END OF STORY SEQUENCE.
+**Status: ✅ COMPLETE — PR #16 (`29ecebd`).**
+- **T1 (FEATURE):** pure window-aware `checkRights` v2 — window resolution, holdback math (ADR-015 §4 live-end order:
+  ledger actual → scheduled end → INFO, never guess), per-window/per-category run limits. New codes:
+  `WINDOW_CATEGORY_MISSING` (WARN), `HOLDBACK_VIOLATION` (ERR), and three distinct INFO codes `WINDOW_UNSCOPED` /
+  `NO_WINDOWS` / `HOLDBACK_LIVE_END_UNKNOWN`. Legacy scalar path behind an explicit `windowsEnabled` **param**;
+  frozen-message golden master.
+- **T2 (FEATURE):** wired into draft validate/publish behind `RIGHTS_WINDOWS_ENABLED` (explicit env parse — NOT
+  `z.coerce.boolean`); `ValidationContext.contracts` (windows included) + `channel` on the slot query; per-category
+  RunLedger tally; **defect-(b) fix** — `existingRuns` populated from the RunLedger (non-skippable, negative proof).
+  CONFIRMED fixtures seeded via Prisma (TD-28 constraint). Flag OFF = post-RD-1F baseline byte-identical.
+- **Snapshot:** `rights-checker v2`.
 
 ---
 
 ### Story RD-4 — Slot-level verification of the published schedule
-**As a** channel manager **I want** every published/live BroadcastSlot of a channel-day verified against rights in
-one call **so that** rights violations surface on the schedule I actually broadcast, not only in draft validation.
-
-Business Value 3 · Priority 4 · Size **M** · DoR: **READY after RD-3** · INVEST I✓ N✓ V✓ E✓ S✓ T✓
-
-**AC (Gherkin):**
-- Given a channel and date, When I `GET /rights/check-slots?channelId=&date=`, Then each slot returns
-  `{slotId, ok, results[]}` using checker v2 (windows, holdbacks, blackouts, runs, territory), paginated per ADR-009.
-- Given a slot with no event, Then it is skipped with an INFO entry (never silently dropped).
-- Given `rightsWindows` OFF, Then the endpoint serves legacy-checker results (shape identical).
-- Given the frontend service, When `rightsApi.checkSlots(channelId, date)` resolves, Then the pure selector
-  `deriveSlotRightsStatus(results): 'CLEAR'|'WARNING'|'VIOLATION'` maps severities — **selector lives in a domain
-  service module, not in ops components** (anti-smart-ui; ops screens adopt it via their own backlog).
-
-**Idempotency:** read-only. **Test data:** channel-day fixture with one slot per violation code.
-
-- **RD-4-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: `GET /rights/check-slots` route: slot query (channel-day), checker v2 per slot, pagination, INFO for
-  event-less slots.
-  TDD: route tests first (per-code fixtures, pagination, tenant isolation, flag parity).
-  Pull Gate: `rights-checker v2`; ADR-009 pagination convention.
-  Hand-off: endpoint schema into snapshot below. Unblocks: RD-4-T2.
-- **RD-4-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: `rightsApi.checkSlots` + pure `deriveSlotRightsStatus` selector + unit tests; no UI changes.
-  TDD: selector permutation tests first.
-  Pull Gate: RD-4-T1 endpoint shape.
-  Hand-off: **Contract Snapshot `slot-rights v1`** (endpoint + selector) — the designated consumption point for the
-  ops Rundown/Schedule screens (their backlog, not this one).
-  Unblocks: RD-5-T1, END OF STORY SEQUENCE.
+**Status: ✅ COMPLETE — PR #17 (`e6ec688`).**
+- **T1 (FEATURE):** `GET /rights/check-slots?channelId=&date=` — checker v2 per slot, ADR-009 pagination, event-less
+  slots → INFO `SLOT_EVENT_MISSING`, unresolvable events → `SLOT_EVENT_UNRESOLVED` (never silently dropped).
+- **T2 (FEATURE):** `rightsApi.checkSlots` + pure `deriveSlotRightsStatus(results): 'CLEAR'|'WARNING'|'VIOLATION'`
+  selector in a domain-service module (anti-smart-ui), no UI changes.
+- **Snapshot:** `slot-rights v1` — designated ops Rundown/Schedule consumption point.
 
 ---
 
 ### Story RD-5 — EPIC RD smoke test + runbook
-**As a** reviewer **I want** an E2E smoke test and a runbook **so that** the tracer bullet is verifiably deployable
-and rollbackable.
-
-Size **S** · Priority 4 · DoR: **READY after RD-4**
-
-- **RD-5-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
-  Goal: E2E: seed contract → add DELAYED window with holdback → draft a delayed slot inside holdback →
-  `POST /schedule-drafts/:id/validate` returns `HOLDBACK_VIOLATION` (flag ON — stage 3 lives on the draft
-  validate/publish routes; `/validate-slot` has **no** rights stage, memo §5.6, and is NOT a valid target for this
-  smoke) → `check-slots` reflects it → flag OFF → legacy output golden-master (post-RD-1F baseline) passes.
-  Write `docs/runbooks/rights-windows.md`.
-  Unblocks: **EPIC RD RETRO** (Phase Summary + Architecture Memory update + mode check + expand SV or RC per gate
-  status), END OF STORY SEQUENCE.
+**Status: ✅ COMPLETE — committed `b607bc1` on branch `feature/RD-5-smoke-runbook` (NOT yet pushed/merged to main).**
+Gated tracer smoke: seed contract → DELAYED window w/ holdback → draft a delayed slot inside the holdback →
+`POST /schedule-drafts/:id/validate` → `HOLDBACK_VIOLATION` (flag ON) → `check-slots` reflects it → flag OFF →
+post-RD-1F golden master passes. Runbook `docs/runbooks/rights-windows.md`.
+**Housekeeping (outward-facing, outstanding):** push + merge `feature/RD-5-smoke-runbook` and record the
+`rightsWindows` flag posture per environment — the last step before EPIC RD is fully on main.
 
 ---
 
-### Story RD-6 — RightsPolicy deprecation execution (scope fully at RD retro, per ADR-015 §5)
-ADR-015 disposition decided: **deprecate** (not merge-further, not season-override). Servicing TD-29. The step
-sequence is now named from ADR-015 §5; sizes, ACs and task split are expanded at the RD retro:
-1. **Write-freeze policy CRUD** — `routes/rights.ts` policy write endpoints become read-only or 410.
-2. **Migrate existing RightsPolicy rows into Contract windows** — requires the Platform-enum→lowercase mapping
-   (ADR-015 open assumption 5: proposal `LINEAR→linear`, `OTT→on-demand`; remaining values need stakeholder
-   confirmation — decided in this story, not before).
-3. **Delete the adapter chain** — `policyToContractShape` + `loadRightsPolicies` + the DTO named `RightsPolicy` in
-   `validation/types.ts` (name collision with the Prisma model removed); the flag-ON path becomes the only path
-   (ADR-015 §6).
-4. **Drop the `RightsPolicy` table last** (migration + rollback).
-Placeholder added per health check 2026-07-02 (W2); step sequence named at ADR-015 acceptance (2026-07-02) — without
-this story the disposition dangles and the dual model persists indefinitely.
-DoR: **NOT READY** — expand at RD retro (post-RD-5, flag-ON path proven). Size TBD.
+### Story RD-6 — RightsPolicy deprecation execution (servicing TD-29) — **DoR-ready (RD retro 2026-07-11)**
+ADR-015 §5 disposition = **deprecate** (not merge-further, not season-override). Now that the flag-ON path is proven
+end-to-end (RD-2..RD-5), the step sequence is concrete.
+
+**As an** architect **I want** the deprecated `RightsPolicy` model and its lossy adapter chain removed **so that**
+Planza runs one rights model (Contract + windows) and draft validation no longer round-trips through a lossy DTO.
+
+Business Value 2 · Priority 3 · Size **L** (4 tasks) · DoR: **READY** (ADR-015 §5 sequence named; flag-ON path proven
+at RD-5) · INVEST I✓ N✓ V✓ E✓ S✓ T✓
+
+**Prerequisite gate (one-way door — record honestly):** RD-6 deletes the flag-OFF adapter path, so the flag-ON path
+becomes the **only** path and the golden-master safety net disappears. It MUST NOT start until (a)
+`feature/RD-5-smoke-runbook` is merged to main, and (b) a decision to run `rightsWindows` ON in all target
+environments is recorded. Sequence it deliberately — after RD-6 there is no legacy path to fall back to.
+
+**AC (Gherkin):**
+- **Write-freeze (step 1):** Given the policy write endpoints in `routes/rights.ts` (create/update/delete), When
+  called, Then they return **410 Gone** with a message pointing at rights-windows; reads stay available until step 3.
+  `RightsPoliciesPanel.tsx` + the `rightsApi` policy write methods are removed/disabled in the same change.
+- **Row migration (step 2):** Given existing `RightsPolicy` rows, When the migration runs, Then each maps into
+  Contract `RightsWindow`(s) using the **Platform-enum → lowercase mapping decided here** (`LINEAR→linear`,
+  `OTT→on-demand`; remaining values stakeholder-confirmed in this story — ADR-015 open assumption 5); a reconciliation
+  test proves no rights coverage is lost or invented; idempotent + rollback script.
+- **Adapter/DTO deletion (step 3):** Given the flag-ON path is the only path, When `policyToContractShape` +
+  `loadRightsPolicies` + the DTO-named-`RightsPolicy` in `validation/types.ts` are deleted, Then draft validation
+  loads Contract-with-windows directly (`ValidationContext.contracts` only; legacy `rightsPolicies` field removed),
+  the `rightsWindows` conditional branches collapse to the ON path, the DTO/Prisma name collision is gone, and the
+  full backend suite is green (characterization — no behavior change).
+- **Table drop (step 4):** Given no readers remain, When the final migration drops the `RightsPolicy` table (+ enum
+  types it solely owns), Then `migrate status` is clean and rollback restores it.
+- Given any step, Then **TD-29 is updated** in the debt register (settled at step 4).
+
+**Interfaces:** removes `rightsApi` policy methods; no new Contract Snapshot (consumers already on `rights-window v1`/
+`rights-checker v2`). **Security/compliance:** tenant-scoped migration; RLS already on RightsWindow.
+**TD:** settles TD-29; TD-28's remaining contract/policy `coverageType`+`status` zod drift **may** be serviced
+opportunistically here OR left to its own story — do not force it in (one Hat).
+
+- **RD-6-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: write-freeze policy CRUD (writes → 410) + remove policy write UI/api methods.
+  TDD: route tests first (410 on write, read still 200; tenant isolation unchanged).
+  Pull Gate: RD-5 merged to main + flag-ON decision recorded (prerequisite gate). Unblocks: RD-6-T2.
+- **RD-6-T2** · Hat **PREPARATORY** · Model **Opus** (mapping judgment) · Confidence Med
+  Goal: decide + apply the Platform-enum → lowercase mapping (stakeholder-confirm the non-obvious values); raw-SQL
+  migration `RightsPolicy` rows → `RightsWindow` + reconciliation test + rollback.
+  TDD: migration reconciliation test first (coverage neither lost nor invented; idempotent re-run).
+  Pull Gate: RD-6-T1 (writes frozen so no new policy rows appear mid-migration). Unblocks: RD-6-T3.
+- **RD-6-T3** · Hat **REFACTORING** · Model **Sonnet** · Confidence High
+  Goal: delete `policyToContractShape` + `loadRightsPolicies` + the DTO name collision; collapse the `rightsWindows`
+  flag branch in the validation pipeline to the ON path. Pure removal — behavior already lives on the flag-ON path.
+  TDD: characterization suite green throughout; assert no emitted-code change.
+  Pull Gate: RD-6-T2 (rows migrated → no readers depend on the adapter). Unblocks: RD-6-T4.
+- **RD-6-T4** · Hat **PREPARATORY** · Model **Sonnet** · Confidence High
+  Goal: drop the `RightsPolicy` table + solely-owned enum types (migration + rollback); settle TD-29 in the register.
+  TDD: migration + rollback test; `migrate status` clean.
+  Pull Gate: RD-6-T3 (adapter/DTO deleted → no readers). Unblocks: END OF STORY SEQUENCE.
+
+---
+
+### Story RD-7 — Slot-level coverage-category source (RD-retro refinement 1)
+**Origin:** RD retro 2026-07-11 (phase summary §refinements). Recorded so non-LIVE holdback reachability is a visible
+backlog item, not invisible debt.
+
+**As a** planner **I want** a published `BroadcastSlot` to carry its coverage category (LIVE/DELAYED/HIGHLIGHTS/CLIP)
+**so that** the non-LIVE holdback and per-window enforcement built in RD-3 becomes reachable from real slots, not only
+from synthetic run-intent fixtures.
+
+**Context (honest caveat):** `checkRights` v2 *can* enforce DELAYED/HIGHLIGHTS/CLIP holdbacks and per-category run
+limits, but `BroadcastSlot` has **no coverage-category column** — real slots resolve to `runIntent = LIVE`, so every
+non-LIVE branch is currently **capability, not reachable** from production data. The per-category tally *isolation* is
+real and tested; what is missing is the input that routes a real slot to a non-LIVE window.
+
+Business Value 3 · Priority 3 (Should) · Size **M** · DoR: **NOT READY** — needs (a) Q1 answer on whether VRT
+distinguishes coverage at slot level (AS-4) and (b) a source decision: derive from
+`Event.contentSegment`/`RunLedger.runType` vs a new explicit `BroadcastSlot.coverageCategory`. Expand at the RC retro
+or when Q1 lands.
+
+**Draft AC:** a real DELAYED slot inside its holdback → `HOLDBACK_VIOLATION` at draft validation end-to-end;
+flag-off parity; backfill/derivation reconciles with the existing LIVE assumption (no regression for LIVE-only data).
+
+---
+
+### Story RD-8 — Slot/channel-level territory source (RD-retro refinement 2)
+**Origin:** RD retro 2026-07-11 (ADR-015 Acceptance record §3; AS-10).
+
+**As a** rights manager **I want** territory checkable at the channel/slot level **so that** geo-scoped windows are
+enforced on the published schedule, not only on event-level input.
+
+**Context:** `Channel` has **no territory field** (ADR-015 Acceptance record §3); territory checking stays event-level
+today. Reaching slot-level territory needs a `Channel.territory` (or slot override) source. Per **AS-10** this is
+per-tenant rights-dimension configuration, not a product constant.
+
+Business Value 2 · Priority 2 (Could) · Size **S** · DoR: **NOT READY** — gated on Q1 (does VRT scope rights by
+channel territory?) + AS-10 tenant-config framing.
+
+**Draft AC:** `Channel.territory` field (config/seed) → checker v2 territory dimension resolves from the slot's
+channel; empty = unrestricted (`WINDOW_UNSCOPED` INFO unchanged); flag-off parity.
 
 ---
 
@@ -819,6 +723,8 @@ Size **S** · Priority 4 · DoR: **READY after RC-1..RC-3**
   taste-testing → SV-1 SPIKE first.
 - **SLOs (draft):** `Ripple proposal generation – < 5s p95 after feed import` · `Proposal apply – < 2s p95, atomic`.
 - **Glossary:** Schedule Ripple, Ripple Proposal, Contingency Schedule, Cascade.
+- **RD-retro readiness note (2026-07-11):** SV-1's pull gate ("RD retro complete / Architecture Memory current") is now
+  **satisfied** — SV-1 is the immediately code-ready next step (no external gate). SV-2+ remain blocked on AS-8.
 
 ### Story SV-1 — SPIKE: ripple semantics + volatility machinery verification → ADR-016 (DETAILED)
 `SPIKE: Research schedule-ripple semantics` — timeboxed **M**.
@@ -841,7 +747,7 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** · INVEST spike-v
 
 - **SV-1-T1** · Hat **PREPARATORY** · Model **Opus** · Confidence High
   Goal: Behavior verification (a)–(d) with characterization tests where cheap; findings memo.
-  Pull Gate: RD retro complete (Architecture Memory current). Unblocks: SV-1-T2.
+  Pull Gate: RD retro complete (Architecture Memory current) — **satisfied 2026-07-11.** Unblocks: SV-1-T2.
 - **SV-1-T2** · Hat **PREPARATORY** · Model **Opus** · Confidence Med
   Goal: ADR-016 authored + accepted; SV-2..SV-5 expanded into full stories at the RD/RC retro with these findings.
   Hand-off: **ADR-016**. Unblocks: SV-2 (outline), END OF STORY SEQUENCE.
@@ -923,38 +829,86 @@ Business Value 2 · Priority 4 · Size **M** · DoR: **READY** (mechanism is Q3-
 
 ## 9. Validator Summary (BB v5.1 §9 — DELIVERY level)
 
-- **Structure:** Dependencies form a DAG (RD-1→RD-2→RD-3→RD-4→RD-5; RC-0 ∥ RD with RC-0→RC-2/RC-3 gates;
-  RC-1-T1/T2 independent of RC-0; SV/RL outlined with explicit gates; no cycles). EPIC 1 (RD) is a tracer bullet ✓.
-  Every detailed task has Unblocks + Pull Gate ✓. Token budgets: largest task (RD-3-T1) is a bounded pure-function
-  extension with permutation tests — well under 15k/1,500 LOC ✓.
+- **Structure:** Dependencies form a DAG (RD-1→RD-1F→RD-2→RD-3→RD-4→RD-5, all ✅; RD-6 gated on RD-5-merged + flag-ON
+  decision; RD-7/RD-8 gated on Q1; RC-0 ∥ RD with RC-0→RC-2/RC-3 gates; RC-1-T1/T2 independent of RC-0; SV/RL outlined
+  with explicit gates; no cycles). EPIC 1 (RD) was the tracer bullet ✓. Every detailed task has Unblocks + Pull Gate ✓.
+  Token budgets: largest task (RD-3-T1) was a bounded pure-function extension — well under 15k/1,500 LOC ✓.
 - **Quality:** Every story passes DoR or carries an explicit HOLD/READY-after-confirm (RC-2, RC-3 HOLD on AS-1;
-  RL-1-T3 on Q3) ✓. One Hat per task; schema work is PREPARATORY, behavior is FEATURE; the RC-2-T3 stub removal is
-  justified in-story (dead code, no consumers) rather than silently mixed ✓. TDD order explicit per task ✓. Glossary
-  reconciled with 5 synonym collisions flagged (§4) ✓. ADRs raised for all cross-cutting decisions (ADR-015..018) ✓.
-- **Testing:** Core logic (checker v2, listed-event constraint, deliverable state machine, aggregations,
-  conflict port) unit-tested first; golden-master/flag-off parity suites guard every validation-pipeline change;
-  E2E smoke per detailed EPIC (RD-5, RC-4; SV-5/RL-3 outlined) ✓. Every schema change has migration + rollback +
-  flag + **RLS policy** (ADR-011 gate on all PREPARATORY tasks) ✓. External integrations: none new (feeds already
-  ingested; ripple consumes existing import pipeline) ✓.
-- **Risk & Debt:** All Med/High risks mitigated or gated with owner (AS-1/AS-2 are the High items — blocking gates,
-  Owner: stakeholder + architect via RC-0) ✓. PII: labour rules flagged, anonymised fixtures + retention in RL-2
-  DoR ✓. Survey shortcuts recorded as TD-28/29/30 candidates with servicing paths ✓. Assumptions Ledger present with
-  High-impact items flagged ✓.
-- **Operations:** SLOs per EPIC ✓. Runbook per EPIC ✓. Feature flags on all user-visible changes (validation-code
-  emission counts as user-visible; storage does not) — TD-27 build-time caveat stated in runbook requirements ✓.
-  Idempotency defined for every write path (UUID create, optimistic transitions, proposal ids, idempotent confirm) ✓.
-- **Economics (Core §5):** Anti-bureaucracy — every detailed task's spec is shorter than its expected implementation;
-  smallest tasks (RC-0-T1, RL-1-T3) still exceed DoR/DoD overhead ✓. Merges applied: RD-3 keeps resolution + holdback
-  + run limits in one story (always change together); RC-2-T3 folds stub removal into the superseding check ✓.
-  No premature abstraction: server/client resourceConflicts consolidation deliberately deferred past first
-  duplication (Rule of Three) ✓. Depth rule: 2 EPICs detailed, 2 outlined with first story detailed ✓.
+  RL-1-T3 on Q3; RD-6 on RD-5-merged + flag decision; RD-7/RD-8 on Q1) ✓. One Hat per task; schema work is
+  PREPARATORY, behavior is FEATURE, dead-code deletion is REFACTORING (RD-6-T3, RC-2-T3 justified in-story) ✓. TDD
+  order explicit per task ✓. Glossary reconciled with 5 synonym collisions flagged (§4) ✓. ADRs raised for all
+  cross-cutting decisions (ADR-015 shipped; ADR-016..018 open) ✓.
+- **Testing:** Core logic (checker v2 ✓, listed-event constraint, deliverable state machine, aggregations,
+  conflict port) unit-tested first; golden-master/flag-off parity suites guard every validation-pipeline change (RD
+  confirmed byte-identical) ✓. Every schema change has migration + rollback + flag + **RLS policy** ✓. E2E smoke per
+  detailed EPIC (RD-5 ✓, RC-4; SV-5/RL-3 outlined) ✓.
+- **Risk & Debt:** All Med/High risks mitigated or gated with owner (AS-1/AS-2 are the High items — still-open
+  blocking gates, Owner: stakeholder + architect via RC-0) ✓. PII: labour rules flagged, anonymised fixtures ✓.
+  TD-28/29 registered with servicing paths (TD-29 → RD-6 DoR-ready) ✓. Two RD-retro refinements (RD-7/RD-8) recorded
+  as named backlog items rather than invisible debt ✓.
+- **Operations:** SLOs per EPIC ✓. Runbook per EPIC (rights-windows.md shipped) ✓. Feature flags on all user-visible
+  changes; TD-27 build-time caveat stated ✓. Idempotency defined for every write path ✓.
+- **Economics (Core §5):** Anti-bureaucracy — completed stories collapsed to status blocks (detail-of-record lives in
+  the phase summary + ADR + PRs), keeping the backlog forward-looking ✓. RD-6 kept as one L story with a 4-task split
+  matching the ADR-015 §5 one-way sequence (the steps always ship together) ✓.
 
-**Unresolved items (honest list):** (1) RC-2/RC-3 ACs contain provisional KPI numbers — cannot be finalized by this
-validator; blocking gate RC-0-T1 owns them. (2) RC-1-T3 severity is provisional WARNING until ADR-017. (3) SV-2+
-cannot be validated beyond outline until SV-1 verifies conditional-switch execution behavior and the cascade debt is
-serviced (AS-8). These are encoded as gates, not ignored.
+**Unresolved items (honest list):** (1) RC-2/RC-3 ACs contain provisional KPI numbers — blocking gate RC-0-T1 owns
+them (still open). (2) RC-1-T3 severity is provisional WARNING until ADR-017 (still open). (3) SV-2+ blocked on SV-1
+verification + AS-8 cascade debt. (4) **Non-LIVE holdback enforcement is checker capability but not reachable from real
+slots** until RD-7 (no `BroadcastSlot` coverage-category); territory stays event-level until RD-8. These are encoded as
+gates/named stories, not ignored.
 
-**VERDICT: VALID with gates — EPIC RD is fully READY for execution (RD-1 first); RC-0 should start concurrently.**
+---
+
+### EPIC RD Retro — 2026-07-11 (Phase Summary: `docs/plans/2026-07-11-epic-rd-phase-summary.md`)
+
+**Delivered:** RD-1 (SPIKE → ADR-015 Accepted) · RD-1F (`a4b40bd`) · RD-2 (PR #15 `aaf316f`) · RD-3 (PR #16 `29ecebd`) ·
+RD-4 (PR #17 `e6ec688`) · RD-5 (`b607bc1`, branch not yet merged). Snapshots: `rights-window v1`, `rights-matrix v2`,
+`rights-checker v2`, `slot-rights v1`. Metrics: backend vitest **498 pass**; tsc clean; flag OFF byte-identical to the
+post-RD-1F baseline.
+
+**Key decisions of record:** ADR-015 (child-of-Contract; RightsPolicy→deprecate) · overlap-409 = 4-way predicate
+(category ∧ validity ∧ territory ∧ platform; empty = unrestricted) · defect-(b) fix folded into RD-3 with
+non-skippable ACs (drafts provably consult the RunLedger).
+
+**Review-chain catches (process value):** out-of-hat zod widening (reverted → deferred to TD-28's story) · holdback
+NaN bypass (→ explicit `HOLDBACK_LIVE_END_UNKNOWN`) · hollow golden master (rebuilt to freeze real strings) · a flag
+that couldn't be turned OFF (`z.coerce.boolean` footgun → explicit parse) · cross-tenant idempotent-echo leak · a
+false all-clear on unresolvable events (→ `SLOT_EVENT_UNRESOLVED`). Six pre-merge defect catches + one revert; no
+post-merge rework.
+
+**Honest caveat:** non-LIVE holdback + per-window enforcement is proven **capability** but is **not reachable from
+real published slots** (BroadcastSlot has no coverage-category; real slots resolve to LIVE) — recorded as **RD-7**.
+Territory stays event-level (Channel has no territory) — recorded as **RD-8**. Per-category tally *isolation* is real.
+
+**Debt:** TD-28 registered (partially serviced) · TD-29 registered, servicing = **RD-6 (now DoR-ready)** · TD-30
+untouched (superseded by RC-2).
+
+**Mode check:** stays DELIVERY (§3).
+
+**Housekeeping outstanding:** push + merge `feature/RD-5-smoke-runbook`; record the `rightsWindows` flag posture per
+environment. Until then EPIC RD is code-complete but not fully on main.
+
+**Next-EPIC recommendation (sequencing rule RD → RC → SV → RL, SV pulls ahead of RC if RC's gates are unresolved):**
+- **RC's two gates are still open and are people-work:** AS-1 (2026-2030 beheersovereenkomst KPI re-verification —
+  RC-0-T1, needs agreement-text access) and ADR-017 (enforcement-boundary stakeholder session, Q2 — RC-0-T2). They did
+  **not** clear during RD execution.
+- **Therefore: SV-1 (SPIKE) is the immediately code-ready next step.** Its only pull gate ("RD retro complete /
+  Architecture Memory current") is now **satisfied**, and it carries **no external gate**. SV-2+ stay blocked on the
+  AS-8 cascade debt (`CASCADE_PREVIEW_PARITY`) — sequencing SV-1 now buys that servicing window without idling.
+- **In parallel, start RC-0 as the long-pole people-work** (stakeholder + architect): resolving AS-1 + ADR-017 is what
+  unblocks the value-bearing RC-2/RC-3. RC-1-T1/T2 (schema + suggestion service) are also code-ready and gate-free if
+  a second thread is available, but the EPIC's compliance value cannot freeze until RC-0 clears.
+- **People-work gates remaining:** AS-1 KPI verify (agreement access) · ADR-017 enforcement boundary (Q2 session) ·
+  AS-8 cascade-debt servicing before SV-2+ · Q1 before RD-7/RD-8 · Q3 before RL-1-T3 · flag-ON decision + RD-5 merge
+  before RD-6.
+- **If** the RC-0 people-work clears quickly, fold straight into RC (RC-1 first) per the default sequence; **otherwise**
+  SV-1 carries the code momentum while RC-0 runs.
+
+**Validator re-run (RD retro, DELIVERY level):** DAG intact (RD arc closed; RD-6 gated; RD-7/RD-8 gated on Q1) ✓ ·
+one Hat per RD-6 task incl. the REFACTORING-Hat adapter deletion ✓ · TD-28/29 servicing paths current ✓ ·
+anti-bureaucracy: completed stories collapsed to status blocks ✓ · glossary consistent with shipped code names ✓.
+**Backlog remains VALID with gates — SV-1 is the next code-ready story; RC-0 the long-pole people-work.**
 
 **Re-refinement entry — 2026-07-02 (RD-1-T2 hand-off; ADR-015 Accepted by architect):**
 - **What changed:** New **Story RD-1F** (defect-(a) hotfix `maxLiveRuns ?? 0`, Size S, FEATURE, unflagged with
@@ -990,19 +944,21 @@ serviced (AS-8). These are encoded as gates, not ignored.
 
 ## 10. How to execute with the toolkit
 
-1. **Kick off two threads on day 1:** `gpm-partner` executes **RD-1-T1** (SPIKE); in parallel, schedule the RC-0
-   stakeholder session (AS-1 KPI verification + Q2) — it is the long-pole gate for EPIC RC.
-2. **Per task:** `backlog-health-advisor` (story DoR — will correctly HOLD RC-2/RC-3 until AS-1 clears) →
-   `gpm-partner` (TDD execution) → review chain (`two-hats-enforcer` → smell detectors → `naming-reviewer` →
-   `ubiquitous-language-guard` with §4 synonym list) → `test-quality-auditor`.
-3. **Model routing** (Core §6): Opus for RD-1/SV-1 spikes, ADR authoring, RD-3-T1 + RC-1-T3 logic review; Sonnet for
-   all generation tasks; Haiku for RC-0-T1 verification table and DoD checks.
-4. **After EPIC RD:** BB §10 retro — Phase Summary, Architecture Memory update (§6), waste/cycle data, mode check —
-   then expand RC (if gates cleared) or pull SV-1 forward; register TD-28/29/30 formally in
-   `docs/governance/debt-register.md` if their touching stories ran.
-5. **Ops-redesign coordination:** at each retro, publish the new Contract Snapshots (`slot-rights v1`,
-   `rights-matrix v2`, `listed-events v1`, `accessibility v1`, `ripple v1`, `resource-preflight v1`) to the ops
-   backlog owner — they are the designated integration points for ops screens; this backlog never edits `/ops/*` code.
+1. **Post-RD retro (2026-07-11):** complete RD housekeeping (merge `feature/RD-5-smoke-runbook`, record flag posture),
+   then kick off two threads: `gpm-partner` executes **SV-1-T1** (SPIKE — now gate-clear); in parallel, schedule the
+   **RC-0** stakeholder session (AS-1 KPI verification + Q2 → ADR-017) — it is the long-pole gate for EPIC RC.
+2. **Per task:** `backlog-health-advisor` (story DoR — will correctly HOLD RC-2/RC-3 until AS-1 clears, and RD-6 until
+   RD-5 is merged) → `gpm-partner` (TDD execution) → review chain (`two-hats-enforcer` → smell detectors →
+   `naming-reviewer` → `ubiquitous-language-guard` with §4 synonym list) → `test-quality-auditor`. (The RD review chain
+   earned six pre-merge catches — see §9 retro.)
+3. **Model routing** (Core §6): Opus for SV-1 spike, ADR authoring, RD-6-T2 mapping judgment; Sonnet for generation
+   tasks; Haiku for RC-0-T1 verification table and DoD checks.
+4. **After EPIC RD (done):** phase summary + Architecture Memory update (§6) landed; SV-1 pulled forward, RC-0 started
+   concurrently. Formalize TD-28/29 servicing as their stories run (TD-29 → RD-6).
+5. **Ops-redesign coordination:** publish the new Contract Snapshots (`rights-window v1`, `rights-matrix v2`,
+   `rights-checker v2`, `slot-rights v1`; upcoming `listed-events v1`, `accessibility v1`, `ripple v1`,
+   `resource-preflight v1`) to the ops backlog owner — they are the designated integration points for ops screens;
+   this backlog never edits `/ops/*` code.
 
-**Suggested first session:** branch `feature/RD-1-rights-model-spike` → gpm-partner executes RD-1-T1; book the RC-0
-stakeholder session the same day.
+**Suggested next session:** merge RD-5 → branch `feature/SV-1-ripple-semantics-spike` → gpm-partner executes SV-1-T1;
+book the RC-0 stakeholder session the same day.
