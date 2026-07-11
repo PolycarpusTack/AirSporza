@@ -51,6 +51,38 @@ export interface RightsMatrixRow {
   blackoutCount: number
 }
 
+/** One slot's rights check (RD-4 GET /rights/check-slots). Parallels RightsCheckResult. */
+export interface SlotRightsCheckResult {
+  slotId: string
+  ok: boolean
+  results: RightsValidationResult[]
+}
+
+/** Paginated channel-day response (ADR-009 cursor). */
+export interface SlotRightsCheckResponse {
+  slots: SlotRightsCheckResult[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+/**
+ * Severity rollup of a slot's rights results — DISTINCT from the ops
+ * `RightsStatus` (VALID|EXPIRING|…) contract-lifecycle enum; do not conflate.
+ */
+export type SlotRightsStatus = 'CLEAR' | 'WARNING' | 'VIOLATION'
+
+/**
+ * Pure severity rollup for a slot's rights results (RD-4). Domain selector — lives
+ * in the rights service, NOT in ops components (anti-smart-ui; ops screens adopt it
+ * via their own backlog). Precedence: any ERROR → VIOLATION; else any WARNING →
+ * WARNING; else (only INFO, or empty) → CLEAR.
+ */
+export function deriveSlotRightsStatus(results: RightsValidationResult[]): SlotRightsStatus {
+  if (results.some(r => r.severity === 'ERROR')) return 'VIOLATION'
+  if (results.some(r => r.severity === 'WARNING')) return 'WARNING'
+  return 'CLEAR'
+}
+
 export const rightsApi = {
   // Policies (unchanged)
   list: (competitionId?: number) => {
@@ -74,4 +106,13 @@ export const rightsApi = {
     return api.get<Record<number, { ok: boolean; results: RightsValidationResult[] }>>(`/rights/check/batch?${qs.toString()}`)
   },
   matrix: () => api.get<RightsMatrixRow[]>('/rights/matrix'),
+
+  /** RD-4: channel-day slot rights check (paginated). `cursor` continues a page. */
+  checkSlots: (channelId: number, date: string, opts?: { territory?: string; limit?: number; cursor?: string }) => {
+    const qs = new URLSearchParams({ channelId: String(channelId), date })
+    if (opts?.territory) qs.set('territory', opts.territory)
+    if (opts?.limit != null) qs.set('limit', String(opts.limit))
+    if (opts?.cursor) qs.set('cursor', opts.cursor)
+    return api.get<SlotRightsCheckResponse>(`/rights/check-slots?${qs.toString()}`)
+  },
 }

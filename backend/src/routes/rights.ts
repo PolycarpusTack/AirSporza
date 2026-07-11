@@ -8,6 +8,13 @@ import * as s from '../schemas/rights.js'
 
 const router = Router()
 
+// RD-4 check-slots pagination/day-window constants.
+const MS_PER_DAY = 86_400_000
+const DEFAULT_SLOT_PAGE = 100
+const MAX_SLOT_PAGE = 200
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // ─── RIGHTS POLICIES ────────────────────────────────────────────────────────
 
 // GET /policies — list rights policies (filter by competitionId, territory)
@@ -355,6 +362,112 @@ router.get('/check/batch', authenticate, async (req, res, next) => {
     const ownedIds = owned.map(e => e.id)
     const results = await checkRightsForEvents(ownedIds, { territory })
     res.json(results)
+  } catch (error) { next(error) }
+})
+
+/**
+ * GET /api/rights/check-slots?channelId=&date=YYYY-MM-DD[&territory=&limit=&cursor=]
+ * (RD-4) Channel-day rights check: for each BroadcastSlot on the channel that day,
+ * return { slotId, ok, results }. Event-less slots emit an INFO note; a linked but
+ * unresolvable event emits a WARNING (neither is ever silently dropped as CLEAR).
+ * Paginated per ADR-009 (limit + opaque base64url cursor over slot id). Flag parity:
+ * window-aware vs legacy results come from the checker's own default
+ * (`env.RIGHTS_WINDOWS_ENABLED` inside checkRightsForEvents) — response SHAPE identical.
+ */
+router.get('/check-slots', authenticate, async (req, res, next) => {
+  try {
+    const channelId = Number(req.query.channelId)
+    if (!Number.isFinite(channelId) || channelId <= 0) {
+      throw createError(400, 'channelId query param is required and must be a positive integer')
+    }
+
+    const dateStr = typeof req.query.date === 'string' ? req.query.date : ''
+    if (!DATE_ONLY_RE.test(dateStr)) {
+      throw createError(400, 'date query param is required (YYYY-MM-DD)')
+    }
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`)
+    if (Number.isNaN(dayStart.getTime())) {
+      throw createError(400, 'date query param is required (YYYY-MM-DD)')
+    }
+    // Half-open day window: [date, date + 1 day) on plannedStartUtc.
+    const dayEnd = new Date(dayStart.getTime() + MS_PER_DAY)
+
+    const limit = Math.min(Math.max(Number(req.query.limit) || DEFAULT_SLOT_PAGE, 1), MAX_SLOT_PAGE)
+
+    // Opaque cursor = base64url(slot uuid). A corrupt cursor is a client error (400),
+    // not a Prisma uuid-syntax 500 — decode defensively and validate the shape.
+    let cursorId: string | undefined
+    const cursorRaw = typeof req.query.cursor === 'string' ? req.query.cursor : undefined
+    if (cursorRaw) {
+      let decoded: string
+      try {
+        decoded = Buffer.from(cursorRaw, 'base64url').toString()
+      } catch {
+        throw createError(400, 'invalid cursor')
+      }
+      if (!UUID_RE.test(decoded)) throw createError(400, 'invalid cursor')
+      cursorId = decoded
+    }
+
+    const territory = typeof req.query.territory === 'string' ? req.query.territory : undefined
+
+    const slots = await prisma.broadcastSlot.findMany({
+      where: { tenantId: req.tenantId, channelId, plannedStartUtc: { gte: dayStart, lt: dayEnd } },
+      orderBy: [{ plannedStartUtc: 'asc' }, { id: 'asc' }],
+      take: limit + 1, // fetch one extra to detect hasMore
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+      select: { id: true, eventId: true },
+    })
+
+    const hasMore = slots.length > limit
+    if (hasMore) slots.pop()
+
+    // Batch the distinct linked eventIds through the checker (window-aware by its own
+    // env default), then map back to slots. No windowsEnabled plumbing here — matches
+    // the sibling /check and /check/batch routes.
+    const eventIds = [...new Set(slots.map(sl => sl.eventId).filter((e): e is number => e != null))]
+    const byEvent = eventIds.length > 0
+      ? await checkRightsForEvents(eventIds, { territory })
+      : {}
+
+    const slotResults = slots.map(slot => {
+      if (slot.eventId == null) {
+        // Event-less slot: surfaced as an INFO note, never silently dropped.
+        return {
+          slotId: slot.id,
+          ok: true,
+          results: [{
+            code: 'SLOT_EVENT_MISSING',
+            severity: 'INFO' as const,
+            scope: ['rights', 'slot'],
+            message: `Slot ${slot.id} has no linked event — no rights to check`,
+          }],
+        }
+      }
+      const r = byEvent[slot.eventId]
+      if (!r) {
+        // Linked but unresolvable (event not found / cross-tenant / dropped) — a
+        // rights-verification endpoint must NOT report this as a false all-clear.
+        return {
+          slotId: slot.id,
+          ok: false,
+          results: [{
+            code: 'SLOT_EVENT_UNRESOLVED',
+            severity: 'WARNING' as const,
+            scope: ['rights', 'slot'],
+            message: `Linked event ${slot.eventId} could not be resolved for rights verification`,
+          }],
+        }
+      }
+      return { slotId: slot.id, ok: r.ok, results: r.results }
+    })
+
+    // After pop(), hasMore guarantees ≥1 remaining slot.
+    const nextCursor = hasMore
+      ? Buffer.from(slots[slots.length - 1].id).toString('base64url')
+      : null
+
+    res.json({ slots: slotResults, nextCursor, hasMore })
   } catch (error) { next(error) }
 })
 
