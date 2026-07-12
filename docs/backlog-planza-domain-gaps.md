@@ -725,6 +725,12 @@ Size **S** · Priority 4 · DoR: **READY after RC-1..RC-3**
 - **Glossary:** Schedule Ripple, Ripple Proposal, Contingency Schedule, Cascade.
 - **RD-retro readiness note (2026-07-11):** SV-1's pull gate ("RD retro complete / Architecture Memory current") is now
   **satisfied** — SV-1 is the immediately code-ready next step (no external gate). SV-2+ remain blocked on AS-8.
+- **SV-1 STATUS (2026-07-12): ✅ COMPLETE.** Findings memo `docs/plans/2026-07-11-sv-1-ripple-spike.md`;
+  **ADR-019 ACCEPTED** (architect, 2026-07-12 — see ADR Acceptance record). Questions (a)–(d) verified: ChannelSwitch
+  executes nothing, OverrunStrategy descriptive-only, cascade court-coupled (can't carry feed ripple), the G8
+  silent-stale gap confirmed. **EPIC SV is now HELD** at the architect's decision: SV-2..SV-5 carry the blocking AS-8
+  pull gate (`CASCADE_PREVIEW_PARITY` / cascade debt TD-5/12/13/14); servicing that debt is a separate decision. Two
+  characterization tests are pre-identified for SV-2's safety net (memo §"Characterization tests worth pinning").
 
 ### Story SV-1 — SPIKE: ripple semantics + volatility machinery verification → ADR-019 (DETAILED)
 `SPIKE: Research schedule-ripple semantics` — timeboxed **M**.

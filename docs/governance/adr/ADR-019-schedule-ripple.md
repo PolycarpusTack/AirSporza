@@ -1,6 +1,18 @@
 # ADR-019: Schedule Ripple — review-before-apply for feed-driven slot changes
 
-**Status:** **Proposed** (2026-07-11, SV-1 spike) — acceptance authority is the architect.
+**Status:** **Accepted** (2026-07-12, architect) — SV execution held until the AS-8 cascade-debt gate clears.
+
+## Acceptance record (architect decisions, 2026-07-12)
+
+1. **Core model accepted as proposed:** `RippleProposal` reviewable slot-change-set; source policy
+   **FEED → propose · MANUAL → auto (unchanged) · CASCADE → auto to estimated (unchanged)**; apply reuses
+   `eventSlotBridge`/`scheduleOperations` (AS-7); idempotency by `sourceChangeId`.
+2. **SV-4 build-execution finding and the TD-28 servicing timing accepted** as recorded (§5, §6).
+3. **Execution HELD:** SV-2..SV-5 are **not** started now — they carry the blocking **AS-8** pull gate
+   (`CASCADE_PREVIEW_PARITY` / cascade debt TD-5/12/13/14). Servicing that debt is a separate architect decision.
+   SV-1 (spike) is complete; the ADR is the accepted basis SV-2 will expand against once AS-8 clears.
+4. **FEED = review** stays an **open assumption** (Open assumption 2) pending the ops-stakeholder taste-test —
+   it does not block SV-2's *design*, but SV-3 must not freeze the review UX until confirmed.
 
 > **Numbering note:** the domain-gaps backlog reserved "ADR-016" for this decision, but ADR-016 was
 > taken by the ops-redesign cutover (`ADR-016-ops-cutover.md`); 017/018 are reserved for the RC/RL
