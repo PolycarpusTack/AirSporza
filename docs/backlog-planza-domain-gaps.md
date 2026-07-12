@@ -53,7 +53,7 @@ default posture is **validate + annotate, never silently block** until ADR-017 s
 | # | Gap | Resolution path | Owner |
 |---|---|---|---|
 | **ADR-015** (**Accepted 2026-07-02**) | **Rights-window data model + dual rights model.** Survey finding: the codebase has TWO parallel rights models — `Contract` (enriched: territory[], platforms[], coverageType, windows, blackouts, maxLiveRuns) and `RightsPolicy` (separate CRUD + a `policyToContractShape` adapter in `validation/rights.ts`). Adding Rights Windows without a consolidation decision doubles the divergence. **Decided:** RightsWindow as child table of Contract; RightsPolicy **deprecated** (execution in **RD-6 — now DoR-ready at the RD retro**, servicing TD-29); empty `territory[]`/`platforms[]` = unrestricted + INFO note; defect (a) hotfixed before RD-2 (RD-1F), defect (b) folded into RD-3 with non-skippable ACs (Acceptance record §2/§4). **Status: shipped through RD-2..RD-5 (2026-07-11).** | RD-1 SPIKE → ADR ✓ accepted; RD-2..RD-5 ✅ | Architect |
-| **ADR-016** (to write, SV-1) | **Schedule Ripple review-before-apply semantics.** Survey finding: event edits via `routes/events.ts` auto-sync to BroadcastSlots (`eventSlotBridge`), but **import-driven kickoff changes do not** (`import/stages/provision.ts` writes `startDateBE/startTimeBE` with no slot sync); the cascade engine silently overwrites slot estimated fields. Define: Ripple Proposal entity, which change sources produce proposals vs direct writes, apply mechanics (via `scheduleOperations`?), idempotency. | SV-1 SPIKE → ADR | Architect |
+| **ADR-019** (to write, SV-1) | **Schedule Ripple review-before-apply semantics.** Survey finding: event edits via `routes/events.ts` auto-sync to BroadcastSlots (`eventSlotBridge`), but **import-driven kickoff changes do not** (`import/stages/provision.ts` writes `startDateBE/startTimeBE` with no slot sync); the cascade engine silently overwrites slot estimated fields. Define: Ripple Proposal entity, which change sources produce proposals vs direct writes, apply mechanics (via `scheduleOperations`?), idempotency. | SV-1 SPIKE → ADR | Architect |
 | **ADR-017** (to write, RC-0) | **Regulatory enforcement boundary (Q2).** Where Planza ends and traffic/playout/EPG begins for listed-events FTA status, accessibility, ad limits: validate (ERROR, blocks publish) vs annotate (WARNING) vs merely record. Determines every severity in EPIC RC and confirms G13 deferral. **Still open — people-work gate (see §9 retro next-EPIC recommendation).** | RC-0 stakeholder session → ADR | Architect + stakeholder |
 | **ADR-018** (deferred to RL refinement) | **Resource booking + labour-rule placement.** Whether resource bookings stay tech-plan-anchored (today: `ResourceAssignment` rides the event window) or become first-class bookings with own windows; where labour rules are evaluated (client preflight vs server validation stage). | RL refinement after Q3 | Architect |
 | Open (Q1) | Which rights dimensions VRT contracts actually distinguish, and which Planza validates at scheduling time vs leaves to legal. **Gates RD-7/RD-8 (slot-level coverage-category + territory refinements) — see §7.** | AS-4; RD-1 stakeholder input; window categories shipped behind flag either way | Stakeholder |
@@ -108,7 +108,7 @@ Reconciled against existing code names. **Bold** = new term this initiative intr
 | **Accessibility Deliverable** | Per-event required access service — `T888` (subtitling), `AUDIO_DESCRIPTION`, `VGT` (Flemish Sign Language) — each with lifecycle status. | New entity. Supersedes the dead stub read of `sportMetadata.hasSubtitles/hasAudioDescription` in `validation/regulatory.ts` (survey: no writer exists for those fields). |
 | **Remit Coverage** | Accumulated per-sport / women's / G-sport output measured against beheersovereenkomst KPI targets. | New (read-only aggregation). KPI numbers provisional until AS-1 clears. |
 | **Schedule Ripple** | The propagation of an event timing/metadata change through dependent BroadcastSlots, with review-before-apply. | ⚠ Synonym flag: research's "ripple" ≈ code's **cascade** — but they are NOT merged: `cascade/` stays the name of the existing court-chain retiming engine (one *source* of ripple); **Ripple** is the general change-propagation concept (feed-driven, manual, cascade-driven). New code uses Ripple; do not rename cascade. |
-| **Ripple Proposal** | A reviewable, idempotent record of a proposed slot change set (source, before/after, confidence) awaiting accept/reject. | New (ADR-016). |
+| **Ripple Proposal** | A reviewable, idempotent record of a proposed slot change set (source, before/after, confidence) awaiting accept/reject. | New (ADR-019). |
 | **Contingency Schedule** | A pre-built alternative slot set for a volatile event day, switchable in one action with downstream propagation. | Partial: slot-level machinery exists (`fallbackEventId`, `conditionalTriggerUtc/TargetChannelId`, `OverrunStrategy.CONDITIONAL_SWITCH`, `ChannelSwitch` entity + confirm endpoint, `TRIGGER_THRESHOLD_MET` alert). The *schedule-level* pre-built alternate is new (SV-4). |
 | Cascade | The existing court-chain retiming engine (`backend/src/services/cascade/`): recomputes estimated starts down a court's match order, writes `CascadeEstimate` + slot estimated fields. | **Exists** — tennis-flavored (`sportMetadata.court_id/order_on_court`). Generalization question belongs to SV-1 SPIKE. |
 | Resource (Production Resource) | Bookable non-crew asset (`ob_van`, `camera_unit`, `commentary_team`, `production_staff`, `other`; studio/edit-suite/facility candidates pending Q3) with capacity, assigned to tech plans. | **Exists**: `Resource` + `ResourceAssignment` + client-side `detectResourceConflicts` (capacity-aware). ⚠ Synonym flag: research says "Production Resource" — code name stays **Resource**. |
@@ -131,7 +131,7 @@ entity (→ Exclusivity Tier value `OPEN_NET`).
 | AS-4 | Rights Window categories = existing `CoverageType` enum + `ARCHIVE`; VRT contracts meaningfully distinguish territory, exclusivity and live/delayed/highlights (Q1). If Q1 reveals fewer dimensions in practice, unused categories stay in the enum, unused validation stays flag-off — no rework. **Accepted-now path confirmed by architect (ADR-015 Acceptance record §3): Q1 is informative, not blocking — answers calibrate defaults, they do not gate RD-2..RD-5.** **RD retro note:** RD-2..RD-5 shipped without Q1; Q1 now gates RD-7/RD-8 (slot-level coverage-category + territory) — see §7. | RD-2/RD-3 scope (shipped); RD-7/RD-8 scope | Q1 packet `docs/plans/rd-1-q1-stakeholder-questions.md` (informative for RD-2..RD-5; a gate for RD-7/RD-8) |
 | AS-5 | Studio / edit suite / facility become new `ResourceType` values only if Q3 confirms the ops team books them; the conflict-preflight mechanism (RL-1) is type-agnostic and ships regardless. | RL-1-T3 only | Q3 stakeholder answer |
 | AS-6 | Remit coverage (RC-3) is **read-only reporting inside Planza** (aggregation + endpoint); whether it feeds an external pipeline or becomes system of record (Q4) changes consumers, not the aggregation. | RC-3 scope ceiling | Q4 stakeholder answer at RC retro |
-| AS-7 | Ripple apply reuses the existing draft/operations machinery (`scheduleOperations` append + optimistic version, `eventSlotBridge` for auto-linked slots) rather than a new write path. | SV-2/SV-3 | SV-1 SPIKE + ADR-016 |
+| AS-7 | Ripple apply reuses the existing draft/operations machinery (`scheduleOperations` append + optimistic version, `eventSlotBridge` for auto-linked slots) rather than a new write path. | SV-2/SV-3 | SV-1 SPIKE + ADR-019 |
 | AS-8 | Cascade-engine debt **TD-5/TD-12/TD-13/TD-14** (untested orchestrator, midnight anchoring, non-idempotent outbox key, split transactions) is serviced before SV builds on cascade outputs — SV-2+ carries a blocking pull gate on the `CASCADE_PREVIEW_PARITY` story from the debt register. | EPIC SV sequencing | SV-1 pull gate |
 | AS-9 | New validation codes surface through the existing draft-validation UI and future ops screens; flags `rightsWindows` / `regulatoryCompliance` gate *emission* of new codes so flag-off = byte-identical validation output. Flags are build-time per TD-27 — runbooks must state rollback = redeploy honestly. **RD confirmed:** flag OFF byte-identical to the post-RD-1F baseline (golden master, RD-3). | All EPICs | Flag tests per task |
 | AS-10 | **VRT is a test/first client, not the sole target** (ADR-015 Acceptance record §3): client-specific rights dimensions and (EPIC RC) regulatory obligations are **per-tenant configuration, not product constants**. Q1 answers calibrate defaults; they must not harden VRT-specific rules into the model. | RD dimension/enum design; EPIC RC rule modelling; RD-8 (channel territory is per-tenant config) | Design constraint (inherent); revisit at each client onboarding + RC DoR framing check |
@@ -247,7 +247,7 @@ Components (new):
   ListedEventCategory (+ Channel.isFreeToAir): listed-events data + constraint — planned RC-1
   AccessibilityDeliverable:            per-event T888/AD/VGT lifecycle — planned RC-2
   remitCoverage service:               per-sport/category KPI aggregation — planned RC-3
-  RippleProposal (ADR-016):            reviewable feed/cascade change sets — planned SV
+  RippleProposal (ADR-019):            reviewable feed/cascade change sets — planned SV
   ContingencySchedule:                 pre-built alternate slot sets — planned (SV-4)
   resourceConflicts (server):          preflight at booking time — planned RL-1
   LabourRule + evaluator:              working-time checks at assignment — planned (RL-2)
@@ -264,7 +264,7 @@ Contract Snapshots published (integration points for ops backlog):
 
 Key ADRs: ADR-001 outbox · ADR-004/007 raw-SQL migrations · ADR-009 pagination ·
   ADR-011 RLS (every new table needs a policy) · ADR-015 (Accepted; shipped) ·
-  ADR-016..018 (this initiative, §2)
+  ADR-019..018 (this initiative, §2)
 
 Active TD (pre-existing, relevant):
   TD-5/12/13/14: cascade engine debt — SV-2+ blocked until serviced (AS-8)
@@ -719,14 +719,20 @@ Size **S** · Priority 4 · DoR: **READY after RC-1..RC-3**
   existing cascade engine, eventSlotBridge and ChannelSwitch machinery.
 - **Mode:** DELIVERY · **Tracer Bullet?:** NO · **Flag:** `scheduleRipple`
 - **Key risks:** High — builds on cascade debt TD-5/12/13/14 → **mitigation AS-8: SV-2+ pull-gate blocks until the
-  debt register's `CASCADE_PREVIEW_PARITY` story is done.** Med — ADR-016 semantics (review-vs-auto) need stakeholder
+  debt register's `CASCADE_PREVIEW_PARITY` story is done.** Med — ADR-019 semantics (review-vs-auto) need stakeholder
   taste-testing → SV-1 SPIKE first.
 - **SLOs (draft):** `Ripple proposal generation – < 5s p95 after feed import` · `Proposal apply – < 2s p95, atomic`.
 - **Glossary:** Schedule Ripple, Ripple Proposal, Contingency Schedule, Cascade.
 - **RD-retro readiness note (2026-07-11):** SV-1's pull gate ("RD retro complete / Architecture Memory current") is now
   **satisfied** — SV-1 is the immediately code-ready next step (no external gate). SV-2+ remain blocked on AS-8.
+- **SV-1 STATUS (2026-07-12): ✅ COMPLETE.** Findings memo `docs/plans/2026-07-11-sv-1-ripple-spike.md`;
+  **ADR-019 ACCEPTED** (architect, 2026-07-12 — see ADR Acceptance record). Questions (a)–(d) verified: ChannelSwitch
+  executes nothing, OverrunStrategy descriptive-only, cascade court-coupled (can't carry feed ripple), the G8
+  silent-stale gap confirmed. **EPIC SV is now HELD** at the architect's decision: SV-2..SV-5 carry the blocking AS-8
+  pull gate (`CASCADE_PREVIEW_PARITY` / cascade debt TD-5/12/13/14); servicing that debt is a separate decision. Two
+  characterization tests are pre-identified for SV-2's safety net (memo §"Characterization tests worth pinning").
 
-### Story SV-1 — SPIKE: ripple semantics + volatility machinery verification → ADR-016 (DETAILED)
+### Story SV-1 — SPIKE: ripple semantics + volatility machinery verification → ADR-019 (DETAILED)
 `SPIKE: Research schedule-ripple semantics` — timeboxed **M**.
 
 **As a** architect **I want** verified behavior of the existing volatility machinery and a decided Ripple Proposal
@@ -741,16 +747,16 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** · INVEST spike-v
   (c) can the cascade engine generalize beyond `sportMetadata.court_id` chains (football kickoff-shift ≠ tennis
   court order)? (d) exact import-path event-update flow in `provision.ts` (confirmed: no `syncEventToSlot` call —
   quantify affected update volume).
-- ADR-016 accepted: RippleProposal entity (source: FEED/CASCADE/MANUAL; before/after slot set; idempotency key =
-  source change id), which sources auto-apply vs propose (per ADR-016 judgment), apply mechanics per AS-7,
+- ADR-019 accepted: RippleProposal entity (source: FEED/CASCADE/MANUAL; before/after slot set; idempotency key =
+  source change id), which sources auto-apply vs propose (per ADR-019 judgment), apply mechanics per AS-7,
   TD-28 (zod enum drift) servicing decision.
 
 - **SV-1-T1** · Hat **PREPARATORY** · Model **Opus** · Confidence High
   Goal: Behavior verification (a)–(d) with characterization tests where cheap; findings memo.
   Pull Gate: RD retro complete (Architecture Memory current) — **satisfied 2026-07-11.** Unblocks: SV-1-T2.
 - **SV-1-T2** · Hat **PREPARATORY** · Model **Opus** · Confidence Med
-  Goal: ADR-016 authored + accepted; SV-2..SV-5 expanded into full stories at the RD/RC retro with these findings.
-  Hand-off: **ADR-016**. Unblocks: SV-2 (outline), END OF STORY SEQUENCE.
+  Goal: ADR-019 authored + accepted; SV-2..SV-5 expanded into full stories at the RD/RC retro with these findings.
+  Hand-off: **ADR-019**. Unblocks: SV-2 (outline), END OF STORY SEQUENCE.
 
 ### Outlined stories (expand post-SV-1)
 - **SV-2 — Feed-change capture → Ripple Proposals (G8):** `provision.ts` emits a RippleProposal when an imported
@@ -837,7 +843,7 @@ Business Value 2 · Priority 4 · Size **M** · DoR: **READY** (mechanism is Q3-
   RL-1-T3 on Q3; RD-6 on RD-5-merged + flag decision; RD-7/RD-8 on Q1) ✓. One Hat per task; schema work is
   PREPARATORY, behavior is FEATURE, dead-code deletion is REFACTORING (RD-6-T3, RC-2-T3 justified in-story) ✓. TDD
   order explicit per task ✓. Glossary reconciled with 5 synonym collisions flagged (§4) ✓. ADRs raised for all
-  cross-cutting decisions (ADR-015 shipped; ADR-016..018 open) ✓.
+  cross-cutting decisions (ADR-015 shipped; ADR-019..018 open) ✓.
 - **Testing:** Core logic (checker v2 ✓, listed-event constraint, deliverable state machine, aggregations,
   conflict port) unit-tested first; golden-master/flag-off parity suites guard every validation-pipeline change (RD
   confirmed byte-identical) ✓. Every schema change has migration + rollback + flag + **RLS policy** ✓. E2E smoke per
