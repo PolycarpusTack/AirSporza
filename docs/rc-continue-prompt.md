@@ -8,20 +8,18 @@
 > ubiquitous-language-guard), architect gates surfaced via decisions, check in at story/EPIC
 > boundaries. Delegate execution to `gpm-partner`; review its output before committing.
 
-## ⚠️ FIRST THING ON RESUME — the in-flight RC-2-T1
+## ⚠️ FIRST THING ON RESUME — RC-2-T1 is COMPLETE + green, UNCOMMITTED
 
-**RC-2-T1 (AccessibilityDeliverable migration + defaulting hook) was executing when this was
-saved.** Its output is **UNCOMMITTED in the working tree** on branch `feature/RC-2-accessibility`.
-Run `git status` — you should see (uncommitted):
+**RC-2-T1 (AccessibilityDeliverable migration + defaulting hook) finished cleanly** (backend
+vitest **551 pass**, tsc clean, prisma valid) — its output is **UNCOMMITTED in the working tree**
+on branch `feature/RC-2-accessibility`. It is NOT partial. `git status` shows:
 - `backend/prisma/migrations/20260714120000_add_accessibility_deliverables/` (migration.sql + rollback.sql)
-- `backend/prisma/schema.prisma`, `packages/shared/types.ts` (M — the model + enum unions)
-- `backend/src/routes/events.ts` (M — the defaulting hook on the two `tx.event.create` sites)
-- `backend/src/config/accessibility.ts` (?? — the `TODO-KPI` sport-exclusion config)
-- `backend/tests/accessibilityDeliverable.test.ts`, `backend/tests/accessibilityDefaults.test.ts`, `backend/tests/events.test.ts`
+- `backend/prisma/schema.prisma`, `packages/shared/types.ts` (M — model + AccessibilityType/Status enum unions)
+- `backend/src/routes/events.ts` (M — defaulting hook: `createMany` defaults after the two `tx.event.create` sites, `skipDuplicates`, additive)
+- `backend/src/config/accessibility.ts` (?? — `T888_EXCLUDED_SPORT_IDS` empty `TODO-KPI` set + pure `defaultAccessibilityDeliverables`)
+- `backend/tests/accessibilityDefaults.test.ts` (5 pure), `backend/tests/accessibilityDeliverable.test.ts` (8 gated), `backend/tests/events.test.ts` (M — tx mock)
 
-**Decide by inspecting it:**
-1. If the footprint is coherent and complete: run `cd backend && npx prisma validate && npx prisma generate && npx tsc --noEmit && npx vitest run` (expect ~560+ pass, gated accessibility tests skip locally). If green → run the **review chain** on the RC-2-T1 diff (esp. two-hats: the defaulting hook must be additive/no behavior change to event/slot writes; test-quality: structural + defaulting-MECHANISM not "legally correct"; RLS read+write+owner-bypass like RC-1-T1) → apply fixes → **commit RC-2-T1**.
-2. If incomplete/broken: `git checkout -- <files>` / delete the untracked ones and **re-run RC-2-T1** from the backlog (Story RC-2 §634, RC-2-T1 §~671) via gpm-partner — the spec is complete there and the DoR is READY (`f3c8284`).
+**Resume path:** re-verify (`cd backend && npx prisma generate && npx tsc --noEmit && npx vitest run` → expect 551 pass, gated accessibility tests skip), then run the **review chain** on the RC-2-T1 diff (two-hats: the defaulting hook must be additive / no behavior change to event/slot writes; test-quality: structural + defaulting-MECHANISM not "legally correct", RLS read+write+owner-bypass; naming/ubiquitous on AccessibilityDeliverable/Type/Status) → apply fixes → **commit RC-2-T1**. (Model shape: `AccessibilityDeliverable` id/tenantId/eventId(CASCADE)/type/status/updatedBy?/timestamps, unique(eventId,type), RLS. Hook: T888→REQUIRED unless sport in the empty `TODO-KPI` exclusion set, AD/VGT→NOT_REQUIRED.) If for any reason it's broken, the spec to re-run is in the backlog (Story RC-2 §634, DoR READY `f3c8284`).
 
 RC-2-T1 spec recap: `AccessibilityDeliverable` (id, tenantId, eventId FK **ON DELETE CASCADE**, `type` [T888|AUDIO_DESCRIPTION|VGT], `status` [NOT_REQUIRED|REQUIRED|PLANNED|CONFIRMED|DELIVERED], updatedBy?, timestamps), **unique(eventId,type)**, RLS `tenant_isolation`. Defaulting hook on event-create: **T888→REQUIRED** unless the event's sport is in the config exclusion set (→NOT_REQUIRED); AD/VGT→NOT_REQUIRED. Exclusion set read from config, **provisional `TODO-KPI` default (empty = all REQUIRED)**, verified via RC-0-T1 as a config edit. Additive — no behavior change to events/slots.
 
