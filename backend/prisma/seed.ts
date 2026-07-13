@@ -165,20 +165,22 @@ async function main() {
 
   // ── Channels ──────────────────────────────────────────────────────────────
   const channels = await Promise.all([
+    // FTA public linear TV (Eén/Canvas/Ketnet) → isFreeToAir true (uncontroversial
+    // public fact; RC-1). OTT (VRT MAX*) and radio default false.
     prisma.channel.upsert({
       where: { tenantId_name: { tenantId: T, name: 'Eén' } },
       update: {},
-      create: { name: 'Eén', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#E10600', tenantId: T, types: ['linear'], sortOrder: 1 },
+      create: { name: 'Eén', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#E10600', tenantId: T, types: ['linear'], isFreeToAir: true, sortOrder: 1 },
     }),
     prisma.channel.upsert({
       where: { tenantId_name: { tenantId: T, name: 'Canvas' } },
       update: {},
-      create: { name: 'Canvas', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#1E3A5F', tenantId: T, types: ['linear'], sortOrder: 2 },
+      create: { name: 'Canvas', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#1E3A5F', tenantId: T, types: ['linear'], isFreeToAir: true, sortOrder: 2 },
     }),
     prisma.channel.upsert({
       where: { tenantId_name: { tenantId: T, name: 'Ketnet' } },
       update: {},
-      create: { name: 'Ketnet', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#FF6B00', tenantId: T, types: ['linear'], sortOrder: 3 },
+      create: { name: 'Ketnet', timezone: 'Europe/Brussels', broadcastDayStartLocal: '06:00', color: '#FF6B00', tenantId: T, types: ['linear'], isFreeToAir: true, sortOrder: 3 },
     }),
     prisma.channel.upsert({
       where: { tenantId_name: { tenantId: T, name: 'VRT MAX' } },
@@ -198,6 +200,30 @@ async function main() {
   ])
   const channelByName = new Map(channels.map(c => [c.name, c]))
   console.log(`Created ${channels.length} channels`)
+
+  // ── Listed-Event Categories (RC-1) ────────────────────────────────────────
+  // TODO-LEGAL: provisional representative list — NOT authoritative; verify against
+  // besluit 28 May 2004 (RC-0-T3). Editable data per AS-3; a correction is a data
+  // edit, no deploy. `fullLiveRequired` values are best-effort placeholders, NOT a
+  // legal assertion. sportId maps to the seeded sports (1 Football, 2 Tennis,
+  // 3 Cycling, 4 Formula 1, 5 Athletics, 6 Swimming).
+  const BESLUIT = 'besluit 28 May 2004 (PROVISIONAL — verify RC-0-T3)'
+  const listedCategories = await prisma.listedEventCategory.createMany({
+    data: [
+      { tenantId: T, sportId: 1, name: 'FIFA World Cup — matches involving the national team, opening, semi-finals & final', fullLiveRequired: true, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 1, name: 'UEFA European Championship — matches involving the national team, semi-finals & final', fullLiveRequired: true, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 1, name: 'Belgian Cup football final', fullLiveRequired: true, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 3, name: 'Tour de France (Belgian stages / overall)', fullLiveRequired: true, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 3, name: 'Ronde van Vlaanderen (Tour of Flanders)', fullLiveRequired: true, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 3, name: 'UCI Road World Championships — road race', fullLiveRequired: true, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 5, name: 'Olympic Games — athletics with Belgian participation', fullLiveRequired: false, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 6, name: 'Olympic Games — swimming with Belgian participation', fullLiveRequired: false, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 2, name: 'Grand Slam tennis — Belgian finalist', fullLiveRequired: false, besluitRef: BESLUIT },
+      { tenantId: T, sportId: 4, name: 'Formula 1 — Belgian Grand Prix', fullLiveRequired: false, besluitRef: BESLUIT },
+    ],
+    skipDuplicates: true,
+  })
+  console.log(`Created ${listedCategories.count} listed-event categories (TODO-LEGAL: provisional)`)
 
   // ── Teams ─────────────────────────────────────────────────────────────────
   const teamsInput = [

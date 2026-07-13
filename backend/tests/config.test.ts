@@ -57,4 +57,22 @@ describe('Config Module', () => {
       expect(parseEnv({ ...base }).RIGHTS_WINDOWS_ENABLED).toBe(false)
     })
   })
+
+  describe('REGULATORY_COMPLIANCE_ENABLED flag (RC-1-T3 — safe boolean parse)', () => {
+    const base = {
+      NODE_ENV: 'development' as const,
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+      REDIS_URL: 'redis://localhost:6379',
+      CORS_ORIGIN: 'http://localhost:5173',
+    }
+    it("'true' → ON", () => {
+      expect(parseEnv({ ...base, REGULATORY_COMPLIANCE_ENABLED: 'true' }).REGULATORY_COMPLIANCE_ENABLED).toBe(true)
+    })
+    it("'false' → OFF", () => {
+      expect(parseEnv({ ...base, REGULATORY_COMPLIANCE_ENABLED: 'false' }).REGULATORY_COMPLIANCE_ENABLED).toBe(false)
+    })
+    it('unset → OFF (default)', () => {
+      expect(parseEnv({ ...base }).REGULATORY_COMPLIANCE_ENABLED).toBe(false)
+    })
+  })
 })

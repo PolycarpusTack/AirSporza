@@ -34,4 +34,10 @@ export interface ValidationContext {
   liveRunEndUtcByEventId?: Record<number, string>
   /** Explicit flag pass-through — the pure checker never reads env. */
   windowsEnabled?: boolean
+
+  // --- RC-1-T3 stage-4 listed-events FTA (populated ONLY when REGULATORY_COMPLIANCE
+  //     is ON). Absent → stage 4 runs watershed + accessibility only (byte-identical).
+  /** Normalized listed obligation events for the LISTED_EVENT_FTA check. */
+  listedFtaEvents?: import('./listedEventFta.js').ListedFtaEvent[]
+  regulatoryEnabled?: boolean
 }

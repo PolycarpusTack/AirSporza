@@ -394,6 +394,23 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
   separate defect fix before the golden master (memo §5.1).
 - **Origin:** domain-gaps backlog survey §6 (candidate), formally registered by RD-1 spike, 2026-07-02.
 
+## TD-30 — `checkAccessibilityMissing` reads fields nothing writes (dead stage-4 check)
+
+- **Artifact:** `checkAccessibilityMissing` in `backend/src/services/validation/regulatory.ts` — emits
+  `ACCESSIBILITY_MISSING` (WARNING) when `slot.sportMetadata.hasSubtitles`/`hasAudioDescription` are both falsy.
+- **Type:** correctness / dead check (Core Domain validation stage 4)
+- **Cause:** the check reads `sportMetadata.hasSubtitles`/`hasAudioDescription`, but **no writer sets those keys** —
+  no route, importer, or UI populates them on `BroadcastSlot.sportMetadata`. So the check fires (WARNING) for
+  essentially every slot on a signal that is always absent — it validates nothing real.
+- **Principal:** M (model accessibility deliverables as first-class rows + a writer, then a real check).
+- **Interest:** **low** — a WARNING (non-blocking), noisy but harmless; it does not gate publish.
+- **Compounding:** no — isolated to stage 4.
+- **Servicing decision — SUPERSESSION note:** leave the stub in place (it is byte-identical baseline behavior that the
+  RC-1-T3 golden master pins) until **RC-2** replaces it with a real `AccessibilityDeliverable` model + writer + a
+  check that reads actual deliverables. RC-1-T3 adds the flag-gated `LISTED_EVENT_FTA` check ALONGSIDE it without
+  touching it. Registration only here — do NOT fix in RC-1-T3.
+- **Origin:** observed while wiring stage 4 for RC-1-T3 (LISTED_EVENT_FTA), 2026-07-13.
+
 ---
 
 ## Verification notes (ASM-10 re-check, 2026-06-12)

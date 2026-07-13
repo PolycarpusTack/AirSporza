@@ -12,7 +12,8 @@ import { validateBusiness } from './business.js'
  * Stage 1: Structural — overlaps, duplicates, missing fields
  * Stage 2: Duration — slot timing conflicts, range warnings
  * Stage 3: Rights — window/run limits, territory blocks
- * Stage 4: Regulatory — watershed, accessibility (stubs)
+ * Stage 4: Regulatory — watershed, accessibility (TD-30 stub), and the flag-gated
+ *          listed-events FTA check (LISTED_EVENT_FTA, RC-1-T3)
  * Stage 5: Business — simultaneous coverage, prime scheduling (stubs)
  *
  * All stages are pure functions — no database access.
@@ -25,7 +26,7 @@ export function validateSchedule(
     ...validateStructural(slots),
     ...validateDuration(slots),
     ...validateRights(slots, context),
-    ...validateRegulatory(slots),
+    ...validateRegulatory(slots, { events: context.listedFtaEvents, regulatoryEnabled: context.regulatoryEnabled }),
     ...validateBusiness(slots, context),
   ]
 }

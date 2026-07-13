@@ -40,6 +40,7 @@ import scheduleRoutes from './routes/schedules.js'
 import scheduleVersionRoutes from './routes/scheduleVersions.js'
 import cascadeRoutes from './routes/cascade.js'
 import rightsRoutes from './routes/rights.js'
+import listedEventsRoutes from './routes/listedEvents.js'
 import channelSwitchRoutes from './routes/channelSwitches.js'
 import adapterRoutes from './routes/adapters.js'
 import integrationsRoutes from './routes/integrations.js'
@@ -133,6 +134,7 @@ export function buildApp() {
   app.use('/api/schedule-versions', authenticate, setTenantContext, standardLimiter, scheduleVersionRoutes)
   app.use('/api/cascade', authenticate, setTenantContext, standardLimiter, cascadeRoutes)
   app.use('/api/rights', authenticate, setTenantContext, standardLimiter, rightsRoutes)
+  app.use('/api/listed-events', authenticate, setTenantContext, standardLimiter, listedEventsRoutes)
   app.use('/api/channel-switches', authenticate, setTenantContext, standardLimiter, channelSwitchRoutes)
 
   app.use('/api/integrations', authenticate, setTenantContext, standardLimiter, integrationsRoutes)
