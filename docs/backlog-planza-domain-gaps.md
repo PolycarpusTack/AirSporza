@@ -562,6 +562,14 @@ Business Value 3 · Priority 5 · Size **S** · DoR: **READY** (the *gate itself
   `docs/governance/adr/ADR-017-regulatory-enforcement-boundary.md`; set final severities for RC-1-T3/RC-2-T3;
   confirm G13 deferral rationale in §2.
   Hand-off: **ADR-017 accepted**. Unblocks: RC-1-T3 severity freeze, END OF STORY SEQUENCE.
+- **RC-0-T3** · Hat **PREPARATORY** · Model **Haiku** (checklist) + human/legal source access · Confidence Med
+  **(added 2026-07-13, RC-1 DoR fix — the listed-events legal content is the SAME class of unverified legal fact as
+  the KPIs (AS-1→RC-0-T1); it must have a matching verification gate, not ship as silent undone work.)**
+  Goal: verify the RC-1 seeded `ListedEventCategory` list against the **authoritative besluit 28 May 2004** (and its
+  parliamentary-revision status, caveat §6.4) — confirm the exact categories, sports, and per-category
+  `fullLiveRequired` flags; correct the seed **as data** (AS-3 → no deploy) and clear the `TODO-LEGAL` markers.
+  DoR: **READY** (gate itself; RC-1 ships provisional in the meantime). Blocking for: *legal sign-off* of RC-1 (not
+  RC-1's code, which ships flag-off with provisional data). Unblocks: RC-1 legal-complete.
 
 ---
 
@@ -576,8 +584,12 @@ Framing note (AS-10): the listed-events list is the *VRT/Flemish tenant configur
 rule set — already data-not-code per AS-3, which satisfies the per-tenant constraint; ACs unchanged this pass.
 
 **AC (Gherkin):**
-- Given the seeded list (10 categories, 9 sports, per-category `fullLiveRequired` — besluit 28 May 2004), When an
-  admin edits a category (AS-3), Then the change takes effect without deploy.
+- Given the seeded list (**best-effort representative categories, marked `TODO-LEGAL` provisional pending
+  authoritative besluit 28 May 2004 verification — RC-0-T3; AS-3 makes this editable data, not law-in-code**), When
+  an admin edits a category (AS-3), Then the change takes effect without deploy. **Seed tests assert STRUCTURE not
+  legal correctness:** each row is structurally valid (name, a `sportId` FK that resolves, boolean `fullLiveRequired`),
+  tenant-isolated (RLS), and the edit round-trips — they do NOT assert "flags correct per besluit" (that oracle is
+  the RC-0-T3 people-work, mirroring the AS-1 KPI gate).
 - Given an event whose sport/competition matches a listed category, When the event is saved, Then Planza *suggests*
   the match; a user confirms or dismisses (manual `listedCategoryId` assignment — suggestions never auto-bind).
 - Given a confirmed listed event with `fullLiveRequired`, When draft validation runs and the event has no LIVE,
@@ -596,7 +608,10 @@ rule set — already data-not-code per AS-3, which satisfies the per-tenant cons
 - **RC-1-T1** · Hat **PREPARATORY** · Model **Sonnet** · Confidence High
   Goal: Migration: `ListedEventCategory` table (+ seed from besluit 2004), `Event.listedCategoryId` (nullable FK),
   `Channel.isFreeToAir boolean default false`; RLS policy; rollback.
-  TDD: migration + seed integrity tests first (10 categories, flags correct per besluit).
+  TDD: migration + seed **structural-integrity** tests first (rows structurally valid: name present, every `sportId`
+  FK resolves, `fullLiveRequired` is a proper boolean, tenant-isolated via RLS, edit round-trips). Do NOT assert
+  "flags correct per besluit" — the seed is `TODO-LEGAL` provisional (RC-0-T3 verifies the authoritative list; the
+  list is editable data per AS-3, so a correction is a data edit, no deploy).
   Pull Gate: no migration collisions; ADR-011 policy checklist.
   Unblocks: RC-1-T2.
 - **RC-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
