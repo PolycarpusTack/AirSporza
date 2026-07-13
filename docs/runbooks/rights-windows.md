@@ -19,6 +19,30 @@ migration/rollback.
   parity assertions). The legacy `loadRightsPolicies → policyToContractShape` adapter
   (TD-29) still runs the OFF path unchanged; its deletion is deferred to RD-6.
 
+## Rollout (staged) — architect decision 2026-07-13: **staging now, prod stays off**
+
+Enforcement ships **dark**. Staged rollout, one environment at a time:
+
+1. **Staging (now):** set `RIGHTS_WINDOWS_ENABLED=true` in the **staging** deployment env and
+   redeploy the backend. Prod stays unset/`false`. (Setting the env var + redeploy is a
+   deploy-pipeline action — this runbook provides the value + the go/no-go; it does not
+   perform the deploy.)
+2. **Verify in staging (go/no-go before any prod flip):**
+   - Flag-OFF baseline first: with the flag still off, capture current draft-validate output
+     for a representative channel-day — this is the parity reference.
+   - Flip on; confirm no *unexpected* new codes on already-clean schedules (a burst of
+     `WINDOW_UNSCOPED`/`NO_WINDOWS` INFO notes is expected data-quality signal, not a defect —
+     it flags contracts whose backfilled window is unscoped or missing).
+   - Confirm a contract with a real `maxRuns` + CONFIRMED LIVE ledger runs trips
+     `MAX_RUNS_EXCEEDED` (the defect-(b) headline is live).
+   - `GET /rights/check-slots?channelId=&date=` returns per-slot results (spot-check pagination).
+   - **Known non-blocker:** DELAYED/HIGHLIGHTS/CLIP holdback will NOT fire — real slots resolve
+     to LIVE intent (see KNOWN LIMIT). Do not treat its absence as a staging failure.
+3. **Prod:** a separate go decision after staging soak. Prod flip also gates RD-6 (legacy-path
+   deletion) — do not delete the OFF path until prod is committed ON.
+
+**Rollback at any stage:** redeploy with `RIGHTS_WINDOWS_ENABLED` unset/`=false` (§Feature flag).
+
 ## What it does when ON
 
 Window-aware checker v2 replaces the scalar path in:
