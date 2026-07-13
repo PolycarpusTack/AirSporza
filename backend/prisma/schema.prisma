@@ -122,6 +122,7 @@ model Tenant {
   scheduleVersions      ScheduleVersion[]
   rightsPolicies        RightsPolicy[]
   rightsWindows         RightsWindow[]
+  listedEventCategories ListedEventCategory[]
   runLedgerEntries      RunLedger[]
   outboxEvents          OutboxEvent[]
   cascadeEstimates      CascadeEstimate[]
@@ -175,6 +176,7 @@ model Sport {
   canonicalCompetitions CanonicalCompetition[]
   canonicalPlayers      CanonicalPlayer[]
   mandatoryFieldConfig  MandatoryFieldConfig?
+  listedEventCategories ListedEventCategory[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -254,11 +256,16 @@ model Event {
   sportMetadata  Json           @default("{}")
   externalRefs   Json           @default("{}")
 
+  // RC-1 (besluit 28 May 2004): optional link to a listed-event category. SET NULL
+  // on category delete — a category removal unlinks events, never deletes them.
+  listedCategoryId Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tenant                 Tenant            @relation(fields: [tenantId], references: [id])
   sport                  Sport             @relation(fields: [sportId], references: [id])
+  listedCategory         ListedEventCategory? @relation(fields: [listedCategoryId], references: [id], onDelete: SetNull)
   competition            Competition       @relation(fields: [competitionId], references: [id])
   createdBy              User?             @relation(fields: [createdById], references: [id])
   channel                Channel?          @relation("EventLinearChannel", fields: [channelId], references: [id])
@@ -284,12 +291,34 @@ model Event {
   @@index([stageId])
   @@index([roundId])
   @@index([tenantId])
+  @@index([listedCategoryId])
   @@index([tenantId, startDateBE])
   @@index([tenantId, sportId, startDateBE])
   // Expression index `event_court_day_idx` on ((sportMetadata->>'court_id')::int,
   // tenantId, startDateBE) is defined in add_performance_followup_indexes.sql.
   // Prisma's DSL can't express expression/partial indexes, so it lives in raw
   // SQL and `prisma db push` leaves it alone (doesn't manage it).
+}
+
+// RC-1 (besluit 28 May 2004 — Vlaamse "evenementen van aanzienlijk belang").
+// A tenant-scoped, editable catalog (AS-3): categories of listed events that must
+// be broadcast (fully) live on free-to-air TV. Data, not product constants.
+model ListedEventCategory {
+  id               Int      @id @default(autoincrement())
+  tenantId         String   @db.Uuid
+  name             String
+  sportId          Int
+  fullLiveRequired Boolean
+  besluitRef       String?  // legal citation (nullable)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  sport  Sport   @relation(fields: [sportId], references: [id])
+  events Event[]
+
+  @@index([tenantId])
+  @@index([sportId])
 }
 
 model TechPlan {
@@ -1432,6 +1461,7 @@ model Channel {
   platformConfig         Json     @default("{}")
   epgConfig              Json     @default("{}")
   color                  String   @default("#3B82F6")
+  isFreeToAir            Boolean  @default(false)
   sortOrder              Int      @default(0)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
