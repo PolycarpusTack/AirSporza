@@ -5,6 +5,8 @@ import { validate } from '../middleware/validate.js'
 import { createError } from '../middleware/errorHandler.js'
 import { validateSchedule, type ValidationContext, type RightsPolicy } from '../services/validation/index.js'
 import { loadContractRunTally } from '../services/validation/runTally.js'
+import type { ListedFtaEvent } from '../services/validation/listedEventFta.js'
+import { beClockToUtc } from '../utils/beClock.js'
 import { env } from '../config/env.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { applyOperations, executeOperations, type ScheduleOperation, type SlotState } from '../services/scheduleOperations.js'
@@ -71,12 +73,65 @@ async function buildWindowContext(
   return { contracts, contractRunTally, liveRunEndUtcByEventId, windowsEnabled: true }
 }
 
-/** Slot include — the `channel` join (platform checks) is added ONLY on flag ON, so
- *  the flag-OFF slot shape (event-only) stays byte-identical (no new channelTypes). */
-function slotInclude(windowsEnabled: boolean) {
-  return windowsEnabled
-    ? { event: true, channel: { select: { id: true, types: true } } }
-    : { event: true }
+/**
+ * Slot include, gated by BOTH feature flags so flag-OFF shapes stay byte-identical:
+ *  - both off → `{ event: true }` (unchanged baseline).
+ *  - rights on only → adds `channel { id, types }` (RD-3, unchanged).
+ *  - regulatory on → also selects `channel.isFreeToAir` + includes `event.listedCategory`
+ *    (RC-1-T3). `channel.timezone` is deliberately NOT selected, so the watershed check
+ *    keeps its UTC default and the regulatory flag does not perturb watershed output.
+ */
+function slotInclude(opts: { windowsEnabled: boolean; regulatoryEnabled: boolean }) {
+  if (opts.regulatoryEnabled) {
+    return { event: { include: { listedCategory: true } }, channel: { select: { id: true, types: true, isFreeToAir: true } } }
+  }
+  if (opts.windowsEnabled) {
+    return { event: true as const, channel: { select: { id: true, types: true } } }
+  }
+  return { event: true as const }
+}
+
+const MS_PER_MINUTE = 60_000
+
+/** Map DB events (with listedCategory) → the pure LISTED_EVENT_FTA input (flag ON only).
+ *  Window uses the shared `beClockToUtc` — same derivation as the rights checker (a fact). */
+function buildListedFtaEvents(events: any[]): ListedFtaEvent[] {
+  const out: ListedFtaEvent[] = []
+  for (const e of events) {
+    if (e.listedCategoryId == null || e.listedCategory == null) continue
+    const startUtc = e.startDateBE && e.startTimeBE ? beClockToUtc(e.startDateBE, e.startTimeBE) : null
+    const endUtc = startUtc && e.durationMin != null
+      ? new Date(startUtc.getTime() + e.durationMin * MS_PER_MINUTE)
+      : null
+    out.push({ id: e.id, isLive: e.isLive, startUtc, endUtc, fullLiveRequired: e.listedCategory.fullLiveRequired === true })
+  }
+  return out
+}
+
+/**
+ * Build the stage 1-5 ValidationContext for the validate + publish routes — ONE place
+ * so the two routes stay in lock-step (was hand-duplicated). Flag OFF for both flags →
+ * base context only (rightsPolicies + `existingRuns: []`), byte-identical to baseline.
+ */
+async function buildScheduleValidationContext(
+  tenantId: string,
+  events: any[],
+  flags: { windowsEnabled: boolean; regulatoryEnabled: boolean },
+): Promise<ValidationContext> {
+  const competitionIds = [...new Set(events.map(e => e.competitionId).filter(Boolean))] as number[]
+  const rightsPolicies = await loadRightsPolicies(tenantId, competitionIds)
+  const context: ValidationContext = { rightsPolicies, existingRuns: [], events }
+
+  // Flag ON: window-aware rights (contracts+windows+tally). Flag OFF: skipped — unchanged.
+  if (flags.windowsEnabled) {
+    Object.assign(context, await buildWindowContext(tenantId, competitionIds, events.map(e => e.id)))
+  }
+  // Flag ON: stage-4 listed-events FTA. Flag OFF: skipped — stage 4 byte-identical.
+  if (flags.regulatoryEnabled) {
+    context.listedFtaEvents = buildListedFtaEvents(events)
+    context.regulatoryEnabled = true
+  }
+  return context
 }
 
 // ─── SCHEDULE DRAFTS ─────────────────────────────────────────────────────────
@@ -251,6 +306,7 @@ router.post('/:id/validate', authenticate, authorize('planner', 'admin'), async 
     if (!draft) return next(createError(404, 'Schedule draft not found'))
 
     const windowsEnabled = env.RIGHTS_WINDOWS_ENABLED
+    const regulatoryEnabled = env.REGULATORY_COMPLIANCE_ENABLED
 
     // Load slots for validation
     const slots = await prisma.broadcastSlot.findMany({
@@ -262,25 +318,13 @@ router.post('/:id/validate', authenticate, authorize('planner', 'admin'), async 
           lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000)
         }
       },
-      include: slotInclude(windowsEnabled),
+      include: slotInclude({ windowsEnabled, regulatoryEnabled }),
       orderBy: { plannedStartUtc: 'asc' }
     })
 
-    // Build validation context with contracts as rights policies
+    // Build validation context (rights policies + flag-gated window / regulatory data).
     const events = slots.map(s => s.event).filter((e): e is NonNullable<typeof e> => e != null)
-    const competitionIds = [...new Set(events.map(e => e.competitionId).filter(Boolean))] as number[]
-    const rightsPolicies = await loadRightsPolicies(req.tenantId!, competitionIds)
-    const context: ValidationContext = {
-      rightsPolicies,
-      existingRuns: [],
-      events,
-    }
-
-    // Flag ON: window-aware path — real contracts+windows + per-category ledger tally.
-    // Flag OFF: this block is skipped; rightsPolicies + existingRuns:[] exactly as today.
-    if (windowsEnabled) {
-      Object.assign(context, await buildWindowContext(req.tenantId!, competitionIds, events.map(e => e.id)))
-    }
+    const context = await buildScheduleValidationContext(req.tenantId!, events, { windowsEnabled, regulatoryEnabled })
 
     const results = validateSchedule(slots as any[], context)
 
@@ -453,6 +497,7 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
     }
 
     const windowsEnabled = env.RIGHTS_WINDOWS_ENABLED
+    const regulatoryEnabled = env.REGULATORY_COMPLIANCE_ENABLED
 
     // Load slots for validation and snapshot
     let slots = await prisma.broadcastSlot.findMany({
@@ -464,24 +509,13 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
           lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000)
         }
       },
-      include: slotInclude(windowsEnabled),
+      include: slotInclude({ windowsEnabled, regulatoryEnabled }),
       orderBy: { plannedStartUtc: 'asc' }
     })
 
-    // Validate with contracts as rights policies
+    // Validate with contracts as rights policies (+ flag-gated window / regulatory data).
     const pubEvents = slots.map(s => s.event).filter((e): e is NonNullable<typeof e> => e != null)
-    const pubCompetitionIds = [...new Set(pubEvents.map(e => e.competitionId).filter(Boolean))] as number[]
-    const pubRightsPolicies = await loadRightsPolicies(req.tenantId!, pubCompetitionIds)
-    const context: ValidationContext = {
-      rightsPolicies: pubRightsPolicies,
-      existingRuns: [],
-      events: pubEvents,
-    }
-
-    // Flag ON: window-aware path (same as validate). Flag OFF: skipped — unchanged.
-    if (windowsEnabled) {
-      Object.assign(context, await buildWindowContext(req.tenantId!, pubCompetitionIds, pubEvents.map(e => e.id)))
-    }
+    const context = await buildScheduleValidationContext(req.tenantId!, pubEvents, { windowsEnabled, regulatoryEnabled })
 
     const results = validateSchedule(slots as any[], context)
     const errors = results.filter(r => r.severity === 'ERROR')
@@ -532,7 +566,7 @@ router.post('/:id/publish', authenticate, authorize('planner', 'admin'), validat
             lte: new Date(new Date(draft.dateRangeEnd).getTime() + 24 * 60 * 60 * 1000)
           }
         },
-        include: slotInclude(windowsEnabled),
+        include: slotInclude({ windowsEnabled, regulatoryEnabled }),
         orderBy: { plannedStartUtc: 'asc' }
       })
     }

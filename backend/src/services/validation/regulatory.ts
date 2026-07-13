@@ -1,15 +1,28 @@
 import type { ValidationResult } from './types.js'
+import { checkListedEventFta, type ListedFtaEvent } from './listedEventFta.js'
 
 /**
- * Stage 4: Regulatory validation
+ * Stage 4: Regulatory validation — watershed, accessibility, and (RC-1-T3, flag-gated)
+ * listed-events FTA obligations.
  *
- * Checks for watershed violations, accessibility requirements, etc.
+ * @param opts.regulatoryEnabled + opts.events  When falsy/absent, runs ONLY watershed +
+ *   accessibility — byte-identical to the pre-RC-1-T3 baseline (golden master). Existing
+ *   callers passing just `slots` are unchanged. When `regulatoryEnabled` is true AND
+ *   `events` are provided, ALSO runs `checkListedEventFta` (LISTED_EVENT_FTA). The flag is
+ *   read at the route boundary and threaded here; this fn never reads env.
  */
-export function validateRegulatory(slots: any[]): ValidationResult[] {
+export function validateRegulatory(
+  slots: any[],
+  opts: { events?: ListedFtaEvent[]; regulatoryEnabled?: boolean } = {},
+): ValidationResult[] {
   const results: ValidationResult[] = []
 
   results.push(...checkWatershedViolation(slots))
   results.push(...checkAccessibilityMissing(slots))
+
+  if (opts.regulatoryEnabled && opts.events) {
+    results.push(...checkListedEventFta(opts.events, slots))
+  }
 
   return results
 }

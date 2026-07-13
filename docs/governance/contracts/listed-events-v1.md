@@ -75,8 +75,38 @@ confirm(eventId, categoryId), dismiss(eventId) }`. Types: `ListedEventCategory`,
 `ListedEventCategoryInput` (name/fullLiveRequired/besluitRef), `EventListedCategoryLink`
 (confirm/dismiss return).
 
+## Stage-4 check — `LISTED_EVENT_FTA` (RC-1-T3, flag-gated)
+
+Pure `checkListedEventFta(events, slots)` (`services/validation/listedEventFta.ts`), run by
+stage 4 (`validateRegulatory`) ONLY when `REGULATORY_COMPLIANCE_ENABLED` is on AND events
+are threaded. For each event with a **confirmed** listed category whose `fullLiveRequired`
+is true, the event must be broadcast **LIVE + FULL-segment on a free-to-air channel spanning
+the event window**; otherwise → `LISTED_EVENT_FTA`.
+
+- **Severity: provisional WARNING (AS-2)**. The message says `(provisional)` only — the
+  `TODO-ADR-017` governance token lives in CODE COMMENTS + the `severity` field, never in the
+  user-facing message (AS-9). ADR-017 will set the real obligation severity.
+- **Remediation variants** (names the FIRST missing condition): `no-slot` (no scheduled slot)
+  · `continuation-only` (only CONTINUATION, no FULL) · `not-fta` (FULL slot but channel not
+  free-to-air) · `not-live` (not scheduled live) · `partial` (FTA live FULL slot doesn't span
+  the window). Evaluation order: no-slot → continuation-only → not-fta → not-live → partial.
+- **"LIVE" MAPPING / limitation:** `BroadcastSlot` has no planned-live flag (`.status` is a
+  RUNTIME state, PLANNED at validation time), so "live" is taken from **`Event.isLive`** (the
+  only clean model of live-vs-delayed). FULL-segment (`contentSegment='FULL'`), FTA
+  (`channel.isFreeToAir`), and window-spanning are slot-level. Spanning is skipped when the
+  event window is unknown (no false `partial`). Documented in the module header.
+
+**Flag / byte-identity:** `REGULATORY_COMPLIANCE_ENABLED` (env.ts, only literal `'true'`
+enables; rollback = redeploy off). Flag OFF → stage 4 runs watershed + accessibility ONLY,
+byte-identical to baseline (golden master). The route threads `listedFtaEvents` (with the
+same BE-clock-as-UTC window derivation the rights checker uses) + `regulatoryEnabled`;
+`slotInclude` adds `channel.isFreeToAir` + `event.listedCategory` when regulatory is on
+(NOT `channel.timezone`, so watershed keeps its UTC default). No `LISTED_EVENT_FTA` result is
+persisted — it is a validation result, not a stored link. TD-30 registers the pre-existing
+dead `ACCESSIBILITY_MISSING` stub (superseded by RC-2, untouched here).
+
 ## Depends-on / consumers
 
-- **Depends:** RC-1-T1 schema (`ListedEventCategory`, `Event.listedCategoryId` SET NULL).
-- **Consumers:** RC-1-T3 (window/FTA validation codes read the confirmed link); ops event
-  UI (own backlog).
+- **Depends:** RC-1-T1 schema (`ListedEventCategory`, `Event.listedCategoryId` SET NULL,
+  `Channel.isFreeToAir`); the confirmed link from RC-1-T2's `/confirm`.
+- **Consumers:** stage-4 `LISTED_EVENT_FTA` (this task); ops event UI (own backlog).

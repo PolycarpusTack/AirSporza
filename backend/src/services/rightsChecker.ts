@@ -20,6 +20,7 @@ import type { Contract, PrismaClient, RightsWindow } from '@prisma/client'
 import type { ValidationResult } from './validation/types.js'
 import { prisma as defaultPrisma } from '../db/prisma.js'
 import { loadContractRunTally } from './validation/runTally.js'
+import { beClockToUtc } from '../utils/beClock.js'
 import { env } from '../config/env.js'
 
 interface RightsCheckInput {
@@ -473,7 +474,7 @@ export async function checkRightsForEvent(
   const contractIds = candidates.map(c => c.id)
 
   const startUtc = event.startDateBE && event.startTimeBE
-    ? new Date(`${new Date(event.startDateBE).toISOString().slice(0, 10)}T${event.startTimeBE}:00Z`)
+    ? beClockToUtc(event.startDateBE, event.startTimeBE)
     : null
 
   let results: ValidationResult[]

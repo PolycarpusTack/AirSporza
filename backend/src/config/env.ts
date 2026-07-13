@@ -42,6 +42,11 @@ const baseSchema = z.object({
   // `Boolean(value)`, so 'false'/'0' would coerce to TRUE and silently defeat the
   // rollback=redeploy story — hence the string-equality transform.
   RIGHTS_WINDOWS_ENABLED: z.string().optional().transform(v => v === 'true'),
+
+  // RC-1-T3: gates the stage-4 LISTED_EVENT_FTA check (listed-events FTA obligations).
+  // OFF = watershed + accessibility only, byte-identical to baseline. Same safe parse
+  // as RIGHTS_WINDOWS_ENABLED — only the literal 'true' enables; rollback = redeploy off.
+  REGULATORY_COMPLIANCE_ENABLED: z.string().optional().transform(v => v === 'true'),
 })
 
 export type Env = z.infer<typeof baseSchema>
