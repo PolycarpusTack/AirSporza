@@ -5,6 +5,11 @@ export const idParam = z.object({
   id: z.coerce.number().int().positive(),
 })
 
+/** Numeric :eventId route param (e.g., /events/:eventId/deliverables) */
+export const eventIdParam = z.object({
+  eventId: z.coerce.number().int().positive(),
+})
+
 /** UUID route param (e.g., /adapters/:id, /webhooks/:id) */
 export const uuidParam = z.object({
   id: z.string().uuid(),

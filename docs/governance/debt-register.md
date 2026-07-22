@@ -434,6 +434,25 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
   is demoed.
 - **Origin:** RC-2-T1 review chain (code-smell-detector G2/G11), 2026-07-22.
 
+## TD-32 — frontend `ApiError` discards structured error bodies (409 recovery payload unreachable)
+
+- **Artifact:** `src/utils/api.ts` (`api.post`/`ApiError` — status + message string only) vs the RC-2-T2
+  transition 409 body `{ error, message, currentStatus, allowedNext }` (`backend/src/routes/accessibility.ts`).
+- **Type:** contract gap (frontend infrastructure)
+- **Cause:** the shared ApiClient predates structured error bodies; it parses the body only to extract a
+  message. The optimistic-guard recovery affordance (409 tells the caller the real `currentStatus` +
+  `allowedNext`) therefore cannot be consumed by components — they must re-fetch `list()` after a 409.
+- **Principal:** S — add an optional `details?: unknown` (parsed body) to `ApiError`, type it in
+  `accessibilityApi.transition`.
+- **Interest:** **low now, med once UI lands** — no component consumes `accessibilityApi` yet (mutation
+  surfaces are a follow-on initiative); until serviced, every optimistic-guard consumer pays an extra
+  round-trip after each 409.
+- **Compounding:** yes — any future endpoint with a structured error body (this is the second after
+  schedules.ts:278) hits the same wall.
+- **Servicing decision:** service with the FIRST UI consumer of `accessibilityApi` (follow-on ops-mutation
+  initiative), not in RC-2 — the API comment documents the limitation honestly (TD-32 referenced inline).
+- **Origin:** RC-2-T2 review chain (code-smell-detector G22), 2026-07-22.
+
 ---
 
 ## Verification notes (ASM-10 re-check, 2026-06-12)
