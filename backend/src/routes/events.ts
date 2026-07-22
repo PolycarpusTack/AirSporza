@@ -9,6 +9,7 @@ import { createNotification } from '../services/notificationService.js'
 import { detectConflicts, detectConflictsBulk, type ConflictWarning } from '../services/conflictService.js'
 import { writeOutboxEvent } from '../services/outbox.js'
 import { syncEventToSlot, shouldSync, unlinkEventSlot } from '../services/eventSlotBridge.js'
+import { buildDefaultAccessibilityDeliverables } from '../config/accessibility.js'
 import { restrictionsForRequest, stripRestrictedValues } from '../services/fieldVisibility.js'
 import { getPagination, paginationEnvelope } from '../utils/pagination.js'
 import { parseDurationToMinutes } from '../utils/parseDuration.js'
@@ -444,6 +445,14 @@ router.post('/', authenticate, authorize('planner', 'sports', 'admin'), validate
         payload: created,
       })
 
+      // RC-2-T1: seed default accessibility deliverables (additive). skipDuplicates +
+      // unique (eventId, type) make re-seeding a no-op if this block is ever reused for
+      // an existing event; on this fresh-create path no duplicate rows can exist yet.
+      await tx.accessibilityDeliverable.createMany({
+        data: buildDefaultAccessibilityDeliverables(created).map(d => ({ ...d, eventId: created.id, tenantId: req.tenantId! })),
+        skipDuplicates: true,
+      })
+
       // Auto-bridge: create linked BroadcastSlot if event has channel + time
       await syncEventToSlot(created as Parameters<typeof syncEventToSlot>[0], tx as unknown as Parameters<typeof syncEventToSlot>[1])
 
@@ -508,6 +517,14 @@ router.post('/batch', authenticate, authorize('planner', 'sports', 'admin'), val
           aggregateType: 'Event',
           aggregateId: String(event.id),
           payload: event,
+        })
+
+        // RC-2-T1: seed default accessibility deliverables (additive). skipDuplicates +
+        // unique (eventId, type) make re-seeding a no-op if this block is ever reused for
+        // an existing event; on this fresh-create path no duplicate rows can exist yet.
+        await tx.accessibilityDeliverable.createMany({
+          data: buildDefaultAccessibilityDeliverables(event).map(d => ({ ...d, eventId: event.id, tenantId: req.tenantId! })),
+          skipDuplicates: true,
         })
 
         // Auto-bridge: create linked BroadcastSlot

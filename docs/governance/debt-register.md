@@ -394,7 +394,14 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
   separate defect fix before the golden master (memo §5.1).
 - **Origin:** domain-gaps backlog survey §6 (candidate), formally registered by RD-1 spike, 2026-07-02.
 
-## TD-30 — `checkAccessibilityMissing` reads fields nothing writes (dead stage-4 check)
+## TD-30 ✅ settled (RC-2-T3, 2026-07-22) — `checkAccessibilityMissing` reads fields nothing writes (dead stage-4 check)
+
+- **Settlement:** stub removed in RC-2-T3 (same FEATURE Hat per backlog — dead code with zero behavioral consumers,
+  re-verified by grep at removal time: only its definition/call in `validation/regulatory.ts` plus the golden-master
+  pin). Superseded by the flag-gated `ACCESSIBILITY_UNPLANNED` check (`validation/accessibilityUnplanned.ts`), which
+  reads real `AccessibilityDeliverable` rows with a configurable lead time. The RC-1-T3 flag-OFF golden master
+  (`tests/regulatory-golden.test.ts`) pinned the stub's output, so it was **deliberately regenerated** (documented in
+  its header): flag-OFF stage-4 baseline is now watershed-only. Original entry kept below for the record.
 
 - **Artifact:** `checkAccessibilityMissing` in `backend/src/services/validation/regulatory.ts` — emits
   `ACCESSIBILITY_MISSING` (WARNING) when `slot.sportMetadata.hasSubtitles`/`hasAudioDescription` are both falsy.
@@ -410,6 +417,48 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
   check that reads actual deliverables. RC-1-T3 adds the flag-gated `LISTED_EVENT_FTA` check ALONGSIDE it without
   touching it. Registration only here — do NOT fix in RC-1-T3.
 - **Origin:** observed while wiring stage 4 for RC-1-T3 (LISTED_EVENT_FTA), 2026-07-13.
+
+## TD-31 — import-path event creation does not seed accessibility deliverables
+
+- **Artifact:** `backend/src/import/stages/provision.ts:813`, `:941` and `backend/src/routes/csvImport.ts:50` —
+  three `tx.event.create` sites with NO `accessibilityDeliverable.createMany` seeding hook.
+- **Type:** correctness gap (Core Domain — RC-2 accessibility defaulting)
+- **Cause:** RC-2-T1's DoR-approved spec scoped the defaulting hook to the two `events.ts` create routes
+  (POST `/` + POST `/batch`). Imported events therefore get NO deliverable rows — including no
+  T888=REQUIRED — silently bypassing the defaulting mechanism the config header promises
+  ("never silently drops the subtitling obligation"). Flagged by the RC-2-T1 review chain (smell G2/G11).
+- **Principal:** S — extract `seedDefaultAccessibilityDeliverables(tx, event, tenantId)` into a service
+  (placement mirroring `syncEventToSlot`/`writeOutboxEvent`) and call it from all five creation sites.
+  Extraction also crosses the Rule-of-Three threshold the moment any import site is added — do both together.
+- **Interest:** **med** — every import run creates events invisible to RC-2-T2's KPI aggregation
+  (coverage % silently overstated: missing rows aren't counted as missing) and to the RC-2-T3
+  `ACCESSIBILITY_UNPLANNED` check (no REQUIRED row → no warning).
+- **Compounding:** yes — RC-2-T2 (KPI endpoint) and RC-2-T3 (stage-4 check) both read these rows;
+  the longer imports bypass seeding, the more backfill is needed at servicing time.
+- **Servicing decision:** service **within EPIC RC, no later than RC-2-T3** (before the KPI endpoint is
+  relied on): extract the service, wire the three import sites, backfill missing rows for existing
+  imported events in the same migration. Architect may pull it earlier into RC-2-T2 if KPI accuracy
+  is demoed.
+- **Origin:** RC-2-T1 review chain (code-smell-detector G2/G11), 2026-07-22.
+
+## TD-32 — frontend `ApiError` discards structured error bodies (409 recovery payload unreachable)
+
+- **Artifact:** `src/utils/api.ts` (`api.post`/`ApiError` — status + message string only) vs the RC-2-T2
+  transition 409 body `{ error, message, currentStatus, allowedNext }` (`backend/src/routes/accessibility.ts`).
+- **Type:** contract gap (frontend infrastructure)
+- **Cause:** the shared ApiClient predates structured error bodies; it parses the body only to extract a
+  message. The optimistic-guard recovery affordance (409 tells the caller the real `currentStatus` +
+  `allowedNext`) therefore cannot be consumed by components — they must re-fetch `list()` after a 409.
+- **Principal:** S — add an optional `details?: unknown` (parsed body) to `ApiError`, type it in
+  `accessibilityApi.transition`.
+- **Interest:** **low now, med once UI lands** — no component consumes `accessibilityApi` yet (mutation
+  surfaces are a follow-on initiative); until serviced, every optimistic-guard consumer pays an extra
+  round-trip after each 409.
+- **Compounding:** yes — any future endpoint with a structured error body (this is the second after
+  schedules.ts:278) hits the same wall.
+- **Servicing decision:** service with the FIRST UI consumer of `accessibilityApi` (follow-on ops-mutation
+  initiative), not in RC-2 — the API comment documents the limitation honestly (TD-32 referenced inline).
+- **Origin:** RC-2-T2 review chain (code-smell-detector G22), 2026-07-22.
 
 ---
 

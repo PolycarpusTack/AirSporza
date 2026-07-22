@@ -125,7 +125,7 @@ entity (→ Exclusivity Tier value `OPEN_NET`).
 
 | ID | Assumption | Impact | Verify by |
 |---|---|---|---|
-| AS-1 ⚠ **High-impact gate** | KPI numbers cited from the **2021-2025** beheersovereenkomst (99% T888, ≥90% online subtitling, 32 sports, 30% Sporza share, AD expansion) hold in the **2026-2030** agreement (signed July 2025). **No RC acceptance criterion referencing a KPI number is final until re-verified** (gap analysis caveat §6.3). **Still open — RC-0-T1 people-work.** | RC-2 AC thresholds, RC-3 targets | RC-0-T1 — blocking gate for RC-2/RC-3 DoR |
+| AS-1 ⚠ **High-impact gate** | KPI numbers cited from the **2021-2025** beheersovereenkomst (99% T888, ≥90% online subtitling, 32 sports, 30% Sporza share, AD expansion) hold in the **2026-2030** agreement (signed July 2025). **No RC acceptance criterion referencing a KPI number is final until re-verified** (gap analysis caveat §6.3). **Still open — RC-0-T1 people-work.** | RC-2 AC thresholds, RC-3 targets | RC-0-T1 — gates the RC-2/RC-3 config **VALUES** (KPI % + exclusion set, landed as config edits), **not** their code/DoR (un-HELD 2026-07-13 via `TODO-KPI`, mirroring AS-3→RC-0-T3 for RC-1) |
 | AS-2 ⚠ **High-impact gate** | Planza's regulatory posture is **validate + annotate (WARNING), never block publish**, until ADR-017 decides otherwise (Q2: enforcement boundary vs traffic/playout). All RC validation severities are provisional WARNINGs. **Still open — RC-0-T2.** | All RC severities; G13 deferral | RC-0-T2 (ADR-017) |
 | AS-3 | The Flemish listed-events list (2004, under parliamentary revision — caveat §6.4) is modelled as **seeded, editable data**, never as code constants; a list update is a data change, not a release. | RC-1 design | Inherent (design constraint) |
 | AS-4 | Rights Window categories = existing `CoverageType` enum + `ARCHIVE`; VRT contracts meaningfully distinguish territory, exclusivity and live/delayed/highlights (Q1). If Q1 reveals fewer dimensions in practice, unused categories stay in the enum, unused validation stays flag-off — no rework. **Accepted-now path confirmed by architect (ADR-015 Acceptance record §3): Q1 is informative, not blocking — answers calibrate defaults, they do not gate RD-2..RD-5.** **RD retro note:** RD-2..RD-5 shipped without Q1; Q1 now gates RD-7/RD-8 (slot-level coverage-category + territory) — see §7. | RD-2/RD-3 scope (shipped); RD-7/RD-8 scope | Q1 packet `docs/plans/rd-1-q1-stakeholder-questions.md` (informative for RD-2..RD-5; a gate for RD-7/RD-8) |
@@ -556,7 +556,9 @@ Business Value 3 · Priority 5 · Size **S** · DoR: **READY** (the *gate itself
   (Low if the agreement text is not accessible → escalate to stakeholder immediately)
   Goal: KPI re-verification table (claimed 2021-25 value vs verified 2026-30 value vs delta) appended to the
   Assumptions Ledger; flag every changed number to the RC-2/RC-3 ACs.
-  Unblocks: RC-0-T2, RC-2 DoR, RC-3 DoR.
+  Unblocks: RC-0-T2; **RC-2/RC-3 config-data finalization** (the verified KPI % + exclusion set land as config edits,
+  no deploy) — **NOT** RC-2/RC-3 *code*, which ships flag-off with provisional `TODO-KPI` config (RC-2 DoR un-HELD
+  2026-07-13, mirroring how RC-0-T3 finalizes RC-1's legal list without gating RC-1's code).
 - **RC-0-T2** · Hat **PREPARATORY** · Model **Opus** · Confidence Med
   Goal: Stakeholder session on Q2 (Q4 opportunistic) → author + accept
   `docs/governance/adr/ADR-017-regulatory-enforcement-boundary.md`; set final severities for RC-1-T3/RC-2-T3;
@@ -636,10 +638,18 @@ rule set — already data-not-code per AS-3, which satisfies the per-tenant cons
 subtitling, audio description, VGT) with a lifecycle status **so that** the 99%* T888 KPI is planned per event
 instead of reconstructed after the fact. (*number provisional — AS-1)
 
-Business Value 3 · Priority 5 · Size **L** · DoR: **HOLD → READY when RC-0-T1 confirms KPI numbers** (structure is
-ready; AC thresholds provisional) · INVEST I✓ N✓ V✓ E✓ S✓ T✓
+Business Value 3 · Priority 5 · Size **L** · DoR: **READY** (un-HELD 2026-07-13, RC-2 DoR refinement — AS-1 gates
+KPI *numbers*, not *mechanisms*; same class as RC-1's legal-seed gap). The mechanism ships flag-off; the **two
+AS-1-gated config VALUES** — the T888 KPI **target %** and the **sport-exclusion defaulting set** — are marked
+provisional **`TODO-KPI`**, read from config with a provisional default, and verified via RC-0-T1 as a config edit
+(AS-3-class, no deploy — mirroring RC-0-T3 for RC-1's legal list). `ACCESSIBILITY_UNPLANNED` severity is provisional
+`WARNING` per AS-2 until ADR-017. Everything structural (model, state machine, check, KPI reconciliation) is
+unblocked. · INVEST I✓ N✓ V✓ E✓ S✓ T✓
 Framing note (AS-10): deliverable types, defaulting policy and KPI targets are tenant configuration (VRT
-beheersovereenkomst = first configuration, read from config per the KPI AC); ACs unchanged this pass.
+beheersovereenkomst = first configuration, read from config per the KPI AC); ACs unchanged this pass. **AS-1 gates
+KPI numbers, not mechanisms — `TODO-KPI` marks the two provisional config values (target %, exclusion set); RC-0-T1
+verifies them as data, exactly as RC-0-T3 verifies RC-1's legal list. Structural tests assert the MECHANISM, never
+that the config values are legally/contractually correct.**
 
 **AC (Gherkin):**
 - Given a new event with any broadcast slot, When it is created/bridged, Then a T888 deliverable row defaults to
@@ -663,8 +673,12 @@ beheersovereenkomst = first configuration, read from config per the KPI AC); ACs
 - **RC-2-T1** · Hat **PREPARATORY** · Model **Sonnet** · Confidence High
   Goal: Migration: `AccessibilityDeliverable` (eventId, type, status, updatedBy, timestamps) + RLS + rollback;
   defaulting hook on event/slot creation (`eventSlotBridge` + event routes — additive, no behavior change to slots).
-  TDD: migration + defaulting tests first.
-  Pull Gate: RC-0-T1 (KPI numbers → defaulting policy confirmed); no migration collisions.
+  TDD: migration structural-integrity + defaulting-MECHANISM tests first (new event → T888 row per the config
+  exclusion set; an excluded sport → NOT_REQUIRED; round-trip) — do NOT assert the exclusion set is legally/
+  contractually correct (that oracle is RC-0-T1, mirroring RC-1's RC-0-T3).
+  Pull Gate: no migration collisions; ADR-011 RLS checklist. **RC-0-T1 is NOT a pull gate on this task** — the
+  defaulting hook reads the sport-exclusion set from config with a provisional `TODO-KPI` default; RC-0-T1 lands the
+  verified set as a config edit (no deploy). References no KPI number.
   Unblocks: RC-2-T2.
 - **RC-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
   Goal: CRUD + transition state machine + audit fields + `accessibilityApi` + KPI aggregation endpoint (config-read
@@ -676,7 +690,10 @@ beheersovereenkomst = first configuration, read from config per the KPI AC); ACs
   Goal: Stage-4 `ACCESSIBILITY_UNPLANNED` check (lead-time N configurable) + **removal of the dead
   `ACCESSIBILITY_MISSING` stub** + flag gating + golden-master for flag-off.
   TDD: check tests first incl. lead-time boundaries.
-  Pull Gate: `accessibility v1`; confirm stub truly has no consumers (grep codes in frontend).
+  Pull Gate: `accessibility v1`; **stub removal gated SOLELY on the grep confirmation** (no `ACCESSIBILITY_MISSING`
+  consumers — verified: only its backend definition exists, no frontend/other reference) — **NOT AS-1**. If the grep
+  ever finds a consumer, split a REFACTORING task first (two-hats). Severity provisional `WARNING` + `TODO-ADR` if
+  RC-0-T2 still open (RC-1-T3 precedent). Sequenced after RC-1-T3 (which kept the stub alive until RC-2 replaces it).
   Unblocks: RC-4-T1, END OF STORY SEQUENCE.
 
 ---
