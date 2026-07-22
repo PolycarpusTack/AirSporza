@@ -394,7 +394,14 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
   separate defect fix before the golden master (memo §5.1).
 - **Origin:** domain-gaps backlog survey §6 (candidate), formally registered by RD-1 spike, 2026-07-02.
 
-## TD-30 — `checkAccessibilityMissing` reads fields nothing writes (dead stage-4 check)
+## TD-30 ✅ settled (RC-2-T3, 2026-07-22) — `checkAccessibilityMissing` reads fields nothing writes (dead stage-4 check)
+
+- **Settlement:** stub removed in RC-2-T3 (same FEATURE Hat per backlog — dead code with zero behavioral consumers,
+  re-verified by grep at removal time: only its definition/call in `validation/regulatory.ts` plus the golden-master
+  pin). Superseded by the flag-gated `ACCESSIBILITY_UNPLANNED` check (`validation/accessibilityUnplanned.ts`), which
+  reads real `AccessibilityDeliverable` rows with a configurable lead time. The RC-1-T3 flag-OFF golden master
+  (`tests/regulatory-golden.test.ts`) pinned the stub's output, so it was **deliberately regenerated** (documented in
+  its header): flag-OFF stage-4 baseline is now watershed-only. Original entry kept below for the record.
 
 - **Artifact:** `checkAccessibilityMissing` in `backend/src/services/validation/regulatory.ts` — emits
   `ACCESSIBILITY_MISSING` (WARNING) when `slot.sportMetadata.hasSubtitles`/`hasAudioDescription` are both falsy.

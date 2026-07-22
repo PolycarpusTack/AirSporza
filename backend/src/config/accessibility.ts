@@ -24,6 +24,19 @@ export const ACCESSIBILITY_KPI_TARGET_PCT_BY_TYPE: Readonly<Record<Accessibility
 }
 
 /**
+ * Lead time N (days) for the stage-4 `ACCESSIBILITY_UNPLANNED` check (RC-2-T3): an
+ * event whose slot starts within N days and still has a REQUIRED deliverable not yet
+ * ≥ PLANNED gets a validation warning.
+ *
+ * PROVISIONAL ops-tunable default — 14 days is a planning-horizon guess, NOT a
+ * verified operational or contractual number (unlike the TODO-KPI values above it is
+ * not AS-1-gated; ops adjusts it as a config edit, no deploy semantics beyond
+ * restart). Tests assert the MECHANISM (an injected N is respected and this default
+ * is what applies when none is injected), never that 14 is correct.
+ */
+export const ACCESSIBILITY_UNPLANNED_LEAD_TIME_DAYS = 14
+
+/**
  * Default accessibility deliverable rows for a NEW event (RC-2-T1). Pure — the
  * exclusion set is injected (defaults to the provisional config set above), so the
  * mechanism is testable without asserting the set's legal correctness.

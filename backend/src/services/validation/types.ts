@@ -36,8 +36,17 @@ export interface ValidationContext {
   windowsEnabled?: boolean
 
   // --- RC-1-T3 stage-4 listed-events FTA (populated ONLY when REGULATORY_COMPLIANCE
-  //     is ON). Absent → stage 4 runs watershed + accessibility only (byte-identical).
+  //     is ON). Absent → stage 4 runs watershed only (byte-identical).
   /** Normalized listed obligation events for the LISTED_EVENT_FTA check. */
   listedFtaEvents?: import('./listedEventFta.js').ListedFtaEvent[]
+  // --- RC-2-T3 stage-4 accessibility lead-time check (populated ONLY when
+  //     REGULATORY_COMPLIANCE is ON). Absent → ACCESSIBILITY_UNPLANNED does not run.
+  /** Events + their deliverable rows, the injected clock, and an optional lead-time
+   *  override (default: `ACCESSIBILITY_UNPLANNED_LEAD_TIME_DAYS` config). */
+  accessibilityUnplanned?: {
+    events: import('./accessibilityUnplanned.js').AccessibilityUnplannedEvent[]
+    now: Date | string
+    leadTimeDays?: number
+  }
   regulatoryEnabled?: boolean
 }

@@ -6,6 +6,7 @@ import { createError } from '../middleware/errorHandler.js'
 import { validateSchedule, type ValidationContext, type RightsPolicy } from '../services/validation/index.js'
 import { loadContractRunTally } from '../services/validation/runTally.js'
 import type { ListedFtaEvent } from '../services/validation/listedEventFta.js'
+import type { AccessibilityUnplannedEvent } from '../services/validation/accessibilityUnplanned.js'
 import { beClockToUtc } from '../utils/beClock.js'
 import { env } from '../config/env.js'
 import { writeOutboxEvent } from '../services/outbox.js'
@@ -109,6 +110,30 @@ function buildListedFtaEvents(events: any[]): ListedFtaEvent[] {
 }
 
 /**
+ * RC-2-T3 (flag ON only): events + their AccessibilityDeliverable rows for the
+ * stage-4 ACCESSIBILITY_UNPLANNED lead-time check. Tenant-scoped read; `now` is
+ * injected HERE so the pure check never reads the clock. Lead time N stays on its
+ * config default (`ACCESSIBILITY_UNPLANNED_LEAD_TIME_DAYS`) — no per-request override.
+ */
+async function buildAccessibilityUnplannedInput(
+  tenantId: string, eventIds: number[],
+): Promise<{ events: AccessibilityUnplannedEvent[]; now: Date }> {
+  const now = new Date()
+  if (eventIds.length === 0) return { events: [], now }
+  const rows = await prisma.accessibilityDeliverable.findMany({
+    where: { tenantId, eventId: { in: eventIds } },
+    select: { eventId: true, type: true, status: true },
+  })
+  const byEvent = new Map<number, AccessibilityUnplannedEvent>()
+  for (const row of rows) {
+    const bucket = byEvent.get(row.eventId)
+    if (bucket) bucket.deliverables.push({ type: row.type, status: row.status })
+    else byEvent.set(row.eventId, { id: row.eventId, deliverables: [{ type: row.type, status: row.status }] })
+  }
+  return { events: [...byEvent.values()], now }
+}
+
+/**
  * Build the stage 1-5 ValidationContext for the validate + publish routes — ONE place
  * so the two routes stay in lock-step (was hand-duplicated). Flag OFF for both flags →
  * base context only (rightsPolicies + `existingRuns: []`), byte-identical to baseline.
@@ -126,9 +151,11 @@ async function buildScheduleValidationContext(
   if (flags.windowsEnabled) {
     Object.assign(context, await buildWindowContext(tenantId, competitionIds, events.map(e => e.id)))
   }
-  // Flag ON: stage-4 listed-events FTA. Flag OFF: skipped — stage 4 byte-identical.
+  // Flag ON: stage-4 listed-events FTA + accessibility lead-time. Flag OFF: skipped —
+  // stage 4 byte-identical (no extra query either).
   if (flags.regulatoryEnabled) {
     context.listedFtaEvents = buildListedFtaEvents(events)
+    context.accessibilityUnplanned = await buildAccessibilityUnplannedInput(tenantId, events.map(e => e.id))
     context.regulatoryEnabled = true
   }
   return context
