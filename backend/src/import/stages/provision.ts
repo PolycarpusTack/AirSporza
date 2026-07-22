@@ -7,6 +7,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../db/prisma.js'
 import { writeOutboxEvent } from '../../services/outbox.js'
+import { seedDefaultAccessibilityDeliverables } from '../../services/accessibility/seeding.js'
 import { logger } from '../../utils/logger.js'
 import {
   getFieldSourceCodes,
@@ -818,6 +819,8 @@ export async function upsertEvent(sourceId: string, tenantId: string, rawRecord:
       }
     })
     await writeOutboxEvent(tx, { tenantId: event.tenantId, eventType: 'event.created', aggregateType: 'Event', aggregateId: String(event.id), payload: event })
+    // TD-31: seed default accessibility deliverables — mandatory at every event-creation site.
+    await seedDefaultAccessibilityDeliverables(tx, event)
     return event
   })
 
@@ -946,6 +949,8 @@ export async function manualCreateNormalizedEvent(params: {
       }
     })
     await writeOutboxEvent(tx, { tenantId: event.tenantId, eventType: 'event.created', aggregateType: 'Event', aggregateId: String(event.id), payload: event })
+    // TD-31: seed default accessibility deliverables — mandatory at every event-creation site.
+    await seedDefaultAccessibilityDeliverables(tx, event)
     return event
   })
 

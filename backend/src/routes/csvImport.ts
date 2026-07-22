@@ -7,6 +7,7 @@ import { createError } from '../middleware/errorHandler.js'
 import { parseCsvRow } from '../import/adapters/CsvAdapter.js'
 import { prisma } from '../db/prisma.js'
 import { writeOutboxEvent } from '../services/outbox.js'
+import { seedDefaultAccessibilityDeliverables } from '../services/accessibility/seeding.js'
 import * as s from '../schemas/csvImport.js'
 
 const router = Router()
@@ -82,6 +83,9 @@ router.post(
             aggregateId: String(event.id),
             payload: event,
           })
+
+          // TD-31: seed default accessibility deliverables — mandatory at every event-creation site.
+          await seedDefaultAccessibilityDeliverables(tx, event)
 
           events.push(event)
         }

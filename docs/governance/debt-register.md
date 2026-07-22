@@ -418,7 +418,7 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
   touching it. Registration only here — do NOT fix in RC-1-T3.
 - **Origin:** observed while wiring stage 4 for RC-1-T3 (LISTED_EVENT_FTA), 2026-07-13.
 
-## TD-31 — import-path event creation does not seed accessibility deliverables
+## TD-31 — import-path event creation does not seed accessibility deliverables — ✅ SETTLED (TD-31 servicing, 2026-07-22)
 
 - **Artifact:** `backend/src/import/stages/provision.ts:813`, `:941` and `backend/src/routes/csvImport.ts:50` —
   three `tx.event.create` sites with NO `accessibilityDeliverable.createMany` seeding hook.
@@ -440,6 +440,18 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
   imported events in the same migration. Architect may pull it earlier into RC-2-T2 if KPI accuracy
   is demoed.
 - **Origin:** RC-2-T1 review chain (code-smell-detector G2/G11), 2026-07-22.
+- **Settlement (2026-07-22, two Hats):** REFACTORING — seeding hook extracted to
+  `backend/src/services/accessibility/seeding.ts` (`seedDefaultAccessibilityDeliverables(tx, event)`;
+  tenantId read from the event row itself, so a caller cannot seed under a different tenant; both
+  events.ts sites call it). FEATURE — all three import sites (`provision.ts` upsertEvent +
+  manualCreateNormalizedEvent, `csvImport.ts`) call the service in the same tx (tests:
+  `import-accessibility-seeding.test.ts`, `csvImport-accessibility-seeding.test.ts`); backfill
+  migration `20260722120000_backfill_accessibility_deliverables` inserts missing rows for ALL
+  existing events (T888=REQUIRED per the TODO-KPI empty exclusion set, AD/VGT=NOT_REQUIRED,
+  ON CONFLICT DO NOTHING; gated reconciliation test `accessibilityBackfill.test.ts`).
+- **Residual (accepted):** the "every creation site calls the service" rule is a convention, not a
+  structure — a future sixth `tx.event.create` site could skip it. Mitigation: the service header
+  states the rule; re-check at any story that adds an event writer.
 
 ## TD-32 — frontend `ApiError` discards structured error bodies (409 recovery payload unreachable)
 
