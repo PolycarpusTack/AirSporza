@@ -1,4 +1,18 @@
-# Continue: Domain-Gaps Initiative — Session Kickoff (saved 2026-07-13 for reboot)
+# Continue: Domain-Gaps Initiative — Session Kickoff (updated 2026-07-22: RC-2 COMPLETE)
+
+> **2026-07-22 UPDATE — supersedes the "FIRST THING" section below.** Story RC-2 is DONE on
+> `feature/RC-2-accessibility`: T1 `775a77b` (model+migration+defaulting hook), T2 `473ca36`
+> (state machine + accessibilityApi + KPI, snapshot `accessibility v1`), T3 `6910ff7`
+> (`ACCESSIBILITY_UNPLANNED` + TD-30 stub removal + golden-master regen). Each task ran the full
+> review chain with fixes applied. Backend 650 pass / 38 skipped, backend+root tsc clean,
+> frontend 838 pass. Debt: TD-30 SETTLED; **TD-31 registered** (import-path event creates don't
+> seed deliverables — service within EPIC RC); **TD-32 registered** (frontend ApiError discards
+> structured 409 body — service with first UI consumer). **Open architect decisions:** (A)
+> lifecycle undo/backward transitions not modelled; (B) T888 per-event override locked to config
+> policy; (C) KPI targets global config vs per-tenant; (D) `ACCESSIBILITY_UNPLANNED` severity +
+> lead-time N=14 provisional pending ADR-017/ops. **Next:** RC-2 PR merge decision, then RC-0
+> people-work (KPI verify RC-0-T1, ADR-017 session RC-0-T2, seed-list RC-0-T3) and/or RC-3
+> (HELD) / RC-4 — see "Standing open threads" below (still accurate).
 
 > Paste into a fresh Claude Code session in `C:\Projects\Planza` to resume. The auto-memory
 > `domain-gaps-initiative` has the same state in short form. **Execution mode: DELIVERY, full
