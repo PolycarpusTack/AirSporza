@@ -115,6 +115,7 @@ describe('Event Endpoints', () => {
     it('should create an event with valid data', async () => {
       const createdEvent = {
         id: 1,
+        tenantId: 'tenant-1',
         sportId: 1,
         competitionId: 1,
         participants: 'Test Team A vs Test Team B',
@@ -187,6 +188,7 @@ describe('Event Endpoints', () => {
   describe('POST /api/events/batch', () => {
     it('should seed default accessibility deliverables for every created event', async () => {
       const base = {
+        tenantId: 'tenant-1',
         sportId: 1,
         competitionId: 1,
         startDateBE: '2026-06-15',
