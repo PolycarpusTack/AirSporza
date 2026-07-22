@@ -3,6 +3,7 @@ import request from 'supertest'
 import { buildApp } from '../src/index.js'
 const app = buildApp()
 import { prisma } from '../src/db/prisma.js'
+import { buildDefaultAccessibilityDeliverables } from '../src/config/accessibility.js'
 
 vi.mock('../src/db/prisma.js', () => ({
   prisma: {
@@ -127,11 +128,14 @@ describe('Event Endpoints', () => {
         channel: null,
       }
 
+      // RC-2-T1: event create now seeds default accessibility deliverables.
+      const seedDeliverables = vi.fn().mockResolvedValue({ count: 3 })
       mp.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
         const txMock = {
           event: { create: vi.fn().mockResolvedValue(createdEvent) },
           customFieldValue: { upsert: vi.fn().mockResolvedValue({}) },
           outboxEvent: { create: vi.fn().mockResolvedValue({}) },
+          accessibilityDeliverable: { createMany: seedDeliverables },
           broadcastSlot: {
             findFirst: vi.fn().mockResolvedValue(null),
             create: vi.fn().mockResolvedValue({}),
@@ -158,6 +162,10 @@ describe('Event Endpoints', () => {
 
       expect(response.body).toHaveProperty('id')
       expect(response.body.participants).toBe('Test Team A vs Test Team B')
+      expect(seedDeliverables).toHaveBeenCalledWith({
+        data: buildDefaultAccessibilityDeliverables(createdEvent).map(d => ({ ...d, eventId: createdEvent.id, tenantId: 'tenant-1' })),
+        skipDuplicates: true,
+      })
     })
 
     it('should reject invalid sportId (0)', async () => {
@@ -173,6 +181,57 @@ describe('Event Endpoints', () => {
         .expect(400)
 
       expect(response.body.error).toBe('Validation failed')
+    })
+  })
+
+  describe('POST /api/events/batch', () => {
+    it('should seed default accessibility deliverables for every created event', async () => {
+      const base = {
+        sportId: 1,
+        competitionId: 1,
+        startDateBE: '2026-06-15',
+        startTimeBE: '14:00',
+        sport: { id: 1, name: 'Football' },
+        competition: { id: 1, name: 'Pro League' },
+        channel: null,
+      }
+      const createdA = { ...base, id: 11, participants: 'Test Team A vs Test Team B' }
+      const createdB = { ...base, id: 12, participants: 'Test Team C vs Test Team D' }
+
+      const seedDeliverables = vi.fn().mockResolvedValue({ count: 3 })
+      mp.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        const txMock = {
+          event: { create: vi.fn().mockResolvedValueOnce(createdA).mockResolvedValueOnce(createdB) },
+          customFieldValue: { upsert: vi.fn().mockResolvedValue({}) },
+          outboxEvent: { create: vi.fn().mockResolvedValue({}) },
+          accessibilityDeliverable: { createMany: seedDeliverables },
+          broadcastSlot: {
+            findFirst: vi.fn().mockResolvedValue(null),
+            create: vi.fn().mockResolvedValue({}),
+            update: vi.fn().mockResolvedValue({}),
+          },
+        }
+        return fn(txMock)
+      })
+      mp.auditLog.create.mockResolvedValue({})
+
+      await request(app)
+        .post('/api/events/batch')
+        .send({
+          events: [
+            { sportId: 1, competitionId: 1, participants: 'Test Team A vs Test Team B', startDateBE: '2026-06-15', startTimeBE: '14:00' },
+            { sportId: 1, competitionId: 1, participants: 'Test Team C vs Test Team D', startDateBE: '2026-06-15', startTimeBE: '15:00' },
+          ],
+        })
+        .expect(201)
+
+      expect(seedDeliverables).toHaveBeenCalledTimes(2)
+      for (const [i, created] of [createdA, createdB].entries()) {
+        expect(seedDeliverables).toHaveBeenNthCalledWith(i + 1, {
+          data: buildDefaultAccessibilityDeliverables(created).map(d => ({ ...d, eventId: created.id, tenantId: 'tenant-1' })),
+          skipDuplicates: true,
+        })
+      }
     })
   })
 

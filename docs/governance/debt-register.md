@@ -411,6 +411,29 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
   touching it. Registration only here — do NOT fix in RC-1-T3.
 - **Origin:** observed while wiring stage 4 for RC-1-T3 (LISTED_EVENT_FTA), 2026-07-13.
 
+## TD-31 — import-path event creation does not seed accessibility deliverables
+
+- **Artifact:** `backend/src/import/stages/provision.ts:813`, `:941` and `backend/src/routes/csvImport.ts:50` —
+  three `tx.event.create` sites with NO `accessibilityDeliverable.createMany` seeding hook.
+- **Type:** correctness gap (Core Domain — RC-2 accessibility defaulting)
+- **Cause:** RC-2-T1's DoR-approved spec scoped the defaulting hook to the two `events.ts` create routes
+  (POST `/` + POST `/batch`). Imported events therefore get NO deliverable rows — including no
+  T888=REQUIRED — silently bypassing the defaulting mechanism the config header promises
+  ("never silently drops the subtitling obligation"). Flagged by the RC-2-T1 review chain (smell G2/G11).
+- **Principal:** S — extract `seedDefaultAccessibilityDeliverables(tx, event, tenantId)` into a service
+  (placement mirroring `syncEventToSlot`/`writeOutboxEvent`) and call it from all five creation sites.
+  Extraction also crosses the Rule-of-Three threshold the moment any import site is added — do both together.
+- **Interest:** **med** — every import run creates events invisible to RC-2-T2's KPI aggregation
+  (coverage % silently overstated: missing rows aren't counted as missing) and to the RC-2-T3
+  `ACCESSIBILITY_UNPLANNED` check (no REQUIRED row → no warning).
+- **Compounding:** yes — RC-2-T2 (KPI endpoint) and RC-2-T3 (stage-4 check) both read these rows;
+  the longer imports bypass seeding, the more backfill is needed at servicing time.
+- **Servicing decision:** service **within EPIC RC, no later than RC-2-T3** (before the KPI endpoint is
+  relied on): extract the service, wire the three import sites, backfill missing rows for existing
+  imported events in the same migration. Architect may pull it earlier into RC-2-T2 if KPI accuracy
+  is demoed.
+- **Origin:** RC-2-T1 review chain (code-smell-detector G2/G11), 2026-07-22.
+
 ---
 
 ## Verification notes (ASM-10 re-check, 2026-06-12)

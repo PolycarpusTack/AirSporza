@@ -123,6 +123,7 @@ model Tenant {
   rightsPolicies        RightsPolicy[]
   rightsWindows         RightsWindow[]
   listedEventCategories ListedEventCategory[]
+  accessibilityDeliverables AccessibilityDeliverable[]
   runLedgerEntries      RunLedger[]
   outboxEvents          OutboxEvent[]
   cascadeEstimates      CascadeEstimate[]
@@ -279,6 +280,7 @@ model Event {
   broadcastSlots         BroadcastSlot[]
   broadcastSlotsFallback BroadcastSlot[]   @relation("BroadcastSlotFallback")
   cascadeEstimates       CascadeEstimate[]
+  accessibilityDeliverables AccessibilityDeliverable[]
 
   @@index([sportId])
   @@index([competitionId])
@@ -319,6 +321,40 @@ model ListedEventCategory {
 
   @@index([tenantId])
   @@index([sportId])
+}
+
+// RC-2 — Accessibility deliverables (subtitling T888, audio description, VGT sign
+// language) per event. One row per (event, type). Status is the delivery lifecycle.
+enum AccessibilityType {
+  T888
+  AUDIO_DESCRIPTION
+  VGT
+}
+
+enum AccessibilityStatus {
+  NOT_REQUIRED
+  REQUIRED
+  PLANNED
+  CONFIRMED
+  DELIVERED
+}
+
+model AccessibilityDeliverable {
+  id        Int                 @id @default(autoincrement())
+  tenantId  String              @db.Uuid
+  eventId   Int
+  type      AccessibilityType
+  status    AccessibilityStatus
+  updatedBy String?             @db.Uuid // who last transitioned the status (audit)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, type])
+  @@index([tenantId])
+  @@index([eventId])
 }
 
 model TechPlan {
