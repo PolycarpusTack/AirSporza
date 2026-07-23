@@ -9,14 +9,29 @@ import { Prisma, PrismaClient, BroadcastSlotStatus, type Event, type Channel, ty
 import { prisma as defaultPrisma } from '../db/prisma.js'
 import { logger } from '../utils/logger.js'
 
-/** Fields that trigger a slot sync when changed */
-const TRIGGER_FIELDS = new Set([
+/**
+ * Ordered trigger-field list — THE single source of truth (SV-2 review C1):
+ * both the bridge's own Set below AND the feed-ripple capture's
+ * `RIPPLE_TRIGGER_FIELDS` (services/ripple/capturePayloads.ts) derive from this
+ * array, so a future 6th trigger field cannot silently bypass ripple capture
+ * (which would re-open G8 for that field).
+ */
+export const TRIGGER_FIELDS = [
   'channelId', 'startDateBE', 'startTimeBE', 'durationMin', 'status',
-])
+] as const
+
+/** Fields that trigger a slot sync when changed */
+const TRIGGER_FIELD_SET = new Set<string>(TRIGGER_FIELDS)
+
+/** Fallback timezone when a channel carries none (also used by ripple capture). */
+export const DEFAULT_CHANNEL_TIMEZONE = 'Europe/Brussels'
+
+/** Default slot duration when the event carries no durationMin. */
+const DEFAULT_SLOT_DURATION_MIN = 90
 
 /** Check if any trigger field changed between old and new event */
 export function shouldSync(oldEvent: Partial<Event>, newEvent: Partial<Event>): boolean {
-  for (const field of TRIGGER_FIELDS) {
+  for (const field of TRIGGER_FIELD_SET) {
     const key = field as keyof Event
     if (String(oldEvent[key] ?? '') !== String(newEvent[key] ?? '')) return true
   }
@@ -65,6 +80,50 @@ function toUtc(dateStr: string, timeStr: string, timezone: string): Date {
 }
 
 /**
+ * SV-2-T1 (PREPARATORY extraction): the exact value set syncEventToSlot writes,
+ * derived purely from the event + channel timezone. Extracted so Ripple
+ * Proposals (ADR-019) can PREVIEW what the bridge/SV-3 apply WOULD write from
+ * one source of truth — a divergent re-derivation would let a proposal promise
+ * writes the bridge never makes. Behavior-preserving: syncEventToSlot consumes
+ * this and its upsert is unchanged.
+ *
+ * NOTE: `overrunStrategy` is deliberately NOT part of this set — the bridge's
+ * ON CONFLICT UPDATE never rewrites it (only the INSERT arm seeds 'EXTEND'),
+ * and excluding it also keeps ripple snapshots clear of the TD-28 zod drift.
+ */
+export interface DerivedSlotSyncValues {
+  channelId: number
+  plannedStartUtc: Date
+  plannedEndUtc: Date
+  expectedDurationMin: number
+  status: BroadcastSlotStatus
+}
+
+export function deriveSlotSyncValues(
+  event: Pick<Event, 'channelId' | 'startDateBE' | 'startTimeBE' | 'durationMin' | 'status'>,
+  timezone: string,
+): DerivedSlotSyncValues | null {
+  if (!event.channelId || !event.startDateBE || !event.startTimeBE) {
+    return null
+  }
+  const dateStr = typeof event.startDateBE === 'string'
+    ? event.startDateBE
+    : (event.startDateBE as Date).toISOString().slice(0, 10)
+
+  const plannedStartUtc = toUtc(dateStr, event.startTimeBE, timezone)
+  const durationMin = event.durationMin ?? DEFAULT_SLOT_DURATION_MIN
+  const plannedEndUtc = new Date(plannedStartUtc.getTime() + durationMin * 60_000)
+
+  // Map event status to slot status
+  const status: BroadcastSlotStatus = event.status === 'cancelled' ? BroadcastSlotStatus.VOIDED
+    : event.status === 'live' ? BroadcastSlotStatus.LIVE
+    : event.status === 'completed' ? BroadcastSlotStatus.COMPLETED
+    : BroadcastSlotStatus.PLANNED
+
+  return { channelId: event.channelId, plannedStartUtc, plannedEndUtc, expectedDurationMin: durationMin, status }
+}
+
+/**
  * Create or update a BroadcastSlot linked to this event.
  *
  * Uses a single `INSERT ... ON CONFLICT` keyed on the partial unique index
@@ -84,11 +143,6 @@ export async function syncEventToSlot(
     return null
   }
 
-  const dateStr = typeof event.startDateBE === 'string'
-    ? event.startDateBE
-    : (event.startDateBE as Date).toISOString().slice(0, 10)
-  const timeStr = event.startTimeBE
-
   // Get channel timezone (for UTC conversion). Scope by tenantId so a
   // stale/foreign channelId can't leak another tenant's timezone into our
   // slot math. If the channel isn't visible to this tenant, skip the sync
@@ -101,17 +155,13 @@ export async function syncEventToSlot(
   if (!channel) {
     return null
   }
-  const timezone = channel.timezone ?? 'Europe/Brussels'
+  const timezone = channel.timezone ?? DEFAULT_CHANNEL_TIMEZONE
 
-  const plannedStartUtc = toUtc(dateStr, timeStr, timezone)
-  const durationMin = event.durationMin ?? 90 // Default 90 min if unknown
-  const plannedEndUtc = new Date(plannedStartUtc.getTime() + durationMin * 60_000)
-
-  // Map event status to slot status
-  const slotStatus: BroadcastSlotStatus = event.status === 'cancelled' ? BroadcastSlotStatus.VOIDED
-    : event.status === 'live' ? BroadcastSlotStatus.LIVE
-    : event.status === 'completed' ? BroadcastSlotStatus.COMPLETED
-    : BroadcastSlotStatus.PLANNED
+  const derived = deriveSlotSyncValues(event, timezone)
+  if (!derived) {
+    return null
+  }
+  const { plannedStartUtc, plannedEndUtc, expectedDurationMin: durationMin, status: slotStatus } = derived
 
   const rows = await db.$queryRaw<BroadcastSlot[]>(Prisma.sql`
     INSERT INTO "BroadcastSlot" (

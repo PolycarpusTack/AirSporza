@@ -131,6 +131,7 @@ model Tenant {
   adapterConfigs        AdapterConfig[]
   integrations          Integration[]
   accessibilityConfig   TenantAccessibilityConfig?
+  rippleProposals       RippleProposal[]
 }
 
 model User {
@@ -282,6 +283,7 @@ model Event {
   broadcastSlotsFallback BroadcastSlot[]   @relation("BroadcastSlotFallback")
   cascadeEstimates       CascadeEstimate[]
   accessibilityDeliverables AccessibilityDeliverable[]
+  rippleProposals        RippleProposal[]
 
   @@index([sportId])
   @@index([competitionId])
@@ -1983,4 +1985,56 @@ model TenantAccessibilityConfig {
   updatedAt             DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+// SV-2-T1 (ADR-019 §1) — RippleProposal: a reviewable, idempotent slot-change-set.
+// FEED changes to a slot-linked event PROPOSE (review-before-apply, the G8 fix);
+// MANUAL stays auto via eventSlotBridge; CASCADE stays auto to estimated* fields —
+// the CASCADE/MANUAL enum values exist for SV-3+ and SV-2 must NEVER produce them.
+// `sourceChangeId` is a change-fingerprint (`feed:<eventId>:<sha256/32>`, composed
+// in services/ripple/capturePayloads.ts — job-id composition rejected: identical
+// changes re-imported by later jobs would supersede identical PENDING proposals =
+// review noise). Unique (tenantId, sourceChangeId): idempotent create echoes the
+// same row; the same fingerprint under two tenants stays two independent proposals.
+// `beforeSlots` carries the pre-change proposed-field subset PLUS the `updatedAt`
+// concurrency handle per slot (BroadcastSlot has no version column) for SV-3's
+// stale-at-apply detection. `preview` is NOT an after-state mirror of
+// `beforeSlots` — it is the review ENVELOPE { proposed[], manualReviewSlots[],
+// rights } (Contract Snapshot ripple v1). `confidence` is NULL in v1 — no
+// feed-confidence source is wired (stated, not silent).
+enum RippleSource {
+  FEED
+  CASCADE
+  MANUAL
+}
+
+enum RippleStatus {
+  PENDING
+  APPLIED
+  REJECTED
+  SUPERSEDED
+}
+
+model RippleProposal {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @db.Uuid
+  eventId        Int
+  source         RippleSource
+  sourceChangeId String
+  status         RippleStatus @default(PENDING)
+  beforeSlots    Json
+  preview        Json
+  confidence     Int? // v1: always NULL — no feed-confidence source wired
+  createdAt      DateTime     @default(now())
+  decidedAt      DateTime?
+  decidedBy      String?      @db.Uuid
+  rationale      String? // reject reason / apply note (written by SV-3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sourceChangeId])
+  @@index([tenantId])
+  @@index([eventId])
+  @@index([tenantId, status])
 }

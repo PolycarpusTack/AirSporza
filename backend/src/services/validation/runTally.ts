@@ -10,7 +10,7 @@
  * (TD-28): the run-ledger API's zod status enum cannot create those states, so
  * tests must insert CONFIRMED rows directly via Prisma, never through the API.
  */
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
 
 /**
  * The single coverage-category vocabulary (mirrors the Prisma `CoverageType` enum,
@@ -65,7 +65,9 @@ export function aggregateRunTally(rows: GroupRow[]): ContractRunTally[] {
  * No query when there are no contract ids.
  */
 export async function loadContractRunTally(
-  db: PrismaClient,
+  // Accepts a TransactionClient too (SV-2 ripple enrichment runs on the capture
+  // tx via checkRightsForEvent) — additive widening, read-only, no runtime change.
+  db: PrismaClient | Prisma.TransactionClient,
   tenantId: string,
   contractIds: number[],
 ): Promise<ContractRunTally[]> {
