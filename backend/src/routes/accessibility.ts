@@ -31,9 +31,15 @@ import {
   T888_REQUIREMENT_POLICY_MESSAGE,
 } from '../services/accessibility/transitions.js'
 import { aggregateAccessibilityKpi } from '../services/accessibility/kpi.js'
+import {
+  loadTenantAccessibilityConfig,
+  toEffectiveAccessibilityConfig,
+  overrideOf,
+} from '../services/accessibility/tenantConfig.js'
 import * as s from '../schemas/accessibility.js'
+import { Prisma } from '@prisma/client'
 import type { Request, Response } from 'express'
-import type { AccessibilityStatus, AccessibilityType } from '@prisma/client'
+import type { AccessibilityStatus, AccessibilityType, TenantAccessibilityConfig } from '@prisma/client'
 
 const router = Router()
 
@@ -197,11 +203,13 @@ router.post(
 )
 
 // GET /kpi?from&to — coverage % per deliverable type over the period (events whose
-// startDateBE falls in [from, to]). Reconciles 1:1 with raw rows; target is CONFIG-read
-// (TODO-KPI provisional, AS-1) — never hardcoded here.
+// startDateBE falls in [from, to]). Reconciles 1:1 with raw rows; targets are read via
+// the per-tenant config loader (RC-5-T2 — constants as fallback; TODO-KPI provisional,
+// AS-1) — never hardcoded here.
 router.get('/kpi', authenticate, validate({ query: s.kpiQuery }), async (req, res, next) => {
   try {
     const { from, to } = req.query as unknown as { from: Date; to: Date }
+    const config = await loadTenantAccessibilityConfig(prisma, req.tenantId!)
     const rows = await prisma.accessibilityDeliverable.findMany({
       where: {
         tenantId: req.tenantId,
@@ -209,10 +217,98 @@ router.get('/kpi', authenticate, validate({ query: s.kpiQuery }), async (req, re
       },
       select: { type: true, status: true },
     })
-    res.json({ from, to, byType: aggregateAccessibilityKpi(rows) })
+    res.json({ from, to, byType: aggregateAccessibilityKpi(rows, config.kpiTargetPctByType) })
   } catch (error) {
     next(error)
   }
 })
+
+// ─── RC-5-T2: per-tenant accessibility configuration (admin) ─────────────────
+
+/** GET/PUT response body: the merged EFFECTIVE config (what consumers apply) plus the
+ * raw stored OVERRIDE (null = no row; NULL fields = "falls back to the constant"), so
+ * an admin can tell tenant values from fallback defaults without a second source.
+ * Both views come from tenantConfig.ts — ONE reader posture for the stored Json. */
+function buildConfigResponse(row: TenantAccessibilityConfig | null) {
+  const effective = toEffectiveAccessibilityConfig(row)
+  return {
+    effective: {
+      t888ExcludedSportIds: [...effective.t888ExcludedSportIds].sort((a, b) => a - b),
+      kpiTargetPctByType: effective.kpiTargetPctByType,
+      unplannedLeadTimeDays: effective.unplannedLeadTimeDays,
+    },
+    override: overrideOf(row),
+  }
+}
+
+// GET /config — the tenant's accessibility configuration (admin). Tenant-scoped from
+// the auth context — there is deliberately NO way to address another tenant's config.
+router.get('/config', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const row = await prisma.tenantAccessibilityConfig.findUnique({ where: { tenantId: req.tenantId! } })
+    res.json(buildConfigResponse(row))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /config — per-tenant upsert (PUT-replace semantics, retry-safe: a repeat lands
+// on the same unique tenantId row). Omitted/null fields store NULL = "fall back to the
+// constant". Validation (0–100 targets, non-negative lead time, unknown type keys,
+// stray top-level keys incl. tenantId) lives in replaceConfigSchema. Audited.
+router.put(
+  '/config',
+  authenticate,
+  authorize('admin'),
+  validate({ body: s.replaceConfigSchema }),
+  async (req, res, next) => {
+    try {
+      const tenantId = req.tenantId!
+      const user = req.user as { id: string }
+      const body = req.body as {
+        t888ExcludedSportIds?: number[] | null
+        kpiTargetPctByType?: Record<string, number | null> | null
+        unplannedLeadTimeDays?: number | null
+      }
+
+      // Prisma nullable-Json posture: SQL NULL is written as Prisma.DbNull.
+      const data = {
+        t888ExcludedSportIds: body.t888ExcludedSportIds ?? Prisma.DbNull,
+        kpiTargetPctByType: body.kpiTargetPctByType ?? Prisma.DbNull,
+        unplannedLeadTimeDays: body.unplannedLeadTimeDays ?? null,
+        updatedBy: user.id,
+      }
+
+      // Read-previous + upsert in ONE transaction so concurrent PUTs cannot both
+      // audit the same stale oldValue. (writeAuditLog owns its prisma call and
+      // does not take a tx — the audit write follows the committed state.)
+      const { previous, row } = await prisma.$transaction(async tx => {
+        const previous = await tx.tenantAccessibilityConfig.findUnique({ where: { tenantId } })
+        const row = await tx.tenantAccessibilityConfig.upsert({
+          where: { tenantId },
+          create: { tenantId, ...data },
+          update: data,
+        })
+        return { previous, row }
+      })
+
+      await writeAuditLog({
+        userId: user.id,
+        action: 'tenantAccessibilityConfig.update',
+        entityType: 'tenantAccessibilityConfig',
+        entityId: String(row.id),
+        oldValue: overrideOf(previous),
+        newValue: overrideOf(row),
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        tenantId,
+      })
+
+      res.json(buildConfigResponse(row))
+    } catch (error) {
+      next(error)
+    }
+  }
+)
 
 export default router

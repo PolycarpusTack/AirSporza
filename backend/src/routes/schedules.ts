@@ -7,6 +7,7 @@ import { validateSchedule, type ValidationContext, type RightsPolicy } from '../
 import { loadContractRunTally } from '../services/validation/runTally.js'
 import type { ListedFtaEvent } from '../services/validation/listedEventFta.js'
 import type { AccessibilityUnplannedEvent } from '../services/validation/accessibilityUnplanned.js'
+import { loadTenantAccessibilityConfig } from '../services/accessibility/tenantConfig.js'
 import { beClockToUtc } from '../utils/beClock.js'
 import { env } from '../config/env.js'
 import { writeOutboxEvent } from '../services/outbox.js'
@@ -112,8 +113,9 @@ function buildListedFtaEvents(events: any[]): ListedFtaEvent[] {
 /**
  * RC-2-T3 (flag ON only): events + their AccessibilityDeliverable rows for the
  * stage-4 ACCESSIBILITY_UNPLANNED lead-time check. Tenant-scoped read; `now` is
- * injected HERE so the pure check never reads the clock. Lead time N stays on its
- * config default (`ACCESSIBILITY_UNPLANNED_LEAD_TIME_DAYS`) — no per-request override.
+ * injected HERE so the pure check never reads the clock. Lead time N is threaded by
+ * the caller from the per-tenant config loader (RC-5-T2; constant fallback) — still
+ * no per-REQUEST override.
  */
 async function buildAccessibilityUnplannedInput(
   tenantId: string, eventIds: number[],
@@ -155,7 +157,13 @@ async function buildScheduleValidationContext(
   // stage 4 byte-identical (no extra query either).
   if (flags.regulatoryEnabled) {
     context.listedFtaEvents = buildListedFtaEvents(events)
-    context.accessibilityUnplanned = await buildAccessibilityUnplannedInput(tenantId, events.map(e => e.id))
+    // RC-5-T2: lead time N via the per-tenant config loader (constant fallback when no
+    // row — passing the effective value is parity with the check's own default).
+    const accessibilityConfig = await loadTenantAccessibilityConfig(prisma, tenantId)
+    context.accessibilityUnplanned = {
+      ...(await buildAccessibilityUnplannedInput(tenantId, events.map(e => e.id))),
+      leadTimeDays: accessibilityConfig.unplannedLeadTimeDays,
+    }
     context.regulatoryEnabled = true
   }
   return context
