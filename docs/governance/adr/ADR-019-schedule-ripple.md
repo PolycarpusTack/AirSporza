@@ -43,6 +43,13 @@ slots, **with review-before-apply**. `cascade/` stays the court-chain engine (on
 A new entity capturing a *proposed* change to an event's linked slots, awaiting accept/reject. Child of the event
 (not the contract). Shape (finalized at SV-2-T1 migration):
 
+> **Amended 2026-07-23 (SV-2 implementation):** the sketched `afterSlots Json // proposed slot values`
+> column shipped as **`preview Json`** — it is not the after-state mirror of `beforeSlots` but a review
+> **envelope** `{ proposed[], manualReviewSlots[], rights }`: proposed writes for autoLinked slots only,
+> informational manual-review entries for manually-linked slots, and advisory creation-time rights
+> annotations. Full shape: Contract Snapshot `ripple v1`. (Amendment pending architect ratification —
+> flagged in the SV-2 PR.)
+
 ```prisma
 model RippleProposal {
   id             String        @id @default(uuid()) @db.Uuid
@@ -51,8 +58,8 @@ model RippleProposal {
   source         RippleSource                       // FEED | CASCADE | MANUAL
   sourceChangeId String                             // idempotency key — see §4
   status         RippleStatus  @default(PENDING)    // PENDING | APPLIED | REJECTED | SUPERSEDED
-  beforeSlots    Json                               // snapshot of affected slots pre-change
-  afterSlots     Json                               // proposed slot values
+  beforeSlots    Json                               // snapshot of affected slots pre-change (+ updatedAt handles)
+  preview        Json                               // review envelope { proposed, manualReviewSlots, rights } — amended, see note above
   confidence     Int?                               // optional (feed match confidence)
   createdAt      DateTime      @default(now())
   decidedAt      DateTime?
