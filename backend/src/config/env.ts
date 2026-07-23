@@ -53,6 +53,16 @@ const baseSchema = z.object({
   // (`opts.previewParity ?? env` fallback, rightsChecker pattern); pure
   // cascade/compute.ts never reads env. Same safe parse as the flags above.
   CASCADE_PREVIEW_PARITY: z.string().optional().transform(v => v === 'true'),
+
+  // SV-2 (ADR-019, G8): gates feed-ripple capture — a feed re-import changing a
+  // slot-linked event's schedule-relevant fields creates a reviewable
+  // RippleProposal (the event row is still written immediately either way; NO
+  // slot is written — SV-3 owns apply). OFF = the import path is byte-identical
+  // to today (the silently-stale slot behavior is preserved). Consumed by
+  // services/ripple/capture.ts (`opts.flag ?? env`, rightsChecker pattern).
+  // Build-time per TD-27 → rollback = redeploy. Same safe parse as the flags
+  // above — never z.coerce.boolean (the RD-3 footgun).
+  SCHEDULE_RIPPLE_ENABLED: z.string().optional().transform(v => v === 'true'),
 })
 
 export type Env = z.infer<typeof baseSchema>

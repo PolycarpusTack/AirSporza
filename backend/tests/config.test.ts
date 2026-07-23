@@ -96,4 +96,25 @@ describe('Config Module', () => {
       expect(parseEnv({ ...base }).CASCADE_PREVIEW_PARITY).toBe(false)
     })
   })
+
+  describe('SCHEDULE_RIPPLE_ENABLED flag (SV-2 / ADR-019 — safe boolean parse)', () => {
+    const base = {
+      NODE_ENV: 'development' as const,
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+      REDIS_URL: 'redis://localhost:6379',
+      CORS_ORIGIN: 'http://localhost:5173',
+    }
+    it("'true' → ON", () => {
+      expect(parseEnv({ ...base, SCHEDULE_RIPPLE_ENABLED: 'true' }).SCHEDULE_RIPPLE_ENABLED).toBe(true)
+    })
+    it("'false' → OFF (the footgun: z.coerce.boolean would make this TRUE)", () => {
+      expect(parseEnv({ ...base, SCHEDULE_RIPPLE_ENABLED: 'false' }).SCHEDULE_RIPPLE_ENABLED).toBe(false)
+    })
+    it("'1' → OFF (only the literal 'true' enables)", () => {
+      expect(parseEnv({ ...base, SCHEDULE_RIPPLE_ENABLED: '1' }).SCHEDULE_RIPPLE_ENABLED).toBe(false)
+    })
+    it('unset → OFF (default)', () => {
+      expect(parseEnv({ ...base }).SCHEDULE_RIPPLE_ENABLED).toBe(false)
+    })
+  })
 })

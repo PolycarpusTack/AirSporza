@@ -1,4 +1,4 @@
-import { Registry, Histogram, Gauge, collectDefaultMetrics } from 'prom-client'
+import { Registry, Histogram, Counter, Gauge, collectDefaultMetrics } from 'prom-client'
 import type { Request, Response, NextFunction } from 'express'
 import { prisma } from './db/prisma.js'
 import { logger } from './utils/logger.js'
@@ -61,6 +61,36 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
   })
   next()
 }
+
+// ── Ripple proposal generation (SV-2, ADR-019 Open assumption 1) ─────────────
+
+/**
+ * Capture duration of a feed-ripple proposal — measured across the FULL
+ * capture (change detection → snapshots → ADVISORY RIGHTS ENRICHMENT →
+ * create → outbox), observed only when a proposal is actually created.
+ * SLO: < 5s p95 after feed import, INCLUDING enrichment — the 5s bucket
+ * boundary makes the SLO assertable straight from the Prometheus scrape.
+ * (Naming: "capture" is the SV-2 lexicon; duration-noun grammar mirrors
+ * http_request_duration_seconds above.)
+ */
+export const rippleProposalCaptureDuration = new Histogram({
+  name: 'ripple_proposal_capture_duration_seconds',
+  help: 'Feed-ripple proposal capture duration incl. advisory rights enrichment (SLO: < 5s p95)',
+  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [register],
+})
+
+/**
+ * Proposal volume (ADR-019 OA1: feed-change volume is unquantified — this
+ * counter quantifies it; batching/dedup becomes its own story if it demands).
+ * outcome: created = new proposal · echoed = idempotent re-emit of an existing.
+ */
+export const rippleProposalsCaptured = new Counter({
+  name: 'ripple_proposals_captured_total',
+  help: 'Ripple proposals captured on the feed import path, by outcome (created|echoed)',
+  labelNames: ['outcome'] as const,
+  registers: [register],
+})
 
 // ── Saturation gauges (lazy, scrape-time) ───────────────────────────────────
 
