@@ -53,7 +53,7 @@ default posture is **validate + annotate, never silently block** until ADR-017 s
 | # | Gap | Resolution path | Owner |
 |---|---|---|---|
 | **ADR-015** (**Accepted 2026-07-02**) | **Rights-window data model + dual rights model.** Survey finding: the codebase has TWO parallel rights models — `Contract` (enriched: territory[], platforms[], coverageType, windows, blackouts, maxLiveRuns) and `RightsPolicy` (separate CRUD + a `policyToContractShape` adapter in `validation/rights.ts`). Adding Rights Windows without a consolidation decision doubles the divergence. **Decided:** RightsWindow as child table of Contract; RightsPolicy **deprecated** (execution in **RD-6 — now DoR-ready at the RD retro**, servicing TD-29); empty `territory[]`/`platforms[]` = unrestricted + INFO note; defect (a) hotfixed before RD-2 (RD-1F), defect (b) folded into RD-3 with non-skippable ACs (Acceptance record §2/§4). **Status: shipped through RD-2..RD-5 (2026-07-11).** | RD-1 SPIKE → ADR ✓ accepted; RD-2..RD-5 ✅ | Architect |
-| **ADR-019** (to write, SV-1) | **Schedule Ripple review-before-apply semantics.** Survey finding: event edits via `routes/events.ts` auto-sync to BroadcastSlots (`eventSlotBridge`), but **import-driven kickoff changes do not** (`import/stages/provision.ts` writes `startDateBE/startTimeBE` with no slot sync); the cascade engine silently overwrites slot estimated fields. Define: Ripple Proposal entity, which change sources produce proposals vs direct writes, apply mechanics (via `scheduleOperations`?), idempotency. | SV-1 SPIKE → ADR | Architect |
+| **ADR-019** (**Accepted 2026-07-12**) | **Schedule Ripple review-before-apply semantics.** Survey finding: event edits via `routes/events.ts` auto-sync to BroadcastSlots (`eventSlotBridge`), but **import-driven kickoff changes do not** (`import/stages/provision.ts` writes `startDateBE/startTimeBE` with no slot sync); the cascade engine silently overwrites slot estimated fields. **Decided:** `RippleProposal` reviewable slot-change-set; **FEED → propose · MANUAL → auto (unchanged) · CASCADE → auto to estimated (unchanged)**; apply reuses `eventSlotBridge`/`scheduleOperations` (AS-7); idempotency by `sourceChangeId`. Execution HOLD (AS-8 cascade debt) **lifted 2026-07-23** — `CASCADE_PREVIEW_PARITY` shipped (PR #25 `fa5093a`; TD-5/12/13/14 settled). FEED = review stays Open assumption 2 (ops-stakeholder taste-test) — gates SV-3's review-UX freeze, not SV-2. | SV-1 SPIKE → ADR ✓ accepted; SV-2 DoR-READY (2026-07-23) | Architect |
 | **ADR-017** (to write, RC-0) | **Regulatory enforcement boundary (Q2).** Where Planza ends and traffic/playout/EPG begins for listed-events FTA status, accessibility, ad limits: validate (ERROR, blocks publish) vs annotate (WARNING) vs merely record. Determines every severity in EPIC RC and confirms G13 deferral. **Still open — people-work gate (see §9 retro next-EPIC recommendation).** | RC-0 stakeholder session → ADR | Architect + stakeholder |
 | **ADR-018** (deferred to RL refinement) | **Resource booking + labour-rule placement.** Whether resource bookings stay tech-plan-anchored (today: `ResourceAssignment` rides the event window) or become first-class bookings with own windows; where labour rules are evaluated (client preflight vs server validation stage). | RL refinement after Q3 | Architect |
 | Open (Q1) | Which rights dimensions VRT contracts actually distinguish, and which Planza validates at scheduling time vs leaves to legal. **Gates RD-7/RD-8 (slot-level coverage-category + territory refinements) — see §7.** | AS-4; RD-1 stakeholder input; window categories shipped behind flag either way | Stakeholder |
@@ -815,25 +815,35 @@ all five event-creation sites).
 
 ## 8. Roadmap EPICs (outline — expand after RD/RC retros, per BB §4 depth rule)
 
-## EPIC SV — Schedule Volatility (outline; SV-1 detailed)
+## EPIC SV — Schedule Volatility (SV-1 ✅ · SV-2 detailed DoR-READY · SV-3..SV-5 outlined)
 
 - **Objective:** Feed-driven and cascade-driven changes propagate to BroadcastSlots through reviewable Ripple
   Proposals, and volatile event days get switchable Contingency Schedules — building on (not duplicating) the
   existing cascade engine, eventSlotBridge and ChannelSwitch machinery.
 - **Mode:** DELIVERY · **Tracer Bullet?:** NO · **Flag:** `scheduleRipple`
-- **Key risks:** High — builds on cascade debt TD-5/12/13/14 → **mitigation AS-8: SV-2+ pull-gate blocks until the
-  debt register's `CASCADE_PREVIEW_PARITY` story is done.** Med — ADR-019 semantics (review-vs-auto) need stakeholder
-  taste-testing → SV-1 SPIKE first.
-- **SLOs (draft):** `Ripple proposal generation – < 5s p95 after feed import` · `Proposal apply – < 2s p95, atomic`.
+- **Key risks:** High (cascade debt TD-5/12/13/14) → **mitigation AS-8 DELIVERED 2026-07-23:** the
+  `CASCADE_PREVIEW_PARITY` story merged (PR #25 `fa5093a`; TD-5/12/13/14 all ✅ SETTLED in the debt register) — the
+  blocking SV-2+ pull gate is **satisfied**. Med — FEED = review semantics (ADR-019 Open assumption 2) pend the
+  ops-stakeholder taste-test → SV-2 ships NO review endpoints/UX beyond the read-only list/get; SV-3 must not freeze
+  the review UX until confirmed. Note: the `CASCADE_PREVIEW_PARITY` flag itself stays **OFF** for SV-2 (FEED-only —
+  no cascade outputs consumed); the flag-posture revisit is recorded on SV-4's pull gate (architect decision 6,
+  2026-07-23).
+- **SLOs (draft):** `Ripple proposal generation – < 5s p95 after feed import (incl. rights enrichment — SV-2 measurement AC)` · `Proposal apply – < 2s p95, atomic`.
 - **Glossary:** Schedule Ripple, Ripple Proposal, Contingency Schedule, Cascade.
-- **RD-retro readiness note (2026-07-11):** SV-1's pull gate ("RD retro complete / Architecture Memory current") is now
-  **satisfied** — SV-1 is the immediately code-ready next step (no external gate). SV-2+ remain blocked on AS-8.
+- **RD-retro readiness note (2026-07-11):** SV-1's pull gate ("RD retro complete / Architecture Memory current") was
+  **satisfied** — SV-1 ran as the immediately code-ready step. The "SV-2+ remain blocked on AS-8" clause of this note
+  is **superseded 2026-07-23** (unblock entry below).
 - **SV-1 STATUS (2026-07-12): ✅ COMPLETE.** Findings memo `docs/plans/2026-07-11-sv-1-ripple-spike.md`;
   **ADR-019 ACCEPTED** (architect, 2026-07-12 — see ADR Acceptance record). Questions (a)–(d) verified: ChannelSwitch
   executes nothing, OverrunStrategy descriptive-only, cascade court-coupled (can't carry feed ripple), the G8
-  silent-stale gap confirmed. **EPIC SV is now HELD** at the architect's decision: SV-2..SV-5 carry the blocking AS-8
-  pull gate (`CASCADE_PREVIEW_PARITY` / cascade debt TD-5/12/13/14); servicing that debt is a separate decision. Two
-  characterization tests are pre-identified for SV-2's safety net (memo §"Characterization tests worth pinning").
+  silent-stale gap confirmed.
+- **EPIC SV UNBLOCKED (2026-07-23):** the architect's HOLD on SV-2..SV-5 (blocking **AS-8** pull gate) is **lifted** —
+  `CASCADE_PREVIEW_PARITY` merged to main (PR #25 `fa5093a`), settling TD-5/12/13/14. **SV-2 expanded below to a full
+  DoR-READY story** (six architect decisions ratified + DoR re-gate, 2026-07-23). **ADR-019 acceptance-record boundary
+  restated:** FEED = review pends the ops-stakeholder taste-test (Open assumption 2) — it gates SV-3's review-UX
+  freeze, not SV-2's design; **SV-2 ships NO review endpoints/UX beyond the read-only list/get.** Of the spike's two
+  pre-identified characterization tests (memo §"Characterization tests worth pinning"), **test #1 is SV-2-T2's first
+  TDD step** (flag-off pin = the RED for the flag-on fix); **test #2 stays reserved for SV-4's safety net**.
 
 ### Story SV-1 — SPIKE: ripple semantics + volatility machinery verification → ADR-019 (DETAILED)
 `SPIKE: Research schedule-ripple semantics` — timeboxed **M**.
@@ -859,19 +869,139 @@ Business Value 3 · Priority 4 · Size **M** · DoR: **READY** · INVEST spike-v
   Pull Gate: RD retro complete (Architecture Memory current) — **satisfied 2026-07-11.** Unblocks: SV-1-T2.
 - **SV-1-T2** · Hat **PREPARATORY** · Model **Opus** · Confidence Med
   Goal: ADR-019 authored + accepted; SV-2..SV-5 expanded into full stories at the RD/RC retro with these findings.
-  Hand-off: **ADR-019**. Unblocks: SV-2 (outline), END OF STORY SEQUENCE.
+  Hand-off: **ADR-019**. Unblocks: SV-2, END OF STORY SEQUENCE.
 
-### Outlined stories (expand post-SV-1)
-- **SV-2 — Feed-change capture → Ripple Proposals (G8):** `provision.ts` emits a RippleProposal when an imported
-  kickoff/date change touches an event with linked slots (instead of today's silent event-only write); proposal
-  carries affected-slot preview incl. downstream rights re-check (consumes `slot-rights v1`). Migration + RLS +
-  outbox event (ADR-001). **Blocking pull gate: AS-8 cascade debt serviced.**
-- **SV-3 — Review-before-apply service (G6/G8):** accept/reject endpoints; accept applies atomically via
-  `scheduleOperations`/`eventSlotBridge` (AS-7), re-runs validation, records outcome; reject records rationale.
-  Idempotent by proposal id. Frontend service + Contract Snapshot `ripple v1` for future ops Sync/Rundown surfacing.
+### Story SV-2 — Feed-change capture → Ripple Proposals (G8)
+**Origin:** outlined at SV-1; expanded to full story 2026-07-23 (architect decisions ratified + DoR re-gate — the
+six in-story decisions below are **settled, not open**, and are baked into the ACs verbatim).
+
+**As a** planner **I want** a feed re-import that changes a slot-linked event's schedule-relevant fields to create a
+reviewable Ripple Proposal — while the event row itself still updates immediately, as today — **so that** feed-driven
+changes stop silently staling the linked BroadcastSlots (G8) and the event≠slot divergence is surfaced for review
+instead of hidden.
+
+Business Value 3 · Priority 4 · Size **L** (3 tasks — recorded per the re-gate task-split decision) · DoR: **READY**
+(AS-8 pull gate satisfied 2026-07-23 — `CASCADE_PREVIEW_PARITY` PR #25 `fa5093a`, TD-5/12/13/14 settled; ADR-019
+Accepted 2026-07-12; all six architect decisions ratified 2026-07-23 — nothing provisional remains in-story) ·
+INVEST I✓ N✓ V✓ E✓ S✓ T✓
+**Boundary (ADR-019 acceptance record, restated):** FEED = review is **Open assumption 2** (ops-stakeholder
+taste-test pending) — it does not gate this story, but **SV-2 ships NO review endpoints/UX beyond the read-only
+list/get**; accept/reject mutations and any review UX belong to SV-3, and SV-3 must not freeze that UX until the
+taste-test confirms.
+
+**AC (Gherkin):**
+- **Capture (the G8 fix — decisions 1+2):** Given `scheduleRipple` ON and a feed re-import (`provision.ts` →
+  `updateImportedEvent`) changing any of **`{channelId, startDateBE, startTimeBE, durationMin, status}`** — the exact
+  `shouldSync` field set of the manual path (`eventSlotBridge.ts:13-24`; full parity closes G8) — on an event with
+  ≥1 linked `BroadcastSlot`, Then the **event row is written IMMEDIATELY**, byte-identical to today's
+  feed-authoritative write (feed stays authoritative for event data), AND a `RippleProposal` (`source=FEED`,
+  `status=PENDING`) is created; **no slot is written**. The PENDING window's event≠slot divergence **is** the
+  surfaced staleness, by design.
+- **Slot scope (decision 3):** Given the created proposal, Then `afterSlots` contains proposed writes **only** for
+  `autoLinked=true` slots (what SV-3's `eventSlotBridge` apply can write); manually-linked slots of the event appear
+  in the preview payload as informational **"check manually"** entries with **no** proposed write.
+- **Snapshot + concurrency handles:** `beforeSlots` captures, per affected slot, the pre-change values of the
+  proposed field subset PLUS the concurrency handles (slot `version`/`updatedAt` per `scheduleOperations` optimistic
+  versioning) so SV-3's apply can detect a PENDING proposal whose slots were manually edited meanwhile
+  (stale-at-apply detection). `confidence Int?` is **null in v1** — no feed-confidence source is wired; sourcing is
+  decided in-flight if/when one exists (stated, not silent).
+- **Idempotency (re-gate):** Given the same `sourceChangeId` re-emitted (feed retry/replay), Then the SAME proposal
+  is returned (idempotent 200, no duplicate, **no supersession**); unique `(tenantId, sourceChangeId)`. Given the
+  same `sourceChangeId` under two tenants, Then two independent proposals exist (no cross-tenant dedupe or leak —
+  RD-2 idempotent-echo lesson).
+- **Supersession (re-gate):** Given event E holds a PENDING proposal P1 (**any** `source`), When a new proposal P2
+  for E is created (different `sourceChangeId`), Then P1 → `SUPERSEDED` and P2 is the single PENDING proposal for E;
+  the idempotent re-emit case above takes precedence (same `sourceChangeId` → same proposal, nothing superseded).
+- **Negative paths:** MANUAL (`PUT /events/:id`) stays **byte-identical** — auto-sync via `eventSlotBridge`,
+  NO proposal. CASCADE stays **byte-identical** — writes `estimated*` fields only, NO proposal. (The `RippleSource`
+  enum ships `CASCADE|MANUAL` values that SV-2 must **never** produce — negative tests pin both paths.) A FEED
+  change to an event with **no** linked slots → NO proposal; the event updates as today.
+- **Flag OFF:** the import path is **byte-identical to today** (the silently-stale behavior is preserved). Flag
+  `scheduleRipple` is build-time per TD-27, parsed explicitly (`z.string().optional().transform(v => v === 'true')` —
+  never `z.coerce.boolean`, the RD-3 footgun). The spike memo's **characterization test #1** (re-import with changed
+  `startsAtUtc` on an event with an `autoLinked` slot → `plannedStartUtc` **unchanged**) is BOTH the flag-off pin AND
+  the RED for the flag-on fix — encoded as SV-2-T2's first TDD step.
+- **Outbox (ADR-001):** `ripple.proposal_created` (final name checked against the `outboxConsumer.ts` routing-table
+  conventions) is written **IN THE SAME TX** as the proposal create via `writeOutboxEventDeduped`; idempotency key
+  derived from `sourceChangeId` **WITH `tenantId` in the key** (`OutboxEvent.idempotencyKey` is a GLOBAL unique
+  column — the TD-13 settlement lesson).
+- **Read surface (decision 4):** `GET /api/ripple-proposals` (ADR-009 pagination; filters `status`, `eventId`) +
+  `GET /api/ripple-proposals/:id` — tenant-scoped from the auth context; cross-tenant id → 404. Read shape pinned as
+  **Contract Snapshot `ripple v1`**; SV-3 extends it with the accept/reject mutations. **No** accept/reject in SV-2
+  (boundary note above).
+- **Rights enrichment (decision 5):** proposal creation runs the slot rights check (`slot-rights v1`, RD-4) over the
+  affected slots and stores **advisory** rights annotations in the preview payload (marked advisory — SV-3's apply
+  re-runs the check authoritatively); an enrichment failure annotates as unavailable, never loses the proposal or
+  fails the import (fail-visible, TD-18 lesson).
+- **Measurement (ADR-019 Open assumption 1):** proposal volume + generation latency are measured; the
+  `Ripple proposal generation < 5s p95 after feed import` SLO is asserted **including the rights enrichment** (the
+  measurement AC is honest about the enrichment cost). Batching/dedup may be added if measurement demands — as its
+  own story, never silent scope.
+- **TD-28 guard:** snapshot validation/typing must **NOT** import the drifted `overrunStrategyEnum` from
+  `backend/src/schemas/broadcastSlots.ts` — validate against Prisma-derived enums or exclude `overrunStrategy` from
+  the snapshot field subset. TD-28 servicing itself is NOT SV-2 scope (no slot writes here) — it is named on SV-3's
+  pull gate instead.
+
+**Interfaces:** `GET /api/ripple-proposals` + `GET /api/ripple-proposals/:id`. **Contract Snapshot `ripple v1`**
+(read shape: proposal core incl. `source`/`status`/`sourceChangeId`/`confidence:null` + `beforeSlots`/`afterSlots`
+incl. concurrency handles + "check manually" entries + advisory rights annotations; SV-3 extends with accept/reject).
+**TD:** none expected beyond the TD-28 guard AC (this story writes no slots).
+**Test data:** import fixtures with `autoLinked` AND manually-linked slots on the same event; two-tenant fixtures for
+the cross-tenant idempotency/isolation ACs.
+**Idempotency:** proposal create idempotent by `(tenantId, sourceChangeId)` (retry → 200 same row — RD-2 precedent);
+outbox write deduped via `writeOutboxEventDeduped` with the tenant-scoped key.
+
+- **SV-2-T1** · Hat **PREPARATORY** · Model **Opus** (sourceChangeId + snapshot-shape judgment) · Confidence Med
+  Goal: raw-SQL migration — `RippleProposal` table (ADR-019 §1 shape; `confidence Int?` null in v1) +
+  `RippleSource`/`RippleStatus` enums + unique `(tenantId, sourceChangeId)` + **`tenant_isolation` RLS in the SAME
+  migration** (ADR-011) + rollback. **Decide the `sourceChangeId` composition HERE** (import-job-id+event-id vs
+  change-fingerprint — ADR-019 Open assumption 3) against the real `provision.ts` change identifiers; document the
+  tradeoff inline (job-id composition: a new job carrying an identical change → a new proposal superseding an
+  identical PENDING one = review-queue noise; fingerprint composition dedupes across jobs) and **pin the decision
+  with a test**. Decide + pin the `beforeSlots`/`afterSlots` snapshot shape incl. the `version`/`updatedAt`
+  concurrency handles. Loader-free pure helpers: FEED change detection over the `shouldSync` field set + snapshot
+  builders (TD-28 guard: Prisma-derived enums, or `overrunStrategy` excluded from the field subset).
+  TDD: migration structural-integrity tests + pure-helper tests first (change-detection permutations over the 5-field
+  set; snapshot round-trip incl. handles; sourceChangeId composition pin).
+  Pull Gate: no migration collisions; ADR-011 RLS checklist (**policy in the same migration**). Unblocks: SV-2-T2.
+- **SV-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: capture wiring in `provision.ts` (`updateImportedEvent` path only — the create sites produce events with no
+  linked slots, so no proposal by definition): flag-gated proposal create (event row still written immediately) +
+  supersession (PENDING same-event, any source → `SUPERSEDED`; idempotent re-emit takes precedence) +
+  `ripple.proposal_created` outbox in the SAME TX via `writeOutboxEventDeduped` (tenantId in the key) + flag
+  `scheduleRipple` (explicit parse per the AC).
+  TDD: **characterization test #1 FIRST** (spike memo — the flag-off pin IS the RED for the flag-on fix), then
+  idempotent re-emit, cross-tenant, supersession, negative paths (MANUAL/CASCADE byte-identical; no-linked-slots),
+  outbox same-tx + key-shape tests.
+  Pull Gate: SV-2-T1 schema/helpers; **AS-8 satisfied** (`CASCADE_PREVIEW_PARITY` PR #25 on main — verified
+  2026-07-23). Unblocks: SV-2-T3.
+- **SV-2-T3** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: `GET /api/ripple-proposals` (+`/:id`) — ADR-009 pagination, `status`/`eventId` filters, tenant-scoped,
+  cross-tenant 404; creation-time rights enrichment (advisory `slot-rights v1` annotations in the preview payload;
+  enrichment failure → annotated unavailable, proposal never lost); proposal-volume + generation-latency measurement
+  (the <5s p95 SLO AC, **incl. enrichment**).
+  TDD: route tests first (pagination / filters / tenant isolation / cross-tenant 404); enrichment-annotation tests
+  (advisory marker; failure path); measurement assertion.
+  Pull Gate: SV-2-T2 capture path; `slot-rights v1` current on main.
+  Hand-off: **Contract Snapshot `ripple v1`**. Unblocks: SV-3 (expand at hand-off), END OF STORY SEQUENCE.
+
+### Outlined stories (expand at SV-2 hand-off / SV retro)
+- **SV-3 — Review-before-apply service (G6/G8):** accept/reject endpoints; accept applies the `autoLinked` writes in
+  `afterSlots` atomically via `scheduleOperations`/`eventSlotBridge` (AS-7), re-runs validation incl. the
+  **authoritative** slot rights re-check (`slot-rights v1` — SV-2's creation-time annotations are advisory only),
+  records outcome; reject records rationale. Idempotent by proposal id; **stale-at-apply detection** via SV-2's
+  `beforeSlots` concurrency handles (`version`/`updatedAt` — a PENDING proposal whose slots were manually edited must
+  surface, never silently overwrite). Extends **Contract Snapshot `ripple v1`** (SV-2's read shape) with the
+  accept/reject mutations, for future ops Sync/Rundown surfacing. **Pull gates:** ops-stakeholder taste-test on
+  FEED = review (ADR-019 Open assumption 2 — do not freeze the review UX before it); **TD-28 servicing** (regenerate
+  the `overrunStrategy` zod enum from Prisma — SV-3 is the first SV slot-write, per ADR-019 §6).
 - **SV-4 — Contingency Schedules (G7):** named pre-built alternate slot set per volatile event day; one-action
-  switch executes via ChannelSwitch + slot swap in one transaction; EPG propagation stays downstream (per ADR-017
-  boundary analogy — Planza records, playout executes).
+  switch **builds** slot-swap execution (ADR-019 §5 — `ChannelSwitchAction` currently executes nothing; spike
+  characterization test #2 pins the no-op and guards the build) via ChannelSwitch + slot swap in one transaction;
+  EPG propagation stays downstream (per ADR-017 boundary analogy — Planza records, playout executes). **Pull-gate
+  note (2026-07-23, SV-2 re-gate decision 6):** revisit the **`CASCADE_PREVIEW_PARITY` flag posture** here — it
+  stays OFF through SV-2 (FEED-only, no cascade outputs consumed); SV-4 is the first SV story that may consume
+  cascade/estimate outputs, so decide the flag's per-environment posture at SV-4's DoR.
 - **SV-5 — Alerts surfacing service + smoke test:** expose `evaluateAlerts` results via API/socket as a consumable
   service (today they exist server-side only), E2E smoke: feed kickoff change → proposal → review → apply → slots
   moved + validation clean; runbook `docs/runbooks/schedule-ripple.md`.
