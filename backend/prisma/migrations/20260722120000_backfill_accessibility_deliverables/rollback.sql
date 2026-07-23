@@ -1,0 +1,13 @@
+-- TD-31 ROLLBACK (manual operator script) — NOT a Prisma down-migration.
+--
+-- The repo is forward-only (ADR-004/007): Prisma owns history, and data rollback
+-- is the verified pg_dump backup. This migration is DATA-ONLY (an additive
+-- backfill INSERT); backfilled rows are indistinguishable from hook-seeded rows
+-- once written (no marker column), so there is NO safe selective DELETE — a
+-- status-based delete would also destroy rows legitimately seeded by the
+-- creation sites.
+--
+-- To revert: restore "AccessibilityDeliverable" from the pre-migration pg_dump
+-- backup, then remove the 20260722120000 _prisma_migrations row.
+--
+-- (Schema is untouched by this migration — nothing to DROP.)
