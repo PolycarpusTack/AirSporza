@@ -1,7 +1,6 @@
 import { createWorker, socketioQueue } from '../services/queue.js'
 import { prisma } from '../db/prisma.js'
 import { runCascade, type CascadeResult } from '../services/cascade/engine.js'
-import { writeOutboxEvent } from '../services/outbox.js'
 import { logger } from '../utils/logger.js'
 import { setTenantRLS } from '../utils/setTenantRLS.js'
 
@@ -25,26 +24,18 @@ function courtDateKey(courtId: number, date: Date): string {
 }
 
 /**
- * Fan-out broadcast to clients + downstream subsystems after a cascade run.
- * Mirrors alertWorker's pattern — outbox for canonical reactions, direct
- * socketio for live client push.
+ * Live client push after a cascade run. Non-transactional fan-out by
+ * design: the CANONICAL `cascade.recomputed` record is written inside the
+ * engine's transaction (TD-14, ADR-001 pattern — see engine.ts), so a
+ * crash between commit and this push loses only the live socket nudge;
+ * clients reconcile via the outbox-driven alert path / a fresh GET of the
+ * cascade estimates.
  */
-async function emitCascadeOutputs(
+async function pushCascadeEstimates(
   tenantId: string,
   courtId: number,
-  dateStr: string,
   estimates: CascadeResult[],
 ) {
-  await prisma.$transaction(async (tx) => {
-    await writeOutboxEvent(tx, {
-      tenantId,
-      eventType: 'cascade.recomputed',
-      aggregateType: 'Court',
-      aggregateId: String(courtId),
-      payload: { courtId, date: dateStr, estimateCount: estimates.length },
-    })
-  })
-
   await socketioQueue.add('cascade:updated', {
     eventType: 'cascade:updated',
     payload: estimates,
@@ -83,7 +74,7 @@ export const cascadeWorker = createWorker(
       const dateStr = date.toISOString().slice(0, 10)
       logger.info(`Cascade recompute (event): court=${courtId}, date=${dateStr}`)
       const estimates = await runCascade(tenantId, courtId, new Date(date))
-      await emitCascadeOutputs(tenantId, courtId, dateStr, estimates)
+      await pushCascadeEstimates(tenantId, courtId, estimates)
       return { estimateCount: estimates.length }
     }
 
@@ -118,9 +109,8 @@ export const cascadeWorker = createWorker(
       logger.info(`Cascade fan-out (schedule ${versionId}): ${byCourtDate.size} court+date pairs`)
       let totalEstimates = 0
       for (const { courtId, date } of byCourtDate.values()) {
-        const dateStr = date.toISOString().slice(0, 10)
         const estimates = await runCascade(tenantId, courtId, new Date(date))
-        await emitCascadeOutputs(tenantId, courtId, dateStr, estimates)
+        await pushCascadeEstimates(tenantId, courtId, estimates)
         totalEstimates += estimates.length
       }
       return { estimateCount: totalEstimates, courts: byCourtDate.size }

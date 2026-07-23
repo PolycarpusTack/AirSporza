@@ -75,4 +75,25 @@ describe('Config Module', () => {
       expect(parseEnv({ ...base }).REGULATORY_COMPLIANCE_ENABLED).toBe(false)
     })
   })
+
+  describe('CASCADE_PREVIEW_PARITY flag (AS-8 / ADR-008 — safe boolean parse)', () => {
+    const base = {
+      NODE_ENV: 'development' as const,
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+      REDIS_URL: 'redis://localhost:6379',
+      CORS_ORIGIN: 'http://localhost:5173',
+    }
+    it("'true' → ON", () => {
+      expect(parseEnv({ ...base, CASCADE_PREVIEW_PARITY: 'true' }).CASCADE_PREVIEW_PARITY).toBe(true)
+    })
+    it("'false' → OFF (z.coerce.boolean footgun guard)", () => {
+      expect(parseEnv({ ...base, CASCADE_PREVIEW_PARITY: 'false' }).CASCADE_PREVIEW_PARITY).toBe(false)
+    })
+    it("'1' → OFF (only the literal 'true' enables)", () => {
+      expect(parseEnv({ ...base, CASCADE_PREVIEW_PARITY: '1' }).CASCADE_PREVIEW_PARITY).toBe(false)
+    })
+    it('unset → OFF (default)', () => {
+      expect(parseEnv({ ...base }).CASCADE_PREVIEW_PARITY).toBe(false)
+    })
+  })
 })

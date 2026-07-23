@@ -47,6 +47,12 @@ const baseSchema = z.object({
   // OFF = watershed + accessibility only, byte-identical to baseline. Same safe parse
   // as RIGHTS_WINDOWS_ENABLED — only the literal 'true' enables; rollback = redeploy off.
   REGULATORY_COMPLIANCE_ENABLED: z.string().optional().transform(v => v === 'true'),
+
+  // AS-8 (TD-12): cascade-engine parity with the schedule preview. Semantics,
+  // rationale and rollback: ADR-008. Consumed by cascade/engine.ts
+  // (`opts.previewParity ?? env` fallback, rightsChecker pattern); pure
+  // cascade/compute.ts never reads env. Same safe parse as the flags above.
+  CASCADE_PREVIEW_PARITY: z.string().optional().transform(v => v === 'true'),
 })
 
 export type Env = z.infer<typeof baseSchema>

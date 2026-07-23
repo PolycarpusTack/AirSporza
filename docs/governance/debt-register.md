@@ -51,7 +51,13 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** **pay down in EPIC C story C-4** (split by admin domain); lowest priority of the four god files.
 - **Origin:** 2026-06-12 evaluation.
 
-## TD-5 — Cascade `engine.ts` untested + engine-vs-preview divergence
+## TD-5 — Cascade `engine.ts` untested + engine-vs-preview divergence — ✅ SETTLED (B-2-T1 + AS-8, 2026-07-23)
+
+> **Status note (2026-07-23, no renumbering):** the **test-gap half** was settled by B-2-T1
+> (23-test characterization suite `cascade-engine.test.ts`); the **divergence half** is now
+> settled by the `CASCADE_PREVIEW_PARITY` story (AS-8) — see TD-12's settlement below.
+> Flag OFF the divergence remains by design (preview authoritative, engine characterized);
+> parity is one flag flip away.
 
 - **Artifact:** `backend/src/services/cascade/engine.ts` (203 lines, **zero tests**); divergence vs the cascade preview in `routes/schedules.ts`, documented in `backend/tests/cascade.test.ts`
 - **Type:** code (test gap with architecture-level consequence: two sources of cascade truth)
@@ -128,7 +134,17 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** **pay down after EPIC B story B-3** — record a threshold proposal at the B-3 retro (based on actual achieved coverage), then enforce it in CI.
 - **Origin:** backlog A-1 TD consideration (recorded at task A-1 design time, 2026-06-12).
 
-## TD-12 — Cascade engine: midnight anchoring + confidence divergence
+## TD-12 — Cascade engine: midnight anchoring + confidence divergence — ✅ SETTLED (CASCADE_PREVIEW_PARITY story AS-8, 2026-07-23)
+
+- **Settlement:** both defects fixed together behind build-time flag `CASCADE_PREVIEW_PARITY`
+  (default off, `env.ts` safe parse, read at the cascadeWorker boundary). Flag ON: first chain
+  event anchors at `startDateBE + startTimeBE` via the shared `beClockToUtc` derivation
+  (blank/malformed `startTimeBE` → explicit date-only fallback), and confidence follows the
+  preview convention (anchored first item 1.0; decay only on chained items) via
+  `computeCascadeChain(items, { previewParity })`. Flag OFF: byte-identical characterized
+  behavior (suite re-verified, zero flag-attributable expectation changes). Desired-semantics
+  tests (RED-first): `backend/tests/cascade-preview-parity.test.ts`, expected values derived
+  from the preview code. Rollback = flag off (ADR-008 rollback trigger stands).
 
 - **Artifact:** `backend/src/services/cascade/engine.ts:125` (anchor), `compute.ts:97-98` (decay) — pinned by `tests/cascade-engine.test.ts`
 - **Type:** code (behavior defect, Core Domain)
@@ -139,7 +155,18 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** **dedicated flagged story (`CASCADE_PREVIEW_PARITY`), scheduled with EPIC C cascade work** — fix anchor + confidence together per **ADR-008** (fixing either alone makes things worse). Characterization suite is the contract.
 - **Origin:** B-2-T1 findings 1-2 (2026-06-12).
 
-## TD-13 — Cascade outbox idempotency key is not idempotent
+## TD-13 — Cascade outbox idempotency key is not idempotent — ✅ SETTLED (CASCADE_PREVIEW_PARITY story AS-8, 2026-07-23)
+
+- **Settlement:** key is now deterministic —
+  `cascade.recomputed:<tenantId>:<courtId>:<dateStr>:<computedAt 5-min bucket>`
+  (`cascadeOutboxKey` in `engine.ts`; tenantId added to the ADR-008 key sketch because
+  `OutboxEvent.idempotencyKey` is a GLOBAL unique column — without it a second tenant on
+  the same court+date+bucket would be silently deduped away). Written via
+  `writeOutboxEventDeduped` (`services/outbox.ts`: createMany + skipDuplicates =
+  ON CONFLICT DO NOTHING, so a retry's duplicate key cannot poison the transaction).
+  Bucket tradeoff (documented on `cascadeOutboxKey`): retries within 5 min dedupe; a retry
+  crossing a bucket boundary degrades to the old at-least-once duplicate — never a lost event.
+  Flag-independent (shipped with TD-12's story per ADR-008 Decision 2).
 
 - **Artifact:** `backend/src/workers/cascadeWorker.ts:39-45` + `services/outbox.ts:30-32`
 - **Type:** code (reliability)
@@ -150,7 +177,18 @@ _Linked from [`architecture-memory.md`](./architecture-memory.md). A shortcut wi
 - **Servicing decision:** fix with TD-12's story (key: `cascade.recomputed:<courtId>:<dateStr>:<bucket>`), per ADR-008.
 - **Origin:** B-2-T1 finding 4.
 
-## TD-14 — Cascade estimates and outbox write in separate transactions
+## TD-14 — Cascade estimates and outbox write in separate transactions — ✅ SETTLED (CASCADE_PREVIEW_PARITY story AS-8, 2026-07-23)
+
+- **Settlement:** the `cascade.recomputed` outbox write moved INTO the engine's transaction
+  (ADR-001 pattern) — estimates, BroadcastSlot updates and the outbox record now commit or
+  roll back together; the failure window (committed estimates with no fan-out) is closed and
+  a retried job re-runs the whole unit idempotently (with TD-13's key). The engine emits the
+  record on every run, including an empty court (estimateCount 0), preserving the worker's
+  previous fan-out contract. The socket push deliberately stays post-commit in the worker
+  (`pushCascadeEstimates` — non-transactional client nudge; documented there: a crash between
+  commit and push loses only the live nudge, clients reconcile via the outbox/alert path).
+  Characterization-suite expectation updates each carry an inline ADR-008-D4 justification.
+  Flag-independent (shipped with TD-12's story per ADR-008 Decision 2).
 
 - **Artifact:** `engine.ts:59-192` (tx 1) vs `cascadeWorker.ts:38-46` (tx 2) vs socket push (no tx)
 - **Type:** architecture (violates the project's own ADR-001 outbox-in-tx pattern)
