@@ -696,6 +696,18 @@ that the config values are legally/contractually correct.**
   RC-0-T2 still open (RC-1-T3 precedent). Sequenced after RC-1-T3 (which kept the stub alive until RC-2 replaces it).
   Unblocks: RC-4-T1, END OF STORY SEQUENCE.
 
+**Post-story architect decisions (2026-07-23)** — recorded at RC-2 close; none reopen RC-2 scope:
+- **(A) Deliverable lifecycle stays FORWARD-ONLY.** `REQUIRED → PLANNED → CONFIRMED → DELIVERED` admits no
+  undo/backward transitions (the 409 optimistic guard remains the only recovery affordance). Revisit ONLY on a
+  concrete ops cancellation case — that would be an `accessibility v2` snapshot bump + its own story, never a quiet
+  widening of the state machine.
+- **(B) T888 requirement stays CONFIG-LOCKED.** No per-event override: both API doors (`setRequirement` for T888 and
+  any transition that would flip the config-derived REQUIRED/NOT_REQUIRED) return **400**. Exceptions land as config
+  edits to the sport-exclusion set via RC-0-T1 (data, no deploy) — never as per-event flags.
+- **(C) Per-tenant accessibility configuration APPROVED as a new story → RC-5.** AS-10 (client rules are per-tenant
+  config, never product constants) applies the moment tenant #2 is real; the architect chose to **build the mechanism
+  now** rather than defer it to client onboarding. See Story RC-5.
+
 ---
 
 ### Story RC-3 — Remit coverage tracking (G12)
@@ -739,6 +751,65 @@ Size **S** · Priority 4 · DoR: **READY after RC-1..RC-3**
   move to FTA live slot → code clears → T888 deliverable defaulted, transition to PLANNED → KPI endpoint reflects it →
   flag OFF → stage-4 golden-master passes. Write `docs/runbooks/regulatory-compliance.md`.
   Unblocks: **EPIC RC RETRO**, END OF STORY SEQUENCE.
+
+---
+
+### Story RC-5 — Per-tenant accessibility configuration
+**Origin:** RC-2 post-story architect decision (C), 2026-07-23 — AS-10 built now rather than deferred to tenant-#2
+onboarding.
+
+**As an** administrator **I want** the accessibility rule set — T888 sport-exclusion set, KPI coverage targets,
+unplanned-check lead time — configurable per tenant with the global constants as fallback defaults **so that**
+client-specific regulatory obligations are tenant configuration (AS-10), not product constants baked into a release.
+
+Business Value 2 · Priority 3 · Size **M** · DoR: **READY** (no external gate — this story ships the **MECHANISM**
+only; AS-1 gates config *values*, not *mechanisms* — the RC-2 DoR-refinement precedent of 2026-07-13 applies
+verbatim; the `TODO-KPI` posture carries over unchanged) · INVEST I✓ N✓ V✓ E✓ S✓ T✓
+**Interplay note (RC-0-T1):** once RC-5 ships, **RC-0-T1's verified values land as a tenant-config data edit** (row
+upsert for the VRT tenant) instead of a code edit to `backend/src/config/accessibility.ts`; the constants remain as
+documented fallback defaults and keep their `TODO-KPI` markers until RC-0-T1 clears.
+
+**Scope:** move the three global config constants in `backend/src/config/accessibility.ts` —
+`T888_EXCLUDED_SPORT_IDS`, `ACCESSIBILITY_KPI_TARGET_PCT_BY_TYPE`, `ACCESSIBILITY_UNPLANNED_LEAD_TIME_DAYS` — behind
+a per-tenant loader with the constants as fallback when no tenant row exists. The consumers already take injected
+values (exclusion set into the TD-31-extracted seeding service, targets into the KPI aggregation, lead time into the
+stage-4 check), so the wiring lands at the route/service boundaries — the pure functions keep their signatures.
+
+**AC (Gherkin):**
+- Given a tenant with NO `TenantAccessibilityConfig` row, Then deliverable defaulting, KPI targets and the
+  `ACCESSIBILITY_UNPLANNED` lead time behave byte-identically to today (global constants apply as fallback).
+- Given a tenant row (exclusion set / targets / lead time), Then all three consumers read the tenant values; a second
+  tenant without a row still gets the constants (per-tenant isolation, RLS-enforced).
+- Given the admin config endpoint, When called by a non-admin, Then 403; reads/writes are tenant-scoped from the auth
+  context (never a client-supplied tenantId).
+- Given an invalid config write (target outside 0–100, negative lead time, unknown deliverable type key), Then 400
+  with field-level detail.
+- Tests assert the fallback + per-tenant override **MECHANISM only** — never that any value is legally/contractually
+  correct (that oracle stays RC-0-T1, per the RC-2 `TODO-KPI` posture).
+
+**Interfaces:** `accessibilityApi.getConfig()` / `putConfig()` (admin). **Contract Snapshot `accessibility-config v1`.**
+**TD:** none expected — the constants' fallback role is documented in the config header (no silent dual source of
+truth; the TD-31-extracted seeding service stays the single choke point, so the exclusion set wires once and covers
+all five event-creation sites).
+**Idempotency:** config write is a per-tenant upsert (PUT semantics — retry-safe).
+
+- **RC-5-T1** · Hat **PREPARATORY** · Model **Sonnet** · Confidence High
+  Goal: Migration: `TenantAccessibilityConfig` table (unique `tenantId` FK, `t888ExcludedSportIds`,
+  `kpiTargetPctByType` json, `unplannedLeadTimeDays`) + `tenant_isolation` RLS (ADR-011) + rollback; loader
+  `loadTenantAccessibilityConfig(tx, tenantId)` returning the tenant row merged over the constant defaults
+  (no row → exactly the constants; partial-row semantics decided + pinned here).
+  TDD: migration structural-integrity + loader fallback/merge tests first (no row → constants byte-identical;
+  cross-tenant isolation).
+  Pull Gate: no migration collisions; ADR-011 RLS checklist. Unblocks: RC-5-T2.
+- **RC-5-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: consumers read via the loader at the route/service boundaries (accessibility seeding service, KPI aggregation
+  target param, stage-4 lead time — pure fn signatures unchanged) + admin GET/PUT config route (tenant-scoped, admin
+  role) + `accessibilityApi` extension.
+  TDD: route tests first (fallback parity when no row; per-tenant override respected in all three consumers;
+  cross-tenant isolation; 403 non-admin; 400 invalid payload).
+  Pull Gate: RC-5-T1 loader.
+  Hand-off: **Contract Snapshot `accessibility-config v1`**. Unblocks: END OF STORY SEQUENCE (RC-4's smoke already
+  covers the constant-fallback path; fallback parity is asserted here, no RC-4 rerun required).
 
 ---
 

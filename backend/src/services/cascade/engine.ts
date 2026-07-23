@@ -1,5 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../db/prisma.js'
+import { env } from '../../config/env.js'
+import { beClockToUtc } from '../../utils/beClock.js'
+import { writeOutboxEventDeduped } from '../outbox.js'
 import { heuristicEstimator, type CascadeEvent, type DurationEstimator } from './estimator.js'
 import {
   CHANGEOVER_MIN,
@@ -41,6 +44,97 @@ export interface CascadeResult {
   computedAt: Date
 }
 
+export interface CascadeEngineOptions {
+  /** Duration estimator override (tests inject; defaults to heuristicEstimator). */
+  estimator?: DurationEstimator
+  /**
+   * TD-12 parity with the schedule preview — semantics in ADR-008 Decision 1.
+   * Defaults to `env.CASCADE_PREVIEW_PARITY` (house flag pattern, cf.
+   * rightsChecker): direct callers get the deployed flag value unless they
+   * explicitly override.
+   */
+  previewParity?: boolean
+}
+
+const TIME_HH_MM = /^\d{2}:\d{2}$/
+
+/**
+ * TD-12a: chain anchor for an event. With previewParity ON, combine
+ * startDateBE + startTimeBE via the shared {@link beClockToUtc}
+ * derivation. A missing, blank, or malformed (non-`HH:MM`) startTimeBE
+ * falls back EXPLICITLY to the date-only midnight anchor — same as
+ * flag-off — rather than producing an Invalid Date (legacy rows predating
+ * the `timeString` zod schema may carry arbitrary strings).
+ */
+function eventAnchorMs(
+  startDateBE: Date,
+  startTimeBE: string | null | undefined,
+  previewParity: boolean
+): number {
+  if (previewParity && startTimeBE && TIME_HH_MM.test(startTimeBE)) {
+    return beClockToUtc(startDateBE, startTimeBE).getTime()
+  }
+  return new Date(startDateBE).getTime()
+}
+
+/** Bucket granularity for the deterministic cascade outbox key (TD-13). */
+export const CASCADE_OUTBOX_BUCKET_MIN = 5
+
+const MS_PER_MIN = 60_000
+/** `YYYY-MM-DDTHH:MM` — ISO-8601 truncated to minute precision (the bucket label). */
+const ISO_MINUTE_LENGTH = 'YYYY-MM-DDTHH:MM'.length
+
+/**
+ * TD-13 (ADR-008 Decision 2): deterministic idempotency key for the
+ * `cascade.recomputed` outbox event —
+ * `cascade.recomputed:<tenantId>:<courtId>:<dateStr>:<computedAtBucket>`.
+ *
+ * Bucket = computedAt floored to 5 minutes (`YYYY-MM-DDTHH:MM`). Rationale:
+ * worker retries (immediate / short-backoff) land in the same bucket and
+ * dedupe via ON CONFLICT DO NOTHING + the outbox consumer's BullMQ jobId;
+ * genuinely distinct recompute waves ≥5 min apart emit fresh events. A
+ * retry that crosses a bucket boundary degrades to today's at-least-once
+ * duplicate fan-out — never a lost event.
+ *
+ * tenantId is part of the key (a deliberate widening of the ADR-008 key
+ * sketch): `idempotencyKey` is a GLOBAL unique column and court ids are
+ * per-tenant JSONB values, so without the tenant a second tenant's event
+ * for the same court+date+bucket would be silently dropped.
+ */
+export function cascadeRecomputedKey(
+  tenantId: string,
+  courtId: number,
+  dateStr: string,
+  at: Date
+): string {
+  const bucketMs = CASCADE_OUTBOX_BUCKET_MIN * MS_PER_MIN
+  const bucket = new Date(Math.floor(at.getTime() / bucketMs) * bucketMs)
+    .toISOString()
+    .slice(0, ISO_MINUTE_LENGTH)
+  return `cascade.recomputed:${tenantId}:${courtId}:${dateStr}:${bucket}`
+}
+
+/**
+ * Contract (TD-14, ADR-001): every cascade run — including an empty court
+ * (estimateCount 0) — emits exactly one `cascade.recomputed` record, written
+ * INSIDE the engine transaction so estimates and their fan-out trigger commit
+ * or roll back together.
+ */
+async function writeCascadeRecomputedOutbox(
+  tx: Prisma.TransactionClient,
+  params: { tenantId: string; courtId: number; dateStr: string; estimateCount: number; at: Date },
+) {
+  const { tenantId, courtId, dateStr, estimateCount, at } = params
+  await writeOutboxEventDeduped(tx, {
+    tenantId,
+    eventType: 'cascade.recomputed',
+    aggregateType: 'Court',
+    aggregateId: String(courtId),
+    payload: { courtId, date: dateStr, estimateCount },
+    idempotencyKey: cascadeRecomputedKey(tenantId, courtId, dateStr, at),
+  })
+}
+
 /**
  * Recompute cascade estimates for all events on a given court+date.
  * Uses advisory lock per court+date to prevent concurrent recomputation.
@@ -49,8 +143,10 @@ export async function runCascade(
   tenantId: string,
   courtId: number,
   date: Date,
-  estimator: DurationEstimator = heuristicEstimator
+  opts: CascadeEngineOptions = {}
 ): Promise<CascadeResult[]> {
+  const estimator = opts.estimator ?? heuristicEstimator
+  const previewParity = opts.previewParity ?? env.CASCADE_PREVIEW_PARITY
   const dateStr = date.toISOString().slice(0, 10)
 
   // Acquire advisory lock for this court+date to prevent concurrent cascade runs
@@ -80,7 +176,12 @@ export async function runCascade(
       return orderA - orderB
     })
 
-    if (events.length === 0) return []
+    if (events.length === 0) {
+      // Contract: one cascade.recomputed record per run, empty court included
+      // (see writeCascadeRecomputedOutbox).
+      await writeCascadeRecomputedOutbox(tx, { tenantId, courtId, dateStr, estimateCount: 0, at: new Date() })
+      return []
+    }
 
     // Pre-load actual times from BroadcastSlots for completed events
     const completedEventIds = events
@@ -122,7 +223,9 @@ export async function runCascade(
 
       return {
         id: event.id,
-        startMs: new Date(event.startDateBE).getTime(),
+        // TD-12a: flag ON anchors at startDateBE + startTimeBE; flag OFF
+        // keeps the characterized date-only (midnight UTC) anchor.
+        startMs: eventAnchorMs(event.startDateBE, event.startTimeBE, previewParity),
         status,
         notBeforeMs: meta.not_before_utc ? new Date(meta.not_before_utc).getTime() : null,
         actualStartMs,
@@ -132,7 +235,7 @@ export async function runCascade(
       }
     })
 
-    const chain = computeCascadeChain(items)
+    const chain = computeCascadeChain(items, { previewParity })
 
     const computedAt = new Date()
     const results: CascadeResult[] = chain.map(c => ({
@@ -187,6 +290,9 @@ export async function runCascade(
         WHERE bs."tenantId" = ${tenantId}::uuid AND bs."eventId" = v.event_id
       `)
     }
+
+    // TD-14 (ADR-001): canonical fan-out record commits WITH the estimates.
+    await writeCascadeRecomputedOutbox(tx, { tenantId, courtId, dateStr, estimateCount: results.length, at: computedAt })
 
     return results
   })

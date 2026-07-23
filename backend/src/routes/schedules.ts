@@ -468,9 +468,9 @@ router.post('/:id/preview-cascade', authenticate, authorize('planner', 'admin'),
       })
 
       // Preview semantics: first slot is certain (confidence = 1.0); downstream
-      // slots decay by CONFIDENCE_DECAY. This intentionally differs from
-      // engine.ts which decays on the first uncertain item too. Constants
-      // come from the shared compute module so they can't drift.
+      // slots decay by CONFIDENCE_DECAY — the authoritative convention
+      // (ADR-008 Decision 1; engine parity behind CASCADE_PREVIEW_PARITY).
+      // Constants come from the shared compute module so they can't drift.
       let confidence = 1.0
       let prevEndMs: number | null = null
 

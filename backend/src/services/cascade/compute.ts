@@ -51,16 +51,29 @@ export interface CascadeChainResult<TId = number | string> {
   confidenceScore: number
 }
 
+export interface CascadeChainOptions {
+  /**
+   * TD-12b: preview confidence convention — anchored chain head is CERTAIN
+   * (1.0), decay only on chained items. Default false = characterized legacy
+   * decay-on-first-item. Rationale: ADR-008 Decision 1.
+   */
+  previewParity?: boolean
+}
+
 /**
  * Apply the cascade chain algorithm to a sorted list of items.
  *
  * Walks items in order. Completed/live items anchor subsequent items
  * using their actual end time (or an estimated end if actualEnd is
- * absent). Confidence decays by {@link CONFIDENCE_DECAY} at each step
- * past the first uncertain item.
+ * absent).
+ *
+ * Confidence: `previewParity` selects the preview's convention vs the
+ * characterized legacy decay (ADR-008 Decision 1); flag-off, the preview
+ * (`routes/schedules.ts`) stays authoritative for planner-facing display.
  */
 export function computeCascadeChain<TId extends number | string>(
-  items: (CascadeItem & { id: TId })[]
+  items: (CascadeItem & { id: TId })[],
+  opts: CascadeChainOptions = {}
 ): CascadeChainResult<TId>[] {
   const changeoverMs = CHANGEOVER_MIN * 60 * 1000
   const results: CascadeChainResult<TId>[] = []
@@ -95,13 +108,21 @@ export function computeCascadeChain<TId extends number | string>(
     }
 
     const midMin = (item.shortMin + item.longMin) / 2
-    const confidence = prevConfidence * CONFIDENCE_DECAY
+    // Anchored = chain head (no predecessor end yet). Under previewParity an
+    // anchored start is certain (ADR-008 Decision 1); chained starts inherit
+    // uncertainty from the predecessor's ESTIMATED end — even a completed
+    // predecessor hands over an estimated changeover, so chained always decays
+    // (identical to preview slot 2, schedules.ts preview-cascade).
+    const anchored = prevEnd.earliest == null
+    const confidence = opts.previewParity && anchored
+      ? 1.0
+      : prevConfidence * CONFIDENCE_DECAY
 
     let earliestMs: number
     let estimatedMs: number
     let latestMs: number
 
-    if (prevEnd.earliest == null) {
+    if (anchored) {
       const anchor = item.notBeforeMs != null
         ? Math.max(item.startMs, item.notBeforeMs)
         : item.startMs
@@ -110,7 +131,7 @@ export function computeCascadeChain<TId extends number | string>(
       latestMs = anchor
     } else {
       const lowerBound = item.notBeforeMs ?? 0
-      earliestMs = Math.max(prevEnd.earliest + changeoverMs, lowerBound)
+      earliestMs = Math.max(prevEnd.earliest! + changeoverMs, lowerBound)
       estimatedMs = Math.max(prevEnd.estimated! + changeoverMs, lowerBound)
       latestMs = Math.max(prevEnd.latest! + changeoverMs, lowerBound)
     }

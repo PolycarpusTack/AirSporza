@@ -53,3 +53,38 @@ export async function writeOutboxEvent(
     },
   })
 }
+
+/**
+ * TD-13 (ADR-008): write an outbox event with a DETERMINISTIC idempotency
+ * key inside an existing transaction. `OutboxEvent.idempotencyKey` is a
+ * globally-unique column, so a deterministic key needs conflict-tolerant
+ * insertion: `createMany` + `skipDuplicates` maps to
+ * `INSERT ... ON CONFLICT DO NOTHING`. A duplicate (e.g. a retried worker
+ * job re-emitting the same key) is silently skipped WITHOUT aborting the
+ * surrounding transaction — a plain `create` hitting the unique constraint
+ * would poison the whole tx (Postgres aborts on constraint violation, so
+ * the error cannot be caught-and-continued in-tx).
+ *
+ * Returns a BatchPayload (unlike writeOutboxEvent, which returns the created
+ * record): `count` is the only written-vs-deduped signal (1 = written,
+ * 0 = key already existed).
+ */
+export async function writeOutboxEventDeduped(
+  tx: Prisma.TransactionClient,
+  params: WriteOutboxParams & { idempotencyKey: string }
+) {
+  return tx.outboxEvent.createMany({
+    data: [
+      {
+        tenantId: params.tenantId,
+        eventType: params.eventType,
+        aggregateType: params.aggregateType,
+        aggregateId: params.aggregateId,
+        payload: withCorrelationMeta(params.payload) as Prisma.JsonObject,
+        priority: params.priority ?? 'NORMAL',
+        idempotencyKey: params.idempotencyKey,
+      },
+    ],
+    skipDuplicates: true,
+  })
+}

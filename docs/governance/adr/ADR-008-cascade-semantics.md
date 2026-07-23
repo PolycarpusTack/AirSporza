@@ -59,3 +59,21 @@ restores characterized behavior exactly (suite re-verifies).
 ## Review date
 
 When TD-12 is scheduled (target: with EPIC C cascade work) or 2026-09-12, whichever first.
+
+## Implemented (2026-07-23, story CASCADE_PREVIEW_PARITY / AS-8)
+
+- **TD-12** behind build-time flag `CASCADE_PREVIEW_PARITY` (default off; `env.ts` safe
+  string parse; read at the cascadeWorker boundary, threaded as an option — pure code
+  never reads env): anchor = `startDateBE + startTimeBE` via shared `beClockToUtc`
+  (blank/malformed time → documented date-only fallback) + preview confidence convention
+  in `cascade/compute.ts` (`computeCascadeChain(items, { previewParity })`).
+- **TD-13/TD-14** flag-independent, per Decision 2: deterministic key
+  `cascade.recomputed:<tenantId>:<courtId>:<dateStr>:<5-min computedAt bucket>` (tenantId
+  added to the key sketch because `idempotencyKey` is a GLOBAL unique column — without it
+  a second tenant on the same court+date would be silently deduped away), written INSIDE
+  the engine transaction via `writeOutboxEventDeduped` (createMany + skipDuplicates =
+  ON CONFLICT DO NOTHING); socket push stays post-commit (non-transactional client nudge).
+- **Decision 4 honored:** flag-off characterization suite unchanged except the TD-13/14
+  expectations, each updated with an inline justification; desired flag-on semantics in
+  `tests/cascade-preview-parity.test.ts` (values derived from the preview code).
+- Rollback trigger above stands: flag off restores characterized TD-12 behavior exactly.

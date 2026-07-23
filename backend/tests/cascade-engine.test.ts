@@ -12,13 +12,35 @@
  *   2. cascadeWorker.ts processor      — RLS, engine call, outbox write, socket push
  *   3. outboxConsumer.ts consumeOutbox — 'cascade.recomputed' → alerts queue routing
  *
- * NOTE: engine.ts itself emits NO alerts and writes NO outbox events. Those
- * happen in cascadeWorker (outbox) and, indirectly, alertWorker via the
- * outbox consumer's EVENT_ROUTING. That separation is itself pinned here.
+ * UPDATE (AS-8 / ADR-008 Decision 4, 2026-07-23): the TD-13/TD-14
+ * flag-independent reliability fixes deliberately changed a handful of
+ * pinned expectations below — each such change carries an inline
+ * justification. TD-14 moved the `cascade.recomputed` outbox write INTO
+ * the engine transaction (previously a separate worker transaction);
+ * TD-13 made its idempotency key deterministic. Everything else —
+ * including all flag-off TD-12 semantics (midnight anchor, first-item
+ * confidence decay) — is pinned unchanged; `CASCADE_PREVIEW_PARITY` is
+ * off here (desired flag-on semantics: tests/cascade-preview-parity.test.ts).
  */
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 
 // ── Module mocks (hoisted) ──────────────────────────────────────────────────
+
+// Pin CASCADE_PREVIEW_PARITY=false regardless of the shell/CI environment: this
+// suite's flag-off pins (midnight anchor, first-item 0.85) are the golden master
+// and must not depend on process env (Repeatable).
+vi.mock('../src/config/env.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../src/config/env.js')>()
+  return {
+    ...mod,
+    env: new Proxy(mod.env, {
+      get(target, prop, receiver) {
+        if (prop === 'CASCADE_PREVIEW_PARITY') return false
+        return Reflect.get(target, prop, receiver)
+      },
+    }),
+  }
+})
 
 vi.mock('../src/db/prisma.js', () => {
   const tx = {
@@ -27,7 +49,7 @@ vi.mock('../src/db/prisma.js', () => {
     event: { findMany: vi.fn() },
     broadcastSlot: { findMany: vi.fn() },
     cascadeEstimate: { deleteMany: vi.fn(), createMany: vi.fn() },
-    outboxEvent: { create: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+    outboxEvent: { create: vi.fn(), createMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
   }
   return {
     prisma: {
@@ -83,7 +105,7 @@ const mp = prisma as unknown as {
     event: { findMany: AnyFn }
     broadcastSlot: { findMany: AnyFn }
     cascadeEstimate: { deleteMany: AnyFn; createMany: AnyFn }
-    outboxEvent: { create: AnyFn; updateMany: AnyFn; update: AnyFn }
+    outboxEvent: { create: AnyFn; createMany: AnyFn; updateMany: AnyFn; update: AnyFn }
   }
   $transaction: AnyFn
   $executeRaw: AnyFn
@@ -125,7 +147,7 @@ function makeEvent(overrides: Record<string, unknown> = {}) {
     tenantId: TENANT,
     status: 'approved',
     startDateBE: new Date('2026-04-21'),
-    startTimeBE: '20:00', // engine NEVER reads this — see finding on midnight anchoring
+    startTimeBE: '20:00', // flag-off engine never reads this (midnight anchoring pin); flag-on anchoring: cascade-preview-parity.test.ts
     durationMin: 100, // deterministic estimator: shortMin 90, longMin 120
     sportMetadata: { court_id: 7, order_on_court: 1 },
     sport: null,
@@ -171,6 +193,10 @@ beforeEach(() => {
     callOrder.push('tx.outboxEvent.create')
     return args.data
   })
+  tx.outboxEvent.createMany.mockImplementation(async () => {
+    callOrder.push('tx.outboxEvent.createMany')
+    return { count: 1 }
+  })
   tx.outboxEvent.updateMany.mockResolvedValue({ count: 0 })
   tx.outboxEvent.update.mockResolvedValue({})
   mp.event.findUnique.mockResolvedValue(null)
@@ -207,6 +233,8 @@ describe('runCascade — happy path orchestration', () => {
 
     // Pinned orchestration order. Note broadcastSlot.findMany is NOT called
     // when no event is completed/live.
+    // CHANGED (TD-14, ADR-008 D4): the outbox write now happens in-tx at the
+    // end of the engine run (was: a separate worker transaction).
     expect(callOrder).toEqual([
       '$transaction',
       'advisoryLock',
@@ -214,6 +242,7 @@ describe('runCascade — happy path orchestration', () => {
       'tx.cascadeEstimate.deleteMany',
       'tx.cascadeEstimate.createMany',
       'broadcastSlotBulkUpdate',
+      'tx.outboxEvent.createMany',
     ])
 
     // Event query shape: JSONB path filter on court_id, date-only equality.
@@ -292,10 +321,13 @@ describe('runCascade — happy path orchestration', () => {
     ])
   })
 
-  it('acquires the advisory lock and returns [] with zero writes when the court has no events', async () => {
+  it('acquires the advisory lock and returns [] with zero ESTIMATE writes when the court has no events (outbox record still emitted in-tx)', async () => {
     const results = await runCascade(TENANT, 7, DATE)
     expect(results).toEqual([])
-    expect(callOrder).toEqual(['$transaction', 'advisoryLock', 'tx.event.findMany'])
+    // CHANGED (TD-14, ADR-008 D4): the worker used to write the outbox event
+    // after EVERY run (incl. estimateCount 0) in its own tx; the relocation
+    // into the engine tx preserves that fan-out, so it now appears here.
+    expect(callOrder).toEqual(['$transaction', 'advisoryLock', 'tx.event.findMany', 'tx.outboxEvent.createMany'])
     expect(tx.cascadeEstimate.deleteMany).not.toHaveBeenCalled()
     expect(tx.cascadeEstimate.createMany).not.toHaveBeenCalled()
   })
@@ -447,7 +479,7 @@ describe('runCascade — failure propagation', () => {
       return [makeEvent({ id: 1 })]
     })
 
-    await expect(runCascade(TENANT, 7, DATE, throwingEstimator)).rejects.toThrow('estimator boom')
+    await expect(runCascade(TENANT, 7, DATE, { estimator: throwingEstimator })).rejects.toThrow('estimator boom')
 
     // Lock was acquired and events were read; nothing was written. Lock
     // release is delegated to pg_advisory_xact_lock semantics (tx end).
@@ -505,29 +537,33 @@ describe('cascadeWorker processor — outbox + socket emission', () => {
     return event
   }
 
-  it('path A happy: RLS → engine transaction → SEPARATE outbox transaction → socketio push', async () => {
+  it('path A happy: RLS → ONE engine transaction (estimates + in-tx outbox) → socketio push', async () => {
     primeSingleEventCourt7()
 
     const result = await processCascadeJob({ data: { tenantId: TENANT, eventId: 1 } })
     expect(result).toEqual({ estimateCount: 1 })
 
+    // CHANGED (TD-14, ADR-008 D4): estimates and the outbox record now
+    // commit in ONE transaction (was: engine tx, then a separate outbox tx).
     expect(callOrder).toEqual([
       'setTenantRLS',
-      '$transaction', // engine: estimates persisted + committed here…
+      '$transaction', // single transaction: estimates + outbox commit together
       'advisoryLock',
       'tx.event.findMany',
       'tx.cascadeEstimate.deleteMany',
       'tx.cascadeEstimate.createMany',
       'broadcastSlotBulkUpdate',
-      '$transaction', // …then the outbox write happens in a NEW transaction
-      'tx.outboxEvent.create',
-      'socketioQueue.add', // and the socket push outside any transaction
+      'tx.outboxEvent.createMany',
+      'socketioQueue.add', // socket push stays outside any transaction
     ])
 
-    // Outbox row shape, including the auto-generated idempotency key:
-    // `<eventType>:<aggregateId>:<uuid>` and default NORMAL priority.
-    const outboxArg = tx.outboxEvent.create.mock.calls[0][0]
-    expect(outboxArg.data).toMatchObject({
+    // Outbox row shape. CHANGED (TD-13, ADR-008 D4): deterministic
+    // idempotency key `cascade.recomputed:<tenantId>:<courtId>:<dateStr>:<bucket>`
+    // (was: `<eventType>:<aggregateId>:<uuid>`), written via createMany +
+    // skipDuplicates so a retry's duplicate key is a no-op.
+    const outboxArg = tx.outboxEvent.createMany.mock.calls[0][0]
+    expect(outboxArg.skipDuplicates).toBe(true)
+    expect(outboxArg.data[0]).toMatchObject({
       tenantId: TENANT,
       eventType: 'cascade.recomputed',
       aggregateType: 'Court',
@@ -535,8 +571,8 @@ describe('cascadeWorker processor — outbox + socket emission', () => {
       payload: { courtId: 7, date: '2026-04-21', estimateCount: 1 },
       priority: 'NORMAL',
     })
-    expect(outboxArg.data.idempotencyKey).toMatch(
-      /^cascade\.recomputed:7:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    expect(outboxArg.data[0].idempotencyKey).toMatch(
+      new RegExp(`^cascade\\.recomputed:${TENANT}:7:2026-04-21:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$`)
     )
 
     // Socket push: estimates payload to the court room on the /cascade namespace.
@@ -552,27 +588,37 @@ describe('cascadeWorker processor — outbox + socket emission', () => {
     expect(jobPayload.payload[0].eventId).toBe(1)
   })
 
-  it('PINNED (suspicious): outbox idempotency key embeds a fresh uuid per run — a retried job writes a DUPLICATE outbox event', async () => {
+  // CHANGED (TD-13, ADR-008 D4): formerly PINNED-suspicious "fresh uuid per
+  // run → duplicate outbox event on retry". The key is now deterministic, so
+  // identical inputs (same tenant/court/date within the computedAt bucket)
+  // produce the SAME key and dedupe via skipDuplicates.
+  it('outbox idempotency key is deterministic — a retried job re-emits the SAME key (deduped, no duplicate outbox event)', async () => {
     primeSingleEventCourt7()
 
     await processCascadeJob({ data: { tenantId: TENANT, eventId: 1 } })
     await processCascadeJob({ data: { tenantId: TENANT, eventId: 1 } })
 
-    const key1 = tx.outboxEvent.create.mock.calls[0][0].data.idempotencyKey
-    const key2 = tx.outboxEvent.create.mock.calls[1][0].data.idempotencyKey
-    expect(key1).not.toBe(key2) // identical inputs → different keys → no dedup
+    const key1 = tx.outboxEvent.createMany.mock.calls[0][0].data[0].idempotencyKey
+    const key2 = tx.outboxEvent.createMany.mock.calls[1][0].data[0].idempotencyKey
+    expect(key1).toBe(key2) // identical inputs → identical key → DB-level dedup
   })
 
-  it('PINNED (suspicious): outbox write failure AFTER estimates committed — partial application: estimates persist, no outbox row, no socket push, job fails (retry recomputes + duplicates)', async () => {
+  // CHANGED (TD-14, ADR-008 D4): formerly PINNED-suspicious "partial
+  // application: estimates persist with no outbox row". The outbox write is
+  // now INSIDE the engine transaction, so its failure rolls the estimates
+  // back too — the committed-estimates-without-fan-out window is closed.
+  it('outbox write failure aborts the single engine transaction: no socket push, job fails, estimates roll back with it', async () => {
     primeSingleEventCourt7()
-    tx.outboxEvent.create.mockImplementation(async () => {
-      callOrder.push('tx.outboxEvent.create')
+    tx.outboxEvent.createMany.mockImplementation(async () => {
+      callOrder.push('tx.outboxEvent.createMany')
       throw new Error('outbox boom')
     })
 
     await expect(processCascadeJob({ data: { tenantId: TENANT, eventId: 1 } })).rejects.toThrow('outbox boom')
 
-    // The engine transaction already ran to completion before the outbox tx.
+    // The estimate write was issued but shares the failing transaction with
+    // the outbox write (rollback is delegated to Prisma/Postgres).
+    expect(callOrder.filter(c => c === '$transaction')).toHaveLength(1)
     expect(tx.cascadeEstimate.createMany).toHaveBeenCalledTimes(1)
     expect(socketioQueue.add).not.toHaveBeenCalled()
   })
@@ -587,7 +633,8 @@ describe('cascadeWorker processor — outbox + socket emission', () => {
     expect(await processCascadeJob({ data: { tenantId: TENANT } })).toEqual({ skipped: true })
 
     expect(mp.$transaction).not.toHaveBeenCalled()
-    expect(tx.outboxEvent.create).not.toHaveBeenCalled()
+    // (TD-14 relocation: outbox writes now go through createMany, in-tx.)
+    expect(tx.outboxEvent.createMany).not.toHaveBeenCalled()
   })
 
   it('PINNED: a string court_id ("7") is coerced to number by the worker, but the engine queries JSONB with the NUMBER 7', async () => {
@@ -620,7 +667,8 @@ describe('cascadeWorker processor — outbox + socket emission', () => {
 
     expect(result).toEqual({ estimateCount: 1, courts: 1 })
     expect(tx.event.findMany).toHaveBeenCalledTimes(1) // one runCascade, not two
-    expect(tx.outboxEvent.create).toHaveBeenCalledTimes(1)
+    // (TD-14 relocation: the one outbox event is written in the engine tx.)
+    expect(tx.outboxEvent.createMany).toHaveBeenCalledTimes(1)
     expect(socketioQueue.add).toHaveBeenCalledTimes(1)
   })
 
@@ -642,7 +690,7 @@ describe('consumeOutbox — cascade.recomputed routing (alert emission)', () => 
     tenantId: TENANT,
     eventType: 'cascade.recomputed',
     payload: { courtId: 7, date: '2026-04-21', estimateCount: 2 },
-    idempotencyKey: 'cascade.recomputed:7:fixed-key',
+    idempotencyKey: 'cascade.recomputed:tenant-a:7:2026-04-21:2026-04-21T12:30', // post-TD-13 producer format (consumer is format-agnostic)
     retryCount: 0,
     maxRetries: 3,
   }
@@ -664,7 +712,7 @@ describe('consumeOutbox — cascade.recomputed routing (alert emission)', () => 
         _outboxEventId: 'ob-1',
         _tenantId: TENANT,
       },
-      { jobId: 'cascade.recomputed:7:fixed-key:alerts' }
+      { jobId: 'cascade.recomputed:tenant-a:7:2026-04-21:2026-04-21T12:30:alerts' }
     )
     // No direct socket/webhook/cascade fan-out for this event type.
     expect(socketioQueue.add).not.toHaveBeenCalled()
