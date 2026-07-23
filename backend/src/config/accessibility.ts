@@ -1,5 +1,16 @@
 import type { AccessibilityType, AccessibilityStatus } from '@prisma/client'
 
+/*
+ * RC-5: the three constants below are the GLOBAL FALLBACK DEFAULTS for the
+ * per-tenant accessibility configuration (`TenantAccessibilityConfig`, loaded via
+ * `services/accessibility/tenantConfig.ts#loadTenantAccessibilityConfig`). A tenant
+ * without a config row — or with a NULL field — gets EXACTLY these values (per-field
+ * merge, pinned there). There is no other source of truth: consumers read the
+ * loader at route/service boundaries; the pure functions keep taking injected
+ * values. RC-0-T1's verified values land as a tenant-config DATA edit (VRT row
+ * upsert), so the TODO-KPI markers below stay until RC-0-T1 clears.
+ */
+
 /**
  * TODO-KPI: provisional default (empty set = all sports T888-REQUIRED) — the
  * authoritative subtitling-KPI sport-exclusion set is verified via RC-0-T1 as a
@@ -17,11 +28,15 @@ export const T888_EXCLUDED_SPORT_IDS: ReadonlySet<number> = new Set<number>()
  * `null` = no coverage target defined for the type. Tests assert the WIRING (the KPI
  * endpoint returns whatever stands here), never that a number is correct.
  */
-export const ACCESSIBILITY_KPI_TARGET_PCT_BY_TYPE: Readonly<Record<AccessibilityType, number | null>> = {
-  T888: 99,
-  AUDIO_DESCRIPTION: null,
-  VGT: null,
-}
+export const ACCESSIBILITY_KPI_TARGET_PCT_BY_TYPE: Readonly<Record<AccessibilityType, number | null>> =
+  // Frozen at runtime, not just at the type level: the record is aliased by
+  // reference through the tenant-config no-row fallback (RC-5), so a cast-away
+  // mutation anywhere would corrupt the GLOBAL fallback for every tenant.
+  Object.freeze({
+    T888: 99,
+    AUDIO_DESCRIPTION: null,
+    VGT: null,
+  })
 
 /**
  * Lead time N (days) for the stage-4 `ACCESSIBILITY_UNPLANNED` check (RC-2-T3): an

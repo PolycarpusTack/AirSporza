@@ -130,6 +130,7 @@ model Tenant {
   channelSwitchActions  ChannelSwitchAction[]
   adapterConfigs        AdapterConfig[]
   integrations          Integration[]
+  accessibilityConfig   TenantAccessibilityConfig?
 }
 
 model User {
@@ -1962,4 +1963,24 @@ model IntegrationLog {
 
   @@index([integrationId, createdAt(sort: Desc)])
   @@index([integrationId, status])
+}
+
+// RC-5-T1 — per-tenant accessibility configuration (AS-10: client rules are tenant
+// config, never product constants). At most ONE row per tenant (unique tenantId);
+// every field is NULLABLE — NULL means "fall back to that field's global constant
+// default in src/config/accessibility.ts" (per-field merge, pinned in
+// services/accessibility/tenantConfig.ts). `t888ExcludedSportIds` is Json (int
+// array), not Int[]: Prisma scalar lists cannot be NULL, and the merge semantics
+// need "absent → fallback" to be distinct from "explicitly empty → no exclusions".
+model TenantAccessibilityConfig {
+  id                    Int      @id @default(autoincrement())
+  tenantId              String   @unique @db.Uuid
+  t888ExcludedSportIds  Json?
+  kpiTargetPctByType    Json?
+  unplannedLeadTimeDays Int?
+  updatedBy             String?  @db.Uuid // who last wrote the config (audit)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 }
