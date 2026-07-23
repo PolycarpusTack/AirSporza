@@ -137,6 +137,8 @@ describe('Event Endpoints', () => {
           customFieldValue: { upsert: vi.fn().mockResolvedValue({}) },
           outboxEvent: { create: vi.fn().mockResolvedValue({}) },
           accessibilityDeliverable: { createMany: seedDeliverables },
+          // RC-5-T2: the seeding choke point now reads the tenant config on the same tx (null -> constant fallback).
+          tenantAccessibilityConfig: { findUnique: vi.fn().mockResolvedValue(null) },
           broadcastSlot: {
             findFirst: vi.fn().mockResolvedValue(null),
             create: vi.fn().mockResolvedValue({}),
@@ -207,6 +209,8 @@ describe('Event Endpoints', () => {
           customFieldValue: { upsert: vi.fn().mockResolvedValue({}) },
           outboxEvent: { create: vi.fn().mockResolvedValue({}) },
           accessibilityDeliverable: { createMany: seedDeliverables },
+          // RC-5-T2: the seeding choke point now reads the tenant config on the same tx (null -> constant fallback).
+          tenantAccessibilityConfig: { findUnique: vi.fn().mockResolvedValue(null) },
           broadcastSlot: {
             findFirst: vi.fn().mockResolvedValue(null),
             create: vi.fn().mockResolvedValue({}),

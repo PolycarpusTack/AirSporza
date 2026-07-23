@@ -20,6 +20,8 @@ vi.mock('../src/db/prisma.js', () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    // RC-5-T2: the KPI route reads targets via the tenant config loader (null → constant fallback).
+    tenantAccessibilityConfig: { findUnique: vi.fn().mockResolvedValue(null) },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     $executeRaw: vi.fn().mockResolvedValue(undefined),
     $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),

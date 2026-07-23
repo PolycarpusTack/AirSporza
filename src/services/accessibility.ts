@@ -43,6 +43,36 @@ export interface AccessibilityKpiReport {
   byType: AccessibilityKpiEntry[]
 }
 
+/**
+ * RC-5 — per-tenant accessibility configuration (admin, AS-10). `effective` is what
+ * the backend consumers apply (tenant override merged per field over the global
+ * constant fallbacks); `override` is the raw stored row (null = no row; a null field
+ * = "falls back to the constant"). PUT is a per-tenant upsert with PUT-replace
+ * semantics: omitted/null fields CLEAR the override for that field.
+ */
+export interface EffectiveAccessibilityConfig {
+  t888ExcludedSportIds: number[]
+  kpiTargetPctByType: Record<AccessibilityType, number | null>
+  unplannedLeadTimeDays: number
+}
+
+export interface AccessibilityConfigOverride {
+  t888ExcludedSportIds: number[] | null
+  kpiTargetPctByType: Partial<Record<AccessibilityType, number | null>> | null
+  unplannedLeadTimeDays: number | null
+}
+
+export interface AccessibilityConfigResponse {
+  effective: EffectiveAccessibilityConfig
+  override: AccessibilityConfigOverride | null
+}
+
+export interface AccessibilityConfigInput {
+  t888ExcludedSportIds?: number[] | null
+  kpiTargetPctByType?: Partial<Record<AccessibilityType, number | null>> | null
+  unplannedLeadTimeDays?: number | null
+}
+
 export const accessibilityApi = {
   /** The event's deliverable rows. */
   list: (eventId: number) =>
@@ -59,4 +89,11 @@ export const accessibilityApi = {
   /** Coverage % per deliverable type over [from, to] (ISO dates), reconciling 1:1 with rows. */
   kpi: (from: string, to: string) =>
     api.get<AccessibilityKpiReport>(`/accessibility/kpi?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+
+  /** The tenant's accessibility config (admin; 403 otherwise). Tenant-scoped server-side. */
+  getConfig: () => api.get<AccessibilityConfigResponse>('/accessibility/config'),
+
+  /** Per-tenant upsert (REPLACE semantics: omitted/null fields fall back to the constants). Admin. */
+  replaceConfig: (input: AccessibilityConfigInput) =>
+    api.put<AccessibilityConfigResponse>('/accessibility/config', input),
 }

@@ -23,6 +23,8 @@ vi.mock('../src/db/prisma.js', () => {
     event: { create: txEventCreate },
     outboxEvent: { create: txOutboxCreate },
     accessibilityDeliverable: { createMany: txDeliverableCreateMany },
+    // RC-5-T2: the seeding choke point reads the tenant config on the same tx (null → constant fallback).
+    tenantAccessibilityConfig: { findUnique: vi.fn().mockResolvedValue(null) },
   }
   return {
     prisma: {
