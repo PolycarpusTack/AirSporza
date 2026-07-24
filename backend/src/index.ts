@@ -42,6 +42,7 @@ import cascadeRoutes from './routes/cascade.js'
 import rightsRoutes from './routes/rights.js'
 import listedEventsRoutes from './routes/listedEvents.js'
 import accessibilityRoutes from './routes/accessibility.js'
+import rippleProposalRoutes from './routes/rippleProposals.js'
 import channelSwitchRoutes from './routes/channelSwitches.js'
 import adapterRoutes from './routes/adapters.js'
 import integrationsRoutes from './routes/integrations.js'
@@ -137,6 +138,7 @@ export function buildApp() {
   app.use('/api/rights', authenticate, setTenantContext, standardLimiter, rightsRoutes)
   app.use('/api/listed-events', authenticate, setTenantContext, standardLimiter, listedEventsRoutes)
   app.use('/api/accessibility', authenticate, setTenantContext, standardLimiter, accessibilityRoutes)
+  app.use('/api/ripple-proposals', authenticate, setTenantContext, standardLimiter, rippleProposalRoutes)
   app.use('/api/channel-switches', authenticate, setTenantContext, standardLimiter, channelSwitchRoutes)
 
   app.use('/api/integrations', authenticate, setTenantContext, standardLimiter, integrationsRoutes)

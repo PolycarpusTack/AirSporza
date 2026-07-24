@@ -31,6 +31,11 @@ const EVENT_ROUTING: Record<string, string[]> = {
   // Channel switches
   'channel_switch.confirmed':   ['socketio', 'webhook'],
   'channel_switch.created':     ['socketio'],
+  // Ripple proposals (SV-2, ADR-019; aggregate-first grammar like
+  // channel_switch.* — SV-3 adds .applied/.rejected/.superseded) — internal
+  // review-queue nudge only; no webhook fan-out until SV-3 defines the review
+  // surface external systems act on.
+  'ripple_proposal.created':    ['socketio'],
   // BroadcastSlot lifecycle
   'slot.created':               ['socketio'],
   'slot.updated':               ['socketio'],

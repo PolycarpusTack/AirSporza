@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../../db/prisma.js'
 import { writeOutboxEvent } from '../../services/outbox.js'
 import { seedDefaultAccessibilityDeliverables } from '../../services/accessibility/seeding.js'
+import { captureFeedRipple } from '../../services/ripple/capture.js'
 import { logger } from '../../utils/logger.js'
 import {
   getFieldSourceCodes,
@@ -1005,6 +1006,12 @@ async function updateImportedEvent(
       competition: true,
     }
   })
+
+  // SV-2 (G8, ADR-019): a FEED schedule change on a slot-linked event creates a
+  // reviewable RippleProposal IN THIS SAME TRANSACTION. Flag-gated
+  // (SCHEDULE_RIPPLE_ENABLED, default OFF → returns before any query); the
+  // event write above is byte-identical either way, and NO slot is written.
+  await captureFeedRipple(db, { beforeEvent: existing, afterEvent: updated, sourceId, sourceRecordId })
 
   // Field provenance is non-critical metadata — write outside the caller's transaction
   recordFieldProvenance({

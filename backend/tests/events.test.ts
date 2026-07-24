@@ -43,11 +43,16 @@ vi.mock('../src/services/notificationService.js', () => ({
   createNotification: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('../src/services/eventSlotBridge.js', () => ({
-  syncEventToSlot: vi.fn().mockResolvedValue(undefined),
-  shouldSync: vi.fn().mockReturnValue(false),
-  unlinkEventSlot: vi.fn().mockResolvedValue(undefined),
-}))
+// SV-2: partial mock — capturePayloads imports TRIGGER_FIELDS from the real module.
+vi.mock('../src/services/eventSlotBridge.js', async (importActual) => {
+  const actual = await importActual<typeof import('../src/services/eventSlotBridge.js')>()
+  return {
+    ...actual,
+    syncEventToSlot: vi.fn().mockResolvedValue(undefined),
+    shouldSync: vi.fn().mockReturnValue(false),
+    unlinkEventSlot: vi.fn().mockResolvedValue(undefined),
+  }
+})
 
 const mp = prisma as unknown as {
   event: {

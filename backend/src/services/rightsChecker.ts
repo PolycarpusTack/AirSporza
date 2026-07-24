@@ -16,7 +16,7 @@
  *  - {@link getRightsMatrix} — operator-facing per-contract summary with
  *    runs-used / days-to-expiry / platform coverage for the matrix UI.
  */
-import type { Contract, PrismaClient, RightsWindow } from '@prisma/client'
+import type { Contract, Prisma, PrismaClient, RightsWindow } from '@prisma/client'
 import type { ValidationResult } from './validation/types.js'
 import { prisma as defaultPrisma } from '../db/prisma.js'
 import { loadContractRunTally } from './validation/runTally.js'
@@ -427,7 +427,10 @@ function checkExpiry(contract: Contract, results: ValidationResult[]): void {
  */
 export async function checkRightsForEvent(
   eventId: number,
-  opts: { db?: PrismaClient; territory?: string; windowsEnabled?: boolean } = {},
+  // db accepts a TransactionClient too (SV-2: ripple enrichment runs the check
+  // on the capture tx to see post-change event values) — additive widening,
+  // read-only queries only, zero runtime change.
+  opts: { db?: PrismaClient | Prisma.TransactionClient; territory?: string; windowsEnabled?: boolean } = {},
 ): Promise<{ eventId: number; ok: boolean; results: ValidationResult[] }> {
   const db = opts.db ?? defaultPrisma
   // Flag read at the service boundary; the pure checker still takes a boolean.
