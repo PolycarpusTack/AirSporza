@@ -20,10 +20,14 @@ _Last updated: 2026-08-14_
 - **Node ≥ 20.19 required** for the frontend suite (jsdom chain uses `require(esm)`).
   `~/.local` Node upgraded to **v22.14.0** on 2026-08-14 — on 20.18.x the frontend suite fails
   with 33 `require() of ES Module` errors.
-- **Docker is NOT installed** on this machine yet → no `sporza-db` Postgres, so: RLS test suites
-  stay skipped, `prisma migrate` can't run, and the app can't be run locally. Install Docker
-  (`sudo apt install docker.io docker-compose-v2`), then `docker compose up -d postgres` and
-  `cd backend && npx prisma migrate deploy`.
+- **Dev DB (2026-08-14):** Docker installed; PostgreSQL **17** runs as container `planza-db` on
+  **localhost:5433** (db `sporza_planner`, matching the runbook — the baseline `0_init` is a PG17
+  dump, and CI pins `postgres:17`). All 13 migrations deployed, `planza_app` NOLOGIN role present,
+  demo data seeded (`npm run db:seed`). The compose file's `postgres:16-alpine` on 5432 remains the
+  RETIRED path per `docs/governance/runbook-ci-and-migrations.md` — do not use it for the dev DB.
+  Note: the old machine's live data did not migrate; this is a fresh seeded DB (restore a
+  `backups/*.dump` from the old machine if its data is ever needed).
+- GitHub CLI installed and authenticated (`gh`); git pushes via gh credential helper.
 
 ## Where we are
 
