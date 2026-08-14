@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#090B0D;}
+a{color:#2FD6C3;text-decoration:none;} a:hover{color:#6AE5D6;}
+@keyframes livePulse{0%{opacity:1}50%{opacity:.3}100%{opacity:1}}
+@keyframes toastIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#212A31;border-radius:4px}::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div style="font-family:'IBM Plex Sans',system-ui,sans-serif;color:#D9E4EB;height:100vh;display:flex;background:#090B0D;overflow:hidden;">
+
+  <!-- ═══ SIDEBAR MEGA-NAV ═══ -->
+  <aside style="width:216px;flex-shrink:0;background:#0F1316;border-right:1px solid #212A31;display:flex;flex-direction:column;overflow-y:auto;">
+    <div style="padding:16px 14px 14px;border-bottom:1px solid #212A31;display:flex;align-items:center;gap:10px;">
+      <div style="width:34px;height:34px;border-radius:6px;background:#2FD6C3;display:flex;align-items:center;justify-content:center;color:#04241F;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;flex-shrink:0;">P</div>
+      <div style="min-width:0;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:12px;letter-spacing:1.5px;">PLANZA<span style="color:#2FD6C3;">/FM</span></div>
+        <div style="font-size:10.5px;color:#7E8E9A;">Sporza Broadcast Ops</div>
+      </div>
+    </div>
+    <nav style="flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:1px;">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="12">
+        <sc-if value="{{ n.isSection }}" hint-placeholder-val="{{ false }}">
+          <p style="margin:12px 0 4px;padding:0 8px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:2px;color:#738594;">{{ n.label }}</p>
+        </sc-if>
+        <sc-if value="{{ n.isItem }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ n.go }}" style-hover="background:#141A1E" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:4px;border:none;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;text-align:left;background:{{ n.bg }};color:{{ n.col }};box-shadow:{{ n.shadow }};">
+            <span style="width:15px;text-align:center;font-size:12px;opacity:.9;">{{ n.icon }}</span>
+            <span style="flex:1;">{{ n.label }}</span>
+            <sc-if value="{{ n.badge }}" hint-placeholder-val="{{ false }}">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;background:{{ n.badgeBg }};color:{{ n.badgeCol }};border-radius:3px;padding:1px 6px;">{{ n.badge }}</span>
+            </sc-if>
+          </button>
+        </sc-if>
+      </sc-for>
+    </nav>
+    <div style="padding:12px 14px;border-top:1px solid #212A31;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1px;color:#738594;margin-bottom:5px;">SEASON 2025–26</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;height:4px;background:#141A1E;border-radius:2px;overflow:hidden;"><div style="width:62%;height:100%;background:#2FD6C3;"></div></div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#7E8E9A;">W10</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN COLUMN ═══ -->
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+    <!-- Top bar -->
+    <header style="height:52px;flex-shrink:0;background:#0F1316;border-bottom:1px solid #212A31;display:flex;align-items:center;gap:14px;padding:0 16px;">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:1px;">{{ topDate }}</div>
+        <div style="font-size:10px;color:#738594;">Week 10 · 7 events · 2 unplaced</div>
+      </div>
+      <div style="flex:1;"></div>
+      <span style="font-family:'IBM Plex Mono',monospace;display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:10px;letter-spacing:1px;padding:4px 8px;border:1px solid #212A31;border-radius:4px;color:#7E8E9A;"><span style="display:inline-block;width:6px;height:6px;border-radius:9999px;background:#E5484D;animation:livePulse 1.4s ease infinite;"></span>LIVE</span>
+      <button onClick="{{ openCreateBtn }}" style-hover="border-color:#2FD6C3;color:#2FD6C3" style="display:flex;align-items:center;gap:6px;background:transparent;border:1px solid #212A31;color:#7E8E9A;border-radius:5px;padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;">+ NEW</button>
+      <button onClick="{{ doContinue }}" style-hover="filter:brightness(1.1)" style="display:flex;align-items:center;gap:10px;background:#2FD6C3;color:#04241F;border:none;border-radius:5px;padding:9px 18px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:700;letter-spacing:1.5px;cursor:pointer;box-shadow:0 4px 20px rgba(47,214,195,.25);">
+        CONTINUE <span style="font-size:13px;">▸</span>
+        <sc-if value="{{ openCount }}" hint-placeholder-val="{{ true }}"><span style="background:#04241F;color:#2FD6C3;border-radius:3px;padding:1px 6px;font-size:10px;">{{ openCount }}</span></sc-if>
+      </button>
+    </header>
+
+    <!-- Screen body -->
+    <div style="flex:1;min-height:0;overflow:auto;">
+
+      <!-- ════ HOME / INBOX ════ -->
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Home" style="padding:18px 20px;display:flex;flex-direction:column;gap:16px;min-height:100%;box-sizing:border-box;">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+            <button onClick="{{ k.go }}" style-hover="border-color:#2FD6C3" style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px 16px;text-align:left;cursor:pointer;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:1.5px;color:#738594;">{{ k.label }}</div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px;">
+                <span style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:{{ k.col }};">{{ k.value }}</span>
+                <span style="font-size:10.5px;color:#7E8E9A;">{{ k.sub }}</span>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:16px;flex:1;min-height:0;">
+          <!-- Inbox list -->
+          <div style="width:380px;flex-shrink:0;background:#0F1316;border:1px solid #212A31;border-radius:6px;display:flex;flex-direction:column;overflow:hidden;">
+            <div style="padding:11px 14px;border-bottom:1px solid #212A31;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">INBOX</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#7E8E9A;">{{ openCount }} OPEN</span>
+            </div>
+            <div style="overflow-y:auto;">
+              <sc-for list="{{ inboxRows }}" as="it" hint-placeholder-count="5">
+                <button onClick="{{ it.open }}" style-hover="background:#141A1E" style="display:flex;gap:10px;width:100%;text-align:left;border:none;background:{{ it.bg }};padding:11px 14px;border-bottom:1px solid #212A31;cursor:pointer;box-shadow:{{ it.shadow }};opacity:{{ it.opacity }};">
+                  <span style="width:7px;height:7px;border-radius:9999px;background:{{ it.dotCol }};margin-top:5px;flex-shrink:0;"></span>
+                  <span style="min-width:0;flex:1;">
+                    <span style="display:flex;justify-content:space-between;gap:8px;">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;color:{{ it.dotCol }};">{{ it.kind }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#738594;">{{ it.when }}</span>
+                    </span>
+                    <span style="display:block;font-size:12.5px;font-weight:600;color:#D9E4EB;margin-top:3px;line-height:1.35;">{{ it.title }}</span>
+                    <span style="display:block;font-size:10.5px;color:#7E8E9A;margin-top:2px;">{{ it.sub }}</span>
+                  </span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <!-- Detail -->
+          <div style="flex:1;background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0;">
+            <sc-if value="{{ inboxDetail }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;color:{{ inboxDetail.dotCol }};border:1px solid {{ inboxDetail.dotCol }};border-radius:3px;padding:2px 7px;">{{ inboxDetail.kind }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;">{{ inboxDetail.when }}</span>
+              </div>
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;line-height:1.25;">{{ inboxDetail.title }}</div>
+              <div style="font-size:13px;color:#7E8E9A;line-height:1.6;max-width:560px;">{{ inboxDetail.body }}</div>
+              <div style="display:flex;gap:8px;margin-top:4px;">
+                <sc-if value="{{ inboxDetail.isOpen }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ inboxDetail.goTo }}" style-hover="filter:brightness(1.1)" style="background:#2FD6C3;color:#04241F;border:none;border-radius:4px;padding:8px 16px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:1px;cursor:pointer;">{{ inboxDetail.cta }}</button>
+                  <button onClick="{{ inboxDetail.resolve }}" style-hover="border-color:#2FD6C3" style="background:transparent;color:#7E8E9A;border:1px solid #212A31;border-radius:4px;padding:8px 16px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:1px;cursor:pointer;">MARK RESOLVED</button>
+                </sc-if>
+                <sc-if value="{{ inboxDetail.isResolved }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:1px;color:#2BB673;">✓ RESOLVED</span>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ════ SCHEDULE BOARD ════ -->
+      <sc-if value="{{ isSchedule }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Schedule Board" style="display:flex;align-items:stretch;height:100%;">
+        <main style="flex:1;min-width:0;overflow-y:auto;">
+          <!-- Unplaced tray -->
+          <sc-if value="{{ hasUnplaced }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:#141A1E;border-bottom:1px solid #212A31;flex-wrap:wrap;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#E5A13C;">UNPLACED ({{ unplacedCount }})</span>
+            <sc-for list="{{ unplaced }}" as="u" hint-placeholder-count="2">
+              <button onClick="{{ u.select }}" style-hover="border-color:#2FD6C3" style="display:flex;align-items:center;gap:8px;background:#0F1316;border:1px dashed {{ u.border }};border-radius:4px;padding:6px 10px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;">
+                <span style="font-size:11.5px;font-weight:600;color:#D9E4EB;">{{ u.icon }} {{ u.title }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#738594;">{{ u.hint }}</span>
+              </button>
+            </sc-for>
+            <button onClick="{{ autoSuggest }}" style-hover="filter:brightness(1.1)" style="margin-left:auto;background:transparent;border:1px solid #2FD6C3;color:#2FD6C3;border-radius:4px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;cursor:pointer;">⚡ AUTO-SUGGEST SLOTS</button>
+          </div>
+          </sc-if>
+          <!-- Cascade banner -->
+          <sc-if value="{{ cascade }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;background:rgba(229,161,60,.08);border-bottom:1px solid rgba(229,161,60,.35);">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;color:#E5A13C;">⚠ CASCADE</span>
+            <span style="font-size:11.5px;color:#D9E4EB;">{{ cascade }}</span>
+            <button onClick="{{ undo }}" style="margin-left:auto;background:transparent;border:1px solid #E5A13C;color:#E5A13C;border-radius:4px;padding:4px 10px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;cursor:pointer;">UNDO</button>
+          </div>
+          </sc-if>
+          <!-- Table -->
+          <div style="display:grid;grid-template-columns:56px 1fr 118px 90px 90px 70px;gap:10px;padding:9px 16px;align-items:center;font-family:'IBM Plex Mono',monospace;position:sticky;top:0;z-index:1;background:#0F1316;border-bottom:1px solid #212A31;font-size:9px;font-weight:600;letter-spacing:1px;color:#738594;">
+            <span>TIME</span><span>EVENT</span><span>CHANNEL</span><span>STATUS</span><span>RIGHTS</span><span>CREW</span>
+          </div>
+          <sc-for list="{{ schedDays }}" as="day" hint-placeholder-count="5">
+            <section>
+              <div style="font-family:'IBM Plex Mono',monospace;padding:6px 16px;background:#141A1E;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#7E8E9A;display:flex;justify-content:space-between;">
+                <span>{{ day.label }}</span><span style="color:#738594;">{{ day.load }}</span>
+              </div>
+              <sc-for list="{{ day.events }}" as="ev" hint-placeholder-count="2">
+                <div onClick="{{ ev.select }}" style-hover="background:#11171B" style="display:grid;grid-template-columns:56px 1fr 118px 90px 90px 70px;gap:10px;padding:9px 16px;align-items:center;cursor:pointer;border-bottom:1px solid #212A31;background:{{ ev.rowBg }};box-shadow:{{ ev.rowShadow }};">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#7E8E9A;">{{ ev.time }}</span>
+                  <span style="min-width:0;display:flex;align-items:center;gap:8px;">
+                    <sc-if value="{{ ev.conflict }}" hint-placeholder-val="{{ false }}"><span title="Crew conflict" style="font-size:10px;color:#E5484D;">⚠</span></sc-if>
+                    <span style="min-width:0;">
+                      <span style="display:block;font-size:12.5px;font-weight:600;color:#D9E4EB;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ ev.icon }} {{ ev.title }}</span>
+                      <span style="display:block;font-size:10px;color:#738594;">{{ ev.comp }}</span>
+                    </span>
+                  </span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#7E8E9A;"><span style="width:7px;height:7px;border-radius:2px;background:{{ ev.chColor }};display:inline-block;"></span>{{ ev.channel }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.5px;color:{{ ev.statusCol }};">{{ ev.status }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.5px;color:{{ ev.rightsCol }};">{{ ev.rights }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.5px;color:{{ ev.crewCol }};">{{ ev.crew }}</span>
+                </div>
+              </sc-for>
+            </section>
+          </sc-for>
+          <!-- History -->
+          <div style="padding:12px 16px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:8px;">HISTORY</div>
+            <sc-if value="{{ noHistory }}" hint-placeholder-val="{{ true }}"><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;">NO CHANGES THIS SESSION</div></sc-if>
+            <sc-for list="{{ historyRows }}" as="h" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:10px;padding:5px 0;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7E8E9A;">
+                <span style="color:#738594;">{{ h.n }}</span><span style="flex:1;">{{ h.label }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ hasHistory }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ undo }}" style-hover="border-color:#2FD6C3;color:#2FD6C3" style="margin-top:6px;background:transparent;border:1px solid #212A31;color:#7E8E9A;border-radius:4px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;cursor:pointer;">↶ UNDO LAST</button>
+            </sc-if>
+          </div>
+        </main>
+        <!-- Inspector -->
+        <aside style="width:320px;flex-shrink:0;border-left:1px solid #212A31;background:#0F1316;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:13px;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">INSPECTOR</div>
+          <sc-if value="{{ noSel }}" hint-placeholder-val="{{ false }}">
+            <div style="font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;flex:1;min-height:120px;font-size:10.5px;font-weight:600;letter-spacing:2px;color:#738594;">NO EVENT SELECTED</div>
+          </sc-if>
+          <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+                <sc-if value="{{ sel.live }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;color:#E5484D;border:1px solid #E5484D;padding:2px 5px;border-radius:3px;">LIVE</span></sc-if>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;color:{{ sel.statusCol }};">{{ sel.status }}</span>
+              </div>
+              <div style="font-size:15px;font-weight:700;line-height:1.3;">{{ sel.title }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7E8E9A;margin-top:6px;">{{ sel.meta }}</div>
+            </div>
+            <sc-if value="{{ sel.unplaced }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1px dashed #E5A13C;border-radius:4px;padding:10px;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;color:#E5A13C;letter-spacing:1px;margin-bottom:6px;">NOT PLACED</div>
+                <div style="font-size:11px;color:#7E8E9A;line-height:1.5;margin-bottom:8px;">Suggested: {{ sel.suggestion }}</div>
+                <button onClick="{{ sel.place }}" style="background:#2FD6C3;color:#04241F;border:none;border-radius:4px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;cursor:pointer;">PLACE IN SUGGESTED SLOT</button>
+              </div>
+            </sc-if>
+            <div style="border-top:1px solid #212A31;padding-top:11px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:8px;">CHANNEL</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <sc-for list="{{ sel.channelBtns }}" as="cb" hint-placeholder-count="5">
+                  <button onClick="{{ cb.set }}" style-hover="border-color:#2FD6C3" style="display:flex;align-items:center;gap:5px;background:{{ cb.bg }};border:1px solid {{ cb.border }};color:{{ cb.col }};border-radius:4px;padding:5px 8px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;cursor:pointer;"><span style="width:6px;height:6px;border-radius:2px;background:{{ cb.dot }};"></span>{{ cb.name }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="border-top:1px solid #212A31;padding-top:11px;display:flex;flex-direction:column;gap:6px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">RIGHTS</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;color:{{ sel.rightsCol }};">{{ sel.rights }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7E8E9A;">{{ sel.rightsUntil }}</div>
+            </div>
+            <div style="border-top:1px solid #212A31;padding-top:11px;display:flex;flex-direction:column;gap:7px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">CREW</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:{{ sel.crewCol }};">{{ sel.crew }}</span>
+              </div>
+              <sc-for list="{{ sel.crewRows }}" as="c" hint-placeholder-count="3">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7E8E9A;">{{ c.role }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;color:{{ c.col }};">{{ c.val }}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ sel.crewFixable }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ sel.fixCrew }}" style-hover="filter:brightness(1.1)" style="margin-top:2px;background:transparent;border:1px solid #2FD6C3;color:#2FD6C3;border-radius:4px;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;cursor:pointer;">ASSIGN FROM AVAILABLE CREW</button>
+              </sc-if>
+            </div>
+            <div style="border-top:1px solid #212A31;padding-top:11px;">
+              <button onClick="{{ sel.openRundown }}" style-hover="filter:brightness(1.1)" style="width:100%;background:#141A1E;border:1px solid #212A31;color:#D9E4EB;border-radius:4px;padding:8px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;cursor:pointer;">OPEN MATCH DAY ▸</button>
+            </div>
+          </sc-if>
+        </aside>
+      </div>
+      </sc-if>
+
+      <!-- ════ SEASON CALENDAR ════ -->
+      <sc-if value="{{ isCalendar }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Season Calendar" style="padding:18px 20px;">
+        <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px;">
+          <span style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;">March 2026</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;letter-spacing:1px;">SEASON 2025–26 · SPRING BLOCK</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;">
+          <sc-for list="{{ calDows }}" as="d" hint-placeholder-count="7">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:1.5px;color:#738594;text-align:center;">{{ d }}</div>
+          </sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">
+          <sc-for list="{{ monthCells }}" as="c" hint-placeholder-count="35">
+            <button onClick="{{ c.go }}" style-hover="border-color:#2FD6C3" style="background:#0F1316;border:1px solid {{ c.border }};border-radius:5px;min-height:86px;padding:8px;text-align:left;cursor:pointer;opacity:{{ c.opacity }};">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:{{ c.numCol }};">{{ c.num }}</div>
+              <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px;">
+                <sc-for list="{{ c.pips }}" as="p" hint-placeholder-count="0">
+                  <div style="display:flex;align-items:center;gap:5px;">
+                    <span style="width:6px;height:6px;border-radius:2px;background:{{ p.color }};flex-shrink:0;"></span>
+                    <span style="font-size:9.5px;color:#7E8E9A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.label }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;">
+          <sc-for list="{{ calLegend }}" as="l" hint-placeholder-count="5">
+            <span style="display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#7E8E9A;"><span style="width:7px;height:7px;border-radius:2px;background:{{ l.color }};"></span>{{ l.label }}</span>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ════ COMPETITIONS ════ -->
+      <sc-if value="{{ isCompetitions }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Competitions" style="display:flex;height:100%;">
+        <aside style="width:230px;flex-shrink:0;border-right:1px solid #212A31;padding:14px 10px;overflow-y:auto;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;padding:0 4px;">SPORT</div>
+          <div style="display:flex;gap:4px;margin-bottom:14px;">
+            <sc-for list="{{ sportBtns }}" as="s" hint-placeholder-count="3">
+              <button onClick="{{ s.set }}" style="flex:1;background:{{ s.bg }};color:{{ s.col }};border:1px solid {{ s.border }};border-radius:4px;padding:6px 0;font-size:13px;cursor:pointer;" title="{{ s.name }}">{{ s.icon }}</button>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">COMPETITIONS</span>
+            <button onClick="{{ newCompetition }}" title="New competition" style-hover="color:#2FD6C3" style="background:transparent;border:none;color:#738594;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;padding:0;">+ NEW</button>
+          </div>
+          <sc-for list="{{ compBtns }}" as="c" hint-placeholder-count="3">
+            <button onClick="{{ c.set }}" style-hover="background:#141A1E" style="display:block;width:100%;text-align:left;background:{{ c.bg }};border:none;border-radius:4px;padding:8px 10px;margin-bottom:2px;cursor:pointer;box-shadow:{{ c.shadow }};">
+              <span style="display:block;font-size:12px;font-weight:600;color:{{ c.col }};">{{ c.name }}</span>
+              <span style="display:block;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#738594;margin-top:2px;">{{ c.sub }}</span>
+            </button>
+          </sc-for>
+        </aside>
+        <main style="flex:1;min-width:0;overflow-y:auto;padding:18px 20px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
+            <span style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;">{{ comp.name }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;color:{{ comp.rightsCol }};border:1px solid {{ comp.rightsCol }};border-radius:3px;padding:2px 8px;">RIGHTS {{ comp.rights }}</span>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;margin-bottom:18px;">{{ comp.meta }}</div>
+          <div style="display:flex;gap:16px;align-items:flex-start;">
+            <sc-if value="{{ comp.hasTable }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:1;min-width:0;background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+              <div style="padding:10px 14px;border-bottom:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">STANDINGS</div>
+              <div style="display:grid;grid-template-columns:28px 1fr 34px 34px 34px 34px 44px;gap:6px;padding:7px 14px;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:600;letter-spacing:1px;color:#738594;border-bottom:1px solid #212A31;">
+                <span>#</span><span>TEAM</span><span>P</span><span>W</span><span>D</span><span>L</span><span>PTS</span>
+              </div>
+              <sc-for list="{{ comp.standings }}" as="row" hint-placeholder-count="8">
+                <button onClick="{{ row.openTeam }}" style-hover="background:#141A1E" style="display:grid;grid-template-columns:28px 1fr 34px 34px 34px 34px 44px;gap:6px;padding:8px 14px;width:100%;text-align:left;background:transparent;border:none;border-bottom:1px solid #1A2126;cursor:pointer;align-items:center;">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:{{ row.posCol }};font-weight:700;">{{ row.pos }}</span>
+                  <span style="font-size:12px;font-weight:600;color:#D9E4EB;">{{ row.team }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7E8E9A;">{{ row.p }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7E8E9A;">{{ row.w }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7E8E9A;">{{ row.d }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7E8E9A;">{{ row.l }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:#D9E4EB;">{{ row.pts }}</span>
+                </button>
+              </sc-for>
+            </div>
+            </sc-if>
+            <div style="width:{{ comp.fixturesWidth }};min-width:0;flex-shrink:0;background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+              <div style="padding:10px 14px;border-bottom:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">{{ comp.fixturesLabel }}</div>
+              <sc-for list="{{ comp.fixtures }}" as="f" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #1A2126;">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;width:66px;flex-shrink:0;">{{ f.when }}</span>
+                  <span style="flex:1;min-width:0;font-size:12px;font-weight:600;color:#D9E4EB;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ f.title }}</span>
+                  <sc-if value="{{ f.chName }}" hint-placeholder-val="{{ true }}">
+                    <span style="display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#7E8E9A;"><span style="width:6px;height:6px;border-radius:2px;background:{{ f.chColor }};"></span>{{ f.chName }}</span>
+                  </sc-if>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.5px;color:{{ f.badgeCol }};">{{ f.badge }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </main>
+      </div>
+      </sc-if>
+
+      <!-- ════ TEAM PROFILE ════ -->
+      <sc-if value="{{ isTeam }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Team Profile" style="padding:18px 20px;">
+        <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+          <sc-for list="{{ teamTabs }}" as="t" hint-placeholder-count="2">
+            <button onClick="{{ t.set }}" style-hover="border-color:#2FD6C3" style="background:{{ t.bg }};border:1px solid {{ t.border }};color:{{ t.col }};border-radius:4px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;cursor:pointer;">{{ t.name }}</button>
+          </sc-for>
+          <button onClick="{{ newTeam }}" style-hover="border-color:#2FD6C3;color:#2FD6C3" style="background:transparent;border:1px dashed #212A31;color:#738594;border-radius:4px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;">+ NEW TEAM</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;">
+          <div style="width:64px;height:64px;border-radius:8px;background:{{ team.color }}22;border:1px solid {{ team.color }};display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:{{ team.color }};">{{ team.initials }}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;line-height:1.1;">{{ team.name }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;margin-top:5px;">{{ team.meta }}</div>
+          </div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;color:{{ team.rightsCol }};border:1px solid {{ team.rightsCol }};border-radius:3px;padding:3px 9px;">RIGHTS {{ team.rights }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:300px 1fr 1fr;gap:14px;align-items:start;">
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;">PROFILE</div>
+              <sc-for list="{{ team.facts }}" as="f" hint-placeholder-count="5">
+                <div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;">{{ f.k }}</span>
+                  <span style="font-size:11.5px;font-weight:600;color:#D9E4EB;text-align:right;">{{ f.v }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;">KEY PEOPLE</div>
+              <sc-for list="{{ team.people }}" as="p" hint-placeholder-count="3">
+                <button onClick="{{ p.open }}" style-hover="background:#141A1E" style="display:flex;width:100%;justify-content:space-between;gap:10px;padding:6px 4px;background:transparent;border:none;border-radius:4px;cursor:pointer;text-align:left;">
+                  <span style="font-size:11.5px;font-weight:600;color:#2FD6C3;">{{ p.name }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;">{{ p.role }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+            <div style="padding:10px 14px;border-bottom:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">UPCOMING BROADCASTS</div>
+            <sc-for list="{{ team.upcoming }}" as="u" hint-placeholder-count="3">
+              <div style="padding:10px 14px;border-bottom:1px solid #1A2126;">
+                <div style="display:flex;justify-content:space-between;gap:8px;">
+                  <span style="font-size:12px;font-weight:600;color:#D9E4EB;">{{ u.title }}</span>
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#7E8E9A;flex-shrink:0;"><span style="width:6px;height:6px;border-radius:2px;background:{{ u.chColor }};"></span>{{ u.ch }}</span>
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;margin-top:3px;">{{ u.when }}</div>
+              </div>
+            </sc-for>
+            <div style="padding:10px 14px;border-bottom:1px solid #212A31;border-top:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">PAST BROADCASTS</div>
+            <sc-for list="{{ team.past }}" as="p" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #1A2126;">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;width:56px;flex-shrink:0;">{{ p.when }}</span>
+                <span style="flex:1;font-size:11.5px;font-weight:600;color:#D9E4EB;">{{ p.title }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:#2FD6C3;">{{ p.viewers }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;">RIGHTS &amp; CONTRACT</div>
+              <sc-for list="{{ team.contracts }}" as="c" hint-placeholder-count="2">
+                <div style="padding:7px 0;border-bottom:1px solid #1A2126;">
+                  <div style="display:flex;justify-content:space-between;">
+                    <span style="font-size:11.5px;font-weight:600;color:#D9E4EB;">{{ c.name }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;color:{{ c.col }};">{{ c.status }}</span>
+                  </div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;margin-top:2px;">{{ c.until }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;">AVG REACH THIS SEASON</div>
+              <div style="display:flex;align-items:flex-end;gap:5px;height:64px;">
+                <sc-for list="{{ team.reach }}" as="r" hint-placeholder-count="8">
+                  <div title="{{ r.tip }}" style="flex:1;background:#2FD6C333;border-top:2px solid #2FD6C3;height:{{ r.h }};border-radius:2px 2px 0 0;"></div>
+                </sc-for>
+              </div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;margin-top:8px;">{{ team.reachNote }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ════ ATHLETE PROFILE ════ -->
+      <sc-if value="{{ isAthlete }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Athlete Profile" style="padding:18px 20px;">
+        <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+          <sc-for list="{{ athTabs }}" as="t" hint-placeholder-count="1">
+            <button onClick="{{ t.set }}" style-hover="border-color:#2FD6C3" style="background:{{ t.bg }};border:1px solid {{ t.border }};color:{{ t.col }};border-radius:4px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;cursor:pointer;">{{ t.name }}</button>
+          </sc-for>
+          <button onClick="{{ newAthlete }}" style-hover="border-color:#2FD6C3;color:#2FD6C3" style="background:transparent;border:1px dashed #212A31;color:#738594;border-radius:4px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;">+ NEW ATHLETE</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;">
+          <div style="width:64px;height:64px;border-radius:9999px;background:#141A1E;border:1px solid #2FD6C3;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:#2FD6C3;">{{ ath.initials }}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;line-height:1.1;">{{ ath.name }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;margin-top:5px;">{{ ath.meta }}</div>
+          </div>
+          <span style="font-size:22px;">{{ ath.icon }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:300px 1fr 1fr;gap:14px;align-items:start;">
+          <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;">BIO</div>
+            <sc-for list="{{ ath.facts }}" as="f" hint-placeholder-count="5">
+              <div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;">{{ f.k }}</span>
+                <span style="font-size:11.5px;font-weight:600;color:#D9E4EB;text-align:right;">{{ f.v }}</span>
+              </div>
+            </sc-for>
+            <div style="font-size:11.5px;color:#7E8E9A;line-height:1.6;margin-top:10px;border-top:1px solid #1A2126;padding-top:10px;">{{ ath.bio }}</div>
+          </div>
+          <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+            <div style="padding:10px 14px;border-bottom:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">CAREER</div>
+            <sc-for list="{{ ath.career }}" as="c" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #1A2126;">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;width:78px;flex-shrink:0;">{{ c.years }}</span>
+                <span style="flex:1;font-size:11.5px;font-weight:600;color:#D9E4EB;">{{ c.team }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#7E8E9A;">{{ c.note }}</span>
+              </div>
+            </sc-for>
+            <div style="padding:10px 14px;border-bottom:1px solid #212A31;border-top:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">HONOURS</div>
+            <sc-for list="{{ ath.honours }}" as="h" hint-placeholder-count="3">
+              <div style="display:flex;gap:10px;padding:7px 14px;border-bottom:1px solid #1A2126;font-size:11.5px;color:#D9E4EB;">
+                <span style="color:#E5A13C;">★</span><span>{{ h }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+              <div style="padding:10px 14px;border-bottom:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">NEXT ON AIR</div>
+              <sc-for list="{{ ath.upcoming }}" as="u" hint-placeholder-count="2">
+                <div style="padding:10px 14px;border-bottom:1px solid #1A2126;">
+                  <div style="display:flex;justify-content:space-between;gap:8px;">
+                    <span style="font-size:12px;font-weight:600;color:#D9E4EB;">{{ u.title }}</span>
+                    <span style="display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#7E8E9A;flex-shrink:0;"><span style="width:6px;height:6px;border-radius:2px;background:{{ u.chColor }};"></span>{{ u.ch }}</span>
+                  </div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;margin-top:3px;">{{ u.when }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+              <div style="padding:10px 14px;border-bottom:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">RELATED ACROSS SPORTS</div>
+              <sc-for list="{{ ath.related }}" as="r" hint-placeholder-count="2">
+                <div style="display:flex;gap:10px;padding:9px 14px;border-bottom:1px solid #1A2126;align-items:center;">
+                  <span style="font-size:13px;">{{ r.icon }}</span>
+                  <span style="flex:1;font-size:11.5px;color:#D9E4EB;">{{ r.label }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;">{{ r.when }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ════ CREW ════ -->
+      <sc-if value="{{ isCrew }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Crew" style="padding:18px 20px;">
+        <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px;">
+          <span style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;">Crew</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;letter-spacing:1px;">WEEK 10 AVAILABILITY · MON 2 – SUN 8 MAR</span>
+        </div>
+        <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:1fr 120px 200px 90px 110px;gap:10px;padding:9px 16px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:1px;color:#738594;border-bottom:1px solid #212A31;">
+            <span>NAME / ROLE</span><span>SPORTS</span><span>M T W T F S S</span><span>ASSIGNED</span><span>STATUS</span>
+          </div>
+          <sc-for list="{{ crewRows }}" as="cr" hint-placeholder-count="8">
+            <div style="display:grid;grid-template-columns:1fr 120px 200px 90px 110px;gap:10px;padding:10px 16px;align-items:center;border-bottom:1px solid #1A2126;background:{{ cr.bg }};">
+              <span>
+                <span style="display:block;font-size:12.5px;font-weight:600;color:#D9E4EB;">{{ cr.name }}</span>
+                <span style="display:block;font-size:10px;color:#738594;">{{ cr.role }}</span>
+              </span>
+              <span style="font-size:12px;">{{ cr.sports }}</span>
+              <span style="display:flex;gap:6px;">
+                <sc-for list="{{ cr.days }}" as="d" hint-placeholder-count="7">
+                  <span title="{{ d.tip }}" style="width:16px;height:16px;border-radius:3px;background:{{ d.bg }};border:1px solid {{ d.border }};display:inline-flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:8px;font-weight:700;color:{{ d.col }};">{{ d.mark }}</span>
+                </sc-for>
+              </span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:#D9E4EB;">{{ cr.assigned }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.5px;color:{{ cr.statusCol }};">{{ cr.status }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:12px;">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#7E8E9A;"><span style="width:10px;height:10px;border-radius:3px;background:#2BB67333;border:1px solid #2BB673;"></span>ASSIGNED</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#7E8E9A;"><span style="width:10px;height:10px;border-radius:3px;background:#141A1E;border:1px solid #212A31;"></span>AVAILABLE</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#7E8E9A;"><span style="width:10px;height:10px;border-radius:3px;background:#E5484D33;border:1px solid #E5484D;"></span>CONFLICT</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#7E8E9A;"><span style="width:10px;height:10px;border-radius:3px;background:#0F1316;border:1px dashed #738594;"></span>UNAVAILABLE</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ════ MATCH DAY (RUNDOWN TACTICS) ════ -->
+      <sc-if value="{{ isMatchday }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Match Day" style="padding:18px 20px;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;color:#E5484D;border:1px solid #E5484D;padding:2px 6px;border-radius:3px;">LIVE</span>
+          <span style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;">{{ md.title }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#738594;">{{ md.meta }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:320px 1fr 280px;gap:14px;align-items:start;">
+          <!-- Rundown segments -->
+          <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+            <div style="padding:10px 14px;border-bottom:1px solid #212A31;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">RUNDOWN</div>
+            <sc-for list="{{ md.segments }}" as="s" hint-placeholder-count="7">
+              <div style="display:flex;gap:12px;padding:9px 14px;border-bottom:1px solid #1A2126;border-left:3px solid {{ s.color }};">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#7E8E9A;width:42px;flex-shrink:0;">{{ s.time }}</span>
+                <span style="flex:1;min-width:0;">
+                  <span style="display:block;font-size:11.5px;font-weight:600;color:#D9E4EB;">{{ s.label }}</span>
+                  <span style="display:block;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#738594;margin-top:2px;">{{ s.src }}</span>
+                </span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#738594;">{{ s.dur }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <!-- Crew formation -->
+          <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;">CREW FORMATION</div>
+            <div style="position:relative;height:380px;background:linear-gradient(180deg,#0C1A16,#0A1512);border:1px solid #1C3A32;border-radius:6px;overflow:hidden;">
+              <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:#1C3A32;"></div>
+              <div style="position:absolute;left:50%;top:50%;width:80px;height:80px;border:1px solid #1C3A32;border-radius:9999px;transform:translate(-50%,-50%);"></div>
+              <div style="position:absolute;left:50%;top:0;width:180px;height:56px;border:1px solid #1C3A32;border-top:none;transform:translateX(-50%);"></div>
+              <div style="position:absolute;left:50%;bottom:0;width:180px;height:56px;border:1px solid #1C3A32;border-bottom:none;transform:translateX(-50%);"></div>
+              <sc-for list="{{ md.positions }}" as="p" hint-placeholder-count="7">
+                <div title="{{ p.tip }}" style="position:absolute;left:{{ p.x }};top:{{ p.y }};transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;">
+                  <div style="width:34px;height:34px;border-radius:9999px;background:{{ p.bg }};border:2px solid {{ p.border }};display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;color:{{ p.col }};">{{ p.abbr }}</div>
+                  <div style="font-size:9.5px;font-weight:600;color:#D9E4EB;background:#090B0Dcc;padding:1px 6px;border-radius:3px;white-space:nowrap;">{{ p.name }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#738594;margin-top:8px;">GANTRY TOP · PITCHSIDE BOTTOM · ⚠ = UNFILLED POSITION</div>
+          </div>
+          <!-- Resources -->
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;">RESOURCES</div>
+              <sc-for list="{{ md.resources }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;">
+                  <span style="font-size:11.5px;color:#D9E4EB;">{{ r.name }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;color:{{ r.col }};">{{ r.status }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:14px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:10px;">DISTRIBUTION</div>
+              <sc-for list="{{ md.dist }}" as="d" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
+                  <span style="width:7px;height:7px;border-radius:2px;background:{{ d.color }};"></span>
+                  <span style="flex:1;font-size:11.5px;color:#D9E4EB;">{{ d.name }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#738594;">{{ d.note }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <!-- Create modal -->
+  <sc-if value="{{ createOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeCreate }}" style="position:fixed;inset:0;background:rgba(9,11,13,.74);z-index:98;"></div>
+    <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:540px;max-height:86vh;overflow-y:auto;background:#0F1316;border:1px solid #212A31;border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:14px;z-index:99;box-shadow:0 8px 40px rgba(0,0,0,.6);">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:2px;color:#738594;">CREATE NEW</span>
+        <button onClick="{{ closeCreate }}" style-hover="color:#D9E4EB" style="background:transparent;border:none;color:#738594;font-size:14px;cursor:pointer;padding:0;">✕</button>
+      </div>
+      <div style="display:flex;gap:5px;">
+        <sc-for list="{{ createKinds }}" as="k" hint-placeholder-count="4">
+          <button onClick="{{ k.set }}" style="background:{{ k.bg }};border:1px solid {{ k.border }};color:{{ k.col }};border-radius:4px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;cursor:pointer;">{{ k.label }}</button>
+        </sc-for>
+      </div>
+      <sc-for list="{{ createFields }}" as="f" hint-placeholder-count="5">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:1.5px;color:#738594;margin-bottom:6px;">{{ f.label }}</div>
+          <sc-if value="{{ f.isText }}" hint-placeholder-val="{{ true }}">
+            <input value="{{ f.value }}" onInput="{{ f.set }}" placeholder="{{ f.ph }}" style="width:100%;box-sizing:border-box;background:#141A1E;border:1px solid #212A31;border-radius:4px;padding:8px 10px;color:#D9E4EB;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;outline:none;" style-focus="border-color:#2FD6C3">
+          </sc-if>
+          <sc-if value="{{ f.isChips }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:5px;flex-wrap:wrap;">
+              <sc-for list="{{ f.options }}" as="o" hint-placeholder-count="3">
+                <button onClick="{{ o.set }}" style-hover="border-color:#2FD6C3" style="background:{{ o.bg }};border:1px solid {{ o.border }};color:{{ o.col }};border-radius:4px;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;cursor:pointer;">{{ o.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+      <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid #212A31;padding-top:14px;">
+        <button onClick="{{ closeCreate }}" style-hover="border-color:#2FD6C3" style="background:transparent;border:1px solid #212A31;color:#7E8E9A;border-radius:4px;padding:8px 16px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:1px;cursor:pointer;">CANCEL</button>
+        <button onClick="{{ submitCreate }}" style-hover="filter:brightness(1.1)" style="background:#2FD6C3;border:none;color:#04241F;border-radius:4px;padding:8px 18px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;">CREATE</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Toast -->
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#141A1E;border:1px solid #2FD6C3;border-radius:5px;padding:9px 16px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;color:#2FD6C3;z-index:99;animation:toastIn .25s ease-out;box-shadow:0 8px 40px rgba(0,0,0,.5);">{{ toast }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'home', sport: 'football', compId: 'jpl', teamId: 'brugge', athId: 'devos',
+    selId: 3, inboxSel: 1,
+    resolved: [], // inbox ids
+    // mutable event overrides: {id: {channel, crew, placed}}
+    overrides: {},
+    history: [], toast: null, cascade: null,
+    create: null, customEvents: [], customTeams: {}, customAths: {}, customComps: { football: [], cycling: [], tennis: [] },
+  };
+
+  CH() { return [['Eén', '#E4572E'], ['Canvas', '#4C8DF5'], ['VRT MAX', '#2BB673'], ['Radio 1', '#B48EF5'], ['Sporza app', '#2FD6C3']]; }
+  chColor(name) { const m = Object.fromEntries(this.CH()); return m[name] || '#738594'; }
+
+  baseEvents() {
+    return [
+      { id: 1, date: '2026-03-02', dow: 'MON', dayNum: 2, time: '20:45', dur: 110, title: 'KAA Gent vs Standard', comp: 'Jupiler Pro League', icon: '⚽', channel: 'Eén', status: 'READY', rights: 'VALID', crew: 'OK', until: 'Contract until 30 Jun 2027', placed: true },
+      { id: 2, date: '2026-03-03', dow: 'TUE', dayNum: 3, time: '14:30', dur: 110, title: 'Club Brugge vs Anderlecht', comp: 'Jupiler Pro League', icon: '⚽', channel: 'Eén', status: 'APPROVED', rights: 'VALID', crew: 'OK', until: 'Contract until 30 Jun 2027', placed: true },
+      { id: 3, date: '2026-03-04', dow: 'WED', dayNum: 4, time: '21:00', dur: 130, title: 'Club Brugge vs Real Madrid', comp: 'Champions League', icon: '⚽', channel: 'Canvas', status: 'READY', rights: 'EXPIRING', crew: 'OPEN', until: 'Deal ends 31 May 2026 — renewal in negotiation', placed: true, live: true },
+      { id: 4, date: '2026-03-04', dow: 'WED', dayNum: 4, time: '18:00', dur: 90, title: 'Extra Time Voetbal', comp: 'Studio', icon: '⚽', channel: 'VRT MAX', status: 'DRAFT', rights: 'VALID', crew: 'OPEN', until: 'Own production', placed: true },
+      { id: 5, date: '2026-03-06', dow: 'FRI', dayNum: 6, time: '20:45', dur: 110, title: 'Antwerp vs Genk', comp: 'Jupiler Pro League', icon: '⚽', channel: 'VRT MAX', status: 'DRAFT', rights: 'VALID', crew: 'CONFLICT', until: 'Contract until 30 Jun 2027', placed: true },
+      { id: 6, date: '2026-03-07', dow: 'SAT', dayNum: 7, time: '11:00', dur: 370, title: 'Omloop Het Nieuwsblad', comp: 'Flanders Classics', icon: '🚴', channel: 'Eén', status: 'APPROVED', rights: 'VALID', crew: 'OK', until: 'Contract until 31 Dec 2028', placed: true, live: true },
+      { id: 7, date: '2026-03-08', dow: 'SUN', dayNum: 8, time: '13:00', dur: 240, title: 'Davis Cup: België vs Australië', comp: 'Davis Cup Qualifiers', icon: '🎾', channel: 'Canvas', status: 'DRAFT', rights: 'NEGOTIATION', crew: 'OPEN', until: 'Rights offer sent 26 Feb — awaiting ITF', placed: true },
+      { id: 8, date: '2026-03-05', dow: 'THU', dayNum: 5, time: '19:00', dur: 45, title: 'Nokere Koerse highlights', comp: 'Flanders Classics', icon: '🚴', channel: null, status: 'DRAFT', rights: 'VALID', crew: 'OPEN', until: 'Contract until 31 Dec 2028', placed: false, suggestion: 'THU 5 MAR 19:00 · Sporza app', sugCh: 'Sporza app' },
+      { id: 9, date: '2026-03-08', dow: 'SUN', dayNum: 8, time: '18:30', dur: 110, title: 'Cercle Brugge vs Westerlo', comp: 'Jupiler Pro League', icon: '⚽', channel: null, status: 'DRAFT', rights: 'VALID', crew: 'OPEN', until: 'Contract until 30 Jun 2027', placed: false, suggestion: 'SUN 8 MAR 18:30 · VRT MAX', sugCh: 'VRT MAX' },
+    ];
+  }
+
+  events() {
+    return this.baseEvents().concat(this.state.customEvents).map(e => ({ ...e, ...(this.state.overrides[e.id] || {}) }));
+  }
+
+  SPORT_META() { return { Football: ['football', '⚽'], Cycling: ['cycling', '🚴'], Tennis: ['tennis', '🎾'] }; }
+  createSpec(kind) {
+    const sportChips = ['Football', 'Cycling', 'Tennis'];
+    const specs = {
+      event: [
+        { key: 'title', label: 'TITLE', text: true, ph: 'e.g. Westerlo vs OH Leuven' },
+        { key: 'sport', label: 'SPORT', chips: sportChips },
+        { key: 'comp', label: 'COMPETITION', text: true, ph: 'e.g. Jupiler Pro League' },
+        { key: 'day', label: 'DAY (WEEK 10)', chips: ['MON 2', 'TUE 3', 'WED 4', 'THU 5', 'FRI 6', 'SAT 7', 'SUN 8'] },
+        { key: 'time', label: 'START (BE)', text: true, ph: '20:45' },
+        { key: 'dur', label: 'DURATION (MIN)', text: true, ph: '110' },
+        { key: 'channel', label: 'CHANNEL', chips: ['Unplaced', 'Eén', 'Canvas', 'VRT MAX', 'Radio 1', 'Sporza app'] },
+      ],
+      team: [
+        { key: 'name', label: 'TEAM NAME', text: true, ph: 'e.g. KV Mechelen' },
+        { key: 'sport', label: 'SPORT', chips: sportChips },
+        { key: 'venue', label: 'VENUE / BASE', text: true, ph: 'e.g. AFAS-stadion, Mechelen' },
+        { key: 'comp', label: 'COMPETITION', text: true, ph: 'e.g. Jupiler Pro League' },
+      ],
+      athlete: [
+        { key: 'name', label: 'NAME', text: true, ph: 'e.g. Fleur Moerman' },
+        { key: 'sport', label: 'SPORT', chips: sportChips },
+        { key: 'role', label: 'DISCIPLINE / POSITION', text: true, ph: 'e.g. Road & track' },
+        { key: 'team', label: 'TEAM / CLUB', text: true, ph: 'e.g. Lotto Ladies' },
+      ],
+      competition: [
+        { key: 'name', label: 'COMPETITION NAME', text: true, ph: 'e.g. Beker van België' },
+        { key: 'sport', label: 'SPORT', chips: sportChips },
+        { key: 'rights', label: 'RIGHTS STATUS', chips: ['NEGOTIATION', 'VALID', 'MISSING'] },
+      ],
+    };
+    return specs[kind];
+  }
+  openCreate(kind) {
+    const f = {};
+    for (const s of this.createSpec(kind)) f[s.key] = s.chips ? s.chips[0] : '';
+    if (kind === 'event') { f.day = 'WED 4'; }
+    this.setState({ create: { kind, fields: f } });
+  }
+  submitCreate() {
+    const c = this.state.create; if (!c) return;
+    const f = c.fields;
+    const S = this.state;
+    const id = 100 + S.customEvents.length + Object.keys(S.customTeams).length + Object.keys(S.customAths).length + S.customComps.football.length + S.customComps.cycling.length + S.customComps.tennis.length;
+    const [sportKey, icon] = this.SPORT_META()[f.sport] || ['football', '⚽'];
+    const flash = (msg, patch) => { this.setState({ ...patch, create: null, toast: msg }); setTimeout(() => this.setState({ toast: null }), 2600); };
+    if (c.kind === 'event') {
+      const dayIdx = Math.max(0, ['MON 2', 'TUE 3', 'WED 4', 'THU 5', 'FRI 6', 'SAT 7', 'SUN 8'].indexOf(f.day));
+      const dayNum = 2 + dayIdx;
+      const ch = f.channel === 'Unplaced' ? null : f.channel;
+      const ev = { id, date: '2026-03-0' + dayNum, dow: f.day.split(' ')[0], dayNum, time: f.time || '20:00', dur: parseInt(f.dur, 10) || 90, title: f.title || 'Untitled transmission', comp: f.comp || '—', icon, channel: ch, status: 'DRAFT', rights: 'VALID', crew: 'OPEN', until: 'Check contract coverage', placed: !!ch, suggestion: f.day + ' MAR ' + (f.time || '20:00') + ' · VRT MAX', sugCh: 'VRT MAX' };
+      flash('TRANSMISSION CREATED — DRAFT', { customEvents: [...S.customEvents, ev], screen: 'schedule', selId: id });
+    } else if (c.kind === 'team') {
+      const key = 't' + id;
+      const team = { name: f.name || 'New team', initials: ((f.name || 'NT').replace(/[^A-Za-z]/g, '').slice(0, 3) || 'NT').toUpperCase(), color: '#2FD6C3', meta: (f.sport + ' · ' + (f.comp || 'no competition') + ' · ' + (f.venue || 'venue TBC')).toUpperCase(), rights: 'MISSING', facts: [{ k: 'SPORT', v: f.sport }, { k: 'COMPETITION', v: f.comp || '—' }, { k: 'VENUE', v: f.venue || '—' }, { k: 'ADDED', v: 'THU 5 MAR 2026' }], people: [], upcoming: [], past: [], contracts: [{ name: 'No linked contract', status: 'MISSING', col: '#E5484D', until: 'Link a rights package to broadcast this team' }], reach: [], reachNote: 'NO BROADCASTS YET' };
+      flash('TEAM CREATED — LINK A CONTRACT', { customTeams: { ...S.customTeams, [key]: team }, screen: 'team', teamId: key });
+    } else if (c.kind === 'athlete') {
+      const key = 'a' + id;
+      const ath = { name: f.name || 'New athlete', initials: (f.name || 'NA').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(), icon, meta: (f.sport + ' · ' + (f.role || 'discipline TBC') + ' · ' + (f.team || 'no team')).toUpperCase(), facts: [{ k: 'SPORT', v: f.sport }, { k: 'DISCIPLINE', v: f.role || '—' }, { k: 'TEAM', v: f.team || '—' }], bio: 'New registry record — bio to be completed from the sports desk research file.', career: [], honours: [], upcoming: [], related: [] };
+      flash('ATHLETE CREATED', { customAths: { ...S.customAths, [key]: ath }, screen: 'athlete', athId: key });
+    } else {
+      const compId = 'c' + id;
+      const comp = { id: compId, name: f.name || 'New competition', sub: (f.sport + ' · new').toUpperCase(), rights: f.rights || 'NEGOTIATION', meta: ('new competition · rights ' + (f.rights || 'NEGOTIATION') + ' · no fixtures linked yet').toUpperCase(), hasTable: false };
+      const cc = { ...S.customComps, [sportKey]: [...S.customComps[sportKey], comp] };
+      flash('COMPETITION CREATED', { customComps: cc, sport: sportKey, compId, screen: 'competitions' });
+    }
+  }
+
+  inboxItems() {
+    return [
+      { id: 1, kind: 'CONFLICT', dotCol: '#E5484D', when: 'TODAY 09:12', title: 'Karel De Smet double-booked on Friday', sub: 'Antwerp vs Genk ↔ Extra Time studio', body: 'Co-commentator Karel De Smet is assigned to Antwerp vs Genk (FRI 20:45, VRT MAX) and the Extra Time studio panel in the same window. One assignment must move. Sofie Claes and Tom Peeters are free on Friday evening.', cta: 'GO TO SCHEDULE', target: { screen: 'schedule', selId: 5 } },
+      { id: 2, kind: 'RIGHTS', dotCol: '#E5A13C', when: 'TODAY 08:40', title: 'Champions League deal expires 31 May 2026', sub: 'Renewal in negotiation — 12 weeks left', body: 'The current Champions League package covers this season only. Negotiation for 2026–29 opened in January; legal review of the digital clip rights is the open blocker. Fixtures after 31 May cannot be confirmed on air until this closes.', cta: 'VIEW COMPETITION', target: { screen: 'competitions', sport: 'football', compId: 'cl' } },
+      { id: 3, kind: 'UNPLACED', dotCol: '#E5A13C', when: 'YESTERDAY', title: '2 events have no broadcast slot', sub: 'Nokere Koerse highlights · Cercle vs Westerlo', body: 'Two events for week 10 were imported from the fixture feed but have no channel or slot yet. Auto-suggest proposes slots based on channel load, rights and crew availability.', cta: 'GO TO SCHEDULE', target: { screen: 'schedule', selId: 8 } },
+      { id: 4, kind: 'CREW', dotCol: '#4C8DF5', when: 'YESTERDAY', title: 'Davis Cup tie needs a commentator', sub: 'SUN 8 MAR 13:00 · Canvas', body: 'No tennis commentator is assigned to the Davis Cup qualifier yet. An Willems is available all weekend and covered the previous tie in Hasselt.', cta: 'VIEW CREW', target: { screen: 'crew' } },
+      { id: 5, kind: 'FEED', dotCol: '#98A2B3', when: 'MON', title: 'Omloop start moved to 11:00', sub: 'Feed change accepted · ripple applied', body: 'Flanders Classics moved the Omloop Het Nieuwsblad start from 10:45 to 11:00. The schedule block, tech plan call times and the radio simulcast were shifted automatically.', cta: 'VIEW CALENDAR', target: { screen: 'calendar' } },
+    ];
+  }
+
+  resolve(id, note) {
+    if (!this.state.resolved.includes(id)) {
+      this.setState(s => ({ resolved: [...s.resolved, id], toast: note || 'ITEM RESOLVED' }));
+      setTimeout(() => this.setState({ toast: null }), 2600);
+    }
+  }
+  applyTarget(t, inboxId) {
+    const patch = { screen: t.screen, inboxSel: inboxId };
+    if (t.selId) patch.selId = t.selId;
+    if (t.sport) patch.sport = t.sport;
+    if (t.compId) patch.compId = t.compId;
+    this.setState(patch);
+  }
+  pushHistory(label, prevOverrides) {
+    this.setState(s => ({ history: [...s.history, { label, prev: prevOverrides }] }));
+  }
+
+  renderVals() {
+    const S = this.state;
+    const RIGHTS_COL = { VALID: '#2BB673', EXPIRING: '#E5A13C', NEGOTIATION: '#E07B39', MISSING: '#E5484D' };
+    const CREW_COL = { OK: '#2BB673', OPEN: '#E5A13C', CONFLICT: '#E5484D' };
+    const STATUS_COL = { DRAFT: '#98A2B3', READY: '#4C8DF5', APPROVED: '#2BB673' };
+    const events = this.events();
+    const inbox = this.inboxItems();
+    const open = inbox.filter(i => !S.resolved.includes(i.id));
+    const go = (screen) => () => this.setState({ screen });
+
+    // ── Continue: jump to first unresolved item's context ──
+    const doContinue = () => {
+      const next = open[0];
+      if (!next) { this.setState({ toast: 'ALL CLEAR — NOTHING NEEDS ATTENTION', screen: 'home' }); setTimeout(() => this.setState({ toast: null }), 2600); return; }
+      this.applyTarget(next.target, next.id);
+      this.setState({ toast: `NEXT: ${next.kind} — ${next.title.toUpperCase()}` });
+      setTimeout(() => this.setState({ toast: null }), 2600);
+    };
+
+    // ── Nav ──
+    const conflictsCount = events.filter(e => e.crew === 'CONFLICT').length;
+    const unplacedEvs = events.filter(e => !e.placed);
+    const nav = [
+      { isSection: true, label: 'OVERVIEW' },
+      { isItem: true, key: 'home', label: 'Home', icon: '⌂', badge: open.length ? String(open.length) : null, badgeBg: '#E5484D', badgeCol: '#fff' },
+      { isSection: true, label: 'PLANNING' },
+      { isItem: true, key: 'schedule', label: 'Schedule board', icon: '▤', badge: unplacedEvs.length ? String(unplacedEvs.length) : null, badgeBg: '#E5A13C22', badgeCol: '#E5A13C' },
+      { isItem: true, key: 'calendar', label: 'Season calendar', icon: '▦', badge: null },
+      { isItem: true, key: 'matchday', label: 'Match day', icon: '◉', badge: 'LIVE', badgeBg: '#E5484D22', badgeCol: '#E5484D' },
+      { isSection: true, label: 'SPORT' },
+      { isItem: true, key: 'competitions', label: 'Competitions', icon: '🏆', badge: null },
+      { isItem: true, key: 'team', label: 'Teams', icon: '⛨', badge: null },
+      { isItem: true, key: 'athlete', label: 'Athletes', icon: '👤', badge: null },
+      { isSection: true, label: 'RESOURCES' },
+      { isItem: true, key: 'crew', label: 'Crew', icon: '🎙', badge: conflictsCount ? String(conflictsCount) : null, badgeBg: '#E5484D22', badgeCol: '#E5484D' },
+    ].map(n => n.isSection ? n : {
+      ...n,
+      bg: S.screen === n.key ? '#141A1E' : 'transparent',
+      col: S.screen === n.key ? '#2FD6C3' : '#9FB0BB',
+      shadow: S.screen === n.key ? 'inset 2px 0 0 #2FD6C3' : 'none',
+      go: go(n.key),
+    });
+
+    // ── Home ──
+    const kpis = [
+      { label: 'EVENTS THIS WEEK', value: String(events.filter(e => e.placed).length), sub: '2 live productions', col: '#D9E4EB', go: go('schedule') },
+      { label: 'CREW CONFLICTS', value: String(conflictsCount), sub: conflictsCount ? 'needs action' : 'all clear', col: conflictsCount ? '#E5484D' : '#2BB673', go: go('crew') },
+      { label: 'RIGHTS EXPIRING', value: '1', sub: 'Champions League', col: '#E5A13C', go: () => this.setState({ screen: 'competitions', sport: 'football', compId: 'cl' }) },
+      { label: 'UNPLACED EVENTS', value: String(unplacedEvs.length), sub: 'awaiting a slot', col: unplacedEvs.length ? '#E5A13C' : '#2BB673', go: go('schedule') },
+    ];
+    const inboxRows = inbox.map(it => {
+      const isRes = S.resolved.includes(it.id);
+      const isSel = S.inboxSel === it.id;
+      return {
+        ...it,
+        kind: isRes ? '✓ ' + it.kind : it.kind,
+        bg: isSel ? '#141A1E' : 'transparent',
+        shadow: isSel ? 'inset 2px 0 0 #2FD6C3' : 'none',
+        opacity: isRes ? '.45' : '1',
+        open: () => this.setState({ inboxSel: it.id }),
+      };
+    });
+    const detIt = inbox.find(i => i.id === S.inboxSel) || null;
+    const inboxDetail = detIt && {
+      ...detIt,
+      isOpen: !S.resolved.includes(detIt.id),
+      isResolved: S.resolved.includes(detIt.id),
+      goTo: () => this.applyTarget(detIt.target, detIt.id),
+      resolve: () => this.resolve(detIt.id),
+    };
+
+    // ── Schedule ──
+    const placed = events.filter(e => e.placed);
+    const byDay = {};
+    for (const e of placed) { (byDay[e.date] = byDay[e.date] || []).push(e); }
+    const schedDays = Object.keys(byDay).sort().map(d => {
+      const evs = byDay[d].sort((a, b) => a.time.localeCompare(b.time));
+      return {
+        label: `${evs[0].dow} ${evs[0].dayNum} MARCH`,
+        load: `${evs.length} EVENT${evs.length > 1 ? 'S' : ''}`,
+        events: evs.map(e => ({
+          time: e.time, title: e.title, comp: e.comp, icon: e.icon,
+          channel: e.channel || '—', chColor: this.chColor(e.channel),
+          status: e.status, statusCol: STATUS_COL[e.status],
+          rights: e.rights, rightsCol: RIGHTS_COL[e.rights],
+          crew: e.crew, crewCol: CREW_COL[e.crew],
+          conflict: e.crew === 'CONFLICT',
+          rowBg: e.id === S.selId ? '#141A1E' : (e.crew === 'CONFLICT' ? 'rgba(229,72,77,.05)' : 'transparent'),
+          rowShadow: e.id === S.selId ? 'inset 2px 0 0 #2FD6C3' : (e.crew === 'CONFLICT' ? 'inset 2px 0 0 #E5484D' : 'none'),
+          select: () => this.setState({ selId: e.id }),
+        })),
+      };
+    });
+    const unplaced = unplacedEvs.map(u => ({
+      title: u.title, icon: u.icon, hint: u.suggestion,
+      border: S.selId === u.id ? '#2FD6C3' : '#E5A13C',
+      select: () => this.setState({ selId: u.id }),
+    }));
+    const placeEvent = (e) => {
+      const prev = { ...S.overrides };
+      this.setState(s => ({ overrides: { ...s.overrides, [e.id]: { ...(s.overrides[e.id] || {}), placed: true, channel: e.sugCh } } }));
+      this.pushHistory(`Placed "${e.title}" → ${e.suggestion}`, prev);
+      this.setState({ toast: `PLACED: ${e.title.toUpperCase()} → ${e.sugCh.toUpperCase()}` });
+      setTimeout(() => this.setState({ toast: null }), 2600);
+    };
+    const autoSuggest = () => {
+      const prev = { ...S.overrides };
+      const patch = {};
+      for (const u of unplacedEvs) patch[u.id] = { ...(S.overrides[u.id] || {}), placed: true, channel: u.sugCh };
+      this.setState(s => ({ overrides: { ...s.overrides, ...patch } }));
+      this.pushHistory(`Auto-placed ${unplacedEvs.length} events in suggested slots`, prev);
+      this.setState({ toast: `${unplacedEvs.length} EVENTS PLACED · CHECK & APPROVE`, cascade: null });
+      setTimeout(() => this.setState({ toast: null }), 2600);
+    };
+    const selEv = events.find(e => e.id === S.selId) || null;
+    const sel = selEv && {
+      title: selEv.title, live: !!selEv.live,
+      status: selEv.status, statusCol: STATUS_COL[selEv.status],
+      meta: `${selEv.dow} ${selEv.dayNum} MAR · ${selEv.time} · ${selEv.dur} min · ${selEv.channel || 'NO CHANNEL'}`,
+      rights: selEv.rights, rightsCol: RIGHTS_COL[selEv.rights], rightsUntil: selEv.until,
+      crew: selEv.crew, crewCol: CREW_COL[selEv.crew],
+      unplaced: !selEv.placed, suggestion: selEv.suggestion || '',
+      place: () => placeEvent(selEv),
+      channelBtns: this.CH().map(([name, dot]) => {
+        const active = selEv.channel === name;
+        return {
+          name: name.toUpperCase(), dot,
+          bg: active ? '#141A1E' : 'transparent',
+          border: active ? '#2FD6C3' : '#212A31',
+          col: active ? '#2FD6C3' : '#7E8E9A',
+          set: () => {
+            if (active || !selEv.placed) return;
+            const prev = { ...S.overrides };
+            // cascade demo: moving the CL match to Eén overlaps the JPL Friday pattern
+            const cascade = (selEv.id === 3 && name === 'Eén')
+              ? 'Moving Club Brugge vs Real Madrid to Eén displaces the 21:00 news window; Het Journaal shifts +35 min.'
+              : null;
+            this.setState(s => ({ overrides: { ...s.overrides, [selEv.id]: { ...(s.overrides[selEv.id] || {}), channel: name } }, cascade }));
+            this.pushHistory(`"${selEv.title}" → ${name}`, prev);
+          },
+        };
+      }),
+      crewRows: [
+        { role: 'Commentator', val: selEv.crew === 'OK' ? 'ASSIGNED' : 'OPEN', col: selEv.crew === 'OK' ? '#2BB673' : '#E5A13C' },
+        { role: 'Co-commentator', val: selEv.crew === 'CONFLICT' ? 'CONFLICT' : (selEv.crew === 'OK' ? 'ASSIGNED' : 'OPEN'), col: selEv.crew === 'CONFLICT' ? '#E5484D' : (selEv.crew === 'OK' ? '#2BB673' : '#E5A13C') },
+        { role: 'Pitch reporter', val: selEv.crew === 'OK' ? 'ASSIGNED' : 'OPEN', col: selEv.crew === 'OK' ? '#2BB673' : '#E5A13C' },
+      ],
+      crewFixable: selEv.crew !== 'OK',
+      fixCrew: () => {
+        const prev = { ...S.overrides };
+        this.setState(s => ({ overrides: { ...s.overrides, [selEv.id]: { ...(s.overrides[selEv.id] || {}), crew: 'OK' } }, cascade: null }));
+        this.pushHistory(`Crew completed on "${selEv.title}"`, prev);
+        if (selEv.id === 5) this.resolve(1, 'CONFLICT RESOLVED — SOFIE CLAES ASSIGNED');
+        else if (selEv.id === 7) this.resolve(4, 'AN WILLEMS ASSIGNED TO DAVIS CUP');
+        else { this.setState({ toast: 'CREW COMPLETED' }); setTimeout(() => this.setState({ toast: null }), 2600); }
+      },
+      openRundown: () => this.setState({ screen: 'matchday' }),
+    };
+    const undo = () => {
+      const h = this.state.history;
+      if (!h.length) return;
+      const last = h[h.length - 1];
+      this.setState({ overrides: last.prev, history: h.slice(0, -1), cascade: null, toast: 'UNDONE: ' + last.label.toUpperCase().slice(0, 48) });
+      setTimeout(() => this.setState({ toast: null }), 2600);
+    };
+    const historyRows = S.history.map((h, i) => ({ n: String(i + 1).padStart(2, '0'), label: h.label }));
+
+    // ── Calendar ──
+    const evByDayNum = {};
+    for (const e of events.filter(e => e.placed)) { (evByDayNum[e.dayNum] = evByDayNum[e.dayNum] || []).push(e); }
+    const extra = { 14: [{ title: 'Nokere Koerse', ch: 'Eén' }], 15: [{ title: 'JPL matchday 30', ch: 'Eén' }], 20: [{ title: 'Milano–Sanremo', ch: 'Eén' }], 22: [{ title: 'JPL matchday 31', ch: 'VRT MAX' }], 25: [{ title: 'Dwars door Vlaanderen', ch: 'Eén' }], 29: [{ title: 'Gent–Wevelgem', ch: 'Eén' }] };
+    const monthCells = [];
+    for (let i = 0; i < 35; i += 1) {
+      const num = i - 6; // 1 Mar 2026 = Sunday; grid starts MON 23 Feb
+      const inMonth = num >= 1 && num <= 31;
+      const label = inMonth ? num : (num < 1 ? 23 + 6 + num : num - 31);
+      const pips = [];
+      if (inMonth) {
+        for (const e of (evByDayNum[num] || [])) pips.push({ label: e.title, color: this.chColor(e.channel) });
+        for (const x of (extra[num] || [])) pips.push({ label: x.title, color: this.chColor(x.ch) });
+      }
+      monthCells.push({
+        num: String(label), pips,
+        opacity: inMonth ? '1' : '.28',
+        border: (inMonth && num >= 2 && num <= 8) ? '#2FD6C355' : '#212A31',
+        numCol: num === 5 ? '#2FD6C3' : '#7E8E9A',
+        go: () => this.setState({ screen: 'schedule' }),
+      });
+    }
+    const calLegend = this.CH().map(([label, color]) => ({ label, color }));
+
+    // ── Competitions ──
+    const COMPS = {
+      football: [
+        { id: 'jpl', name: 'Jupiler Pro League', sub: 'FOOTBALL · BE', rights: 'VALID', meta: 'BELGIUM · 16 TEAMS · MATCHDAY 29 OF 40 · CONTRACT UNTIL 30 JUN 2027', hasTable: true },
+        { id: 'cl', name: 'Champions League', sub: 'FOOTBALL · UEFA', rights: 'EXPIRING', meta: 'UEFA · KNOCKOUT PHASE · DEAL ENDS 31 MAY 2026 — RENEWAL IN NEGOTIATION', hasTable: false },
+      ],
+      cycling: [
+        { id: 'fc', name: 'Flanders Classics', sub: 'CYCLING · BE', rights: 'VALID', meta: 'SPRING CLASSICS · 8 RACES · CONTRACT UNTIL 31 DEC 2028', hasTable: false },
+      ],
+      tennis: [
+        { id: 'dc', name: 'Davis Cup', sub: 'TENNIS · ITF', rights: 'NEGOTIATION', meta: 'QUALIFIERS · BELGIUM TIE · RIGHTS OFFER PENDING AT ITF', hasTable: false },
+      ],
+    };
+    const sportBtns = [['football', '⚽', 'Football'], ['cycling', '🚴', 'Cycling'], ['tennis', '🎾', 'Tennis']].map(([key, icon, name]) => ({
+      icon, name,
+      bg: S.sport === key ? '#141A1E' : 'transparent',
+      border: S.sport === key ? '#2FD6C3' : '#212A31',
+      col: S.sport === key ? '#2FD6C3' : '#7E8E9A',
+      set: () => this.setState({ sport: key, compId: COMPS[key][0].id }),
+    }));
+    for (const k of Object.keys(COMPS)) COMPS[k] = COMPS[k].concat(S.customComps[k] || []);
+    const compList = COMPS[S.sport] || [];
+    const compActive = compList.find(c => c.id === S.compId) || compList[0];
+    const compBtns = compList.map(c => ({
+      name: c.name, sub: c.sub,
+      bg: c.id === compActive.id ? '#141A1E' : 'transparent',
+      col: c.id === compActive.id ? '#2FD6C3' : '#D9E4EB',
+      shadow: c.id === compActive.id ? 'inset 2px 0 0 #2FD6C3' : 'none',
+      set: () => this.setState({ compId: c.id }),
+    }));
+    const standRows = [
+      ['Union SG', 29, 19, 6, 4, 63], ['Club Brugge', 29, 18, 7, 4, 61], ['Anderlecht', 29, 16, 8, 5, 56],
+      ['KRC Genk', 29, 15, 7, 7, 52], ['Royal Antwerp', 29, 13, 8, 8, 47], ['KAA Gent', 29, 12, 9, 8, 45],
+      ['Standard Luik', 29, 10, 9, 10, 39], ['Cercle Brugge', 29, 9, 8, 12, 35],
+    ].map(([team, p, w, d, l, pts], i) => ({
+      pos: String(i + 1), team, p: String(p), w: String(w), d: String(d), l: String(l), pts: String(pts),
+      posCol: i < 4 ? '#2FD6C3' : '#738594',
+      openTeam: () => this.setState({ screen: 'team', teamId: team === 'Club Brugge' ? 'brugge' : 'union' }),
+    }));
+    const fx = (when, title, ch, badge, badgeCol) => ({ when, title, chName: ch, chColor: this.chColor(ch), badge, badgeCol });
+    const compFixtures = {
+      jpl: [
+        fx('FRI 6 MAR', 'Antwerp vs Genk', 'VRT MAX', 'DRAFT', '#98A2B3'),
+        fx('SUN 8 MAR', 'Cercle vs Westerlo', null, 'UNPLACED', '#E5A13C'),
+        fx('SUN 15 MAR', 'Union SG vs Club Brugge', 'Eén', 'READY', '#4C8DF5'),
+        fx('SUN 22 MAR', 'Anderlecht vs KAA Gent', 'VRT MAX', 'DRAFT', '#98A2B3'),
+      ],
+      cl: [
+        fx('WED 4 MAR', 'Club Brugge vs Real Madrid', 'Canvas', 'READY', '#4C8DF5'),
+        fx('WED 11 MAR', 'Return leg — Madrid', 'Canvas', 'DRAFT', '#98A2B3'),
+        fx('TUE 7 APR', 'Quarter-final 1', null, 'RIGHTS?', '#E5484D'),
+      ],
+      fc: [
+        fx('SAT 7 MAR', 'Omloop Het Nieuwsblad', 'Eén', 'APPROVED', '#2BB673'),
+        fx('SAT 14 MAR', 'Nokere Koerse', 'Eén', 'READY', '#4C8DF5'),
+        fx('WED 25 MAR', 'Dwars door Vlaanderen', 'Eén', 'DRAFT', '#98A2B3'),
+        fx('SUN 5 APR', 'Ronde van Vlaanderen', 'Eén', 'READY', '#4C8DF5'),
+      ],
+      dc: [
+        fx('SUN 8 MAR', 'België vs Australië — day 1', 'Canvas', 'DRAFT', '#98A2B3'),
+        fx('MON 9 MAR', 'België vs Australië — day 2', 'Canvas', 'DRAFT', '#98A2B3'),
+      ],
+    };
+    const comp = {
+      ...compActive,
+      rightsCol: RIGHTS_COL[compActive.rights],
+      standings: compActive.hasTable ? standRows : [],
+      fixtures: compFixtures[compActive.id] || [],
+      fixturesLabel: compActive.hasTable ? 'BROADCAST FIXTURES' : (S.sport === 'cycling' ? 'RACE CALENDAR' : 'FIXTURES'),
+      fixturesWidth: compActive.hasTable ? '380px' : '100%',
+    };
+
+    // ── Team ──
+    const TEAMS = {
+      brugge: {
+        name: 'Club Brugge KV', initials: 'CLU', color: '#4C8DF5',
+        meta: 'FOOTBALL · JUPILER PRO LEAGUE · JAN BREYDELSTADION, BRUGGE',
+        rights: 'VALID', facts: [
+          { k: 'FOUNDED', v: '1891' }, { k: 'STADIUM', v: 'Jan Breydel (29,062)' }, { k: 'HEAD COACH', v: 'Nicky Hayen' },
+          { k: 'LEAGUE POS', v: '2nd · 61 pts' }, { k: 'EUROPE', v: 'UCL round of 16' },
+        ],
+        people: [
+          { name: 'Hannes De Vos', role: 'FORWARD', open: () => this.setState({ screen: 'athlete', athId: 'devos' }) },
+          { name: 'Senne Vandenberghe', role: 'CAPTAIN' , open: () => this.setState({ screen: 'athlete', athId: 'devos' }) },
+          { name: 'Nicky Hayen', role: 'COACH', open: () => this.setState({ screen: 'athlete', athId: 'devos' }) },
+        ],
+        upcoming: [
+          { title: 'vs Real Madrid (UCL)', when: 'WED 4 MAR · 21:00 · LIVE', ch: 'Canvas', chColor: this.chColor('Canvas') },
+          { title: 'at Union SG (JPL)', when: 'SUN 15 MAR · 18:30', ch: 'Eén', chColor: this.chColor('Eén') },
+          { title: 'vs Anderlecht (Cup final?)', when: 'SUN 3 MAY · TBC', ch: 'Eén', chColor: this.chColor('Eén') },
+        ],
+        past: [
+          { when: '3 MAR', title: 'vs Anderlecht', viewers: '1.24M' }, { when: '22 FEB', title: 'at KAA Gent', viewers: '0.98M' },
+          { when: '18 FEB', title: 'vs Atalanta (UCL)', viewers: '1.41M' },
+        ],
+        contracts: [
+          { name: 'Jupiler Pro League package', status: 'VALID', col: '#2BB673', until: 'Until 30 Jun 2027 · live + highlights' },
+          { name: 'Champions League package', status: 'EXPIRING', col: '#E5A13C', until: 'Ends 31 May 2026 · renewal open' },
+        ],
+        reach: [42, 55, 48, 70, 62, 88, 76, 95].map(h => ({ h: h + '%', tip: 'match reach' })),
+        reachNote: 'LAST 8 BROADCASTS · PEAK 1.41M (UCL)',
+      },
+      union: {
+        name: 'Union Saint-Gilloise', initials: 'USG', color: '#E5A13C',
+        meta: 'FOOTBALL · JUPILER PRO LEAGUE · JOSEPH MARIEN, BRUSSELS',
+        rights: 'VALID', facts: [
+          { k: 'FOUNDED', v: '1897' }, { k: 'STADIUM', v: 'Joseph Marien (9,400)' }, { k: 'HEAD COACH', v: 'Pieter Maes' },
+          { k: 'LEAGUE POS', v: '1st · 63 pts' }, { k: 'EUROPE', v: 'Europa League' },
+        ],
+        people: [{ name: 'Loïc Dupont', role: 'TOP SCORER', open: () => this.setState({ screen: 'athlete', athId: 'devos' }) }],
+        upcoming: [{ title: 'vs Club Brugge (JPL)', when: 'SUN 15 MAR · 18:30', ch: 'Eén', chColor: this.chColor('Eén') }],
+        past: [{ when: '1 MAR', title: 'at Standard', viewers: '0.87M' }],
+        contracts: [{ name: 'Jupiler Pro League package', status: 'VALID', col: '#2BB673', until: 'Until 30 Jun 2027' }],
+        reach: [38, 44, 51, 47, 58, 66, 61, 72].map(h => ({ h: h + '%', tip: 'match reach' })),
+        reachNote: 'LAST 8 BROADCASTS · PEAK 0.92M',
+      },
+    };
+    Object.assign(TEAMS, S.customTeams);
+    const team = TEAMS[S.teamId] || TEAMS.brugge;
+    team.rightsCol = RIGHTS_COL[team.rights];
+    const teamTabs = Object.keys(TEAMS).map(key => ({
+      name: TEAMS[key].name,
+      bg: key === S.teamId ? '#141A1E' : 'transparent',
+      border: key === S.teamId ? '#2FD6C3' : '#212A31',
+      col: key === S.teamId ? '#2FD6C3' : '#7E8E9A',
+      set: () => this.setState({ teamId: key }),
+    }));
+
+    // ── Athlete ──
+    const ATHS = {
+      devos: {
+        name: 'Hannes De Vos', initials: 'HD', icon: '⚽',
+        meta: 'FOOTBALL · FORWARD · CLUB BRUGGE KV · BELGIUM',
+        facts: [
+          { k: 'BORN', v: '14 Aug 2001 · Kortrijk' }, { k: 'HEIGHT', v: '1.83 m' }, { k: 'POSITION', v: 'Forward' },
+          { k: 'CAPS', v: '17 (Belgium)' }, { k: 'SEASON', v: '19 goals · 7 assists' },
+        ],
+        bio: 'Broke through at Cercle before moving across the city in 2022. Top Belgian scorer in the league this season; a fixture in every Club Brugge broadcast plan and a regular studio guest after internationals.',
+        career: [
+          { years: '2022–now', team: 'Club Brugge KV', note: '112 apps · 54 g' },
+          { years: '2019–2022', team: 'Cercle Brugge', note: '74 apps · 21 g' },
+          { years: '2010–2019', team: 'KV Kortrijk (youth)', note: 'academy' },
+        ],
+        honours: ['Belgian Pro League champion 2024', 'Belgian Cup 2023', 'Ebbenhouten Schoen 2025'],
+        upcoming: [
+          { title: 'vs Real Madrid (UCL)', when: 'WED 4 MAR · 21:00 · LIVE', ch: 'Canvas', chColor: this.chColor('Canvas') },
+          { title: 'at Union SG (JPL)', when: 'SUN 15 MAR · 18:30', ch: 'Eén', chColor: this.chColor('Eén') },
+        ],
+        related: [
+          { icon: '🎙', label: 'Extra Time studio guest', when: 'WED 4 MAR' },
+          { icon: '⚽', label: 'Belgium — Nations League squad', when: 'MAR 26–31' },
+        ],
+      },
+    };
+    Object.assign(ATHS, S.customAths);
+    const ath = ATHS[S.athId] || ATHS.devos;
+    const athTabs = Object.keys(ATHS).map(key => ({
+      name: ATHS[key].name,
+      bg: key === S.athId ? '#141A1E' : 'transparent',
+      border: key === S.athId ? '#2FD6C3' : '#212A31',
+      col: key === S.athId ? '#2FD6C3' : '#7E8E9A',
+      set: () => this.setState({ athId: key }),
+    }));
+
+    // ── Create modal ──
+    const createOpen = !!S.create;
+    const KIND_LABELS = { event: 'TRANSMISSION', team: 'TEAM', athlete: 'ATHLETE', competition: 'COMPETITION' };
+    const createKinds = Object.keys(KIND_LABELS).map(kind => ({
+      label: KIND_LABELS[kind],
+      bg: createOpen && S.create.kind === kind ? '#2FD6C3' : 'transparent',
+      col: createOpen && S.create.kind === kind ? '#04241F' : '#7E8E9A',
+      border: createOpen && S.create.kind === kind ? '#2FD6C3' : '#212A31',
+      set: () => this.openCreate(kind),
+    }));
+    const createFields = createOpen ? this.createSpec(S.create.kind).map(spec => {
+      const val = S.create.fields[spec.key];
+      return {
+        label: spec.label, isText: !!spec.text, isChips: !!spec.chips, ph: spec.ph || '', value: val,
+        set: (e) => this.setState(s => ({ create: { ...s.create, fields: { ...s.create.fields, [spec.key]: e.target.value } } })),
+        options: (spec.chips || []).map(o => ({
+          label: o,
+          bg: val === o ? '#141A1E' : 'transparent',
+          border: val === o ? '#2FD6C3' : '#212A31',
+          col: val === o ? '#2FD6C3' : '#7E8E9A',
+          set: () => this.setState(s => ({ create: { ...s.create, fields: { ...s.create.fields, [spec.key]: o } } })),
+        })),
+      };
+    }) : [];
+
+    // ── Crew ──
+    const mkDays = (marks) => marks.split('').map((m, i) => {
+      const map = {
+        A: { bg: '#2BB67333', border: '#2BB673', col: '#2BB673', mark: '●', tip: 'Assigned' },
+        '.': { bg: '#141A1E', border: '#212A31', col: '#738594', mark: '', tip: 'Available' },
+        X: { bg: '#E5484D33', border: '#E5484D', col: '#E5484D', mark: '!', tip: 'Double-booked' },
+        '-': { bg: '#0F1316', border: '#738594', col: '#738594', mark: '', tip: 'Unavailable' },
+      };
+      return { ...map[m], tip: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][i] + ' — ' + map[m].tip };
+    });
+    const crewRows = [
+      { name: 'Jan Vermeulen', role: 'Commentator', sports: '⚽', days: 'A.A..A.', assigned: '3', status: 'OK', statusCol: '#2BB673' },
+      { name: 'Karel De Smet', role: 'Co-commentator', sports: '⚽', days: '.A..X..', assigned: '3', status: 'CONFLICT', statusCol: '#E5484D', hot: true },
+      { name: 'Sofie Claes', role: 'Co-commentator', sports: '⚽ 🎾', days: '.......', assigned: '0', status: 'AVAILABLE', statusCol: '#7E8E9A' },
+      { name: 'Tom Peeters', role: 'Pitch reporter', sports: '⚽', days: 'AA.....', assigned: '2', status: 'OK', statusCol: '#2BB673' },
+      { name: 'Els Van Damme', role: 'Commentator', sports: '🚴', days: '.....A.', assigned: '1', status: 'OK', statusCol: '#2BB673' },
+      { name: 'An Willems', role: 'Commentator', sports: '🎾', days: '.......', assigned: '0', status: 'AVAILABLE', statusCol: '#7E8E9A' },
+      { name: 'Bram Wouters', role: 'Motorbike reporter', sports: '🚴', days: '----.A.', assigned: '1', status: 'LIMITED', statusCol: '#E5A13C' },
+      { name: 'Lien Maes', role: 'Studio host', sports: '⚽ 🚴 🎾', days: '..A..A.', assigned: '2', status: 'OK', statusCol: '#2BB673' },
+    ].map(c => ({ ...c, days: mkDays(c.days), bg: c.hot ? 'rgba(229,72,77,.05)' : 'transparent' }));
+
+    // ── Match day ──
+    const md = {
+      title: 'Club Brugge vs Real Madrid',
+      meta: 'WED 4 MAR · 21:00 · CANVAS + SPORZA APP · UCL ROUND OF 16',
+      segments: [
+        { time: '20:30', label: 'Pre-show — studio', src: 'STUDIO 3 · LIEN MAES', dur: '25′', color: '#4C8DF5' },
+        { time: '20:55', label: 'Line-ups + anthem', src: 'OB VAN · GANTRY', dur: '5′', color: '#4C8DF5' },
+        { time: '21:00', label: 'First half', src: 'OB VAN · 8 CAM', dur: '45′', color: '#E5484D' },
+        { time: '21:47', label: 'Half-time analysis', src: 'STUDIO 3 + PITCH', dur: '15′', color: '#4C8DF5' },
+        { time: '22:03', label: 'Second half', src: 'OB VAN · 8 CAM', dur: '45′', color: '#E5484D' },
+        { time: '22:50', label: 'Full-time + flash interviews', src: 'PITCH · MIXED ZONE', dur: '15′', color: '#4C8DF5' },
+        { time: '23:05', label: 'Extra Time — late analysis', src: 'STUDIO 3', dur: '40′', color: '#98A2B3' },
+      ],
+      positions: [
+        { abbr: 'COM', name: 'J. Vermeulen', x: '38%', y: '13%', bg: '#2BB67333', border: '#2BB673', col: '#2BB673', tip: 'Commentator — gantry' },
+        { abbr: 'CO', name: 'OPEN ⚠', x: '62%', y: '13%', bg: '#E5A13C22', border: '#E5A13C', col: '#E5A13C', tip: 'Co-commentator — unfilled' },
+        { abbr: 'CAM', name: 'Cam 1–4', x: '15%', y: '38%', bg: '#141A1E', border: '#738594', col: '#7E8E9A', tip: 'Main cameras' },
+        { abbr: 'CAM', name: 'Cam 5–8', x: '85%', y: '38%', bg: '#141A1E', border: '#738594', col: '#7E8E9A', tip: 'Behind-goal + steadicam' },
+        { abbr: 'DIR', name: 'M. Janssens', x: '50%', y: '52%', bg: '#4C8DF533', border: '#4C8DF5', col: '#4C8DF5', tip: 'Director — OB van' },
+        { abbr: 'PIT', name: 'T. Peeters', x: '30%', y: '84%', bg: '#2BB67333', border: '#2BB673', col: '#2BB673', tip: 'Pitch reporter' },
+        { abbr: 'MIX', name: 'Mixed zone', x: '70%', y: '84%', bg: '#141A1E', border: '#738594', col: '#7E8E9A', tip: 'Flash interview position' },
+      ],
+      resources: [
+        { name: 'OB van 2 (Brugge)', status: 'CONFIRMED', col: '#2BB673' },
+        { name: '8 cameras + SSM', status: 'CONFIRMED', col: '#2BB673' },
+        { name: 'Encoder pair ENC-04', status: 'CONFIRMED', col: '#2BB673' },
+        { name: 'Uplink — fibre + SAT backup', status: 'CONFIRMED', col: '#2BB673' },
+        { name: 'Studio 3 (Brussels)', status: 'HOLD 20:00', col: '#E5A13C' },
+      ],
+      dist: [
+        { name: 'Canvas', note: 'MAIN · LIVE', color: this.chColor('Canvas') },
+        { name: 'Sporza app', note: 'SIMULCAST', color: this.chColor('Sporza app') },
+        { name: 'Radio 1', note: 'AUDIO COMMENTARY', color: this.chColor('Radio 1') },
+      ],
+    };
+
+    return {
+      topDate: 'THU 5 MAR 2026',
+      nav, doContinue, openCount: open.length ? String(open.length) : null,
+      isHome: S.screen === 'home', isSchedule: S.screen === 'schedule', isCalendar: S.screen === 'calendar',
+      isCompetitions: S.screen === 'competitions', isTeam: S.screen === 'team', isAthlete: S.screen === 'athlete',
+      isCrew: S.screen === 'crew', isMatchday: S.screen === 'matchday',
+      kpis, inboxRows, inboxDetail,
+      schedDays, unplaced, unplacedCount: String(unplacedEvs.length), hasUnplaced: unplacedEvs.length > 0,
+      autoSuggest, cascade: S.cascade, undo,
+      hasSel: !!sel, noSel: !sel, sel: sel || {},
+      historyRows, hasHistory: S.history.length > 0, noHistory: S.history.length === 0,
+      calDows: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'], monthCells, calLegend,
+      sportBtns, compBtns, comp,
+      team, ath, crewRows, md, teamTabs, athTabs,
+      createOpen, createKinds, createFields,
+      openCreateBtn: () => this.openCreate('event'),
+      newTeam: () => this.openCreate('team'),
+      newAthlete: () => this.openCreate('athlete'),
+      newCompetition: () => this.openCreate('competition'),
+      closeCreate: () => this.setState({ create: null }),
+      submitCreate: () => this.submitCreate(),
+      toast: S.toast,
+    };
+  }
+}
+</script>
+</body>
+</html>

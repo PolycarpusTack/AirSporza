@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#090B0D;}
+a{color:#2FD6C3;text-decoration:none;} a:hover{color:#6AE5D6;}
+</style>
+</helmet>
+<div style="font-family:'IBM Plex Sans',system-ui,sans-serif;color:#D9E4EB;background:#090B0D;min-height:100vh;">
+  <div style="max-width:960px;margin:0 auto;padding:48px 32px 80px;">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:2px;color:#2FD6C3;margin-bottom:12px;">PLANZA/FM · DESIGN NOTES</div>
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:700;line-height:1.15;margin:0 0 10px;">Evaluation &amp; redesign rationale</h1>
+    <p style="font-size:14px;color:#7E8E9A;line-height:1.65;max-width:640px;margin:0 0 40px;">What SporzaPlanner does today, where the interface works against its users, and exactly what the Football-Manager-style concept changes. Companion files: <a href="Planza Baseline.dc.html">the recreated current UI</a> and <a href="Planza FM.dc.html">the FM concept</a>.</p>
+
+    <!-- ── 1. What the app is ── -->
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:14px;">01 · THE APPLICATION AND ITS PURPOSE</div>
+    <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:22px 24px;margin-bottom:36px;">
+      <p style="font-size:13.5px;line-height:1.7;margin:0 0 12px;">SporzaPlanner (Planza) is a broadcast planning system for a public broadcaster's sports desk. It manages <strong>events</strong> (fixtures to broadcast), <strong>channels</strong> (Eén, Canvas, VRT MAX), <strong>rights contracts</strong>, <strong>tech plans</strong> and <strong>crew assignments</strong>, with feed imports and real-time sync. It effectively runs two UIs today: the legacy amber-themed app (Planner, Sports, Contracts, Import) and the newer teal "Ops" shell (Schedule, Rundown, Rights, Registry, Sync) behind a feature flag.</p>
+      <p style="font-size:13.5px;line-height:1.7;margin:0;color:#7E8E9A;">The domain is genuinely a management sim: scarce resources (crew, OB vans, channel minutes), contracts with deadlines, a fixture calendar, and a weekly cycle of decisions. The FM framing is not a skin — it matches how planners actually work.</p>
+    </div>
+
+    <!-- ── 2. Critique ── -->
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:14px;">02 · UX CRITIQUE OF THE CURRENT APP</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:36px;">
+      <sc-for list="{{ critique }}" as="c" hint-placeholder-count="7">
+        <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:16px 20px;display:flex;gap:16px;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:{{ c.col }};letter-spacing:1px;flex-shrink:0;width:80px;padding-top:2px;">{{ c.tag }}</span>
+          <div style="min-width:0;">
+            <div style="font-size:13.5px;font-weight:600;margin-bottom:4px;">{{ c.title }}</div>
+            <div style="font-size:12.5px;color:#7E8E9A;line-height:1.65;">{{ c.body }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <!-- ── 3. Exact differences ── -->
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:14px;">03 · EXACT DIFFERENCES &amp; WHAT EACH IMPROVES</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:36px;">
+      <sc-for list="{{ diffs }}" as="d" hint-placeholder-count="9">
+        <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;overflow:hidden;">
+          <div style="padding:12px 20px;border-bottom:1px solid #212A31;display:flex;align-items:center;gap:12px;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;color:#2FD6C3;">{{ d.area }}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+            <div style="padding:14px 20px;border-right:1px solid #212A31;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:1.5px;color:#738594;margin-bottom:6px;">CURRENT</div>
+              <div style="font-size:12.5px;color:#9FB0BB;line-height:1.6;">{{ d.before }}</div>
+            </div>
+            <div style="padding:14px 20px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:1.5px;color:#2FD6C3;margin-bottom:6px;">FM CONCEPT</div>
+              <div style="font-size:12.5px;color:#D9E4EB;line-height:1.6;">{{ d.after }}</div>
+            </div>
+          </div>
+          <div style="padding:11px 20px;border-top:1px solid #212A31;background:#0C1114;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;color:#2BB673;">IMPROVES → </span>
+            <span style="font-size:12px;color:#7E8E9A;">{{ d.improves }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <!-- ── 4. Kept ── -->
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:14px;">04 · DELIBERATELY KEPT FROM THE CURRENT APP</div>
+    <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:20px 24px;margin-bottom:36px;">
+      <sc-for list="{{ kept }}" as="k" hint-placeholder-count="5">
+        <div style="display:flex;gap:10px;padding:5px 0;font-size:13px;line-height:1.6;">
+          <span style="color:#2BB673;">✓</span><span style="color:#9FB0BB;">{{ k }}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <!-- ── 5. Build notes ── -->
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:2px;color:#738594;margin-bottom:14px;">05 · REBUILD NOTES (SPEC POINTERS)</div>
+    <div style="background:#0F1316;border:1px solid #212A31;border-radius:6px;padding:20px 24px;">
+      <sc-for list="{{ buildNotes }}" as="b" hint-placeholder-count="5">
+        <div style="display:flex;gap:12px;padding:6px 0;font-size:12.5px;line-height:1.65;color:#9FB0BB;">
+          <span style="font-family:'IBM Plex Mono',monospace;color:#738594;flex-shrink:0;">{{ b.n }}</span><span>{{ b.text }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      critique: [
+        { tag: 'STRUCTURE', col: '#E5484D', title: 'Two parallel UIs with different vocabularies', body: 'Legacy screens (amber, Tailwind cards) and the Ops shell (teal, mono, dense) coexist. "Planner" means a week calendar in one and a day rundown in the other; the URL /ops/planner mounts a screen named Rundown. Users pay a translation tax on every switch.' },
+        { tag: 'FOCUS', col: '#E5484D', title: 'No answer to "what should I do next?"', body: 'Conflicts, expiring rights, unplaced events and open crew slots live on four different screens. Nothing aggregates them into a work queue; the dashboard shows counts (7 / 0 / 0) but counts are not tasks.' },
+        { tag: 'DENSITY', col: '#E5A13C', title: 'The legacy planner spends a screen before showing the schedule', body: 'Three stat cards, a week bar, three full-width filter dropdowns and a view toggle all precede the first event. The three dropdowns alone cost ~150px of vertical space for filters that are rarely changed.' },
+        { tag: 'CONTEXT', col: '#E5A13C', title: 'Selection loses context across screens', body: 'The Ops shell carries ?event/?day across tabs (good), but the legacy app resets state per view, and there is no path from an event to the competition, team or people it involves. The Registry is a flat record list, not a navigable sports world.' },
+        { tag: 'FEEDBACK', col: '#E5A13C', title: 'Consequences of edits are invisible', body: 'Moving an event does not show knock-on effects (overruns, displaced programmes, crew now double-booked). RippleProposal exists in the backend (flag off) but has no surface in the UI.' },
+        { tag: 'CREW', col: '#4C8DF5', title: 'Crew is a form field, not a resource pool', body: 'Assignments happen inside per-event tech-plan forms. There is no view of who is free this week, who is overloaded, or who could take an open slot — the information the conflict detector already computes.' },
+        { tag: 'GOOD', col: '#2BB673', title: 'The Ops shell direction is right', body: 'Token discipline, the RIGHTS/CREW status words, the 320px inspector, day pills and channel lanes are strong foundations. The FM concept extends this system rather than replacing it.' },
+      ],
+      diffs: [
+        { area: 'APP STRUCTURE', before: 'Two apps: legacy sidebar (Planner, Sports, Squads, Contracts, Import, Schedule) + separate Ops shell with 5 tabs behind a flag.', after: 'One shell, one FM-style sectioned sidebar: OVERVIEW / PLANNING / SPORT / RESOURCES. Live badge counts (inbox, unplaced, conflicts) on the nav items themselves.', improves: 'One mental model; the nav doubles as a health dashboard — you see where problems are before clicking.' },
+        { area: 'HOME + CONTINUE', before: 'Dashboard of stat cards ("7 This Week") with no actions attached. Notifications hidden behind a bell icon.', after: 'FM-style inbox: a queue of typed action items (CONFLICT / RIGHTS / UNPLACED / CREW / FEED), each with a detail pane, a deep-link CTA and a resolve action. A global CONTINUE button jumps to the next unresolved item.', improves: 'The core FM loop — advance, get shown the next decision, act. Zero-thought triage; nothing falls through.' },
+        { area: 'SCHEDULE BOARD', before: 'Ops Schedule shows the week table + inspector; unplaced events do not exist as a concept; changes are immediate and unexplained.', after: 'Same table + always-open inspector, plus: an UNPLACED tray with per-event slot suggestions and one-click auto-place, conflict rows tinted red with a ⚠ marker, channel reassignment as one-tap chips in the inspector, a cascade warning banner when a move displaces other programming, and a session history with undo.', improves: 'Scheduling becomes reversible and consequence-aware; placing feed imports drops from a form flow to one click.' },
+        { area: 'RIGHTS VISIBILITY', before: 'Rights status appears as a word in the ops table and a small badge on legacy cards; contract detail lives in a separate Contracts view.', after: 'Rights words kept everywhere, plus contract context inline: the inspector shows the deal deadline sentence, competition and team pages carry a RIGHTS badge in the header, and expiring deals surface as inbox items.', improves: 'Rights stop being a separate department — every scheduling decision shows its legal ground.' },
+        { area: 'SPORTS WORLD', before: 'Registry: a flat, kind-filtered record table. Sports workspace: a tree of events with an empty detail pane. No competition standings, no team or athlete pages.', after: 'Sport switcher → competition pages (standings + broadcast fixtures for leagues; race calendars for cycling; ties for tennis) → clickable team profiles (bio facts, key people, upcoming/past broadcasts with reach, contracts) → athlete profiles (bio, career, honours, next on air, cross-sport links).', improves: 'FM-style drill-down. Planners get the editorial context (form, stakes, faces) that decides what deserves Eén vs VRT MAX.' },
+        { area: 'CREW', before: 'Crew = form fields inside tech plans; conflicts computed but only shown per event.', after: 'Squad-style crew list: role, sports, M–S availability strip (assigned / free / double-booked / unavailable), assignment count, status word. Double-booked people highlighted; the schedule inspector can assign from available crew in one click.', improves: 'Turns the conflict detector into a planning tool: see capacity, not just errors.' },
+        { area: 'MATCH DAY', before: 'Rundown = horizontal channel lanes for a day; tech plans are cards in the Sports workspace.', after: 'A per-event Match Day screen: broadcast rundown segments (times, sources, durations), a tactics-board crew formation (gantry/pitch positions, unfilled slots flagged ⚠), resource checklist and distribution list. Day-lane rundown kept for the channel view.', improves: 'The producable artifact for one production in one place — the FM "tactics screen" applied to an OB operation.' },
+        { area: 'SEASON VIEW', before: 'Week-only navigation (W10 picker); no month or season context anywhere.', after: 'Season calendar: month grid with channel-coloured event pips, current-week highlight, legend; clicking a day jumps to the board. Sidebar shows season progress (W10 of the season bar).', improves: 'Long-horizon planning — spring classics, knockout rounds and league run-ins become visible before they collide.' },
+        { area: 'VISUAL SYSTEM', before: 'Two themes: amber/Space Grotesk legacy and teal/mono ops.', after: 'Ops theme everywhere (bg #090B0D, surface #0F1316, accent #2FD6C3, IBM Plex Mono labels), with Space Grotesk promoted to display type for entity names and big numbers. Channel colours, status words and the 320px inspector reused unchanged.', improves: 'One consolidated system built from tokens that already passed the AA contrast audit.' },
+      ],
+      kept: [
+        'The ops token set (ops-tokens v3) including the theme-aware semantic colours and AA-adjusted values.',
+        'RIGHTS / CREW / STATUS as coloured mono words — no icon soup.',
+        'The 320px right-hand inspector pattern and its section anatomy (header · RIGHTS · CREW · TECH PLANS).',
+        'Channel colour as data (Eén orange, Canvas blue, VRT MAX green), extended with Radio 1 and Sporza app.',
+        'Selection carried in context across screens (the ops ?event/?day pattern, generalised to sport/competition/team).',
+      ],
+      buildNotes: [
+        { n: '01', text: 'The FM shell can mount as a third route family alongside /ops — same lazy-chunk + theme-guard pattern as OpsShell (ADR-012). The inbox maps onto the existing notification and RippleProposal models; CONTINUE is a client-side cursor over unresolved items.' },
+        { n: '02', text: 'Unplaced tray = events where channel/slot is null after ImportView linking; the suggestion engine can start as rules (channel load + rights + crew availability) before anything smarter.' },
+        { n: '03', text: 'Cascade banner is the natural first UI surface for the scheduleRipple flag (SV-2): render the RippleProposal as the banner body with accept/undo.' },
+        { n: '04', text: 'Competition/team/athlete pages are views over the existing Registry kinds (sport, competition, team, player) — no new entities, only relations and a bio/facts JSON payload per record.' },
+        { n: '05', text: 'Crew availability strip derives from detectCrewConflicts + tech-plan assignments per day — the data already exists; only the aggregation endpoint is new.' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>
