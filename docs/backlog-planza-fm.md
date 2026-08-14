@@ -429,6 +429,20 @@ keeps EPIC FM-1 a genuine end-to-end tracer bullet (CONTINUE lands on a REAL scr
 entity selected, verifiable in the smoke test) instead of a stub. EPIC FM-2 flips these targets to
 native FM routes once built — a route-string swap, not a rewrite.
 
+**FM1-3-T1 execution note (2026-08-14, orchestrator review):** `deriveActionItems`'s literal 6-arg
+signature drifted against `ops-selectors v3` (`deriveCrewHealth`/`deriveCrewRoles` require a
+`crewFields: FieldConfig[]` param; UNPLACED needs `broadcastSlots: BroadcastSlot[]`, which no
+frontend `Event` field carries) — resolved by appending both as trailing params 7/8. **FM1-4-T1
+and FM1-5-T1 callers must pass these two extra arguments.** Separately, one real routing bug was
+found and fixed inline: UNPLACED originally targeted `/ops/rundown`, which is not a real
+`OPS_TABS` id (the day-timeline screen's actual tab id is `planner`) — corrected to `/ops/planner`
+before commit. **Known gap, not yet fixed:** the RIGHTS target `/ops/rights?record=competition:<id>`
+lands on a real screen (satisfies "never a stub") but `RightsScreen.tsx` does not read `?record=`
+today (only `RegistryScreen` consumes `useOpsRecord`) — so RIGHTS items land without the
+competition actually preselected/scrolled-to, unlike the other three kinds. Wiring RightsScreen to
+consume `?record` is FEATURE work for whichever of FM1-4/FM1-5 builds the real CTA — call it out
+explicitly in that task's DoD rather than assuming selection "just works" for RIGHTS.
+
 ---
 
 ### Story FM1-5 — CONTINUE

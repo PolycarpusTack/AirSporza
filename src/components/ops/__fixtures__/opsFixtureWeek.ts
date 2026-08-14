@@ -586,6 +586,75 @@ export const FIXTURE_JOBS: ImportJob[] = deepFreeze([
  * incoming 'Riverside United — Coastal Rovers' vs current 'Mon late …'). cand-low keeps
  * suggestedEntityId:null (the incoming-only path; incomingName falls to participantsText).
  */
+/* ────────────────────────────────────────────────────────────────────────────
+ * FM1-3-T1 ADDITIVE extension (Story FM1-3 — action item derivation): two
+ * STANDALONE exports for fmActionItems.test.ts, the 2nd consumer of this
+ * fixture outside ops/ (Rule of Three: still cheap to extend in place).
+ *
+ * Deliberately NOT inserted into FIXTURE_EVENTS/FIXTURE_PLANS themselves —
+ * every day in FIXTURE_EVENTS is pinned to an EXACT event count elsewhere
+ * (RundownScreen.test.tsx 'renders 7 pills ... UNFILTERED fixture-week counts':
+ * Mon 2/Tue 2/Wed 2/Thu 2/Fri 1/Sat 0/Sun 0, and rundownLayout.test.ts's
+ * 'Thursday: only the UNASSIGNED lane'); inserting an extra in-week event
+ * into ANY day would silently break those pins. The fm test suite instead
+ * composes `[...FIXTURE_EVENTS, FIXTURE_UNPLACED_EVENT]` itself — additive to
+ * this file, byte-stable for every existing consumer.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * UNPLACED-predicate fixture: Saturday 2026-03-07 (a day that stays empty in
+ * FIXTURE_EVENTS on purpose, so composing this event in — see above — never
+ * collides with another day's pinned count). No channelId and no linked
+ * BroadcastSlot. competitionId 101 already resolves VALID (contract id 1) and
+ * FIXTURE_UNPLACED_EVENT_PLAN fills the sole required crew field, so this is a
+ * CLEAN single-purpose UNPLACED case with no incidental RIGHTS/CREW/CONFLICT noise.
+ */
+export const FIXTURE_UNPLACED_EVENT: Event = deepFreeze(
+  makeEvent({
+    id: 11,
+    sportId: 1,
+    competitionId: 101,
+    startDateBE: '2026-03-07',
+    startTimeBE: '11:00',
+    durationMin: 60,
+    participants: 'Sat unplaced (no channel, no slot)',
+  }),
+)
+
+/** Fills FIXTURE_UNPLACED_EVENT's sole required role so it stays a clean UNPLACED-only case. */
+export const FIXTURE_UNPLACED_EVENT_PLAN: TechPlan = deepFreeze({
+  id: 11,
+  eventId: 11,
+  planType: 'Live',
+  crew: { encoder: 'ENC-11' },
+  isLivestream: true,
+  customFields: [],
+})
+
+/**
+ * Pending Ripple Proposal fixture, shaped like a `GET /api/ripple-proposals`
+ * row (ripple v1 — SV-2). Targets FIXTURE_UNPLACED_EVENT (id 11) on purpose:
+ * the fm integration test proves kind-independence (UNPLACED + FEED, same
+ * event, both derived, no merging) against real shared data, mirroring the
+ * AC's CONFLICT+UNPLACED example. Field values beyond eventId/status are
+ * plausible-but-arbitrary — no ops/fm selector reads them structurally.
+ */
+export const FIXTURE_RIPPLE_PROPOSAL_PENDING = deepFreeze({
+  id: 'ripple-fixture-1',
+  tenantId: 'fixture-tenant',
+  eventId: 11,
+  source: 'the_sports_db',
+  sourceChangeId: 'chg-fixture-1',
+  status: 'PENDING',
+  beforeSlots: [],
+  preview: {},
+  confidence: null,
+  createdAt: '2026-03-01T00:00:00.000Z',
+  decidedAt: null,
+  decidedBy: null,
+  rationale: null,
+})
+
 export const FIXTURE_MERGE_CANDIDATES: ImportMergeCandidate[] = deepFreeze([
   makeMergeCandidate({
     id: 'cand-high',
