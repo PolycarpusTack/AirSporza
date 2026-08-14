@@ -107,6 +107,11 @@
   --surface-shell:     #0F1316;  /* panel / chrome / inspector */
   --surface-shell-2:   #141A1E;  /* inset surfaces, hover rows, inputs */
   --border-shell:      #212A31;  /* all ops borders / dividers */
+  --border-shell-soft: #1A2126;  /* FM1-1: inbox row hairlines — half-step between
+                                     --bg-shell/--surface-shell and --border-shell.
+                                     Dark value only; light-theme derivation deliberately
+                                     deferred to EPIC FM-5.2 (FM-1 ships no theme toggle) —
+                                     see docs/ops-token-map.md "FM tokens". */
   --text-shell:        #D9E4EB;  /* primary text               */
   --text-shell-2:      #7E8E9A;  /* secondary text             */
   --text-shell-3:      #738594;  /* tertiary text / column headers (AA-adjusted from #4E5B66, A-1-T4) */

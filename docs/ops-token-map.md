@@ -134,6 +134,23 @@ noticeably more muted than the prototype — review candidates first.
 - Inspector conflict callout bg = 10% red → `color-mix` on `--alert-danger`.
 - IBM Plex fonts: `--font-display` / `--font-mono` already exist (AS-6 confirmed) — not re-added.
 
+## FM tokens (FM1-1-T1, EPIC FM-1 — additive, ops-tokens v4)
+
+Story FM1-1 scopes FM Home to the existing AA-audited ops token set plus only the new tokens
+Home actually needs (`docs/backlog-planza-fm.md` §FM1-1). FM-1 ships no theme toggle, so new FM
+vars are **dark-only** until a later EPIC adds light derivations.
+
+| Design need | CSS var | Dark | Light | Use | Notes |
+|---|---|---|---|---|---|
+| row hairline (half-step between bg/surface and border) | `--border-shell-soft` | `#1A2126` | *(deferred)* | FM Home inbox row hairlines | Extends the `--border-shell` family with the existing `-shell` scope word (A-1-T1 precedent) plus a `-soft` weight suffix — no new naming pattern. **Not** declared in `[data-theme="light"]`: FM-1 has no theme toggle, so there is nothing to override yet. Light-theme derivation (AA-derived, same method as A-1-T4) is deferred to **EPIC FM-5.2**. Verified unused before this task (`grep -rn "border-shell-soft" src/` → no matches). |
+
+**Explicitly out of scope for FM1-1** (do not infer these are shipped): `--channel-radio1`,
+`--channel-sporza-app` — FM Home renders no channel swatches (verified against `fm-01-home.png`);
+these ship in EPIC FM-2 (AS-7). No other FM var is added by this task.
+
+Enforced by `src/styles/tokens.fm.test.ts` (separate from `tokens.opsTheme.test.ts`, whose
+fixtures assert exact light-block membership and would misrepresent a deliberately dark-only var).
+
 ## Light-block scope rule (AC-4, amended by A-1-T4)
 
 `[data-theme="light"]` overrides **exactly** the nine `-shell` theme vars plus the fifteen
@@ -147,5 +164,7 @@ restyles legacy screens, which consume none of these vars. AC-1's "`--bg #090B0D
 as "the ops background token (`--bg-shell`) resolves to `#090B0D` on ops surfaces" — AC-4 wins
 over the literal name.
 
-Contract: `docs/governance/contracts/ops-tokens.md` (**ops-tokens v2**). Enforced by
-`src/styles/tokens.opsTheme.test.ts`. Audit: `docs/ops-contrast-audit.md` (v2, 0 FAIL).
+Contract: `docs/governance/contracts/ops-tokens.md` (**ops-tokens v4** — bumped additively by
+FM1-1-T1 for the new `--border-shell-soft` var; no existing token value changed). Enforced by
+`src/styles/tokens.opsTheme.test.ts` (ops shell/semantic vars) and `src/styles/tokens.fm.test.ts`
+(FM vars). Audit: `docs/ops-contrast-audit.md` (v2, 0 FAIL).
