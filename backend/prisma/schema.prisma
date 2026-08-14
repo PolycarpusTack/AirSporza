@@ -132,6 +132,7 @@ model Tenant {
   integrations          Integration[]
   accessibilityConfig   TenantAccessibilityConfig?
   rippleProposals       RippleProposal[]
+  actionItemResolutions ActionItemResolution[]
 }
 
 model User {
@@ -155,6 +156,7 @@ model User {
   notifications    Notification[]
   savedViews       SavedView[]
   crewTemplates    CrewTemplate[]    @relation("UserCrewTemplates")
+  actionItemResolutions ActionItemResolution[]
 
   @@index([email])
   @@index([externalId])
@@ -2037,4 +2039,33 @@ model RippleProposal {
   @@index([tenantId])
   @@index([eventId])
   @@index([tenantId, status])
+}
+
+// FM1-4-T0 (ADR-011) — ActionItemResolution: acknowledgment overlay for
+// fmActionItems v1 (Contract Snapshot ActionItemResolution v1). Resolving does
+// NOT filter/hide an item — an item whose underlying condition is actually
+// fixed simply stops being *derived* on a future load (FM1-3), independent of
+// this flag. Idempotent by (tenantId, userId, itemKey): re-resolving is a 200
+// no-op, never a duplicate row or an error (no un-resolve affordance in FM-1);
+// the unique constraint below is the DB-layer backstop for the app-layer
+// upsert / ON-CONFLICT-DO-NOTHING write (FM1-4-T1). `itemKey` is the
+// fmActionItems v1 key format "<KIND>:<scope>:<id>[:<subscope>]" (e.g.
+// "CONFLICT:event:42") — plain TEXT, no fixed length guaranteed across the
+// five kinds, matching RippleProposal.sourceChangeId's free-form-key
+// precedent. `userId` is untyped String (no @db.Uuid) to match User.id's
+// actual column type (User.id is `String @id @default(uuid())`, stored as
+// TEXT, unlike Tenant.id which is `@db.Uuid`) — same convention as
+// Notification.userId / SavedView.userId.
+model ActionItemResolution {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  userId     String
+  itemKey    String
+  resolvedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, itemKey])
+  @@index([tenantId])
 }
