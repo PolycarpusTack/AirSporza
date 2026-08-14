@@ -1,0 +1,19 @@
+/* Fm shell styles that cannot be inline (keyframes) — FM1-2-T1.
+   Colors via ops-tokens v3 vars only; never hex (ADR-013).
+   Structural copy of ops.css's live-pulse keyframes — sibling file, not
+   shared (Rule of Three: this is only the 2nd shell needing a live pulse). */
+
+@keyframes fm-live-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.fm-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--alert-danger);
+  animation: fm-live-pulse 1.4s ease infinite;
+}

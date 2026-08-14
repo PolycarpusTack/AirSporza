@@ -29,6 +29,10 @@ vi.mock('./components/ops/OpsShell', async (importOriginal) => {
 
 vi.mock('./flags', () => ({
   isOpsRedesignEnabled: vi.fn(() => false),
+  // FM1-2-T1: App.tsx now calls isFmShellEnabled() unconditionally in render;
+  // this file only exercises the ops flag, so fm stays OFF (own FM routing
+  // tests live in App.fm-routing.flag-off/on.test.tsx).
+  isFmShellEnabled: vi.fn(() => false),
 }))
 
 // Auth under per-test control (matches PlannerView.undoRedo precedent).

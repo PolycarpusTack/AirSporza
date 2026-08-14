@@ -10,7 +10,7 @@ import { AuthCallback } from './components/auth/AuthCallback'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AppProvider, useApp } from './context/AppProvider'
 import { useAuth } from './hooks'
-import { isOpsRedesignEnabled } from './flags'
+import { isFmShellEnabled, isOpsRedesignEnabled } from './flags'
 import type { Event } from './data/types'
 import { eventsApi } from './services'
 import { useToast } from './components/Toast'
@@ -47,6 +47,11 @@ const ScheduleView = lazy(() =>
 // bundle to be unchanged.
 const OpsShell = lazy(() =>
   import('./components/ops/OpsShell').then((m) => ({ default: m.OpsShell }))
+)
+// MUST stay lazy: ADR-020 requires the flag-off bundle to be unchanged, same
+// reasoning as OpsShell above (structural copy, not shared — Rule of Three).
+const FmShell = lazy(() =>
+  import('./components/fm/FmShell').then((m) => ({ default: m.FmShell }))
 )
 
 function PageSkeleton() {
@@ -394,6 +399,24 @@ export function AppRoutes() {
             user ? (
               <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--bg-shell)' }} />}>
                 <OpsShell />
+              </Suspense>
+            ) : (
+              <Navigate to="/login" state={{ from: location }} replace />
+            )
+          }
+        />
+      )}
+      {/* ADR-020: parallel flagged Planza/FM shell. Flag OFF → route not
+          registered, so /fm falls through to AppContent's catch-all (→
+          /dashboard). Structural copy of the /ops block above — its own
+          chrome, deliberately outside AppContent's Sidebar/Header. */}
+      {isFmShellEnabled() && (
+        <Route
+          path="/fm/*"
+          element={
+            user ? (
+              <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--bg-shell)' }} />}>
+                <FmShell />
               </Suspense>
             ) : (
               <Navigate to="/login" state={{ from: location }} replace />

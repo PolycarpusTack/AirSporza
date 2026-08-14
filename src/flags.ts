@@ -16,3 +16,8 @@
 export function isOpsRedesignEnabled(): boolean {
   return import.meta.env.VITE_OPS_REDESIGN === 'true'
 }
+
+/** ADR-020: Planza/FM shell at /fm/* (FM1-2-T1). Default OFF. */
+export function isFmShellEnabled(): boolean {
+  return import.meta.env.VITE_FM_SHELL === 'true'
+}

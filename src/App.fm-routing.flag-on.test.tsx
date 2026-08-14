@@ -1,35 +1,33 @@
 /**
- * Ops shell routing — opsRedesign flag ON (A-2-T1, ADR-012).
- * Contract: docs/governance/contracts/OpsShell.md (OpsShell v1).
+ * Fm shell routing — fmShell flag ON (FM1-2-T1, ADR-020).
+ * Structural copy of App.ops-routing.flag-on.test.tsx (A-2-T1 precedent) —
+ * sibling file, not shared — Rule of Three.
  *
- * Lives in its OWN file, split from the flag-off tests (A-2-T1 test audit): these
- * tests resolve the lazy ops chunk, which would latch the flag-off file's
- * "module never evaluated" spy if they shared a module registry.
+ * Lives in its OWN file, split from the flag-off tests: these tests resolve
+ * the lazy fm chunk, which would latch the flag-off file's "module never
+ * evaluated" spy if they shared a module registry.
  */
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
-  opsShellEvaluated: vi.fn(),
+  fmShellEvaluated: vi.fn(),
   user: null as null | { id: number; name: string; role: string },
 }))
 
-// Positive-case spy: with the flag ON and a user, the ops chunk MUST load.
-vi.mock('./components/ops/OpsShell', async (importOriginal) => {
-  hoisted.opsShellEvaluated()
-  return await importOriginal<typeof import('./components/ops/OpsShell')>()
+// Positive-case spy: with the flag ON and a user, the fm chunk MUST load.
+vi.mock('./components/fm/FmShell', async (importOriginal) => {
+  hoisted.fmShellEvaluated()
+  return await importOriginal<typeof import('./components/fm/FmShell')>()
 })
 
 vi.mock('./flags', () => ({
-  isOpsRedesignEnabled: vi.fn(() => true),
-  // FM1-2-T1: App.tsx now calls isFmShellEnabled() unconditionally in render;
-  // this file only exercises the ops flag, so fm stays OFF (own FM routing
-  // tests live in App.fm-routing.flag-off/on.test.tsx).
-  isFmShellEnabled: vi.fn(() => false),
+  isOpsRedesignEnabled: vi.fn(() => false),
+  isFmShellEnabled: vi.fn(() => true),
 }))
 
-// Auth under per-test control (matches PlannerView.undoRedo precedent).
+// Auth under per-test control (matches PlannerView.undoRedo / A-2-T1 precedent).
 vi.mock('./hooks', () => ({
   useAuth: () => ({ user: hoisted.user, loading: false, logout: vi.fn() }),
 }))
@@ -69,18 +67,12 @@ vi.mock('./context/AppProvider', () => ({
     setCurrentWidgets: vi.fn(),
     roleConfig: { planner: { label: 'Planner' } },
     handleSaveEvent: vi.fn(),
-    events: [], // consumed by the real ScheduleScreen (A-3-T2)
+    events: [],
     sports: [],
     competitions: [],
     setEvents: vi.fn(),
     orgConfig: {},
   }),
-}))
-
-// The real ScheduleScreen fetches contracts on mount — stub the services barrel.
-vi.mock('./services', () => ({
-  contractsApi: { list: vi.fn(async () => []) },
-  eventsApi: {}, // App.tsx imports it (used only inside closed modal callbacks)
 }))
 
 import { AppRoutes } from './App'
@@ -110,30 +102,39 @@ afterEach(() => {
   localStorage.clear()
 })
 
-describe('opsRedesign flag ON', () => {
-  it('unauthenticated /ops → login (auth guard before shell)', () => {
-    renderAt('/ops')
+describe('fmShell flag ON', () => {
+  it('unauthenticated /fm → login (auth guard before shell)', () => {
+    renderAt('/fm')
 
     expect(screen.getByTestId('login')).toBeTruthy()
   })
 
-  it('authenticated /ops → lands on /ops/schedule with the ops chrome', async () => {
+  it('authenticated /fm → lands on /fm/home with the fm chrome', async () => {
     hoisted.user = { id: 1, name: 'Pat', role: 'planner' }
 
-    renderAt('/ops')
+    renderAt('/fm')
 
-    expect(await screen.findByTestId('ops-screen-schedule', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
-    expect(screen.getByTestId('location').textContent).toBe('/ops/schedule')
-    expect(screen.getByText('PLANZA')).toBeTruthy() // chrome brand
-    expect(hoisted.opsShellEvaluated).toHaveBeenCalled()
+    expect(await screen.findByTestId('fm-screen-home', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
+    expect(screen.getByTestId('location').textContent).toBe('/fm/home')
+    expect(screen.getByText('PLANZA/FM')).toBeTruthy() // chrome brand
+    expect(hoisted.fmShellEvaluated).toHaveBeenCalled()
   })
 
-  it('authenticated deep link /ops/rights renders the rights placeholder', async () => {
+  it('authenticated deep link /fm/crew renders the crew placeholder, never a 404', async () => {
     hoisted.user = { id: 1, name: 'Pat', role: 'planner' }
 
-    renderAt('/ops/rights')
+    renderAt('/fm/crew')
 
-    expect(await screen.findByTestId('ops-screen-rights', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
-    expect(screen.getByTestId('location').textContent).toBe('/ops/rights')
+    expect(await screen.findByTestId('fm-screen-crew', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
+    expect(screen.getByTestId('location').textContent).toBe('/fm/crew')
+  })
+
+  it('authenticated unknown fm path falls back to /fm/home, never a crash', async () => {
+    hoisted.user = { id: 1, name: 'Pat', role: 'planner' }
+
+    renderAt('/fm/does-not-exist')
+
+    expect(await screen.findByTestId('fm-screen-home', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
+    expect(screen.getByTestId('location').textContent).toBe('/fm/home')
   })
 })
