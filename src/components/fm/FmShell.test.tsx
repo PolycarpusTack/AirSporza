@@ -152,11 +152,29 @@ describe('chrome (README §Shell (all screens), ops-tokens v3)', () => {
     expect(screen.getByTestId('fm-continue-count')).toBeTruthy()
   })
 
-  it('+ NEW and CONTINUE are non-functional placeholders (disabled — FM1-6/FM1-5 wire them)', () => {
+  it('+ NEW is still a non-functional placeholder (disabled — FM1-6 wires it)', () => {
     renderShell()
 
     expect(screen.getByTestId('fm-new-button').hasAttribute('disabled')).toBe(true)
-    expect(screen.getByTestId('fm-continue-button').hasAttribute('disabled')).toBe(true)
+  })
+})
+
+describe('CONTINUE (Story FM1-5 AC — wired via useContinue(), not a placeholder)', () => {
+  it('is enabled and shows the live unresolved count from useFmActionItems (mocked: [] → 0)', () => {
+    renderShell()
+
+    expect(screen.getByTestId('fm-continue-button').hasAttribute('disabled')).toBe(false)
+    expect(screen.getByTestId('fm-continue-count').textContent).toBe('0')
+  })
+
+  it('clicking CONTINUE with an empty queue shows an ALL CLEAR toast and does not navigate', async () => {
+    const user = userEvent.setup()
+    renderShell('/fm/crew')
+
+    await user.click(screen.getByTestId('fm-continue-button'))
+
+    expect(currentPath()).toBe(`${FM_BASE}/crew`)
+    expect(screen.getByTestId('fm-toast').textContent).toBe('ALL CLEAR')
   })
 })
 

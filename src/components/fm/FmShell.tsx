@@ -19,10 +19,16 @@
  * resolves to PlaceholderPanel — FmHomeScreen doesn't exist until FM1-4, which
  * overrides just the `home` entry in FM_SCREEN_OVERRIDES below without
  * touching this routing structure (never a 404, never a crash — Story FM1-2
- * AC). Top-bar CONTINUE/+ NEW render as disabled, non-functional chrome
- * (FM1-5/FM1-6 wire real behavior); the CONTINUE count chip shows a static 0
- * — no real action-item count is wired until FM1-4 consumes FM1-3's
- * deriveActionItems (fmActionItems.ts).
+ * AC). Top-bar + NEW still renders disabled, non-functional chrome (FM1-6
+ * wires it). CONTINUE is wired for real as of FM1-5-T1: its `onClick` calls
+ * `useContinue().advance()` and its count chip renders
+ * `useContinue().unresolvedCount`, live — see useContinue.ts for the
+ * priority-order/navigation/toast contract and its documented double-fetch
+ * judgment call (a 2nd `useFmActionItems()` subscription parallel to
+ * FmHomeScreen's own, scoped/accepted for FM-1). `<FmToastHost>` (./FmToast)
+ * is mounted once here, wrapping the whole shell, so CONTINUE's toast (and
+ * FM1-6's create-modal toast, later) render regardless of which screen is
+ * active.
  *
  * `?inbox=<key>` hydration (Story FM1-2 AC) is FM1-2-T2 scope (fmUrlState.ts
  * / useFmSelection) — not built here.
@@ -31,6 +37,8 @@ import { useCallback, useMemo, useState, type CSSProperties, type ReactElement }
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { FmNavBadgeContext, type SetNavBadge } from './fmNavBadges'
 import { FmHomeScreen } from './FmHomeScreen'
+import { FmToastHost } from './FmToast'
+import { useContinue } from './useContinue'
 import './fm.css'
 
 /** Contractual mount point (ADR-020): AppRoutes mounts <FmShell> at `${FM_BASE}/*`. */
@@ -384,6 +392,11 @@ function FmSidebar({ navBadges }: { navBadges: Partial<Record<FmNavId, number>> 
 }
 
 function FmTopBar() {
+  // FM1-5-T1: CONTINUE is wired for real. See useContinue.ts for the
+  // priority-order/navigation/toast contract and its documented judgment
+  // calls (double-fetch trade-off, unresolvedCount's all-5-kinds scope).
+  const { advance, unresolvedCount } = useContinue()
+
   return (
     <header style={topBarStyle}>
       {/* Chrome-only per Story FM1-2 AC: no live data source is wired yet
@@ -404,19 +417,10 @@ function FmTopBar() {
           + NEW
         </button>
 
-        {/* Non-functional placeholder — the CONTINUE loop is FM1-5. Count
-            chip shows a static 0: no real action-item count is wired until
-            FM1-4 consumes FM1-3's deriveActionItems. */}
-        <button
-          type="button"
-          style={continueButtonStyle}
-          data-testid="fm-continue-button"
-          disabled
-          title="Coming in FM1-5"
-        >
+        <button type="button" style={continueButtonStyle} data-testid="fm-continue-button" onClick={advance}>
           CONTINUE
           <span style={continueChipStyle} data-testid="fm-continue-count">
-            0
+            {unresolvedCount}
           </span>
         </button>
       </span>
@@ -475,29 +479,34 @@ export function FmShell({ navBadges = {} }: FmShellProps) {
 
   return (
     <FmNavBadgeContext.Provider value={setNavBadge}>
-      <div style={shellStyle}>
-        <FmSidebar navBadges={mergedBadges} />
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-          <FmTopBar />
-          <main style={contentStyle}>
-            <Routes>
-              {/* Absolute targets on purpose: a relative `to` inside the `*`
-                  route resolves against the matched splat segment and loops
-                  forever (e.g. /fm/bogus -> /fm/bogus/home -> still `*` -> …).
-                  /fm is this shell's contractual mount point (ADR-020). */}
-              <Route index element={<Navigate to={`${FM_BASE}/home`} replace />} />
-              {FM_NAV.flatMap((section) => section.items).map((item) => (
-                <Route key={item.id} path={item.id} element={screenFor(item.id, item.label)} />
-              ))}
-              {/* Match Day (screen 8): route-only, no sidebar nav entry — see
-                  FM_NAV's doc comment above. */}
-              <Route path="match" element={<PlaceholderPanel navId="match" label="Match day" />} />
-              {/* Unknown segment → home (documented in FmShell v1). */}
-              <Route path="*" element={<Navigate to={`${FM_BASE}/home`} replace />} />
-            </Routes>
-          </main>
+      {/* Mounted once, wrapping the whole shell (FM1-5-T1): CONTINUE's toast
+          (and FM1-6's create-modal toast, later) must render regardless of
+          which /fm/* screen is active — see FmToast.tsx for the API shape. */}
+      <FmToastHost>
+        <div style={shellStyle}>
+          <FmSidebar navBadges={mergedBadges} />
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+            <FmTopBar />
+            <main style={contentStyle}>
+              <Routes>
+                {/* Absolute targets on purpose: a relative `to` inside the `*`
+                    route resolves against the matched splat segment and loops
+                    forever (e.g. /fm/bogus -> /fm/bogus/home -> still `*` -> …).
+                    /fm is this shell's contractual mount point (ADR-020). */}
+                <Route index element={<Navigate to={`${FM_BASE}/home`} replace />} />
+                {FM_NAV.flatMap((section) => section.items).map((item) => (
+                  <Route key={item.id} path={item.id} element={screenFor(item.id, item.label)} />
+                ))}
+                {/* Match Day (screen 8): route-only, no sidebar nav entry — see
+                    FM_NAV's doc comment above. */}
+                <Route path="match" element={<PlaceholderPanel navId="match" label="Match day" />} />
+                {/* Unknown segment → home (documented in FmShell v1). */}
+                <Route path="*" element={<Navigate to={`${FM_BASE}/home`} replace />} />
+              </Routes>
+            </main>
+          </div>
         </div>
-      </div>
+      </FmToastHost>
     </FmNavBadgeContext.Provider>
   )
 }
