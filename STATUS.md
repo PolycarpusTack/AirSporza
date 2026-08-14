@@ -27,7 +27,12 @@ _Last updated: 2026-08-14_
   RETIRED path per `docs/governance/runbook-ci-and-migrations.md` — do not use it for the dev DB.
   Note: the old machine's live data did not migrate; this is a fresh seeded DB (restore a
   `backups/*.dump` from the old machine if its data is ever needed).
+- **Redis:** container `planza-redis` (`redis:7-alpine`) on **localhost:6379** — required by the
+  outbox worker + backend queues (`REDIS_URL` default); was undocumented (the old machine ran a
+  local Redis that appears in no setup doc or compose file).
 - GitHub CLI installed and authenticated (`gh`); git pushes via gh credential helper.
+- Launch: `npm run dev:full` (frontend :5173 + API :3001 + worker); dev-login with the seeded
+  accounts (no password in development).
 
 ## Where we are
 
