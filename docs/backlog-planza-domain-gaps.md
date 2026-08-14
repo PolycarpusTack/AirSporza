@@ -815,7 +815,7 @@ all five event-creation sites).
 
 ## 8. Roadmap EPICs (outline — expand after RD/RC retros, per BB §4 depth rule)
 
-## EPIC SV — Schedule Volatility (SV-1 ✅ · SV-2 detailed DoR-READY · SV-3..SV-5 outlined)
+## EPIC SV — Schedule Volatility (SV-1 ✅ · SV-2 ✅ merged #27 · SV-3 detailed DoR-READY · SV-4/SV-5 outlined)
 
 - **Objective:** Feed-driven and cascade-driven changes propagate to BroadcastSlots through reviewable Ripple
   Proposals, and volatile event days get switchable Contingency Schedules — building on (not duplicating) the
@@ -985,16 +985,151 @@ outbox write deduped via `writeOutboxEventDeduped` with the tenant-scoped key.
   Pull Gate: SV-2-T2 capture path; `slot-rights v1` current on main.
   Hand-off: **Contract Snapshot `ripple v1`**. Unblocks: SV-3 (expand at hand-off), END OF STORY SEQUENCE.
 
-### Outlined stories (expand at SV-2 hand-off / SV retro)
-- **SV-3 — Review-before-apply service (G6/G8):** accept/reject endpoints; accept applies the `autoLinked` writes in
-  `afterSlots` atomically via `scheduleOperations`/`eventSlotBridge` (AS-7), re-runs validation incl. the
-  **authoritative** slot rights re-check (`slot-rights v1` — SV-2's creation-time annotations are advisory only),
-  records outcome; reject records rationale. Idempotent by proposal id; **stale-at-apply detection** via SV-2's
-  `beforeSlots` concurrency handles (`version`/`updatedAt` — a PENDING proposal whose slots were manually edited must
-  surface, never silently overwrite). Extends **Contract Snapshot `ripple v1`** (SV-2's read shape) with the
-  accept/reject mutations, for future ops Sync/Rundown surfacing. **Pull gates:** ops-stakeholder taste-test on
-  FEED = review (ADR-019 Open assumption 2 — do not freeze the review UX before it); **TD-28 servicing** (regenerate
-  the `overrunStrategy` zod enum from Prisma — SV-3 is the first SV slot-write, per ADR-019 §6).
+### Story SV-3 — Review-before-apply service (G6/G8)
+**Origin:** outlined at SV-1; expanded to full story 2026-08-14 (DoR re-gate — **13 architect decisions ratified
+2026-08-14** (C1–C13, C5 explicitly confirmed); all are baked into the ACs below verbatim, nothing provisional
+remains in-story). **Vocabulary corrections vs the outline:** the writable set is **`preview.proposed`** (the
+`ripple v1` review envelope — there is no "afterSlots" mirror), and `BroadcastSlot` has **no `version` column** —
+`updatedAt` is THE concurrency handle (`schema.prisma`; `ripple v1`).
+
+**As a** planner **I want** to accept or reject a pending Ripple Proposal, with acceptance applying the reviewed
+slot writes atomically or surfacing that the slots changed underneath it, **so that** feed-driven schedule changes
+reach BroadcastSlots only through review (G6/G8) and never silently overwrite manual work.
+
+Business Value 3 · Priority 4 · Size **L** (3 tasks — recorded per the re-gate task-split decision) · DoR: **READY
+(2026-08-14 re-gate; 13 ratified decisions)** · INVEST I✓ N✓ V✓ E✓ S✓ T✓
+**Pull gates (story-level, explicit):** (1) **ops-stakeholder taste-test on FEED = review — status PENDING**
+(ADR-019 Open assumption 2). It **blocks pull, not expansion**: this story is expanded DoR-READY now but stays
+**UNPULLED** until the taste-test happens. The gate covers review UX + UX-shaped API affordances (batch/bulk
+accept, queue-grouping shapes, rationale-as-UX-policy beyond ADR-019) — none of which SV-3 ships; it does NOT
+block the service/API mechanics below. (2) **TD-28 servicing = SV-3-T1** (first SV slot-write, ADR-019 §6).
+(3) `ripple v1` on main — satisfied (SV-2 merged, PR #27).
+**Residual risk (stated honestly):** if the taste-test overturns FEED = review, the accept/reject **endpoints**
+(not the atomic apply core, which any semantics reuses) are rework.
+**Boundary:** SV-3 ships **NO frontend/review UI** and no reopen/un-reject path (C8 — documented ops recovery:
+manual slot edit, or any differing feed change creates a fresh proposal; revisit after the taste-test).
+**TD-32 stays explicitly unserviced:** SV-3 emits structured 409 bodies, but the frontend `ApiError` still
+discards structured error bodies — surfacing the 409 detail belongs to the consuming ops surface's story, not
+here. **C12 declined explicitly:** the `rights` JSONB dedupe flagged in `ripple v1`'s SV-3 note is NOT taken —
+the preview envelope shape does not change in SV-3 (take it only if a shape change happens anyway).
+
+**AC (Gherkin):**
+- **Accept happy path (C3+C4):** Given `SCHEDULE_RIPPLE_ENABLED` ON and proposal P `status=PENDING` whose slots
+  are unchanged since capture, When `POST /api/ripple-proposals/:id/accept`, Then the `preview.proposed` values
+  are applied **VERBATIM** (review integrity — what was reviewed is what is written; no recompute from the live
+  event) to the `autoLinked` slots **atomically** via `executeOperations` `UPDATE_SLOT` ops (AS-7 — reuse, no new
+  write path), in ONE transaction with an in-tx `SELECT … FOR UPDATE` existence+staleness pre-check; P →
+  `APPLIED`, `decidedAt` = now, `decidedBy` = the auth-context user, optional request `note` stored in
+  `rationale`. `preview.manualReviewSlots` are **NEVER** written (informational only — negative test).
+- **Reject:** Given P PENDING, When `POST /api/ripple-proposals/:id/reject` with a non-empty `rationale`
+  (**REQUIRED** — missing/empty → 400, no state change), Then P → `REJECTED` with rationale +
+  `decidedAt`/`decidedBy` recorded and **no slot writes**.
+- **State machine (C7 — each cell is one AC with its own test):** accept×PENDING → apply (above) ·
+  accept×APPLIED → **idempotent 200 echo** (no re-write, no second outbox row) · accept×REJECTED → 409 ·
+  accept×SUPERSEDED → 409 · reject×PENDING → REJECTED · reject×REJECTED → **idempotent 200 echo** ·
+  reject×APPLIED → 409 · reject×SUPERSEDED → 409. Terminal-state 409s carry the structured body
+  `{ code: "RIPPLE_INVALID_STATE", status: "<current>" }`.
+- **Stale-at-apply — millisecond domain (C1+C2; the B2 trap):** stale = live slot `updatedAt` ≠ the proposal's
+  `beforeSlots[].updatedAt` handle, compared **in the millisecond domain**: the handle is ms-precision
+  (`Date.toISOString`, `capturePayloads.ts`) while the DB column stores **microseconds** (bridge raw-SQL
+  `NOW()`), so raw-SQL equality would false-positive EVERY apply as stale. **Named pinning test
+  (`ripple-decide` staleness pin):** a fixture whose DB `updatedAt` bears non-zero **microseconds** + an
+  otherwise-unchanged slot MUST apply cleanly; the same fixture after a later manual edit MUST 409. **Stated
+  caveat:** an edit landing in the same millisecond as the handle is invisible — accepted under C1
+  (`updatedAt`-only; **NO new version column**).
+- **Deleted-slot resurrect guard (the B5 trap):** Given a slot present in `beforeSlots` but ABSENT live (deleted
+  since capture), When accept, Then stale-at-apply 409 (`reason: "DELETED"`) and **NEVER an insert** —
+  `syncEventToSlot`'s INSERT arm seeds `overrunStrategy='EXTEND'` + default buffers and would silently resurrect
+  the deleted slot. **Named pinning test (`ripple-decide` resurrect-guard pin):** deleted-slot fixture → 409,
+  live slot count unchanged.
+- **Atomicity (C2):** ANY stale or deleted slot ⇒ **no writes at all** (all-or-nothing — a one-stale-of-many
+  fixture proves zero slots written), 409 with per-slot detail, P stays PENDING. **No force override in SV-3.**
+  Body: `{ code: "RIPPLE_STALE_AT_APPLY", conflicts: [{ slotId, reason: "UPDATED"|"DELETED",
+  expectedUpdatedAt, liveUpdatedAt|null }] }`.
+- **Authoritative rights re-check (C5):** accept re-runs `slot-rights v1` INSIDE the apply transaction
+  (`checkRightsForEvent` accepts the tx): **VIOLATION severity (`deriveSlotRightsStatus`) BLOCKS** — 409
+  `{ code: "RIPPLE_RIGHTS_BLOCKED", slots: [...] }`, no writes, P stays PENDING; **WARNINGs are recorded and the
+  apply proceeds**; the re-check outcome is recorded on the proposal either way (recording shape pinned in the
+  extended snapshot at hand-off). SV-2's creation-time `preview.rights` stays **advisory** and is never the
+  verdict.
+- **Echo/replay pins (B3+C4+C8):** the capture echo lookup has NO status filter — so REJECT is **terminal per
+  exact change**: a byte-identical feed re-emit echoes the REJECTED row (no reopen in SV-3 — ops recovery per
+  Boundary); a byte-identical re-emit against an APPLIED proposal echoes harmlessly (**pin test**). The flip-back
+  edge (event A→B→A) leaves P2 PENDING against a drifted event and creates no new PENDING — **pinned by test
+  only, no hard event-drift guard** (C4).
+- **Outbox (B4+C9, ADR-001):** `ripple_proposal.applied` / `ripple_proposal.rejected` written **IN THE SAME TX**
+  as the decision via `writeOutboxEventDeduped`, keys `ripple_proposal.<applied|rejected>:<tenantId>:<proposalId>`
+  (tenantId in every key — TD-13, global-unique `idempotencyKey`); `ripple_proposal.superseded` is emitted at the
+  SUPERSEDED transition, which lives in **SV-2's `capture.ts`** (key on the superseded proposal's id) — a
+  **FEATURE change to existing capture code, sliced consciously** (no refactor mixed in). Lanes **`['socketio']`
+  only** for all three events (C9 — revisit at SV-5).
+- **Flag OFF (C13):** same **`SCHEDULE_RIPPLE_ENABLED`** (explicit `z.string().optional().transform(v => v ===
+  'true')` parse — never `z.coerce.boolean`; service boundary reads `opts.rippleEnabled ?? env`): OFF ⇒ the
+  accept/reject **mutation routes are 404-absent**; the `ripple v1` read surface stays live.
+- **Tenant isolation:** decisions are tenant-scoped from the auth context ONLY; a cross-tenant proposal id →
+  **404** (no existence leak); a two-tenant fixture proves one tenant's decision never touches the other tenant's
+  identical proposal or its slots.
+- **Measurement (claims the EPIC's `Proposal apply < 2s p95, atomic` draft SLO — previously unclaimed):**
+  `/metrics` histogram **`ripple_proposal_apply_duration_seconds`** with a **2s bucket boundary** (SLO
+  scrape-assertable, the SV-2 measurement idiom — no wall-clock asserts) + counter
+  **`ripple_proposals_decided_total{outcome=applied|rejected|stale_conflict|rights_blocked}`** (C10). The SV-2
+  capture histogram keeps observing `created` only.
+
+**Interfaces:** `POST /api/ripple-proposals/:id/accept` (body `{ note? }`) · `POST /api/ripple-proposals/:id/reject`
+(body `{ rationale }`, required) — action subresources (C6), authenticate + setTenantContext + standardLimiter;
+non-uuid id → 400. Structured 409 codes: `RIPPLE_INVALID_STATE` · `RIPPLE_STALE_AT_APPLY` ·
+`RIPPLE_RIGHTS_BLOCKED` (shapes in the ACs). **Contract Snapshot: `ripple v1` EXTENDED in place** (same doc, v1
+readers stay valid) — extension scope: the two decision mutations + request/response shapes, the three 409 codes,
+decision-field population semantics (`decidedAt`/`decidedBy`/`rationale`), the rights-outcome recording shape,
+outbox `.applied`/`.rejected`/`.superseded` names + keys + lanes, and the two metric names — for future ops
+Sync/Rundown surfacing.
+**TD:** **TD-28 partially serviced at T1** (C11 scope ONLY: `overrunStrategy` zod enum regenerated from Prisma + a
+generic zod↔Prisma drift-guard test; `coverageType`/contract-status drifts stay registered — partial-servicing
+status recorded in the debt-register entry as a T1 deliverable). **TD-32 explicitly NOT serviced** (Boundary). No
+new TD expected.
+**Test data (anonymised):** stale-slot fixture with **microsecond-bearing `updatedAt`**; deleted-slot fixture;
+SUPERSEDED + rejected-replay fixtures; two-tenant decision-isolation fixtures; rights-violation-at-apply fixture
+(VIOLATION-severity window) + warning-only counterpart.
+**Idempotency:** decisions idempotent by **proposal id + state machine** (accept×APPLIED / reject×REJECTED = 200
+echo, no re-write, no second outbox row); outbox deduped via `writeOutboxEventDeduped` with tenant-scoped keys;
+capture-side `(tenantId, sourceChangeId)` echo semantics unchanged.
+
+- **SV-3-T1** · Hat **PREPARATORY** · Model **Sonnet** · Confidence High
+  Goal: make the shared write path safe for ripple apply — no behavior change for legitimate existing callers.
+  (a) **Tenant-scope widening:** `executeOperations` UPDATE/MOVE/DELETE arms filter by `{id}` only
+  (`scheduleOperations.ts:156,167,174,180`) — widen to `{id, tenantId}`. (b) **TD-28 servicing, C11 scope ONLY**
+  (regenerate `overrunStrategyEnum` from the Prisma enum + generic zod↔Prisma drift-guard test; update the
+  debt-register entry to partial-serviced). No migration expected (`decidedAt`/`decidedBy`/`rationale` already
+  exist — verify, else it lands here).
+  TDD: RED first — two-tenant characterization test proving the `{id}`-only cross-tenant hole, then widen to
+  green; drift-guard test RED against the shipped drifted enum, then regenerate.
+  Pull Gate: `ripple v1` on main (SV-2 merged PR #27) — verified; story taste-test gate satisfied at pull.
+  Unblocks: SV-3-T2.
+- **SV-3-T2** · Hat **FEATURE** · Model **Opus** (ms-domain staleness + atomic state-machine judgment) ·
+  Confidence Med
+  Goal: decision service (`backend/src/services/ripple/decide.ts`): the C7 state machine (all 8 cells); accept =
+  ONE tx { `SELECT … FOR UPDATE` pre-check (existence + **millisecond-domain** `updatedAt` staleness) →
+  `executeOperations` `UPDATE_SLOT` ops built from `preview.proposed` VERBATIM → P `APPLIED` + decision fields →
+  outbox `.applied` }; reject = rationale + `.rejected` same-tx; `.superseded` emitter added in `capture.ts`
+  (conscious FEATURE slice per the AC). No routes yet — service boundary takes `opts.rippleEnabled`.
+  TDD: RED first in this order — **B2 staleness pin** (microsecond-bearing fixture: unchanged applies /
+  edited 409s), **B5 resurrect-guard pin** (deleted slot → 409, never insert), state-machine matrix (8),
+  verbatim-apply, all-or-nothing (one stale of many ⇒ zero writes), flip-back + APPLIED-echo pins, outbox
+  same-tx + key shape.
+  Pull Gate: SV-3-T1 merged (tenant-scoped `executeOperations` + regenerated enum). Unblocks: SV-3-T3.
+- **SV-3-T3** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: routes `POST /:id/accept` + `/:id/reject` (C6; flag OFF ⇒ mutation routes 404-absent, read surface live;
+  400/404/409 contract incl. the three structured codes); **authoritative rights re-check inside the apply tx**
+  (C5: `checkRightsForEvent(tx)` — VIOLATION blocks, WARNINGs record + apply, outcome recorded on the proposal);
+  metrics (C10: apply histogram with the 2s SLO bucket + decided counter over all four outcomes).
+  TDD: RED first — route tests (flag-off 404-absence, cross-tenant 404, reject-without-rationale 400, the three
+  409 code shapes), rights VIOLATION-block / WARNING-apply / outcome-recorded tests, metrics assertions (count
+  deltas + SLO bucket — no wall-clock asserts).
+  Pull Gate: SV-3-T2 service; `slot-rights v1` current on main.
+  Hand-off: **Contract Snapshot `ripple v1` extension** (scope in Interfaces above). Unblocks: SV-4/SV-5
+  (expand at SV retro), END OF STORY SEQUENCE.
+
+### Outlined stories (SV-4/SV-5 — expand at SV retro)
 - **SV-4 — Contingency Schedules (G7):** named pre-built alternate slot set per volatile event day; one-action
   switch **builds** slot-swap execution (ADR-019 §5 — `ChannelSwitchAction` currently executes nothing; spike
   characterization test #2 pins the no-op and guards the build) via ChannelSwitch + slot swap in one transaction;

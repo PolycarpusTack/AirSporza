@@ -47,8 +47,8 @@ A new entity capturing a *proposed* change to an event's linked slots, awaiting 
 > column shipped as **`preview Json`** — it is not the after-state mirror of `beforeSlots` but a review
 > **envelope** `{ proposed[], manualReviewSlots[], rights }`: proposed writes for autoLinked slots only,
 > informational manual-review entries for manually-linked slots, and advisory creation-time rights
-> annotations. Full shape: Contract Snapshot `ripple v1`. (Amendment pending architect ratification —
-> flagged in the SV-2 PR.)
+> annotations. Full shape: Contract Snapshot `ripple v1`. (Amendment **ratified**: implicitly at the
+> #27 merge per the PR-body precedent, confirmed explicitly at the 2026-08-14 SV-3 DoR ratification.)
 
 ```prisma
 model RippleProposal {
@@ -88,6 +88,13 @@ slots and/or `scheduleOperations` (optimistic-version append) — **not** a new 
 validation**, including the rights re-check via `slot-rights v1` (RD-4), and records the outcome. Reject records a
 rationale. Idempotent by proposal id: applying an already-`APPLIED` proposal is a no-op; a newer proposal for the
 same event supersedes older `PENDING` ones (`SUPERSEDED`).
+
+> **Annotated 2026-08-14 (SV-3 DoR ratification, decision C5):** "records the outcome" is sharpened —
+> the authoritative rights re-check **blocks** the apply on VIOLATION severity (`deriveSlotRightsStatus`),
+> records WARNINGs and applies; the outcome is recorded on the proposal either way. An authoritative
+> check that cannot block is advisory by another name. Stale-at-apply (per-slot `updatedAt` handle,
+> millisecond domain) is likewise atomic all-or-nothing: any stale or deleted slot surfaces a structured
+> 409 and nothing is written (no partial apply, no force override in SV-3).
 
 ### 4. Idempotency
 
