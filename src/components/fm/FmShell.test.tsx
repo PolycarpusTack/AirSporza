@@ -7,7 +7,16 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// FM1-4-T1 wired FmHomeScreen into the `home` override — FmShell's OWN tests
+// only care that routing/chrome/badges work, not Home's data layer, so its
+// data hook is stubbed here (Home's own render-state coverage lives in
+// FmHomeScreen.test.tsx; its fetch/derivation wiring lives in
+// useFmActionItems.test.ts).
+vi.mock('./useFmActionItems', () => ({
+  useFmActionItems: () => ({ items: [], weekEvents: [], isSettled: true, resolve: vi.fn(), refresh: vi.fn() }),
+}))
 
 import { FmShell, FM_BASE, FM_NAV, type FmNavId } from './FmShell'
 
@@ -57,11 +66,11 @@ describe('FM_NAV registry (Story FM1-2 Interfaces contract)', () => {
 })
 
 describe('routing inside the shell (never a 404, never a crash — Story FM1-2 AC)', () => {
-  it('redirects the /fm index to /fm/home', () => {
+  it('redirects the /fm index to /fm/home (FM1-4: home now renders the real FmHomeScreen, not a placeholder)', () => {
     renderShell('/fm')
 
     expect(currentPath()).toBe('/fm/home')
-    expect(screen.getByTestId('fm-screen-home')).toBeTruthy()
+    expect(screen.getByTestId('fm-home-screen')).toBeTruthy()
   })
 
   it('falls back to /fm/home for unknown segments', () => {
@@ -70,7 +79,7 @@ describe('routing inside the shell (never a 404, never a crash — Story FM1-2 A
     expect(currentPath()).toBe('/fm/home')
   })
 
-  it.each(FM_NAV_ITEMS)('nav item $id reaches its placeholder panel', async (item) => {
+  it.each(FM_NAV_ITEMS.filter((item) => item.id !== 'home'))('nav item $id reaches its placeholder panel', async (item) => {
     const user = userEvent.setup()
     renderShell('/fm')
 
@@ -78,6 +87,17 @@ describe('routing inside the shell (never a 404, never a crash — Story FM1-2 A
 
     expect(currentPath()).toBe(`${FM_BASE}/${item.id}`)
     expect(screen.getByTestId(`fm-screen-${item.id}`)).toBeTruthy()
+  })
+
+  it('nav item home reaches the real FmHomeScreen (FM1-4 override, not a placeholder)', async () => {
+    const user = userEvent.setup()
+    renderShell('/fm/crew')
+
+    await user.click(screen.getByTestId('fm-nav-home'))
+
+    expect(currentPath()).toBe(`${FM_BASE}/home`)
+    expect(screen.getByTestId('fm-home-screen')).toBeTruthy()
+    expect(screen.queryByTestId('fm-screen-home')).toBeNull()
   })
 
   it('a not-yet-built nav item (e.g. Schedule board) renders a placeholder, not a crash', async () => {

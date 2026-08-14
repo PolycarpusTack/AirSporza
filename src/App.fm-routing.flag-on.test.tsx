@@ -27,6 +27,14 @@ vi.mock('./flags', () => ({
   isFmShellEnabled: vi.fn(() => true),
 }))
 
+// FM1-4-T1 landed a real FmHomeScreen for the `home` nav id (was a
+// PlaceholderPanel when this file was written at FM1-2-T1) — this file tests
+// ROUTING, not data-fetching, so stub the data hook exactly like
+// FmShell.test.tsx does rather than wiring real fetches through jsdom.
+vi.mock('./components/fm/useFmActionItems', () => ({
+  useFmActionItems: () => ({ items: [], weekEvents: [], isSettled: true, resolve: vi.fn(), refresh: vi.fn() }),
+}))
+
 // Auth under per-test control (matches PlannerView.undoRedo / A-2-T1 precedent).
 vi.mock('./hooks', () => ({
   useAuth: () => ({ user: hoisted.user, loading: false, logout: vi.fn() }),
@@ -114,7 +122,9 @@ describe('fmShell flag ON', () => {
 
     renderAt('/fm')
 
-    expect(await screen.findByTestId('fm-screen-home', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
+    // fm-home-screen (FM1-4-T1's real FmHomeScreen), not fm-screen-home (the
+    // PlaceholderPanel convention every other not-yet-built nav id still uses).
+    expect(await screen.findByTestId('fm-home-screen', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
     expect(screen.getByTestId('location').textContent).toBe('/fm/home')
     expect(screen.getByText('PLANZA/FM')).toBeTruthy() // chrome brand
     expect(hoisted.fmShellEvaluated).toHaveBeenCalled()
@@ -134,7 +144,7 @@ describe('fmShell flag ON', () => {
 
     renderAt('/fm/does-not-exist')
 
-    expect(await screen.findByTestId('fm-screen-home', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
+    expect(await screen.findByTestId('fm-home-screen', {}, LAZY_RESOLVE_TIMEOUT)).toBeTruthy()
     expect(screen.getByTestId('location').textContent).toBe('/fm/home')
   })
 })

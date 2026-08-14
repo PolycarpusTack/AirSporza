@@ -30,6 +30,7 @@
 import { useCallback, useMemo, useState, type CSSProperties, type ReactElement } from 'react'
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { FmNavBadgeContext, type SetNavBadge } from './fmNavBadges'
+import { FmHomeScreen } from './FmHomeScreen'
 import './fm.css'
 
 /** Contractual mount point (ADR-020): AppRoutes mounts <FmShell> at `${FM_BASE}/*`. */
@@ -433,11 +434,14 @@ function PlaceholderPanel({ navId, label }: { navId: FmNavId | FmRouteOnlyId; la
 }
 
 /**
- * Per-nav-id screen override. FM1-2 ships none — every id falls through to
- * PlaceholderPanel. FM1-4 adds `{ home: FmHomeScreen }` here without
- * restructuring the routing below (Story FM1-2-T1 hand-off note).
+ * Per-nav-id screen override. FM1-2 shipped none — every id fell through to
+ * PlaceholderPanel. FM1-4-T1 adds the first entry (`home`) without
+ * restructuring the routing below (Story FM1-2-T1 hand-off note) — every
+ * OTHER nav id still falls through to PlaceholderPanel until its own task.
  */
-const FM_SCREEN_OVERRIDES: Partial<Record<FmNavId, () => ReactElement>> = {}
+const FM_SCREEN_OVERRIDES: Partial<Record<FmNavId, () => ReactElement>> = {
+  home: FmHomeScreen,
+}
 
 function screenFor(id: FmNavId, label: string): ReactElement {
   const Override = FM_SCREEN_OVERRIDES[id]
