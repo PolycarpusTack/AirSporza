@@ -17,6 +17,15 @@
  * - Success keeps `isSubmitting` true (the screen refreshes/selects/unmounts — no
  *   re-enable flash). Optimistic append is REJECTED: the new row's provenance/
  *   LINKED must come from the server refetch (RegistryScreen handleCreated).
+ *
+ * `initialKind` (FM1-6-T1, Story FM1-6): OPTIONAL, additive, backward-compatible
+ * seed for the internal `kind` tab state — added so Planza/FM's `FmCreateModal`
+ * (its own outer TRANSMISSION/TEAM/ATHLETE/COMPETITION kind tabs) can open this
+ * modal already showing the right internal tab (FM's "ATHLETE" maps to this
+ * component's "player"). Omitted → unchanged behavior: internal state still
+ * defaults to `'team'`, exactly as before this prop existed. `RegistryScreen.tsx`
+ * (the original caller) passes no `initialKind` and is unaffected — its and this
+ * component's own test suites were re-run to confirm zero regression.
  */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Sport } from '../../data/types'
@@ -67,10 +76,13 @@ export interface RegistryCreateModalProps {
   sports: Sport[]
   onCancel: () => void
   onCreated: (kind: RegistryKind, id: number) => void
+  /** Seeds the initial internal kind tab. Optional — omitted preserves the
+   * existing default (`'team'`). See this file's header comment. */
+  initialKind?: RegistryKind
 }
 
-export function RegistryCreateModal({ sports, onCancel, onCreated }: RegistryCreateModalProps) {
-  const [kind, setKind] = useState<RegistryKind>('team')
+export function RegistryCreateModal({ sports, onCancel, onCreated, initialKind }: RegistryCreateModalProps) {
+  const [kind, setKind] = useState<RegistryKind>(initialKind ?? 'team')
   const [name, setName] = useState('')
   const [sportId, setSportId] = useState('')
   const [icon, setIcon] = useState('')

@@ -18,6 +18,27 @@ vi.mock('./useFmActionItems', () => ({
   useFmActionItems: () => ({ items: [], weekEvents: [], isSettled: true, resolve: vi.fn(), refresh: vi.fn() }),
 }))
 
+// FM1-6-T1: FmTopBar now calls useApp() to source eventFields/sports/
+// handleSaveEvent for FmCreateModal. FmShell's OWN tests only care that the
+// wiring reaches FmCreateModal (it mounts, it's the real component) — its
+// own composition/interaction contract is FmCreateModal.test.tsx's job, so
+// DynamicEventForm/RegistryCreateModal are left real (unmocked) here; they
+// simply won't be exercised by these shell-level assertions.
+// DynamicEventForm itself also calls useApp() (for orgConfig/competitions) —
+// it's left real/unmocked here (only FmCreateModal is FmCreateModal.test.tsx's
+// concern), so this fake must be complete enough for it to render without
+// crashing, not just satisfy FmCreateModal's own three props.
+const handleSaveEventMock = vi.fn()
+vi.mock('../../context/AppProvider', () => ({
+  useApp: () => ({
+    eventFields: [],
+    sports: [],
+    competitions: [],
+    orgConfig: { phases: [], categories: [], complexes: [] },
+    handleSaveEvent: handleSaveEventMock,
+  }),
+}))
+
 import { FmShell, FM_BASE, FM_NAV, type FmNavId } from './FmShell'
 
 function LocationProbe() {
@@ -152,10 +173,35 @@ describe('chrome (README §Shell (all screens), ops-tokens v3)', () => {
     expect(screen.getByTestId('fm-continue-count')).toBeTruthy()
   })
 
-  it('+ NEW is still a non-functional placeholder (disabled — FM1-6 wires it)', () => {
+  it('+ NEW is enabled (FM1-6-T1 wires it — no longer the disabled placeholder)', () => {
     renderShell()
 
-    expect(screen.getByTestId('fm-new-button').hasAttribute('disabled')).toBe(true)
+    expect(screen.getByTestId('fm-new-button').hasAttribute('disabled')).toBe(false)
+  })
+})
+
+describe('+ NEW (Story FM1-6 AC — opens FmCreateModal, not a placeholder)', () => {
+  it('clicking + NEW mounts the real FmCreateModal with TRANSMISSION active by default', async () => {
+    const user = userEvent.setup()
+    renderShell()
+
+    expect(screen.queryByTestId('fm-create-modal')).toBeNull()
+
+    await user.click(screen.getByTestId('fm-new-button'))
+
+    expect(screen.getByTestId('fm-create-modal')).toBeTruthy()
+    expect(screen.getByTestId('fm-create-tab-transmission').getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('closing FmCreateModal (its own ✕) returns to no modal, no navigation side effect', async () => {
+    const user = userEvent.setup()
+    renderShell('/fm/crew')
+
+    await user.click(screen.getByTestId('fm-new-button'))
+    await user.click(screen.getByTestId('fm-create-close'))
+
+    expect(screen.queryByTestId('fm-create-modal')).toBeNull()
+    expect(currentPath()).toBe(`${FM_BASE}/crew`)
   })
 })
 

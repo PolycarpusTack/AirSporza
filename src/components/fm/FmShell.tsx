@@ -32,10 +32,23 @@
  *
  * `?inbox=<key>` hydration (Story FM1-2 AC) is FM1-2-T2 scope (fmUrlState.ts
  * / useFmSelection) — not built here.
+ *
+ * + NEW is wired for real as of FM1-6-T1, mirroring FM1-5-T1's CONTINUE
+ * wiring precedent (minimal, additive change to FmTopBar's return, no
+ * restructuring): its `onClick` opens local `showCreate` state, and while
+ * open, `<FmCreateModal>` is mounted as a sibling of `<header>` (its own
+ * `position: fixed` scrim/panel escapes the header's layout regardless of
+ * DOM position — see FmCreateModal.tsx for its full composition contract,
+ * Contract Snapshot `FmCreateModal v1`). `eventFields`/`sports`/
+ * `handleSaveEvent` are sourced from `useApp()` HERE (the wiring layer) and
+ * threaded down as props — FmCreateModal itself makes no context calls,
+ * mirroring `useContinue.ts`'s own division of labor.
  */
 import { useCallback, useMemo, useState, type CSSProperties, type ReactElement } from 'react'
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
+import { useApp } from '../../context/AppProvider'
 import { FmNavBadgeContext, type SetNavBadge } from './fmNavBadges'
+import { FmCreateModal } from './FmCreateModal'
 import { FmHomeScreen } from './FmHomeScreen'
 import { FmToastHost } from './FmToast'
 import { useContinue } from './useContinue'
@@ -396,35 +409,56 @@ function FmTopBar() {
   // priority-order/navigation/toast contract and its documented judgment
   // calls (double-fetch trade-off, unresolvedCount's all-5-kinds scope).
   const { advance, unresolvedCount } = useContinue()
+  // FM1-6-T1: + NEW is wired for real. See FmCreateModal.tsx for its full
+  // composition contract (kind tabs, interim-bridge navigation, Contract
+  // Snapshot `FmCreateModal v1`). eventFields/sports/handleSaveEvent are
+  // sourced from useApp() here (the wiring layer) and threaded down.
+  const [showCreate, setShowCreate] = useState(false)
+  const { eventFields, sports, handleSaveEvent } = useApp()
 
   return (
-    <header style={topBarStyle}>
-      {/* Chrome-only per Story FM1-2 AC: no live data source is wired yet
-          (that's FM1-4). Static placeholder date block. */}
-      <span data-testid="fm-date-block">
-        <span style={dateMainStyle}>THU 5 MAR 2026</span>
-        <span style={dateContextStyle}>Matchweek 10</span>
-      </span>
-
-      <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '12px' }}>
-        <span data-testid="fm-live-pill" style={livePillStyle}>
-          <span className="fm-live-dot" aria-hidden="true" />
-          LIVE
+    <>
+      <header style={topBarStyle}>
+        {/* Chrome-only per Story FM1-2 AC: no live data source is wired yet
+            (that's FM1-4). Static placeholder date block. */}
+        <span data-testid="fm-date-block">
+          <span style={dateMainStyle}>THU 5 MAR 2026</span>
+          <span style={dateContextStyle}>Matchweek 10</span>
         </span>
 
-        {/* Non-functional placeholder — the create modal is FM1-6. */}
-        <button type="button" style={newButtonStyle} data-testid="fm-new-button" disabled title="Coming in FM1-6">
-          + NEW
-        </button>
-
-        <button type="button" style={continueButtonStyle} data-testid="fm-continue-button" onClick={advance}>
-          CONTINUE
-          <span style={continueChipStyle} data-testid="fm-continue-count">
-            {unresolvedCount}
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '12px' }}>
+          <span data-testid="fm-live-pill" style={livePillStyle}>
+            <span className="fm-live-dot" aria-hidden="true" />
+            LIVE
           </span>
-        </button>
-      </span>
-    </header>
+
+          <button
+            type="button"
+            style={newButtonStyle}
+            data-testid="fm-new-button"
+            onClick={() => setShowCreate(true)}
+          >
+            + NEW
+          </button>
+
+          <button type="button" style={continueButtonStyle} data-testid="fm-continue-button" onClick={advance}>
+            CONTINUE
+            <span style={continueChipStyle} data-testid="fm-continue-count">
+              {unresolvedCount}
+            </span>
+          </button>
+        </span>
+      </header>
+
+      {showCreate && (
+        <FmCreateModal
+          eventFields={eventFields}
+          sports={sports}
+          handleSaveEvent={handleSaveEvent}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
+    </>
   )
 }
 
