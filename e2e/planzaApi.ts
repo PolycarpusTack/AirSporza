@@ -39,9 +39,12 @@ import {
   FIXTURE_NOW_DAYTIME,
   FIXTURE_PLANS,
   FIXTURE_PLAYERS,
+  FIXTURE_RIPPLE_PROPOSAL_PENDING,
   FIXTURE_SLOTS,
   FIXTURE_SPORTS,
   FIXTURE_TEAMS,
+  FIXTURE_UNPLACED_EVENT,
+  FIXTURE_UNPLACED_EVENT_PLAN,
   makeMergeCandidate,
   makeSlot,
 } from '../src/components/ops/__fixtures__/opsFixtureWeek'
@@ -529,4 +532,68 @@ export async function setUpSyncE2E(page: Page): Promise<void> {
   }
   await page.route('**/api/import/merge-candidates/*/approve-merge', decide('approved_merge'))
   await page.route('**/api/import/merge-candidates/*/create-new', decide('create_new'))
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * FM1-7-T0 — FM interception (fm-e2e v1). `setUpFmE2E` calls setUpPlanzaE2E
+ * (auth/clock/base) then ADDS the FM action-item surface it needs beyond it:
+ *   - an ADDITIVE events/tech-plans override composing in the UNPLACED
+ *     fixture case (opsFixtureWeek's own FM1-3-T1 doc comment documents this
+ *     EXACT composition: `[...FIXTURE_EVENTS, FIXTURE_UNPLACED_EVENT]` /
+ *     `[...FIXTURE_PLANS, FIXTURE_UNPLACED_EVENT_PLAN]`). The base fixture week
+ *     already carries CONFLICT (e3/e4 full, e5/e6 partial), RIGHTS (comps
+ *     102/103/104/108/110 span EXPIRING/NEGOTIATION/MISSING), and CREW (e7
+ *     zero-plans, e8 blank-encoder) cases — this ADDS the UNPLACED kind, kept
+ *     OUT of the shared fixture module itself (day-count pins elsewhere would
+ *     break — see opsFixtureWeek.ts's FM1-3-T1 comment).
+ *   - GET /api/fm/action-items/resolutions + POST .../resolve, backed by an
+ *     in-memory `resolvedKeys` array — fresh per test, since a fresh `page`
+ *     gets a fresh JS closure (same reset-per-test posture as
+ *     setUpRegistryE2E/setUpSyncE2E's stores).
+ *   - GET /api/ripple-proposals?status=PENDING → the single pending fixture,
+ *     targeting the SAME UNPLACED event (id 11) on purpose — proves
+ *     kind-independence (UNPLACED + FEED, same event, no merging), mirroring
+ *     the fixture's own FM1-3-T1 header comment.
+ * `broadcast-slots` is NOT re-registered — setUpPlanzaE2E's base route already
+ * serves it (E2E_SLOTS); this profile needs no FM-specific slot on top.
+ * Registered AFTER setUpPlanzaE2E so these OVERRIDE the base events/tech-plans
+ * routes (Playwright reverse-registration-order-wins).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Base fixture week's API_EVENTS + the wire-shaped UNPLACED case. */
+const FM_API_EVENTS = [
+  ...API_EVENTS,
+  { ...FIXTURE_UNPLACED_EVENT, startDateBE: toApiDate(FIXTURE_UNPLACED_EVENT.startDateBE) },
+]
+
+/** Base fixture week's crew plans + the UNPLACED event's sole required role. */
+const FM_PLANS = [...FIXTURE_PLANS, FIXTURE_UNPLACED_EVENT_PLAN]
+
+export async function setUpFmE2E(page: Page): Promise<void> {
+  await setUpPlanzaE2E(page)
+
+  await page.route('**/api/events', (route) => route.fulfill({ json: FM_API_EVENTS }))
+  await page.route('**/api/tech-plans', (route) => route.fulfill({ json: FM_PLANS }))
+
+  // In-memory resolutions store — fresh per test (fresh `page` → fresh closure).
+  const resolvedKeys: string[] = []
+
+  await page.route('**/api/fm/action-items/resolutions', (route) =>
+    route.fulfill({ json: { itemKeys: [...resolvedKeys] } }),
+  )
+
+  await page.route('**/api/fm/action-items/resolve', (route) => {
+    const { itemKey } = route.request().postDataJSON() as { itemKey: string }
+    if (!resolvedKeys.includes(itemKey)) resolvedKeys.push(itemKey)
+    // Fixed value pinned to the SAME instant setUpPlanzaE2E's pinFixtureClock
+    // freezes the browser clock to (page.clock.setFixedTime(FIXTURE_NOW_DAYTIME))
+    // — consistent with it without reaching back into the page's clock from a
+    // Node-side route handler.
+    return route.fulfill({ json: { resolvedAt: FIXTURE_NOW_DAYTIME.toISOString() } })
+  })
+
+  // GET /api/ripple-proposals?status=PENDING — the FEED kind's data source.
+  await page.route('**/api/ripple-proposals*', (route) =>
+    route.fulfill({ json: { proposals: [FIXTURE_RIPPLE_PROPOSAL_PENDING], nextCursor: null, hasMore: false } }),
+  )
 }
