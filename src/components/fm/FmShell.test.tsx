@@ -18,6 +18,20 @@ vi.mock('./useFmActionItems', () => ({
   useFmActionItems: () => ({ items: [], weekEvents: [], isSettled: true, resolve: vi.fn(), refresh: vi.fn() }),
 }))
 
+// FM2-1-T2 wired FmScheduleBoard into the `schedule` override — same posture
+// as the `home` mock above: FmShell's OWN tests don't care about the
+// Schedule board's data layer (that's FmScheduleBoard.test.tsx's job), so its
+// suggestions hook + the shared ops contracts hook are stubbed here too.
+vi.mock('./useScheduleSuggestions', () => ({
+  useScheduleSuggestions: () => ({ unplaced: [], isSettled: true, refresh: vi.fn() }),
+}))
+vi.mock('../ops/useContracts', () => ({
+  useContracts: () => ({ contracts: [], isSettled: true }),
+}))
+vi.mock('../Toast', () => ({
+  useToast: () => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() }),
+}))
+
 // FM1-6-T1: FmTopBar now calls useApp() to source eventFields/sports/
 // handleSaveEvent for FmCreateModal. FmShell's OWN tests only care that the
 // wiring reaches FmCreateModal (it mounts, it's the real component) — its
@@ -29,6 +43,9 @@ vi.mock('./useFmActionItems', () => ({
 // concern), so this fake must be complete enough for it to render without
 // crashing, not just satisfy FmCreateModal's own three props.
 const handleSaveEventMock = vi.fn()
+// FM2-1-T2: FmScheduleBoard also calls useApp() (events/techPlans/crewFields/
+// competitions) — extended here rather than re-mocked per-test so it renders
+// without crashing wherever the `schedule` route is exercised.
 vi.mock('../../context/AppProvider', () => ({
   useApp: () => ({
     eventFields: [],
@@ -36,6 +53,9 @@ vi.mock('../../context/AppProvider', () => ({
     competitions: [],
     orgConfig: { phases: [], categories: [], complexes: [] },
     handleSaveEvent: handleSaveEventMock,
+    events: [],
+    techPlans: [],
+    crewFields: [],
   }),
 }))
 
@@ -100,7 +120,7 @@ describe('routing inside the shell (never a 404, never a crash — Story FM1-2 A
     expect(currentPath()).toBe('/fm/home')
   })
 
-  it.each(FM_NAV_ITEMS.filter((item) => item.id !== 'home'))('nav item $id reaches its placeholder panel', async (item) => {
+  it.each(FM_NAV_ITEMS.filter((item) => item.id !== 'home' && item.id !== 'schedule'))('nav item $id reaches its placeholder panel', async (item) => {
     const user = userEvent.setup()
     renderShell('/fm')
 
@@ -121,15 +141,26 @@ describe('routing inside the shell (never a 404, never a crash — Story FM1-2 A
     expect(screen.queryByTestId('fm-screen-home')).toBeNull()
   })
 
-  it('a not-yet-built nav item (e.g. Schedule board) renders a placeholder, not a crash', async () => {
+  it('nav item schedule reaches the real FmScheduleBoard (FM2-1-T2 override, not a placeholder)', async () => {
     const user = userEvent.setup()
-    renderShell('/fm')
+    renderShell('/fm/crew')
 
     await user.click(screen.getByTestId('fm-nav-schedule'))
 
-    const panel = screen.getByTestId('fm-screen-schedule')
+    expect(currentPath()).toBe(`${FM_BASE}/schedule`)
+    expect(screen.getByTestId('fm-unplaced-tray')).toBeTruthy()
+    expect(screen.getByTestId('ops-inspector')).toBeTruthy()
+  })
+
+  it('a not-yet-built nav item (e.g. Season calendar) renders a placeholder, not a crash', async () => {
+    const user = userEvent.setup()
+    renderShell('/fm')
+
+    await user.click(screen.getByTestId('fm-nav-calendar'))
+
+    const panel = screen.getByTestId('fm-screen-calendar')
     expect(panel).toBeTruthy()
-    expect(within(panel).getByText(/Schedule board/i)).toBeTruthy()
+    expect(within(panel).getByText(/Season calendar/i)).toBeTruthy()
   })
 })
 

@@ -50,6 +50,7 @@ import { useApp } from '../../context/AppProvider'
 import { FmNavBadgeContext, type SetNavBadge } from './fmNavBadges'
 import { FmCreateModal } from './FmCreateModal'
 import { FmHomeScreen } from './FmHomeScreen'
+import { FmScheduleBoard } from './FmScheduleBoard'
 import { FmToastHost } from './FmToast'
 import { useContinue } from './useContinue'
 import './fm.css'
@@ -473,12 +474,14 @@ function PlaceholderPanel({ navId, label }: { navId: FmNavId | FmRouteOnlyId; la
 
 /**
  * Per-nav-id screen override. FM1-2 shipped none — every id fell through to
- * PlaceholderPanel. FM1-4-T1 adds the first entry (`home`) without
- * restructuring the routing below (Story FM1-2-T1 hand-off note) — every
- * OTHER nav id still falls through to PlaceholderPanel until its own task.
+ * PlaceholderPanel. FM1-4-T1 added the first entry (`home`) without
+ * restructuring the routing below (Story FM1-2-T1 hand-off note); FM2-1-T2
+ * adds `schedule` the same minimal, additive way — every OTHER nav id still
+ * falls through to PlaceholderPanel until its own task.
  */
 const FM_SCREEN_OVERRIDES: Partial<Record<FmNavId, () => ReactElement>> = {
   home: FmHomeScreen,
+  schedule: FmScheduleBoard,
 }
 
 function screenFor(id: FmNavId, label: string): ReactElement {
