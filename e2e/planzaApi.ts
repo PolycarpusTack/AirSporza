@@ -79,6 +79,9 @@ export { FIXTURE_NOW_DAYTIME }
  */
 export const OPS_CHUNK = /OpsShell-[^/]+\.js/
 export const LEGACY_DASHBOARD_CHUNK = /DashboardView-[^/]+\.js/
+/** FM1-7-T1: rot-guarded the same way as OPS_CHUNK -- the flag-fm-on boot spec's
+ * positive PLANZA/FM chrome assertion is this regex's implicit match proof. */
+export const FM_CHUNK = /FmShell-[^/]+\.js/
 
 export const E2E_USER = {
   id: 'e2e-user-1',
@@ -572,8 +575,26 @@ const FM_PLANS = [...FIXTURE_PLANS, FIXTURE_UNPLACED_EVENT_PLAN]
 export async function setUpFmE2E(page: Page): Promise<void> {
   await setUpPlanzaE2E(page)
 
-  await page.route('**/api/events', (route) => route.fulfill({ json: FM_API_EVENTS }))
+  // Mutable per-test copy: POST /events (FM1-7-T1's create-transmission AC)
+  // appends here so a later GET /events reflects the created event.
+  const events = [...FM_API_EVENTS]
+  let nextEventId = 900
+
+  await page.route('**/api/events', (route) => {
+    if (route.request().method() !== 'POST') return route.fulfill({ json: events })
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    nextEventId += 1
+    const created = { id: nextEventId, status: 'draft', ...body }
+    events.push(created as (typeof events)[number])
+    return route.fulfill({ json: created })
+  })
   await page.route('**/api/tech-plans', (route) => route.fulfill({ json: FM_PLANS }))
+
+  // DynamicEventForm's own useConflictCheck POSTs here before a real submit;
+  // unintercepted it 404s and the form treats that as a WARNING ("Conflict
+  // check unavailable"), requiring a second confirm click. A clean {errors:
+  // [], warnings: []} response lets the create-transmission AC submit in one.
+  await page.route('**/api/events/conflicts', (route) => route.fulfill({ json: { errors: [], warnings: [] } }))
 
   // In-memory resolutions store — fresh per test (fresh `page` → fresh closure).
   const resolvedKeys: string[] = []
