@@ -10,9 +10,12 @@
 > **Current-state grounding:** codebase survey 2026-08-14 (selectors/components verified against
 > `src/components/ops/*`, ADR-012/013/014 re-read, `tokens.css`, `backend/prisma/schema.prisma`,
 > `docs/sv3-continue-prompt.md`, `docs/governance/debt-register.md` TD-32 — see §6 Architecture Memory)
-> **Status:** v1 — EPIC FM-1 fully detailed, **DoR-READY** (ADR-020 ratified 2026-08-14; all four
-> ADR-020/021/022/023 Accepted). EPICs FM-2..FM-5 outlined only, per BB §4 depth rule (≤ 2 EPICs
-> initially).
+> **Status:** v1.1 (2026-08-21 — EPIC FM-2 expanded) — EPIC FM-1 fully detailed, **DoR-READY**
+> (ADR-020 ratified 2026-08-14), **shipped and merged 2026-08-21**. EPIC FM-2 fully detailed,
+> **DoR-READY** (Stories FM2-1 through FM2-4 clear to pull; Story FM2-5 is DoR-READY-but-explicitly-
+> pull-gated on EPIC SV's Story SV-3 — see the EPIC FM-2 header). ADR-020/021/022/023 all Accepted;
+> architect-ratified decisions C1–C6 (2026-08-21 DoR re-gate assessment) are baked into Stories
+> FM2-1..FM2-5. EPICs FM-3..FM-5 remain outlined only, per BB §4 depth rule (≤ 2 EPICs initially).
 
 ---
 
@@ -579,26 +582,534 @@ exists; FM-1 adds a build profile + fixtures, not a framework)* · DoR: **READY*
 
 ---
 
-## 8. Roadmap EPICs (outline only — expand after EPIC FM-1 retro, per BB v5.1 §4 depth rule)
+## EPIC FM-2 — Schedule board upgrades (Phase 2)
 
-### EPIC FM-2 — Schedule board upgrades (Phase 2)
-**Objective:** FM's own Schedule board screen — table + 320px inspector (same anatomy as
-`EventInspector`, extended behind a prop, contract `EventInspector v2`), UNPLACED tray with
-rule-based slot suggestions (ADR-023), channel reassignment chips, conflict-tinted rows,
-session-scoped undo/history (ADR-021), and the cascade banner as the first UI surface for
-`scheduleRipple`. Once this screen exists, EPIC FM-1's interim-bridge targets flip from
-`/ops/schedule` to `/fm/schedule`. **Mode:** DELIVERY · **Flag:** `fmShell` (same flag — this is
-depth, not a new surface) · **Tracer Bullet?:** NO.
-**Key risks:** **High — this is the plan's own named biggest risk** ("touches mutation paths").
-Pair Story 2.2 (inspector actions) with **TD-32 servicing** (frontend `ApiError` discards
-structured 409 bodies) — this is the FIRST FM surface consuming a structured 409 (a stale
-channel-reassignment conflict), and the debt register's own servicing rule ("service with the
-FIRST UI consumer") now points here. **Cross-epic pull gate, not a blocker:** Story 2.5 (Cascade
-banner) depends on EPIC SV's Story SV-3 (review-before-apply service) being PULLED; SV-3 is
-DoR-READY-but-UNPULLED, itself gated on the ops-stakeholder FEED=review taste-test (ADR-019 Open
-assumption 2, `docs/sv3-continue-prompt.md`). This does not block the rest of EPIC FM-2 — only
-Story 2.5 waits, pullable the moment SV-3 lands. ADR-021/ADR-023 Accepted 2026-08-14 — Stories
-2.1/2.4 clear to pull once EPIC FM-2 itself is reached (still behind EPIC FM-1 in sequencing).
+- **Objective:** FM's own Schedule board screen at `/fm/schedule` — table + 320px inspector (same
+  anatomy as `EventInspector`, extended via an optional bundled prop, contract `EventInspector v2`),
+  an UNPLACED tray with rule-based slot suggestions (ADR-023), one-tap channel-reassignment chips
+  backed by a REAL optimistic-concurrency 409 (net-new — see the B7 finding below), conflict-tinted
+  rows, session-scoped undo/history (ADR-021), and the cascade banner as the first UI surface for
+  `scheduleRipple` (pull-gated on EPIC SV's Story SV-3). Once this screen exists, EPIC FM-1's
+  interim-bridge targets (AS-3) flip from `/ops/schedule`/`/ops/planner` to `/fm/schedule` — a
+  route-string swap in FM1-4/FM1-5's CTA builders, not a rewrite (tracked as a follow-up task at the
+  next backlog refinement, not built in this EPIC).
+- **Tracer Bullet?:** NO
+- **Mode:** DELIVERY
+- **Flag:** `fmShell` (same flag — this is depth on the existing shell, not a new flagged surface);
+  Story FM2-5 additionally requires the new `isScheduleRippleEnabled()` (`VITE_SCHEDULE_RIPPLE`, C5).
+- **DoD additions:** (1) With `fmShell` ON, `/fm/schedule` renders the table + inspector with live
+  data (conflict tint, rights/crew words) and the UNPLACED tray with real suggestions; (2) a channel
+  reassignment via the inspector's chip row is protected end-to-end by the new structured 409 (a
+  concurrent edit is refused, not silently overwritten) AND by ADR-021's client-side staleness check
+  on UNDO; (3) UNDO LAST and the cascade banner's UNDO share one history stack, capped at ~20
+  entries (C2), oldest evicted first; (4) flag OFF → zero change to the existing app (mirrors FM-1's
+  own AC-4).
+- **Business Value:** This is the plan's own named highest-risk, highest-value EPIC — it is the
+  first FM surface that actually WRITES to the schedule (FM-1 was read-heavy plus one idempotent
+  create). Success metric: a planner clears every UNPLACED event in a week and reassigns at least
+  one conflicting channel slot, entirely from `/fm/schedule`, with zero silent data loss on a
+  concurrent edit.
+- **Risk:** **High — the plan's own named biggest risk** ("touches mutation paths"), now backed by
+  a verified finding rather than an assumption: **B7 — as of 2026-08-21, NO structured 409 exists
+  anywhere on the BroadcastSlot/channel-reassignment write path** (`PUT /api/broadcast-slots/:id`
+  and `scheduleOperations.ts`'s `MOVE_SLOT` both write `channelId` with zero optimistic-concurrency
+  check). The EPIC FM-2 outline's original premise — Story 2.2 as "the first surface consuming a
+  structured 409" — had nothing to consume. **Mitigation:** Story FM2-2 now BUILDS that 409 first,
+  as its own named PREP task (FM2-2-T0, per architect-ratified decision C4), paired with — not
+  folded into — the TD-32 frontend fix (FM2-2-T1); FM2-4's undo reuses the same guard as a second,
+  independent safety layer. Med — undo drifting from server state under concurrent edits (the
+  plan's own named risk) → mitigated structurally by ADR-021's client-side staleness-refusal rule
+  PLUS FM2-2-T0's server-side 409 (belt-and-suspenders: the client check is the fast UX path, the
+  409 is the correctness backstop if the client check itself raced). Med — suggestion-quality
+  misplacement (ADR-023's own named risk) → mitigated by "proposals never auto-commits" being
+  structural (PLACE and AUTO-SUGGEST share the exact same mutation call as manual PLACE — no
+  separate commit path to accidentally skip a check). **Cross-epic pull gate, not a blocker:** Story
+  FM2-5 (Cascade banner) depends on EPIC SV's Story SV-3 (review-before-apply service) being PULLED;
+  SV-3 is DoR-READY-but-UNPULLED as of 2026-08-21, itself gated on the ops-stakeholder FEED=review
+  taste-test (`docs/sv3-continue-prompt.md`, re-verified this session — B5). This does not block
+  Stories FM2-1 through FM2-4 — only FM2-5 waits, pullable the instant SV-3 lands.
+- **SLOs:** `FM Schedule board – suggestion generation < 600ms p95 @ a week's unplaced set (≤20
+  events) × 5 channels` · `FM Schedule board – channel reassignment incl. concurrency check < 400ms
+  p99` · `FM Schedule board – undo apply < 400ms p99`.
+- **Glossary:** reuses existing §4 terms verbatim — **Cascade Banner**, **History / Undo**,
+  **Unplaced (Event)** (now the Schedule-board-tray sense, not just the action-item-kind sense),
+  **Rights Status / Crew Health**. New terms this EPIC introduces at the code level (not added to
+  the central §4 table by this expansion — flagged for a glossary sync at the FM-2 retro):
+  **Concurrency Guard** (the `expectedUpdatedAt` optimistic-lock handle on `PUT /broadcast-
+  slots/:id`, FM2-2-T0), **Suggestion Candidate** (one ranked channel option returned by `GET
+  /api/schedule/suggestions`, FM2-1), **`fm2Actions`** (the bundled mutation-callback prop on
+  `EventInspector v2`, FM2-2).
+- **ADRs:** ADR-021 (Accepted — gates FM2-4). ADR-023 (Accepted — gates FM2-1). Architect-ratified
+  decisions C1–C6 (2026-08-21 DoR re-gate) are baked into the stories below rather than issued as
+  separate ADRs, per the ratification's own C3 note ("compose already-ratified decisions... not an
+  architecture-level one").
+- **Smoke Test Story:** **not created in this expansion** — scope here is exactly the outline's 5
+  named stories (FM2-1..FM2-5). The outline's own gate line ("dnd/undo unit tests mirroring
+  `PlannerView.undoRedo.test.tsx`; flag-on e2e placing both unplaced events") is real and still
+  owed — recommend a follow-up **Story FM2-6 (smoke test + runbook)**, mirroring FM1-7's shape, at
+  the next backlog refinement pass once FM2-1..FM2-5 land. Flagged here rather than silently
+  dropped or built without being asked for.
+- **Runbook Link:** deferred to the same FM2-6 follow-up above (no task in this expansion produces
+  `docs/runbooks/fm-schedule-board.md`).
+
+---
+
+### Story FM2-1 — Unplaced tray + suggestions
+**As a** planner **I want** the Schedule board's UNPLACED tray to show each unplaced event with a
+safe, ranked channel suggestion **so that** I can clear the tray with one tap instead of manually
+checking channel load, rights, and crew for every candidate channel myself.
+
+Business Value 3 · Priority 5 · Size **L** · DoR: **READY** (ADR-023 Accepted 2026-08-14) ·
+INVEST all ✓
+
+**AC (Gherkin):**
+- Given the visible week's events, When `GET /api/schedule/suggestions?week=<key>` is called, Then
+  the unplaced set is computed by a query that mirrors `fmActionItems.ts`'s `isUnplaced` predicate
+  **literally** (`channelId == null` AND no `BroadcastSlot` row with that `eventId`), cross-
+  referenced by an inline comment pointing at the frontend file (C6) — NOT reimplemented from
+  scratch or approximated.
+- Given an unplaced event whose OWN `deriveRightsStatus` is `MISSING` or `NEGOTIATION`, Then its
+  `candidates` array is empty — the event is excluded from suggestions entirely (C1's "reject any
+  candidate producing MISSING/NEGOTIATION rights", resolved as an event-level gate: see the
+  Resolved ambiguity note below).
+- Given an unplaced event whose OWN `deriveCrewHealth` is `CONFLICT`, Then its `candidates` array is
+  empty (C1's "reject any candidate producing... a new crew conflict", same event-level gate — see
+  Resolved ambiguity note).
+- Given an unplaced event that clears both gates, When candidates are ranked, Then they are ordered
+  by **channel load ascending** (count of existing `BroadcastSlot` rows on that channel within the
+  requested week) — ties broken by `channelId` ascending for determinism. **No weighted score** —
+  simple exclusion + single tie-break only (C1, explicit architect override of a scored-ranking
+  default).
+- Given the suggestions response, When the frontend fixture week and the backend fixture week are
+  the SAME data, Then a fixture-parity test asserts both sides agree on the exact same unplaced
+  event-id set (C6) — a regression here means Home's UNPLACED KPI tile and the Schedule board's
+  tray count would silently disagree.
+- Given the UNPLACED tray, Then each chip shows the top-ranked suggestion hint (channel name); a
+  right-aligned "⚡ AUTO-SUGGEST SLOTS" action re-fetches suggestions for every unplaced event at
+  once.
+- Given I click "PLACE IN SUGGESTED SLOT" (from a chip or the inspector's NOT PLACED card, FM2-2),
+  Then it calls the **exact same** slot-mutation path an explicit manual PLACE would use — there is
+  no separate "commit suggestion" code path (ADR-023's structural "never auto-commit" property).
+- Error flow: given an unplaced event has zero surviving candidates, Then its tray chip shows "no
+  safe slot" (no suggestion hint, PLACE disabled) rather than a misleading empty-looking chip.
+
+**Resolved ambiguity (event-level gates, not per-channel filters):** the suggestions endpoint fixes
+each candidate's slot time to the unplaced event's OWN already-known `startDateBE`/`startTimeBE` —
+only the channel varies across candidates. Since `deriveRightsStatus` and `deriveCrewHealth` are
+both channel-independent in the current selectors (rights key on `competitionId`; crew conflicts key
+on person+time, not channel), a channel choice cannot itself change either outcome. C1's exclusion
+rules are therefore implemented as two **event-level** gates (rights bad → zero candidates; crew
+CONFLICT → zero candidates), not per-channel filters — the only per-channel dimension is the
+ascending-load tie-break. Recorded here as a bounded, testable interpretation of ADR-023's prose,
+not silently assumed; flag at the FM2-1 DoR gate if a per-channel rights/crew mechanic was intended.
+
+**Interfaces:**
+```
+GET /api/schedule/suggestions?week=<ISO-week-start>
+→ 200 {
+  week: string,
+  unplaced: Array<{
+    eventId: number,
+    candidates: Array<{
+      channelId: number,
+      channelName: string,
+      channelLoad: number        // slot count on that channel this week — ascending tie-break
+    }>                            // [] when both event-level gates fail, or genuinely no channels exist
+  }>
+}
+```
+Backend: new `backend/src/services/scheduleSuggestions.ts` (pure scoring function — event-level
+gates + load count + rank, unit-testable without Express) + thin route
+`backend/src/routes/scheduleSuggestions.ts` mounted at `/api/schedule/suggestions` (a NEW dedicated
+file, not appended to the already-large `schedules.ts`/`broadcastSlots.ts` — TD-2's god-file lesson
+applies; this is a distinct, read-only concern). Frontend: `UnplacedTray` component +
+`useScheduleSuggestions(week)` hook.
+**TD considerations:** none expected — PLACE/AUTO-SUGGEST reuse the existing slot-mutation call
+(no new write path here; FM2-2-T0 owns the new concurrency guard on that call).
+**Test data:** extend `opsFixtureWeek` (already the FM1-3 extension point) with: one unplaced event
+with a clean channel-load-ascending winner, one unplaced event whose rights are `MISSING` (zero
+candidates), one whose crew is `CONFLICT` (zero candidates), and matching channel/slot occupancy
+fixtures so load counts are non-trivial (at least one channel busier than another).
+**Idempotency:** the suggestions GET is read-only, no idempotency needed. PLACE/AUTO-SUGGEST reuse
+whatever idempotency the underlying slot-mutation call already has (unchanged by this story).
+
+- **FM2-1-T1** · Hat **FEATURE** · Model **Opus** (exclusion/tie-break scoring judgment, core-domain)
+  · Confidence Med
+  Goal: `scheduleSuggestions.ts` (pure scoring: mirror-with-comment `isUnplaced`, event-level rights/
+  crew gates, load-ascending rank) + `scheduleSuggestions.ts` route (`GET /api/schedule/suggestions`).
+  TDD: fixture-parity test FIRST (frontend `isUnplaced` vs backend mirror, same fixture week), then
+  the permutation table (clean winner, rights-excluded, crew-excluded, tie-break-by-channelId, zero-
+  candidates) — core-domain rigor, ≥80% branch coverage.
+  Abstraction Check: NO shared-package extraction across the frontend/backend boundary (C6 — Rule of
+  Three not met at 2 occurrences); the mirrored predicate is a deliberate, commented duplication.
+  Pull Gate: ADR-023 Accepted; `deriveRightsStatus`/`deriveCrewHealth` (ops-selectors v3) signatures
+  unchanged since FM1-3's hand-off; `fmActionItems.ts`'s `isUnplaced` unchanged since FM1-3.
+  Hand-off: **Contract Snapshot `scheduleSuggestions v1`**.
+  Unblocks: FM2-1-T2, FM2-2-T2 (inspector's NOT PLACED card consumes this contract).
+- **FM2-1-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: `FmScheduleBoard` screen scaffold at `/fm/schedule` (table pane: sticky header, day-header
+  strips, `56px 1fr 118px 90px 90px 70px` grid TIME/EVENT/CHANNEL/STATUS/RIGHTS/CREW per README §2;
+  320px inspector slot mounting `EventInspector` v1-shape for now — v2's `fm2Actions` prop lands in
+  FM2-2, this task does NOT add it) + `UnplacedTray` (chips + suggestion hint + AUTO-SUGGEST) +
+  `useScheduleSuggestions(week)` hook + PLACE wiring calling the existing slot-mutation path.
+  TDD: render/interaction tests first (tray chip states incl. "no safe slot", AUTO-SUGGEST refetch,
+  PLACE → same mutation call a manual placement would make, table scaffold renders event rows).
+  Abstraction Check: table grid/day-header-strip markup follows the SAME column-width/typography
+  conventions as `ops/ScheduleScreen.tsx` (structural precedent, not imported — FM's own screen).
+  Pull Gate: `scheduleSuggestions v1`; `FmShell v1`/`fmUrlState v1` (FM1-2) for the route mount.
+  Hand-off: **Contract Snapshot `FmScheduleBoard v1`** (screen scaffold + `UnplacedTray` — the
+  landing point Stories FM2-2/FM2-3/FM2-4/FM2-5 all extend).
+  Unblocks: FM2-2-T2, FM2-3-T1, FM2-4-T2, END OF STORY SEQUENCE.
+
+---
+
+### Story FM2-2 — Inspector actions
+**As a** planner **I want** to reassign an event's channel, assign crew from available candidates,
+and jump to Match Day, all from the Schedule board's inspector **so that** I don't have to leave the
+board to make a placement decision — and **so that** a concurrent edit by someone else is refused,
+never silently overwritten.
+
+Business Value 3 · Priority 5 · Size **L** · DoR: **READY** · INVEST all ✓ (core-domain: the FIRST
+real write path in FM, max rigor)
+
+**AC (Gherkin):**
+- Given `EventInspectorProps`, When `fm2Actions` is `undefined` (every existing ops caller —
+  `ScheduleScreen`, `RundownScreen`), Then `EventInspector` renders **byte-identical** to v1 today —
+  zero new DOM, zero new behavior (additive-only prop, B4/C3's contract-first pin).
+- Given `fm2Actions` IS provided (the FM Schedule board), Then the inspector additionally renders: a
+  CHANNEL chip row (one chip per `fm2Actions.channels`, active = teal border/text, click calls
+  `onReassignChannel`), "ASSIGN FROM AVAILABLE CREW" (teal outline, candidates = conflict-free people
+  per `groupConflictsByPerson`'s complement, click calls `onAssignCrew`), a NOT PLACED card (dashed
+  amber, only when the event is unplaced AND `fm2Actions.suggestion` is non-null, "PLACE IN
+  SUGGESTED SLOT" calls `onPlace`), and "OPEN MATCH DAY ▸" (pure `navigate`, no callback — C3).
+- Given I click a CHANNEL chip, When `onReassignChannel` calls `PUT /api/broadcast-slots/:id` WITH
+  `expectedUpdatedAt` set to the currently-loaded slot's `updatedAt`, And the server's `updatedAt`
+  still matches, Then the write succeeds (200) and the chip's active state updates.
+- Given the same click, But the slot was changed by someone else since it was loaded (`updatedAt`
+  mismatch), Then the server returns **409** `{error, message, currentUpdatedAt, currentSlot}` (C4 —
+  see FM2-2-T0), the frontend catches it via `ApiError.details` (TD-32 fix, FM2-2-T1), and the
+  inspector shows an inline "this changed since — refresh" state — never a silent retry, never a
+  silent overwrite.
+- Given `fm2Actions` omitted, Then none of the four new UI elements render and no new network call
+  is ever made — v1's zero-mutation-surface property is preserved for every caller that doesn't opt in.
+
+**Interfaces:**
+```ts
+// EventInspector v2 — additive to EventInspectorProps (v1 fields unchanged)
+export interface Fm2InspectorActions {
+  onPlace?: (eventId: number, channelId: number, slotStartUtc: string, slotEndUtc: string) => Promise<void>
+  onReassignChannel: (eventId: number, slotId: string, channelId: number, expectedUpdatedAt: string) => Promise<void>
+  onAssignCrew: (eventId: number, planId: number, fieldId: string, personName: string) => Promise<void>
+  suggestion?: { channelId: number; channelName: string; channelLoad: number } | null  // from scheduleSuggestions v1
+  channels: Channel[]
+  openMatchDayRoute: (eventId: number) => string   // pure nav, C3 — no ADR needed
+}
+export interface EventInspectorProps {
+  /* …v1 fields unchanged… */
+  fm2Actions?: Fm2InspectorActions   // NEW, optional — omitting it is byte-identical to v1
+}
+```
+```ts
+// PUT /api/broadcast-slots/:id — additive request field + new 409 (backward compatible)
+// request body gains optional: expectedUpdatedAt?: string (ISO)
+// 200: unchanged shape (existing callers never send expectedUpdatedAt → never see the new path)
+// 409 (only when expectedUpdatedAt is sent AND mismatches): {
+//   error: string, message: string, currentUpdatedAt: string, currentSlot: BroadcastSlot
+// }
+```
+```ts
+// src/utils/api.ts — TD-32 minimal fix
+export class ApiError extends Error {
+  constructor(public status: number, public message: string, public code?: string, public details?: unknown) {}
+}
+```
+**TD considerations:** **TD-32 settled by FM2-2-T1** (`ApiError.details` populated from the
+already-parsed catch-block body — B3's confirmed minimal scope; no typed-error-body system, no
+other routes touched). Execution should record the settlement in `docs/governance/debt-register.md`
+per project convention — **not done by this backlog expansion** (out of this session's edit scope).
+**Test data:** two `BroadcastSlot` fixtures sharing a channel-day so the 409 permutation (concurrent
+`updatedAt` drift) is directly reproducible without mocking Prisma internals.
+**Idempotency Strategy:** `onReassignChannel`'s `PUT` is **not** naturally idempotent (every
+successful write advances `updatedAt`) — `expectedUpdatedAt` is a **concurrency guard**, not a
+dedup key: a byte-identical retry of a request that already succeeded will 409 (because the row's
+`updatedAt` moved), which is the CORRECT behavior for a concurrency guard, not a false idempotency
+failure. Callers must re-read the fresh `currentSlot` from the 409 body before deciding whether to
+retry with a new `expectedUpdatedAt`.
+
+- **FM2-2-T0** · Hat **PREPARATORY** · Model **Opus** (concurrency-check design judgment) ·
+  Confidence Med
+  Goal: add the optimistic-concurrency guard to the EXISTING `PUT /api/broadcast-slots/:id`
+  (`backend/src/routes/broadcastSlots.ts`) rather than a new dedicated endpoint. **Scoping call
+  (C4, this task):** extend the existing route — (a) it is already the literal write path the
+  design's "channel chip click reassigns" interaction calls (confirmed against
+  `scheduleOperations.ts`'s `MOVE_SLOT`/the route's own channel-change branch); (b) a new endpoint
+  would duplicate the SAME tenant/channel-existence checks the PUT route already has, at zero Rule-
+  of-Three justification; (c) it mirrors both real precedents in the codebase — `schedules.ts`'s
+  PATCH and `accessibility.ts`'s POST transition BOTH added their optimistic-concurrency guard onto
+  their OWN existing write endpoint, never a parallel one. Body shape: closer to `schedules.ts`'s
+  **version-guard** precedent (`{error, message, currentVersion, currentDraft}`) than
+  `accessibility.ts`'s status-transition precedent (`{error, message, currentStatus, allowedNext}`)
+  — `BroadcastSlot` has no `allowedNext` state machine for a concurrent-edit conflict, so borrowing
+  that field pair would be a false fit; the version-guard's "current-state snapshot" shape is the
+  honest analogue, renamed to fit: `{error, message, currentUpdatedAt, currentSlot}`. `updatedAt` is
+  the concurrency handle (schema-confirmed: `BroadcastSlot.updatedAt` is a real `@updatedAt` column
+  — B7), the SAME field ADR-021 already designates as FM's own undo-staleness handle (FM2-4 reuses
+  this exact guard as its enforcement mechanism — see FM2-4-T1).
+  Backward compatibility: `expectedUpdatedAt` is optional on the request; when absent, behavior is
+  BYTE-IDENTICAL to today (existing `PlannerView`/ops callers never send it, never see a 409 from
+  this change) — zero regression risk to the untouched call sites.
+  TDD: (1) failing test for the mismatch path (409 + exact body shape) (2) failing test for the
+  match path (200, unchanged) (3) existing `PUT /:id` test suite must stay green UNCHANGED — the
+  omitted-param path is the PREPARATORY contract (no behavior change for existing callers).
+  Abstraction Check: reuses `schedules.ts`'s version-guard SHAPE (not code — different resource,
+  different field names); no new abstraction extracted (2nd occurrence of "optimistic guard on an
+  existing write route", still below Rule of Three for a shared helper).
+  Pull Gate: current `PUT /broadcast-slots/:id` test suite green (B7 — zero existing concurrency
+  check to preserve or accidentally break).
+  Hand-off: **Contract Snapshot `broadcastSlotConcurrencyGuard v1`** (`expectedUpdatedAt` param +
+  409 body shape — this is what FM2-2-T2 AND FM2-4-T1's undo apply path both consume).
+  Unblocks: FM2-2-T1, FM2-2-T2, FM2-4-T1.
+- **FM2-2-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: TD-32 fix ONLY — `ApiError` gains `details?: unknown` (`src/utils/api.ts`), populated from
+  the already-parsed catch-block body in `ApiClient.request`. Do NOT generalize into a typed-error-
+  body system; do NOT touch any other route (B3's confirmed scope). Deliberately separate from
+  FM2-2-T0 (Two Hats: that task is PREPARATORY backend concurrency-check infrastructure; this one is
+  a small, independent FEATURE fix to the frontend HTTP client — they do not share a diff).
+  TDD: failing unit test first (a 409 response's parsed body surfaces via `err.details`); existing
+  `ApiError`/`ApiClient` tests must stay green unchanged.
+  Pull Gate: none upstream (touches only `src/utils/api.ts`, independent of FM2-2-T0's backend work
+  landing first or not — this task can run in parallel with FM2-2-T0).
+  Hand-off: **Contract Snapshot `ApiError v2`** (`details?: unknown` addition).
+  Unblocks: FM2-2-T2.
+- **FM2-2-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: `EventInspector` → v2 (`fm2Actions?` prop per the Interfaces block above) + wire the FM
+  Schedule board's inspector mount (from `FM2-1-T2`'s scaffold) with real `onReassignChannel`/
+  `onAssignCrew`/`onPlace` (consuming `FM2-1`'s `scheduleSuggestions v1` for the NOT PLACED card) +
+  the 409-caught "this changed since — refresh" inline state (via `ApiError.details`).
+  TDD: `EventInspector` v2 tests FIRST (fm2Actions undefined → v1-identical render, byte-for-byte,
+  is the PRIMARY pin here) then each new action wired, then the 409-caught refresh-state render,
+  then the FM Schedule board integration test (chip click → real PUT with `expectedUpdatedAt` →
+  success/409 branches).
+  Abstraction Check: v1's existing `EDITORIAL_COLOR`/`RIGHTS_COLOR`/`CREW_COLOR` maps and section
+  layout are REUSED unchanged — this task only ADDS a new conditionally-rendered block, never
+  restructures v1's existing sections (Two Hats: pure FEATURE addition, no refactor mixed in).
+  Pull Gate: `broadcastSlotConcurrencyGuard v1` (FM2-2-T0); `ApiError v2` (FM2-2-T1);
+  `scheduleSuggestions v1` (FM2-1-T1); `FmScheduleBoard v1` (FM2-1-T2); current `EventInspector`
+  v1 contract (grep for drift since A-4-T1's last hand-off — none expected, this is additive).
+  Hand-off: **Contract Snapshot `EventInspector v2`**.
+  Unblocks: FM2-3-T1, FM2-4-T2, END OF STORY SEQUENCE.
+
+---
+
+### Story FM2-3 — Conflict-aware rows
+**As a** planner **I want** rows with a crew conflict visually tinted in the schedule table **so
+that** I can spot a problem scanning the table without opening every inspector.
+
+Business Value 2 · Priority 3 · Size **S** · DoR: **READY** · INVEST all ✓ (presentation-only,
+smoke/interaction rigor per §3's calibration — not core-domain; reuses `deriveCrewHealth` as-is)
+
+**AC (Gherkin):**
+- Given a row's event has `deriveCrewHealth(...) === 'CONFLICT'`, Then the row renders a ⚠ marker,
+  `rgba(229,72,77,.05)` background tint, and an inset 2px red left bar (README §2).
+- Given the SAME row is also the currently-selected row, Then the selected state's `#141A1E`
+  background + inset 2px TEAL bar takes visual precedence over the conflict tint's background/bar —
+  the ⚠ marker still renders (selection is a temporary overlay; conflict is a persistent semantic
+  signal, and the marker isn't tint-dependent). Mirrors `EventInspector`'s own "one state wins,
+  clearly pinned" convention for its LIVE/DELAYED badge rule.
+- Given a row's event is neither conflicted nor selected, Then it renders with no tint/bar (default).
+- Given `deriveCrewHealth` changes (e.g. FM2-2's ASSIGN FROM AVAILABLE CREW resolves the conflict),
+  Then the row's tint updates on next render — no manual refresh needed (the table already re-
+  renders on data change per its existing state management, no new mechanism here).
+
+**Interfaces:** pure presentational — the `FmScheduleBoard` row component reads `deriveCrewHealth`
+per event (already imported by FM2-2; no new selector). No new props beyond what `FM2-1-T2`'s
+scaffold already threads (events/techPlans/conflicts/crewFields).
+**TD considerations:** none — zero new logic, reuses `deriveCrewHealth` (ops-selectors v3) verbatim.
+**Test data:** reuses the existing CONFLICT-producing fixtures already in `opsFixtureWeek` (ops
+backlog's own B-3 precedent) plus FM2-1's own unplaced/rights/crew fixtures — no new fixture needed
+purely for this story.
+
+- **FM2-3-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: row-tint logic in `FmScheduleBoard`'s row renderer — conflict tint/marker, selected-state
+  precedence rule (above), default state.
+  TDD: render tests first (conflict-only, selected-only, both-simultaneously precedence, neither).
+  Abstraction Check: no new abstraction — this is a single conditional style branch on data already
+  computed by `deriveCrewHealth`.
+  Pull Gate: `FmScheduleBoard v1` (FM2-1-T2).
+  Hand-off: no new Contract Snapshot (internal to `FmScheduleBoard`'s row rendering; no new public
+  interface). Note in `FmScheduleBoard v1`'s own doc that row-tint logic landed here.
+  Unblocks: END OF STORY SEQUENCE.
+
+---
+
+### Story FM2-4 — History + undo
+**As a** planner **I want** every channel reassignment/placement I make to appear as a numbered
+history entry with an UNDO LAST affordance **so that** I can safely reverse a mistake without
+fear of clobbering a change someone else made in the meantime.
+
+Business Value 3 · Priority 4 · Size **L** · DoR: **READY** (ADR-021 Accepted 2026-08-14) ·
+INVEST all ✓ (core-domain: shares the EPIC's max-rigor concurrency-correctness bar with FM2-2)
+
+**AC (Gherkin):**
+- Given a successful `onReassignChannel`/`onAssignCrew`/`onPlace` call (FM2-1/FM2-2), Then a history
+  entry is pushed: `{label, targetId, prevState: {channelId}, capturedUpdatedAt}` where
+  `capturedUpdatedAt` is the `updatedAt` the mutation call RETURNED on success (the post-mutation
+  value — the correct staleness handle per ADR-021's "newer than the entry's captured... snapshot"
+  rule: a future drift is detected against the state right after THIS entry's own mutation, not
+  before it).
+- Given the history stack has 20 entries, When a 21st is pushed, Then the OLDEST is evicted (C2 —
+  never the most recent; UNDO LAST only ever needs the stack top).
+- Given I click "↶ UNDO LAST", When the target slot's CURRENT `updatedAt` still matches the popped
+  entry's `capturedUpdatedAt`, Then the inverse mutation applies (restores `prevState.channelId`) via
+  the SAME `onReassignChannel`-style call, passing `expectedUpdatedAt = capturedUpdatedAt` — reusing
+  FM2-2-T0's concurrency guard as the SAME enforcement mechanism (ADR-021's client-side check is the
+  fast UX path; the server's 409 is the backstop if the client check itself raced against a
+  same-instant write) — and an `FmToast` announces "Undone: `<label>`".
+  `FmToast v1` reuse (B1): this is the **third** caller within the FM initiative (after CONTINUE's
+  `advance()` and FM1-6's create-modal confirmation), solid Rule-of-Three ground — no new toast
+  component is built.
+- Given the target slot's current `updatedAt` does NOT match (someone else changed it since), Then
+  UNDO is refused client-side — a visible "this changed since — refresh" state renders (ADR-021's
+  staleness-refusal rule, made concrete and testable, not left as prose) — no mutation call is even
+  attempted.
+- Given the history stack is empty, Then "↶ UNDO LAST" is disabled/quiet, no-op on click.
+- Given the browser tab reloads within the same session, Then the history stack survives (session-
+  scoped via `sessionStorage`, per ADR-021 Option 1's richer offered variant — "session/tab-scoped...
+  or `sessionStorage` for reload survival within a tab"); a new tab/device starts with an empty stack
+  (no cross-device history, ADR-021's explicit scope limit).
+
+**Interfaces:**
+```ts
+export interface HistoryEntry {
+  id: string
+  label: string                                    // mono display text, e.g. "Moved CL Match → Canvas"
+  targetId: string                                 // BroadcastSlot.id
+  prevState: { channelId: number | null }
+  capturedUpdatedAt: string                        // POST-mutation updatedAt — the ADR-021 staleness handle
+}
+export function useScheduleHistory(): {
+  entries: HistoryEntry[]                          // most-recent-first, capped at 20 (C2)
+  pushEntry: (entry: Omit<HistoryEntry, 'id'>) => void
+  undoLast: () => Promise<'undone' | 'stale' | 'empty'>
+}
+```
+**TD considerations:** none expected — reuses FM2-2-T0's concurrency guard; no new backend surface
+(ADR-021's Option 1, no server-side undo log).
+**Test data:** a slot fixture pair for the staleness-refusal permutation (one whose `updatedAt` is
+advanced AFTER a captured entry, simulating a concurrent external edit).
+**Idempotency Strategy:** `undoLast()` itself is naturally safe against double-clicks — the second
+call pops nothing (stack already advanced) or re-attempts against a now-stale `capturedUpdatedAt`
+and correctly refuses; no separate idempotency key needed beyond the concurrency guard already
+covering the underlying write.
+
+- **FM2-4-T1** · Hat **FEATURE** · Model **Opus** (staleness/eviction concurrency judgment,
+  core-domain) · Confidence Med
+  Goal: `useScheduleHistory()` — push/cap-eviction/undoLast with the staleness-refusal check and the
+  `expectedUpdatedAt`-guarded inverse-mutation call. Session-scoped via `sessionStorage` (bounded
+  assumption above — reload survival, still tab-local, no server persistence, per ADR-021).
+  TDD: permutation table FIRST — push-under-cap, push-at-21st-evicts-oldest (order preserved),
+  undoLast-pops-top-only, staleness-match→applies via the concurrency guard, staleness-mismatch→
+  refused (no call attempted), empty-stack→no-op — ≥80% branch coverage (core-domain rigor).
+  Abstraction Check: no new abstraction extracted; this is the ONE place the staleness rule lives
+  (both FM2-4's UI and FM2-5's cascade-banner UNDO call this hook, never reimplement the rule).
+  Pull Gate: `broadcastSlotConcurrencyGuard v1` (FM2-2-T0) — `undoLast`'s apply path is a direct
+  consumer, not a reimplementation.
+  Hand-off: **Contract Snapshot `useScheduleHistory v1`**.
+  Unblocks: FM2-4-T2, FM2-5-T1 (shares the hook).
+- **FM2-4-T2** · Hat **FEATURE** · Model **Sonnet** · Confidence High
+  Goal: History panel UI (numbered mono entries + "↶ UNDO LAST" per README §2) under the
+  `FmScheduleBoard` table, wired to `useScheduleHistory` + `FmToast` (B1 reuse) for undo
+  confirmation/refusal announcements; wires FM2-1's PLACE/AUTO-SUGGEST and FM2-2's
+  onReassignChannel/onAssignCrew as the entry-capture call sites (each successful mutation pushes
+  one entry).
+  TDD: render tests first (entry list/numbering, disabled-empty state) then an integration test:
+  FM2-2's `onReassignChannel` call → entry appears → UNDO LAST → slot restored + toast.
+  Abstraction Check: `FmToast`'s `useFmToast()` import — the THIRD real caller (B1), no changes to
+  `FmToast` itself needed (its "last call wins, no queueing" design already fits single standalone
+  announcements).
+  Pull Gate: `useScheduleHistory v1` (FM2-4-T1); `FmToast v1`/`useContinue v1` (FM1-5) — reuse, not
+  reimplementation; `FmScheduleBoard v1` (FM2-1-T2); `EventInspector v2` (FM2-2-T2) for the capture
+  call sites.
+  Hand-off: **Contract Snapshot `ScheduleHistoryPanel v1`**.
+  Unblocks: FM2-5-T1, END OF STORY SEQUENCE.
+
+---
+
+### Story FM2-5 — Cascade banner
+**As a** planner **I want** a pending feed-driven schedule change to appear as a banner I can accept
+or undo right on the Schedule board **so that** I notice and can react to it immediately instead of
+discovering it silently later.
+
+Business Value 2 · Priority 3 · Size **M** · DoR: **READY — but explicitly PULL-GATED on EPIC SV's
+Story SV-3** (mirrors how SV-3 itself is marked; B5/A5 — confirmed still accurate 2026-08-21, no
+newer status doc than `docs/sv3-continue-prompt.md` exists). This story does not START — including
+its own flag task — until SV-3 is pulled and its accept/apply endpoint contract is available for
+FM2-5 to consume; being fully spec'd now means it is pullable the INSTANT SV-3 lands, with no second
+refinement pass. INVEST all ✓ (Independent from FM2-1..FM2-4's own content, though it reuses
+FM2-4's history hook and mounts on FM2-1's scaffold — the cross-epic dependency is the only blocker).
+
+**AC (Gherkin):**
+- Given `isScheduleRippleEnabled()` is OFF (default), Then the Schedule board makes NO
+  `RippleProposal` fetch for the banner and renders no banner code path at all — network-level
+  assertion, mirrors FM1-2's flag-off AC. (Distinct from AS-5's Home FEED read, which is flag-
+  INDEPENDENT — FM-1 only ever READS proposals; FM2-5's ACCEPT/UNDO surface is the part this flag
+  gates, per the outline's own "banner ships flag-gated" line.)
+- Given the flag is ON and a `PENDING` `RippleProposal` exists for a visible event (`GET
+  /api/ripple-proposals?status=PENDING`, `ripple v1`, already-merged, unconditional read — AS-5),
+  Then the cascade banner renders: `rgba(229,161,60,.08)` background, amber border-bottom, "⚠
+  CASCADE" + a consequence sentence (from the proposal's data) + UNDO (README §2).
+- Given I click the banner's UNDO, Then it calls the SAME `useScheduleHistory().undoLast()`
+  mechanism as FM2-4's UNDO LAST (shared hook, per the plan's own "UNDO LAST + banner UNDO share it"
+  — NOT a parallel implementation); SV-3's own accept/apply path (built in EPIC SV, referenced not
+  rebuilt here) is what pushes the RippleProposal-driven history entry in the first place.
+- Given the staleness-refusal rule fires (ADR-021, via FM2-4's shared hook), Then the banner's UNDO
+  shows the SAME refused "this changed since — refresh" state as FM2-4's — one implementation, two
+  mount points.
+- Given the flag is ON but no `PENDING` proposal exists for any visible event, Then no banner
+  renders (quiet — matches the design's "conditional" framing).
+
+**Interfaces:**
+```ts
+// src/flags.ts — THIRD predicate, exact convention copy of the existing two (C5, architect override
+// of the advisor's data-presence-only default — deterministic e2e on/off control independent of
+// fixture data is the explicit reason).
+/** ADR-021/scheduleRipple: FM Schedule board cascade banner. Default OFF. */
+export function isScheduleRippleEnabled(): boolean {
+  return import.meta.env.VITE_SCHEDULE_RIPPLE === 'true'
+}
+```
+`CascadeBanner` component: reads `GET /api/ripple-proposals?status=PENDING` (unchanged `ripple v1`
+contract, AS-5) filtered to the visible week's events; ACCEPT calls SV-3's apply endpoint (consumed
+via SV-3's own Contract Snapshot once it exists — NOT designed by this story); UNDO calls
+`useScheduleHistory().undoLast()` (FM2-4-T1).
+**TD considerations:** none expected — no new write path is built here (ACCEPT's actual mutation is
+SV-3 scope); this story's own surface is read (proposals) + shared-hook UNDO only.
+**Test data:** a `PENDING` `RippleProposal` fixture targeting one of `opsFixtureWeek`'s existing
+events (reuses `ripple v1`'s existing SV-2 fixture shape, no new shape needed).
+**Idempotency:** the banner's own two actions are read (GET, naturally idempotent) and UNDO (already
+covered by FM2-4-T1's guard) — ACCEPT's idempotency is SV-3's concern, not designed here.
+
+- **FM2-5-T1** · Hat **FEATURE** · Model **Sonnet** · Confidence Med (Med, not High — the SV-3
+  contract this task partially depends on for ACCEPT does not exist yet at DoR time; UNDO/read/flag
+  are fully specified and High-confidence on their own)
+  Goal: `isScheduleRippleEnabled()` (`src/flags.ts`, exact convention copy above) + `CascadeBanner`
+  component (read + render per README §2; ACCEPT wired to SV-3's apply endpoint once its contract
+  snapshot is available; UNDO wired to `useScheduleHistory().undoLast()`).
+  TDD: flag predicate test FIRST (mirrors FM1-2-T1's flag-off/on shape), then banner render tests
+  (hidden when no PENDING proposal or flag OFF, visible+correct copy when one exists), then the
+  UNDO-shares-FM2-4's-hook integration test (staleness-refused state matches FM2-4's byte-for-byte).
+  Abstraction Check: zero new abstraction for UNDO (direct reuse of `useScheduleHistory`); ACCEPT's
+  eventual wiring is additive once SV-3 lands, not designed speculatively here.
+  Pull Gate: **SV-3 PULLED and its apply-endpoint Contract Snapshot available** (the real cross-epic
+  blocker — B5); `useScheduleHistory v1` (FM2-4-T1); `ripple v1` read contract (unchanged, AS-5);
+  `FmScheduleBoard v1` (FM2-1-T2) for the mount point.
+  Hand-off: **Contract Snapshot `CascadeBanner v1`**.
+  Unblocks: END OF STORY SEQUENCE (also END OF EPIC FM-2's expanded scope — FM2-6 smoke test/runbook
+  recommended as a follow-up, per the EPIC header's Smoke Test Story note).
+
+---
+
+## 8. Roadmap EPICs (outline only — expand after EPIC FM-1 retro, per BB v5.1 §4 depth rule)
 
 ### EPIC FM-3 — Sports world (Phase 3)
 **Objective:** Competitions/Teams/Athletes screens as drill-down views over existing Registry
